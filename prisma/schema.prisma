@@ -1,0 +1,172 @@
+// ==========================================================
+//  SIGEP-18BPM v2 — schema.prisma (FIEL aos dados reais)
+//  Fase 2 da migracao.
+//
+//  Campos tipados como texto de proposito: garante que a
+//  importacao do CSV nao quebre por causa de data vazia ou
+//  formato inesperado. Os tipos sao apertados depois (Fase 3+),
+//  com os dados ja dentro.
+//
+//  Rodar:  npm run db:push   (cria as tabelas no Neon)
+// ==========================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------------------------------------
+//  Usuarios — login do sistema
+// ----------------------------------------------------------
+model Usuario {
+  id           String  @id @map("ID")
+  login        String  @unique @map("Login")
+  nomeCompleto String? @map("NomeCompleto")
+  email        String? @map("Email")
+  senhaHash    String? @map("SenhaHash")
+  salt         String? @map("Salt")
+  ativo        String? @map("Ativo")
+  dataCriacao  String? @map("DataCriacao")
+  ultimoLogin  String? @map("UltimoLogin")
+  perfil       String? @map("Perfil")
+  refEfetivo   String? @map("RefEfetivo")
+
+  efetivo Efetivo? @relation(fields: [refEfetivo], references: [id])
+
+  @@map("usuarios")
+}
+
+// ----------------------------------------------------------
+//  Efetivo — ficha individual (51 colunas)
+//  Chave: ID (o ID PMMA, ex: 849988). Matricula e campo a parte.
+// ----------------------------------------------------------
+model Efetivo {
+  id                 String  @id @map("ID")
+  postoGrad          String? @map("Posto_Grad")
+  numeroBarra        String? @map("Numero_Barra")
+  nome               String? @map("Nome")
+  nomeGuerra         String? @map("NomeGuerra")
+  cpf                String? @map("CPF")
+  matricula          String? @map("Matricula")
+  rg                 String? @map("RG")
+  situacao           String? @map("Situacao")
+  lotacao            String? @map("Lotacao")
+  telefone           String? @map("Telefone")
+  dataNasc           String? @map("DataNasc")
+  dataIncorp         String? @map("DataIncorp")
+  dataPromocao       String? @map("DataPromocao")
+  estadoCivil        String? @map("EstadoCivil")
+  email              String? @map("Email")
+  equipeFerias       String? @map("EquipeFerias")
+  funcao             String? @map("Funcao")
+  status             String? @map("Status")
+  sexo               String? @map("Sexo")
+  endereco           String? @map("Endereco")
+  bairro             String? @map("Bairro")
+  cidade             String? @map("Cidade")
+  cep                String? @map("CEP")
+  naturalidade       String? @map("Naturalidade")
+  naturalidadeUF     String? @map("NaturalidadeUF")
+  nomePai            String? @map("NomePai")
+  nomeMae            String? @map("NomeMae")
+  tipoSanguineo      String? @map("TipoSanguineo")
+  fatorRH            String? @map("FatorRH")
+  quadro             String? @map("Quadro")
+  grauEscolaridade   String? @map("GrauEscolaridade")
+  cursosPMMA         String? @map("CursosPMMA")
+  banco              String? @map("Banco")
+  agencia            String? @map("Agencia")
+  conta              String? @map("Conta")
+  tipoConta          String? @map("TipoConta")
+  possuiDependentes  String? @map("PossuiDependentes")
+  emergenciaNome     String? @map("EmergenciaNome")
+  emergenciaTelefone String? @map("EmergenciaTelefone")
+  emergenciaGrau     String? @map("EmergenciaGrau")
+  cnh                String? @map("CNH")
+  cnhCategoria       String? @map("CNH_Categoria")
+  cnhVencimento      String? @map("CNH_Vencimento")
+  fotoURL            String? @map("FotoURL")
+  observacoes        String? @map("Observacoes")
+  dataCadastro       String? @map("DataCadastro")
+  ultimaAtualizacao  String? @map("UltimaAtualizacao")
+  jmsDataInicio      String? @map("JMS_DataInicio")
+  jmsDataRetorno     String? @map("JMS_DataRetorno")
+  jmsMotivo          String? @map("JMS_Motivo")
+
+  usuarios      Usuario[]
+  membrosFerias MembroFerias[]
+  documentos    Documento[]
+
+  @@map("efetivo")
+}
+
+// ----------------------------------------------------------
+//  EquipesFerias — 9 equipes, dois periodos cada
+//  Chave composta: numero da equipe + ano de gozo
+// ----------------------------------------------------------
+model EquipeFerias {
+  numeroEquipe   String  @map("NumeroEquipe")
+  anoGozo        String  @map("AnoGozo")
+  periodo1Inicio String? @map("Periodo1_Inicio")
+  periodo1Fim    String? @map("Periodo1_Fim")
+  periodo1Apres  String? @map("Periodo1_Apres")
+  periodo2Inicio String? @map("Periodo2_Inicio")
+  periodo2Fim    String? @map("Periodo2_Fim")
+  periodo2Apres  String? @map("Periodo2_Apres")
+  observacoes    String? @map("Observacoes")
+
+  membros MembroFerias[]
+
+  @@id([numeroEquipe, anoGozo])
+  @@map("equipes_ferias")
+}
+
+// ----------------------------------------------------------
+//  MembrosFerias — liga militar -> equipe (por ano)
+// ----------------------------------------------------------
+model MembroFerias {
+  id           String  @id @default(cuid())
+  idPmma       String  @map("ID_PMMA")
+  numeroEquipe String  @map("NumeroEquipe")
+  anoGozo      String  @map("AnoGozo")
+  dataCadastro String? @map("DataCadastro")
+
+  efetivo Efetivo      @relation(fields: [idPmma], references: [id])
+  equipe  EquipeFerias @relation(fields: [numeroEquipe, anoGozo], references: [numeroEquipe, anoGozo])
+
+  @@map("membros_ferias")
+}
+
+// ----------------------------------------------------------
+//  Config — pares chave/valor do sistema
+// ----------------------------------------------------------
+model Config {
+  chave     String  @id @map("Chave")
+  valor     String? @map("Valor")
+  descricao String? @map("Descricao")
+
+  @@map("config")
+}
+
+// ----------------------------------------------------------
+//  Documentos — guarda SO o link do R2 (sem dado a migrar
+//  agora; tabela usada pelo upload na Fase 3)
+// ----------------------------------------------------------
+model Documento {
+  id           String   @id @default(cuid())
+  titulo       String
+  tipo         String?
+  r2Key        String   @map("r2_key")
+  r2Url        String?  @map("r2_url")
+  tamanhoBytes Int?     @map("tamanho_bytes")
+  criadoEm     DateTime @default(now()) @map("criado_em")
+
+  efetivoId String?  @map("efetivo_id")
+  efetivo   Efetivo? @relation(fields: [efetivoId], references: [id])
+
+  @@map("documentos")
+}
