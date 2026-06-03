@@ -1,0 +1,84 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import AppShell from "@/components/AppShell";
+import MinhasCertidoes from "@/components/MinhasCertidoes";
+import { periodoAtivo } from "@/lib/promocoes";
+import { CERTIDOES_EXIGIDAS, TOTAL_CERTIDOES } from "@/lib/certidoes";
+import { AlertTriangle } from "lucide-react";
+
+export const dynamic = "force-dynamic";
+
+export default async function MinhasCertidoesPage() {
+  const session = await getServerSession(authOptions);
+  if (!session) redirect("/login");
+
+  const efetivoId = session.user.refEfetivo;
+
+  return (
+    <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
+      <div className="mx-auto max-w-3xl">
+        <h1 className="mb-1 text-2xl font-bold text-sigep-navy">
+          Minhas Certidões para Promoção
+        </h1>
+        <Conteudo efetivoId={efetivoId} />
+      </div>
+    </AppShell>
+  );
+}
+
+async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
+  if (!efetivoId) {
+    return (
+      <div className="mt-4 flex items-start gap-2 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        Seu usuário não está vinculado a uma ficha de efetivo, então não é
+        possível enviar certidões por aqui. Avise o administrador.
+      </div>
+    );
+  }
+
+  const periodo = await periodoAtivo();
+  if (!periodo) {
+    return (
+      <div className="mt-4 rounded-xl bg-white p-6 text-sm text-gray-500 shadow-sm ring-1 ring-gray-100">
+        Nenhum período de promoção está aberto no momento. Quando o
+        administrador abrir, as certidões aparecerão aqui para envio.
+      </div>
+    );
+  }
+
+  const participante = await prisma.participantePromocao.findUnique({
+    where: { periodoId_efetivoId: { periodoId: periodo.id, efetivoId } },
+    include: { certidoes: true },
+  });
+
+  const enviadas = new Map(
+    (participante?.certidoes ?? []).map((c) => [c.ordem, c.nomeArquivo])
+  );
+
+  const itens = CERTIDOES_EXIGIDAS.map((c) => ({
+    ordem: c.ordem,
+    orgao: c.orgao,
+    descricao: c.descricao,
+    enviada: enviadas.has(c.ordem),
+    nomeArquivo: enviadas.get(c.ordem) ?? null,
+  }));
+
+  return (
+    <>
+      <p className="mb-5 text-sm text-gray-500">
+        Período: <span className="font-medium text-sigep-navy">{periodo.nome}</span>.
+        Envie cada certidão em PDF. Quando as {TOTAL_CERTIDOES} estiverem
+        enviadas, gere o PDF unificado na ordem oficial.
+      </p>
+      <MinhasCertidoes
+        itens={itens}
+        total={TOTAL_CERTIDOES}
+        pdfUnificadoKey={participante?.pdfUnificado ?? null}
+        efetivoId={efetivoId}
+      />
+    </>
+  );
+}

@@ -2,10 +2,11 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-// Cloudflare R2 fala o mesmo "idioma" da Amazon S3, entao usamos o SDK da AWS
+// Cloudflare R2 fala o "idioma" S3, entao usamos o SDK da AWS
 // apontando para o endpoint do R2.
 const accountId = process.env.R2_ACCOUNT_ID ?? "";
 
@@ -20,7 +21,7 @@ export const r2 = new S3Client({
 
 export const R2_BUCKET = process.env.R2_BUCKET ?? "sigep-documentos";
 
-/** Envia um arquivo para o R2 e devolve a chave (caminho) do objeto. */
+/** Envia bytes para o R2 e devolve a chave (caminho) do objeto. */
 export async function enviarParaR2(
   key: string,
   corpo: Buffer | Uint8Array,
@@ -37,14 +38,25 @@ export async function enviarParaR2(
   return key;
 }
 
-/** Gera uma URL temporaria (assinada) para baixar um objeto privado. */
-export async function urlAssinada(
-  key: string,
-  segundos = 3600
-): Promise<string> {
+/** Baixa um objeto do R2 como Buffer (usado para unir os PDFs). */
+export async function baixarDoR2(key: string): Promise<Buffer> {
+  const res = await r2.send(
+    new GetObjectCommand({ Bucket: R2_BUCKET, Key: key })
+  );
+  const bytes = await res.Body!.transformToByteArray();
+  return Buffer.from(bytes);
+}
+
+/** Gera URL temporaria (assinada) para baixar um objeto privado. */
+export async function urlAssinada(key: string, segundos = 600): Promise<string> {
   return getSignedUrl(
     r2,
     new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }),
     { expiresIn: segundos }
   );
+}
+
+/** Remove um objeto do R2. */
+export async function removerDoR2(key: string): Promise<void> {
+  await r2.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
 }

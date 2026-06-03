@@ -45,13 +45,13 @@ const NAV: Secao[] = [
       { rotulo: "Hierarquia", href: "/hierarquia", Icone: Network, disponivel: true },
       { rotulo: "Efetivo por Antiguidade", href: "/antiguidade", Icone: ListOrdered, disponivel: true },
       { rotulo: "Ficha Individual", Icone: Contact },
-      { rotulo: "Promoções / Certidões", Icone: Award },
+      { rotulo: "Promoções / Certidões", href: "/promocoes", Icone: Award, disponivel: true },
     ],
   },
   {
     titulo: "Operacional",
     itens: [
-      { rotulo: "Plano de Férias 2026", Icone: Palmtree },
+      { rotulo: "Plano de Férias", href: "/ferias", Icone: Palmtree, disponivel: true },
       { rotulo: "Disciplinar", Icone: Gavel },
       { rotulo: "Escalas de Serviço", Icone: ClipboardList },
     ],
