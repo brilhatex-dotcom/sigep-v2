@@ -213,8 +213,7 @@ export default function PainelPromocoes({
             {filtrados.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-gray-400">
-                  Nenhum policial no processo ainda. Use "Adicionar todo o
-                  efetivo" ou aguarde os envios.
+                  Nenhum policial no processo ainda. Use 'Adicionar todo o efetivo' ou aguarde os envios.
                 </td>
               </tr>
             )}
