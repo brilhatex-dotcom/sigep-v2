@@ -34,7 +34,7 @@ const RECURSOS = [
 
 export default function LoginPage() {
   const router = useRouter();
-  const [matricula, setMatricula] = useState("");
+  const [login, setLogin] = useState("");
   const [senha, setSenha] = useState("");
   const [verSenha, setVerSenha] = useState(false);
   const [erro, setErro] = useState("");
@@ -44,7 +44,7 @@ export default function LoginPage() {
     setErro("");
     setCarregando(true);
     const res = await signIn("credentials", {
-      matricula,
+      login,
       senha,
       redirect: false,
     });
@@ -165,8 +165,8 @@ export default function LoginPage() {
               <div className="mb-4 flex items-center gap-2 rounded-lg border border-white/15 bg-black/30 px-3">
                 <User className="h-4 w-4 text-white/50" />
                 <input
-                  value={matricula}
-                  onChange={(e) => setMatricula(e.target.value)}
+                  value={login}
+                  onChange={(e) => setLogin(e.target.value)}
                   placeholder="Digite seu usuário"
                   className="w-full bg-transparent py-2.5 text-sm text-white placeholder-white/40 outline-none"
                 />
