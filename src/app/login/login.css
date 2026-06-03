@@ -1,0 +1,103 @@
+/* ==========================================================
+   Estilos da tela de login institucional (SIGEP-18BPM).
+   Tudo em CSS puro: giroflex (luzes piscando), chuva, glow
+   dourado, fade-in. Sem dependencias.
+   ========================================================== */
+
+/* entrada da pagina e dos blocos */
+@keyframes sigepFadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.sigep-fade { animation: sigepFadeUp 0.7s ease-out both; }
+.sigep-d1 { animation-delay: 0.05s; }
+.sigep-d2 { animation-delay: 0.18s; }
+.sigep-d3 { animation-delay: 0.32s; }
+.sigep-d4 { animation-delay: 0.46s; }
+
+/* giroflex: pulso alternado vermelho/azul varrendo a tela */
+@keyframes giroAzul {
+  0%, 100% { opacity: 0.0; }
+  20%      { opacity: 0.55; }
+  40%      { opacity: 0.0; }
+}
+@keyframes giroVermelho {
+  0%, 100% { opacity: 0.0; }
+  60%      { opacity: 0.0; }
+  70%      { opacity: 0.55; }
+  90%      { opacity: 0.0; }
+}
+.giro-azul,
+.giro-vermelho {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+.giro-azul {
+  background: radial-gradient(
+    60% 50% at 30% 40%,
+    rgba(40, 110, 255, 0.9) 0%,
+    rgba(40, 110, 255, 0) 60%
+  );
+  animation: giroAzul 2.4s ease-in-out infinite;
+}
+.giro-vermelho {
+  background: radial-gradient(
+    60% 50% at 70% 45%,
+    rgba(255, 45, 60, 0.9) 0%,
+    rgba(255, 45, 60, 0) 60%
+  );
+  animation: giroVermelho 2.4s ease-in-out infinite;
+}
+
+/* glow dourado pulsando atras do brasao / botao */
+@keyframes glowDourado {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50%      { opacity: 0.65; transform: scale(1.06); }
+}
+.glow-dourado {
+  animation: glowDourado 3.2s ease-in-out infinite;
+}
+
+/* chuva: varios tracos caindo */
+@keyframes cair {
+  0%   { transform: translateY(-120%); }
+  100% { transform: translateY(120vh); }
+}
+.chuva {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.gota {
+  position: absolute;
+  top: -10%;
+  width: 1px;
+  height: 70px;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(180, 200, 235, 0.35) 100%
+  );
+  animation-name: cair;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+/* botao dourado: brilho ao passar o mouse */
+.btn-dourado {
+  background: linear-gradient(180deg, #e6c25a 0%, #c8a047 55%, #a9842f 100%);
+  box-shadow: 0 8px 24px -8px rgba(200, 160, 71, 0.7);
+  transition: filter 0.2s ease, transform 0.1s ease;
+}
+.btn-dourado:hover { filter: brightness(1.08); }
+.btn-dourado:active { transform: translateY(1px); }
+
+/* respeita quem prefere menos animacao */
+@media (prefers-reduced-motion: reduce) {
+  .sigep-fade, .giro-azul, .giro-vermelho, .glow-dourado, .gota {
+    animation: none !important;
+  }
+}
