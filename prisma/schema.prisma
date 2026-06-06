@@ -223,3 +223,35 @@ model CertidaoEnviada {
   @@unique([participanteId, ordem])  // 1 arquivo por posicao
   @@map("certidoes_enviadas")
 }
+// ==========================================================
+//  >>> ANEXAR AO FINAL DO prisma/schema.prisma <<<
+//  Guarda quais alertas ja foram dispensados (para nao
+//  voltarem a aparecer). Depois rode: npx prisma db push
+// ==========================================================
+
+model AlertaDispensado {
+  id          String   @id @default(cuid())
+  chave       String   @unique   // identificador unico do alerta, ex: "jms:849988" ou "ferias2v:849988"
+  tipo        String              // "jms_vencendo" | "ferias_vencidas"
+  dispensadoPor String? @map("dispensado_por")
+  dispensadoEm  DateTime @default(now()) @map("dispensado_em")
+
+  @@map("alertas_dispensados")
+}
+// ==========================================================
+//  >>> ANEXAR AO FINAL DO prisma/schema.prisma <<<
+//  Avisos manuais (lembretes) criados pelo admin, exibidos
+//  no banner do dashboard ate a validade ou remocao.
+//  Depois rode: npx prisma db push
+// ==========================================================
+
+model Aviso {
+  id         String   @id @default(cuid())
+  texto      String
+  cor        String   @default("info")   // "critico" | "atencao" | "info"
+  validade   String?  @map("validade")   // "aaaa-mm-dd"; vazio = sem expirar
+  criadoPor  String?  @map("criado_por")
+  criadoEm   DateTime @default(now()) @map("criado_em")
+
+  @@map("avisos")
+}

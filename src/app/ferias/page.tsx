@@ -28,7 +28,6 @@ export default async function FeriasPage({
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  // todas as equipes (todos os anos) para montar o seletor de anos
   const todasEquipes = await prisma.equipeFerias.findMany();
   const anos = Array.from(new Set(todasEquipes.map((e) => e.anoGozo)))
     .filter(Boolean)
@@ -44,7 +43,6 @@ export default async function FeriasPage({
     .filter((e) => e.anoGozo === anoSelecionado)
     .sort((a, b) => Number(a.numeroEquipe) - Number(b.numeroEquipe));
 
-  // membros do ano + fichas
   const membros = await prisma.membroFerias.findMany({
     where: { anoGozo: anoSelecionado },
   });
@@ -66,7 +64,6 @@ export default async function FeriasPage({
   const mesAtual = hoje.getMonth();
 
   const equipesView = equipesAno.map((e) => {
-    // periodos
     const p1: Periodo = {
       inicio: paraData(e.periodo1Inicio),
       fim: paraData(e.periodo1Fim),
@@ -91,7 +88,6 @@ export default async function FeriasPage({
         (p.fim && p.fim.getMonth() === mesAtual && p.fim.getFullYear() === hoje.getFullYear())
     );
 
-    // membros desta equipe, ordenados por antiguidade (posto, depois nome)
     const meusMembros = membros
       .filter((m) => m.numeroEquipe === e.numeroEquipe)
       .map((m) => {
@@ -118,9 +114,7 @@ export default async function FeriasPage({
       numeroEquipe: e.numeroEquipe,
       periodos: periodosBrutos.map((p, i) => ({
         rotulo: i === 0 ? "1º período" : "2º período",
-        inicioBR: dataBR(
-          i === 0 ? e.periodo1Inicio : e.periodo2Inicio
-        ),
+        inicioBR: dataBR(i === 0 ? e.periodo1Inicio : e.periodo2Inicio),
         fimBR: dataBR(i === 0 ? e.periodo1Fim : e.periodo2Fim),
         apres: dataBR(i === 0 ? e.periodo1Apres : e.periodo2Apres),
       })),
@@ -142,16 +136,15 @@ export default async function FeriasPage({
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-5xl">
-        <h1 className="mb-1 text-2xl font-bold text-sigep-navy">
+        <h1 className="mb-1 text-2xl font-bold text-white">
           Plano de Férias {anoSelecionado}
         </h1>
-        <p className="mb-5 text-sm text-gray-500">
-          {totalMilitares} militares em {equipesAno.length} equipes · ano de gozo{" "}
-          {anoSelecionado}.
+        <p className="mb-5 text-sm text-[#94A3B8]">
+          {totalMilitares} militares em {equipesAno.length} equipes · ano de gozo {anoSelecionado}.
         </p>
 
         {anos.length === 0 ? (
-          <div className="rounded-xl bg-white p-8 text-center text-sm text-gray-500 shadow-sm ring-1 ring-gray-100">
+          <div className="rounded-xl border border-white/10 bg-[#0F1B2D] p-8 text-center text-sm text-[#94A3B8]">
             Nenhum plano de férias cadastrado ainda.
           </div>
         ) : (

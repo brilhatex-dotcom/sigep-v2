@@ -117,10 +117,33 @@ export default function EfetivoForm({
 }) {
   const router = useRouter();
 
+  // campos que sao data: exibir como dd/mm/aaaa
+  const CAMPOS_DATA = new Set([
+    "dataIncorp", "dataPromocao", "dataNasc", "cnhVencimento",
+    "jmsDataInicio", "jmsDataRetorno",
+  ]);
+
+  function fmtData(valor: string): string {
+    if (!valor || !valor.trim()) return "";
+    const s = valor.trim();
+    const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if (br) return `${br[1]}/${br[2]}/${br[3]}`;
+    const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      const dd = String(d.getDate()).padStart(2, "0");
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      return `${dd}/${mm}/${d.getFullYear()}`;
+    }
+    return s;
+  }
+
   const inicial: Record<string, string> = {};
   SECOES.forEach((s) =>
     s.campos.forEach((c) => {
-      inicial[c.key] = militar[c.key] ?? "";
+      const bruto = militar[c.key] ?? "";
+      inicial[c.key] = CAMPOS_DATA.has(c.key) ? fmtData(bruto) : bruto;
     })
   );
 
@@ -140,7 +163,6 @@ export default function EfetivoForm({
     setErro("");
     setSalvando(true);
 
-    // Envia apenas os campos que este usuario pode editar.
     const payload: Record<string, string> = {};
     SECOES.forEach((s) => {
       if (podeEditar(s.grupo)) {
@@ -174,7 +196,7 @@ export default function EfetivoForm({
   return (
     <div className="space-y-5">
       {!isAdmin && (
-        <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
           Você está editando a sua própria ficha. Os campos funcionais (posto,
           lotação, situação, etc.) só podem ser alterados pelo administrador.
         </div>
@@ -183,15 +205,12 @@ export default function EfetivoForm({
       {SECOES.map((secao) => {
         const editavel = podeEditar(secao.grupo);
         return (
-          <section
-            key={secao.titulo}
-            className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-100"
-          >
-            <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-sigep-navy">
-              <span className="h-4 w-1 rounded bg-sigep-dourado" />
+          <section key={secao.titulo} className="ui-card p-6">
+            <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+              <span className="h-4 w-1 rounded bg-[#D4AF37]" />
               {secao.titulo}
               {!editavel && (
-                <span className="ml-1 inline-flex items-center gap-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-normal normal-case tracking-normal text-gray-500">
+                <span className="ml-1 inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-normal normal-case tracking-normal text-[#94A3B8]">
                   <Lock className="h-3 w-3" /> somente admin
                 </span>
               )}
@@ -203,7 +222,7 @@ export default function EfetivoForm({
                   key={c.key}
                   className={c.tipo === "area" ? "sm:col-span-2 md:col-span-3" : ""}
                 >
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
                     {c.label}
                   </label>
                   {c.tipo === "area" ? (
@@ -212,7 +231,7 @@ export default function EfetivoForm({
                       onChange={(e) => mudar(c.key, e.target.value)}
                       disabled={!editavel}
                       rows={3}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-sigep-dourado disabled:bg-gray-50 disabled:text-gray-400"
+                      className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50 disabled:opacity-50"
                     />
                   ) : (
                     <input
@@ -220,7 +239,7 @@ export default function EfetivoForm({
                       value={form[c.key]}
                       onChange={(e) => mudar(c.key, e.target.value)}
                       disabled={!editavel}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-sigep-dourado disabled:bg-gray-50 disabled:text-gray-400"
+                      className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50 disabled:opacity-50"
                     />
                   )}
                 </div>
@@ -231,21 +250,23 @@ export default function EfetivoForm({
       })}
 
       {erro && (
-        <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{erro}</p>
+        <p className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+          {erro}
+        </p>
       )}
 
       <div className="flex items-center gap-3">
         <button
           onClick={salvar}
           disabled={salvando}
-          className="inline-flex items-center gap-2 rounded-lg bg-sigep-navy px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sigep-azul disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-60"
         >
           <Save className="h-4 w-4" />
           {salvando ? "Salvando..." : "Salvar alterações"}
         </button>
         <button
           onClick={() => router.push(`/efetivo/${encodeURIComponent(militar.id ?? "")}`)}
-          className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm text-gray-600 transition hover:bg-gray-50"
+          className="rounded-lg border border-white/10 px-5 py-2.5 text-sm text-[#94A3B8] transition hover:bg-white/5 hover:text-white"
         >
           Cancelar
         </button>

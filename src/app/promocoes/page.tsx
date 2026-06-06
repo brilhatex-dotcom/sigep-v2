@@ -13,23 +13,19 @@ export const dynamic = "force-dynamic";
 export default async function PromocoesPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
-
   const ehAdmin = (session.user.perfil ?? "").toLowerCase() === "admin";
   // policial vai direto para a propria tela de envio
   if (!ehAdmin) redirect("/promocoes/minhas-certidoes");
-
   const periodo = await periodoAtivo();
-
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-6xl">
-        <h1 className="mb-1 text-2xl font-bold text-sigep-navy">
+        <h1 className="mb-1 text-2xl font-bold text-white">
           Promoções — Certidões
         </h1>
-        <p className="mb-5 text-sm text-gray-500">
+        <p className="mb-5 text-sm text-[#94A3B8]">
           Gestão das certidões enviadas pelos militares no período de promoção.
         </p>
-
         {!periodo ? (
           <CriarPeriodo />
         ) : (
@@ -55,8 +51,6 @@ async function PainelConteudo({
       _count: { select: { certidoes: true } },
     },
   });
-
-  // junta com os dados do efetivo
   const ids = participantes.map((p) => p.efetivoId);
   const fichas = await prisma.efetivo.findMany({
     where: { id: { in: ids } },
@@ -69,7 +63,6 @@ async function PainelConteudo({
     },
   });
   const mapaFicha = new Map(fichas.map((f) => [f.id, f]));
-
   const linhas = participantes
     .map((p) => {
       const f = mapaFicha.get(p.efetivoId);
@@ -83,8 +76,7 @@ async function PainelConteudo({
         pdfUnificado: p.pdfUnificado,
       };
     })
-    .sort((a, b) => (b.enviadas - a.enviadas));
-
+    .sort((a, b) => b.enviadas - a.enviadas);
   return (
     <PainelPromocoes
       periodoNome={nome}

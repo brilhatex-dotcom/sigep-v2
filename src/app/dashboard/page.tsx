@@ -4,175 +4,341 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
-import { Users, Cake, HeartPulse } from "lucide-react";
+import BarrasPosto from "@/components/BarrasPosto";
+import BannerAlertas, { Alerta } from "@/components/BannerAlertas";
+import FraseRotativa from "@/components/FraseRotativa";
+import JmsTabela, { LinhaJms } from "@/components/JmsTabela";
+import { classificarPatente } from "@/lib/patentes";
+import { montarIdsEmFerias, situacaoCalculada } from "@/lib/situacao";
+import {
+  hojeBR, paraData, dataBR, diffDias, idade, diasAteAniversario, tempoServico,
+} from "@/lib/datas";
+import {
+  Users, Cake, HeartPulse, CheckCircle2, Plane, ShieldAlert, Hourglass, ChevronRight,
+} from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-const MESES = [
-  "janeiro", "fevereiro", "março", "abril", "maio", "junho",
-  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
-];
+const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
 
-function mesDia(valor: string | null): { mes: number; dia: number } | null {
-  if (!valor || !String(valor).trim()) return null;
-  const s = String(valor).trim();
-  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (iso) return { mes: parseInt(iso[2], 10), dia: parseInt(iso[3], 10) };
-  const d = new Date(s);
-  if (isNaN(d.getTime())) return null;
-  return { mes: d.getMonth() + 1, dia: d.getDate() };
+function isoDe(valor: string | null): string {
+  const d = paraData(valor);
+  if (!d) return "";
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  const militares = await prisma.efetivo.findMany({
-    select: {
-      id: true,
-      postoGrad: true,
-      nome: true,
-      nomeGuerra: true,
-      situacao: true,
-      dataNasc: true,
-      jmsDataInicio: true,
-      jmsDataRetorno: true,
-      jmsMotivo: true,
-    },
-  });
+  const hoje = hojeBR();
+  const mesAtual = hoje.getMonth();
 
+  const militares = await prisma.efetivo.findMany();
   const total = militares.length;
 
-  // Efetivo por situacao
+  // ferias de hoje (para situacao calculada) - busca antecipada
+  const equipesTodas = await prisma.equipeFerias.findMany();
+  const membrosTodos = await prisma.membroFerias.findMany();
+  const idsFerias = montarIdsEmFerias(equipesTodas, membrosTodos, hoje);
+
+  // ---- situacao + baldes (usando situacao CALCULADA) ----
   const porSituacao = new Map<string, number>();
+  let prontos = 0, licencas = 0, jmsCount = 0, reservaCount = 0, feriasCount = 0;
   militares.forEach((m) => {
-    const s = m.situacao && m.situacao.trim() ? m.situacao.trim() : "(sem situação)";
+    const s = situacaoCalculada(m, idsFerias, hoje);
     porSituacao.set(s, (porSituacao.get(s) ?? 0) + 1);
+    const low = s.toLowerCase();
+    if (low.includes("pronto")) prontos++;
+    else if (low.includes("jms")) jmsCount++;
+    else if (low.includes("reserva")) reservaCount++;
+    else if (low.includes("féria") || low.includes("feria")) feriasCount++;
+    else if (low.includes("licen") || low.includes("lp") || low.includes("ltip")) licencas++;
   });
   const situacoes = Array.from(porSituacao.entries())
-    .map(([situacao, qtd]) => ({ situacao, qtd }))
-    .sort((a, b) => b.qtd - a.qtd);
+    .map(([rotulo, valor]) => ({ rotulo, valor, pct: Math.round((valor/total)*100) }))
+    .sort((a,b)=>b.valor-a.valor);
 
-  // Aniversariantes do mes
-  const agora = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" })
-  );
-  const mesAtual = agora.getMonth() + 1;
-  const aniversariantes = militares
-    .map((m) => ({ m, md: mesDia(m.dataNasc) }))
-    .filter((x) => x.md && x.md.mes === mesAtual)
-    .sort((a, b) => a.md!.dia - b.md!.dia)
-    .map((x) => ({ ...x.m, dia: x.md!.dia }));
+  // ---- por posto ----
+  const porPosto = new Map<string, number>();
+  militares.forEach((m)=>{ const p=(m.postoGrad??"").trim()||"(s/ posto)"; porPosto.set(p,(porPosto.get(p)??0)+1); });
+  const postos = Array.from(porPosto.entries())
+    .map(([rotulo,valor])=>({rotulo,valor}))
+    .sort((a,b)=>classificarPatente(a.rotulo).ordem - classificarPatente(b.rotulo).ordem);
 
-  // Em JMS
-  const emJms = militares.filter((m) => {
-    const temInicio = !!(m.jmsDataInicio && m.jmsDataInicio.trim());
-    const semRetorno = !(m.jmsDataRetorno && m.jmsDataRetorno.trim());
-    const situacaoJms = (m.situacao ?? "").toLowerCase().includes("jms");
-    return (temInicio && semRetorno) || situacaoJms;
+  // ---- por sexo ----
+  let masc=0, fem=0;
+  militares.forEach((m)=>{ const s=(m.sexo??"").trim().toUpperCase(); if(s.startsWith("M"))masc++; else if(s.startsWith("F"))fem++; });
+
+  // ---- JMS (tabela + alertas) ----
+  const emJms = militares.filter((m)=>{
+    const temInicio=!!(m.jmsDataInicio&&m.jmsDataInicio.trim());
+    const semRetornoPassado=true;
+    const sit=(m.situacao??"").toLowerCase().includes("jms");
+    return (temInicio&&semRetornoPassado)||sit;
+  }).filter((m)=> m.jmsDataInicio && m.jmsDataInicio.trim() || (m.situacao??"").toLowerCase().includes("jms"));
+
+  const linhasJms: LinhaJms[] = emJms.map((m)=>{
+    const ini=paraData(m.jmsDataInicio);
+    const ret=paraData(m.jmsDataRetorno);
+    const dias= ini? Math.max(0,diffDias(ini,hoje)) : 0;
+    let urgencia: LinhaJms["urgencia"]="sem";
+    if(ret){ const d=diffDias(hoje,ret); urgencia = d<0?"vencida": d<=7?"proxima":"normal"; }
+    return {
+      id:m.id, nome:m.nomeGuerra||m.nome||"—", postoGrad:m.postoGrad||"—",
+      inicioBR:dataBR(m.jmsDataInicio), inicioISO:isoDe(m.jmsDataInicio),
+      retornoBR:dataBR(m.jmsDataRetorno), retornoISO:isoDe(m.jmsDataRetorno),
+      dias, motivo:(m.jmsMotivo&&m.jmsMotivo.trim())?m.jmsMotivo:"—", urgencia,
+    };
   });
+
+  // ---- alertas dinamicos (JMS a vencer) + avisos manuais ----
+  const dispensados = await prisma.alertaDispensado.findMany({ select:{ chave:true } });
+  const setDisp = new Set(dispensados.map((d)=>d.chave));
+
+  const alertasJms: Alerta[] = linhasJms
+    .filter((l)=> l.urgencia==="vencida"||l.urgencia==="proxima")
+    .map((l)=>({
+      chave:`jms:${l.id}:${l.retornoISO}`,
+      tipo:"jms_vencendo" as const,
+      nivel:(l.urgencia==="vencida"?"critico":"atencao") as "critico"|"atencao",
+      texto: l.urgencia==="vencida"
+        ? `Reavaliação de JMS vencida: ${l.postoGrad} ${l.nome} (retorno ${l.retornoBR}).`
+        : `JMS a vencer: ${l.postoGrad} ${l.nome} retorna em ${l.retornoBR}.`,
+    }))
+    .filter((a)=> !setDisp.has(a.chave));
+
+  // avisos manuais ativos (validade futura ou sem validade)
+  const avisos = await prisma.aviso.findMany({ orderBy:{ criadoEm:"desc" } });
+  const hojeISO=`${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,"0")}-${String(hoje.getDate()).padStart(2,"0")}`;
+  const alertasAvisos: Alerta[] = avisos
+    .filter((a)=> !a.validade || a.validade >= hojeISO)
+    .map((a)=>({
+      chave:`aviso:${a.id}`,
+      tipo:"ferias_vencidas" as const, // reusa o tipo so para icone; nivel define cor
+      nivel:(a.cor==="critico"?"critico":"atencao") as "critico"|"atencao",
+      texto:a.texto,
+    }));
+
+  const alertas=[...alertasJms, ...alertasAvisos];
+
+  // ---- aniversariantes do mes ----
+  const aniversariantes = militares
+    .map((m)=>({ m, nasc:paraData(m.dataNasc) }))
+    .filter((x)=> x.nasc && x.nasc.getMonth()===mesAtual)
+    .map((x)=>({
+      ...x.m,
+      dia:x.nasc!.getDate(),
+      idadeCompleta: idade(x.nasc!,hoje)+ (diasAteAniversario(x.nasc!,hoje)===0?0:1),
+      faltam: diasAteAniversario(x.nasc!,hoje),
+    }))
+    .sort((a,b)=> a.dia-b.dia);
+
+  // ---- ferias hoje (do plano do ano corrente) ----
+  const anoStr=String(hoje.getFullYear());
+  const equipes = await prisma.equipeFerias.findMany({ where:{ anoGozo:anoStr } });
+  const membros = await prisma.membroFerias.findMany({ where:{ anoGozo:anoStr } });
+  const mapaEquipe=new Map(equipes.map((e)=>[e.numeroEquipe,e]));
+  const fichasMap=new Map(militares.map((m)=>[m.id,m]));
+  type FeriaItem={ nome:string; posto:string; retornoBR:string; restam:number; retornoTime:number };
+  const emFeriasHoje:FeriaItem[]=[];
+  membros.forEach((mb)=>{
+    const e=mapaEquipe.get(mb.numeroEquipe); if(!e)return;
+    const periodos=[
+      {i:paraData(e.periodo1Inicio),f:paraData(e.periodo1Fim)},
+      {i:paraData(e.periodo2Inicio),f:paraData(e.periodo2Fim)},
+    ];
+    for(const p of periodos){
+      if(p.i&&p.f&&p.i<=hoje&&hoje<=p.f){
+        const fic=fichasMap.get(mb.idPmma);
+        emFeriasHoje.push({
+          nome:fic?.nomeGuerra||fic?.nome||mb.idPmma,
+          posto:fic?.postoGrad||"—",
+          retornoBR:dataBR(e.periodo1Fim&&p.f===paraData(e.periodo1Fim)?e.periodo1Fim:e.periodo2Fim),
+          restam:Math.max(0,diffDias(hoje,p.f)),
+          retornoTime:p.f.getTime(),
+        });
+        break;
+      }
+    }
+  });
+  emFeriasHoje.sort((a,b)=>a.retornoTime-b.retornoTime);
+  const pctFerias= total? Math.round((emFeriasHoje.length/total)*100):0;
+
+  // ---- reserva: tempo de servico (sem cor) ----
+  const tempoServ = militares
+    .map((m)=>({ m, inc:paraData(m.dataIncorp) }))
+    .filter((x)=>x.inc)
+    .map((x)=>({ ...x.m, ts:tempoServico(x.inc!,hoje) }))
+    .sort((a,b)=> (b.ts.anos*12+b.ts.meses)-(a.ts.anos*12+a.ts.meses))
+    .slice(0,6);
+
+  const maxSit=Math.max(1,...situacoes.map((s)=>s.valor));
+  const pctOper= total? Math.round((prontos/total)*100):0;
+  const aniversariantesHoje=aniversariantes.filter((a)=>a.faltam===0).length;
 
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6">
         <div>
-          <h1 className="mb-1 text-2xl font-bold text-sigep-navy">
-            Painel — 18º BPM
-          </h1>
-          <p className="text-sm text-gray-500">Visão geral do efetivo.</p>
+          <h1 className="text-2xl font-bold text-white">Centro de Comando — 18º BPM</h1>
+          <p className="text-sm text-[#94A3B8]">Visão estratégica do efetivo.</p>
         </div>
 
-        {/* Total + situacao */}
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-xl bg-sigep-navy p-6 text-white shadow-sm">
-            <Users className="mb-2 h-7 w-7 text-sigep-dourado" />
-            <p className="text-4xl font-bold">{total}</p>
-            <p className="text-sm text-white/70">Efetivo total</p>
-          </div>
+        <FraseRotativa />
+        <BannerAlertas alertas={alertas} />
 
-          <section className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-100 lg:col-span-2">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-sigep-navy">
-              <span className="h-4 w-1 rounded bg-sigep-dourado" />
-              Efetivo por situação
+        {/* Centro de Comando P1 */}
+        <section className="ui-card p-5">
+          <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+            <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Centro de Comando · P1
+          </h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            <Mini Icone={Users} cor="#D4AF37" valor={total} rotulo="Efetivo total" />
+            <Mini Icone={CheckCircle2} cor="#22C55E" valor={prontos} rotulo={`Prontos · ${pctOper}%`} />
+            <Mini Icone={HeartPulse} cor="#F59E0B" valor={jmsCount} rotulo="Em JMS" />
+            <Mini Icone={Plane} cor="#3B82F6" valor={emFeriasHoje.length} rotulo="Em férias" />
+            <Mini Icone={ShieldAlert} cor="#94A3B8" valor={licencas} rotulo="Licenças" />
+            <Mini Icone={Cake} cor="#EC4899" valor={aniversariantesHoje} rotulo="Aniv. hoje" />
+          </div>
+        </section>
+
+        {/* graficos */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <section className="ui-card p-5">
+            <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+              <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Efetivo por posto
             </h2>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
-              {situacoes.map((l) => (
-                <div
-                  key={l.situacao}
-                  className="flex items-center justify-between border-b border-gray-50 py-1"
-                >
-                  <span className="text-sm text-gray-600">{l.situacao}</span>
-                  <span className="text-sm font-semibold text-sigep-navy">
-                    {l.qtd}
+            <BarrasPosto dados={postos} />
+          </section>
+
+          <section className="ui-card p-5">
+            <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+              <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Efetivo por situação
+            </h2>
+            <div className="space-y-2.5">
+              {situacoes.map((s)=>(
+                <div key={s.rotulo} className="flex items-center gap-3">
+                  <span className="w-28 shrink-0 truncate text-xs text-[#94A3B8]">{s.rotulo}</span>
+                  <div className="h-5 flex-1 overflow-hidden rounded bg-white/5">
+                    <div className="h-full rounded bg-gradient-to-r from-sky-500/60 to-sky-400" style={{width:`${(s.valor/maxSit)*100}%`}} />
+                  </div>
+                  <span className="w-16 shrink-0 text-right text-xs font-semibold text-white">
+                    {s.valor} <span className="text-[#94A3B8]">{s.pct}%</span>
                   </span>
                 </div>
               ))}
             </div>
+            <div className="mt-4 flex gap-4 border-t border-white/10 pt-3 text-xs text-[#94A3B8]">
+              <span>♂ Masculino: <b className="text-white">{masc}</b></span>
+              <span>♀ Feminino: <b className="text-white">{fem}</b></span>
+            </div>
           </section>
         </div>
 
-        {/* Aniversariantes + JMS */}
+        {/* JMS */}
+        <JmsTabela linhas={linhasJms} />
+
+        {/* ferias + aniversariantes */}
         <div className="grid gap-4 lg:grid-cols-2">
-          <section className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-sigep-navy">
-              <Cake className="h-4 w-4 text-sigep-dourado" />
-              Aniversariantes de {MESES[mesAtual - 1]} ({aniversariantes.length})
-            </h2>
-            {aniversariantes.length === 0 ? (
-              <p className="text-sm text-gray-400">
-                Nenhum aniversariante este mês (ou sem data de nascimento
-                cadastrada).
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {aniversariantes.map((m) => (
-                  <li key={m.id} className="flex items-center gap-3 text-sm">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sigep-cinza text-xs font-bold text-sigep-navy">
-                      {String(m.dia).padStart(2, "0")}
-                    </span>
-                    <Link
-                      href={`/efetivo/${encodeURIComponent(m.id)}`}
-                      className="text-sigep-navy hover:underline"
-                    >
-                      {m.postoGrad ? `${m.postoGrad} ` : ""}
-                      {m.nomeGuerra || m.nome}
-                    </Link>
+          <section className="ui-card p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+                <Plane className="h-4 w-4 text-[#3B82F6]" /> Efetivo em férias · {emFeriasHoje.length} ({pctFerias}%)
+              </h2>
+            </div>
+            {emFeriasHoje.length===0 ? (
+              <p className="py-8 text-center text-sm text-[#94A3B8]">Nenhum militar em férias hoje.</p>
+            ):(
+              <ul className="divide-y divide-white/5">
+                {emFeriasHoje.slice(0,6).map((f,i)=>(
+                  <li key={i} className="flex items-center justify-between py-2.5">
+                    <div>
+                      <p className="text-sm text-white">{f.posto} {f.nome}</p>
+                      <p className="text-[11px] text-[#94A3B8]">retorno {f.retornoBR}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-base font-bold text-[#D4AF37]">{f.restam}</p>
+                      <p className="text-[10px] text-[#94A3B8]">dias restantes</p>
+                    </div>
                   </li>
                 ))}
               </ul>
             )}
+            <Link href="/ferias" className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[#D4AF37] hover:underline print:hidden">
+              Ver plano completo <ChevronRight className="h-4 w-4" />
+            </Link>
           </section>
 
-          <section className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-sigep-navy">
-              <HeartPulse className="h-4 w-4 text-red-500" />
-              Em JMS ({emJms.length})
+          <section className="ui-card p-5">
+            <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+              <Cake className="h-4 w-4 text-[#D4AF37]" /> Aniversariantes de {MESES[mesAtual]} ({aniversariantes.length})
             </h2>
-            {emJms.length === 0 ? (
-              <p className="text-sm text-gray-400">
-                Nenhum militar em JMS no momento.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {emJms.map((m) => (
-                  <li key={m.id} className="text-sm">
-                    <Link
-                      href={`/efetivo/${encodeURIComponent(m.id)}`}
-                      className="font-medium text-sigep-navy hover:underline"
-                    >
-                      {m.postoGrad ? `${m.postoGrad} ` : ""}
-                      {m.nomeGuerra || m.nome}
-                    </Link>
-                    {m.jmsMotivo && m.jmsMotivo.trim() && (
-                      <span className="text-gray-500"> — {m.jmsMotivo}</span>
-                    )}
+            {aniversariantes.length===0 ? (
+              <p className="py-8 text-center text-sm text-[#94A3B8]">Nenhum aniversariante este mês.</p>
+            ):(
+              <ul className="relative space-y-3 before:absolute before:left-[15px] before:top-2 before:h-[calc(100%-1rem)] before:w-px before:bg-white/10">
+                {aniversariantes.map((m)=>(
+                  <li key={m.id} className="relative flex items-center gap-3">
+                    <span className={`z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-4 ring-[#0F1B2D] ${m.faltam===0?"bg-[#D4AF37] text-[#1a1205]":"bg-[#D4AF37]/15 text-[#D4AF37]"}`}>
+                      {String(m.dia).padStart(2,"0")}
+                    </span>
+                    <div>
+                      <p className="text-sm text-white/90">
+                        <span className="text-[#94A3B8]">{m.postoGrad?`${m.postoGrad} `:""}</span>
+                        {m.nomeGuerra||m.nome}
+                        {m.faltam===0 && <span className="ml-2 rounded-full bg-[#D4AF37] px-2 py-0.5 text-[9px] font-bold uppercase text-[#1a1205]">🎉 hoje</span>}
+                      </p>
+                      <p className="text-[11px] text-[#94A3B8]">
+                        completa {m.idadeCompleta} anos {m.faltam>0?`· faltam ${m.faltam} dia(s)`:""}
+                      </p>
+                    </div>
                   </li>
                 ))}
               </ul>
             )}
           </section>
         </div>
+
+        {/* reserva: tempo de servico */}
+        <section className="ui-card p-5">
+          <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+            <Hourglass className="h-4 w-4 text-[#D4AF37]" /> Maior tempo de serviço
+          </h2>
+          {tempoServ.length===0 ? (
+            <p className="py-8 text-center text-sm text-[#94A3B8]">Sem data de incorporação cadastrada.</p>
+          ):(
+            <ul className="grid gap-2 sm:grid-cols-2">
+              {tempoServ.map((m)=>(
+                <li key={m.id} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
+                  <span className="text-sm text-white">
+                    <span className="text-[#94A3B8]">{m.postoGrad?`${m.postoGrad} `:""}</span>
+                    {m.nomeGuerra||m.nome}
+                  </span>
+                  <span className="text-xs font-semibold text-[#D4AF37]">
+                    {m.ts.anos}a {m.ts.meses}m
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
     </AppShell>
+  );
+}
+
+function Mini({ Icone, cor, valor, rotulo }:{
+  Icone: React.ComponentType<{className?:string;style?:React.CSSProperties}>;
+  cor:string; valor:number; rotulo:string;
+}) {
+  return (
+    <div className="rounded-xl border border-white/5 bg-white/5 p-3">
+      <div className="mb-1.5 flex h-8 w-8 items-center justify-center rounded-lg" style={{backgroundColor:`${cor}22`}}>
+        <Icone className="h-4 w-4" style={{color:cor}} />
+      </div>
+      <p className="text-xl font-bold text-white">{valor}</p>
+      <p className="text-[11px] text-[#94A3B8]">{rotulo}</p>
+    </div>
   );
 }

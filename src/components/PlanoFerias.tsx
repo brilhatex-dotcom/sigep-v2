@@ -106,7 +106,6 @@ export default function PlanoFerias({
     });
   }
 
-  // aplica o filtro de oficiais/pracas nos membros exibidos
   function filtrarMembros(membros: MembroEquipe[]) {
     if (filtro === "oficiais") return membros.filter((m) => m.ehOficial);
     if (filtro === "pracas") return membros.filter((m) => !m.ehOficial);
@@ -128,14 +127,14 @@ export default function PlanoFerias({
       onClick={() => setFiltro(id)}
       className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
         filtro === id
-          ? "bg-sigep-navy text-white"
-          : "bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50"
+          ? "bg-[#D4AF37] text-[#1a1205]"
+          : "bg-[#0F1B2D] text-[#94A3B8] ring-1 ring-white/10 hover:text-white"
       }`}
     >
       {rotulo}
       <span
         className={`rounded-full px-1.5 text-xs ${
-          filtro === id ? "bg-white/20" : "bg-gray-100 text-gray-500"
+          filtro === id ? "bg-black/15" : "bg-white/10 text-[#94A3B8]"
         }`}
       >
         {qtd}
@@ -147,16 +146,14 @@ export default function PlanoFerias({
     <div className="space-y-5">
       {/* topo: ano + filtros */}
       <div className="flex flex-wrap items-center gap-3">
-        <label className="text-sm text-gray-500">Ano de gozo</label>
+        <label className="text-sm text-[#94A3B8]">Ano de gozo</label>
         <select
           value={anoSelecionado}
           onChange={(e) => onTrocarAno(e.target.value)}
-          className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-sigep-navy outline-none focus:border-sigep-dourado"
+          className="rounded-lg border border-white/10 bg-[#0b1626] px-3 py-1.5 text-sm font-medium text-white outline-none focus:border-[#D4AF37]/50"
         >
           {anos.map((a) => (
-            <option key={a} value={a}>
-              {a}
-            </option>
+            <option key={a} value={a}>{a}</option>
           ))}
         </select>
         <div className="ml-auto flex flex-wrap gap-2">
@@ -168,29 +165,29 @@ export default function PlanoFerias({
 
       {/* cartoes */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100">
-          <Users className="mb-1 h-5 w-5 text-sigep-dourado" />
-          <p className="text-2xl font-bold text-sigep-navy">{cartoes.comMilitares}</p>
-          <p className="text-xs text-gray-500">Equipes com militares</p>
+        <div className="ui-card p-4">
+          <Users className="mb-1 h-5 w-5 text-[#D4AF37]" />
+          <p className="text-2xl font-bold text-white">{cartoes.comMilitares}</p>
+          <p className="text-xs text-[#94A3B8]">Equipes com militares</p>
         </div>
-        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100">
-          <Plane className="mb-1 h-5 w-5 text-amber-500" />
-          <p className="text-2xl font-bold text-sigep-navy">{cartoes.emFeriasHoje}</p>
-          <p className="text-xs text-gray-500">
+        <div className="ui-card p-4">
+          <Plane className="mb-1 h-5 w-5 text-amber-400" />
+          <p className="text-2xl font-bold text-white">{cartoes.emFeriasHoje}</p>
+          <p className="text-xs text-[#94A3B8]">
             Em férias hoje
             {cartoes.equipesEmFerias.length > 0 &&
               ` · Equipe(s) ${cartoes.equipesEmFerias.join(", ")}`}
           </p>
         </div>
-        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100">
-          <CalendarDays className="mb-1 h-5 w-5 text-emerald-600" />
-          <p className="text-2xl font-bold text-sigep-navy">{cartoes.equipesMes}</p>
-          <p className="text-xs text-gray-500">Equipes do mês</p>
+        <div className="ui-card p-4">
+          <CalendarDays className="mb-1 h-5 w-5 text-emerald-400" />
+          <p className="text-2xl font-bold text-white">{cartoes.equipesMes}</p>
+          <p className="text-xs text-[#94A3B8]">Equipes do mês</p>
         </div>
-        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100">
-          <Palmtree className="mb-1 h-5 w-5 text-sigep-navy" />
-          <p className="text-2xl font-bold text-sigep-navy">{totalMilitares}</p>
-          <p className="text-xs text-gray-500">Total no plano</p>
+        <div className="ui-card p-4">
+          <Palmtree className="mb-1 h-5 w-5 text-[#D4AF37]" />
+          <p className="text-2xl font-bold text-white">{totalMilitares}</p>
+          <p className="text-xs text-[#94A3B8]">Total no plano</p>
         </div>
       </div>
 
@@ -199,16 +196,13 @@ export default function PlanoFerias({
         {equipes.map((e) => {
           const membrosFiltrados = filtrarMembros(e.membros);
           return (
-            <div
-              key={e.numeroEquipe}
-              className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100"
-            >
+            <div key={e.numeroEquipe} className="ui-card p-4">
               <div className="flex items-center gap-4">
                 <div
                   className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-lg font-bold ${
                     e.status.chave === "em_ferias"
-                      ? "bg-sigep-dourado text-white"
-                      : "bg-sigep-navy text-white"
+                      ? "bg-[#D4AF37] text-[#1a1205]"
+                      : "bg-white/10 text-white"
                   }`}
                 >
                   {e.numeroEquipe}
@@ -216,40 +210,30 @@ export default function PlanoFerias({
 
                 <div className="min-w-0 flex-1">
                   <div className="mb-1 flex items-center gap-2">
-                    <h3 className="font-bold text-sigep-navy">
-                      EQUIPE {e.numeroEquipe}
-                    </h3>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${e.status.cor}`}
-                    >
+                    <h3 className="font-bold text-white">EQUIPE {e.numeroEquipe}</h3>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${e.status.cor}`}>
                       {e.status.rotulo}
                     </span>
                   </div>
                   {e.periodos.map((p, idx) => (
-                    <p key={idx} className="text-xs text-gray-600">
-                      {e.periodos.length > 1 && (
-                        <span className="font-semibold">{p.rotulo}: </span>
-                      )}
-                      {!(e.periodos.length > 1) && (
-                        <span className="font-semibold">Período: </span>
-                      )}
+                    <p key={idx} className="text-xs text-[#94A3B8]">
+                      {e.periodos.length > 1 && <span className="font-semibold text-white/80">{p.rotulo}: </span>}
+                      {!(e.periodos.length > 1) && <span className="font-semibold text-white/80">Período: </span>}
                       {p.inicioBR} → {p.fimBR}
                       {p.apres && p.apres.trim() && ` · Apresentação: ${p.apres}`}
                     </p>
                   ))}
                   {e.status.detalhe && (
-                    <p className="mt-0.5 text-xs text-gray-400">{e.status.detalhe}</p>
+                    <p className="mt-0.5 text-xs text-[#94A3B8]/70">{e.status.detalhe}</p>
                   )}
                 </div>
 
                 <div className="flex shrink-0 flex-col items-end gap-1">
-                  <p className="text-2xl font-bold text-sigep-navy">
-                    {membrosFiltrados.length}
-                  </p>
-                  <p className="text-[11px] text-gray-400">militares</p>
+                  <p className="text-2xl font-bold text-white">{membrosFiltrados.length}</p>
+                  <p className="text-[11px] text-[#94A3B8]">militares</p>
                   <button
                     onClick={() => setAberta(e)}
-                    className="mt-1 inline-flex items-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1 text-xs text-gray-600 transition hover:bg-gray-50"
+                    className="mt-1 inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1 text-xs text-[#94A3B8] transition hover:border-[#D4AF37]/40 hover:text-white"
                   >
                     Ver detalhes
                   </button>
@@ -262,40 +246,39 @@ export default function PlanoFerias({
 
       {/* modal de detalhes */}
       {aberta && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4">
-          <div className="mt-10 w-full max-w-2xl rounded-xl bg-white shadow-xl">
-            <div className="flex items-center justify-between rounded-t-xl bg-sigep-navy px-5 py-4 text-white">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4">
+          <div className="mt-10 w-full max-w-2xl rounded-xl border border-white/10 bg-[#0F1B2D] shadow-xl">
+            <div className="flex items-center justify-between rounded-t-xl border-b border-white/10 bg-white/5 px-5 py-4 text-white">
               <div className="flex items-center gap-2">
-                <Palmtree className="h-5 w-5 text-sigep-dourado" />
+                <Palmtree className="h-5 w-5 text-[#D4AF37]" />
                 <h3 className="font-bold">
-                  EQUIPE {aberta.numeroEquipe} ·{" "}
-                  {filtrarMembros(aberta.membros).length} militares
+                  EQUIPE {aberta.numeroEquipe} · {filtrarMembros(aberta.membros).length} militares
                 </h3>
               </div>
-              <button onClick={() => setAberta(null)} aria-label="Fechar">
+              <button onClick={() => setAberta(null)} aria-label="Fechar" className="text-[#94A3B8] hover:text-white">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <div className="p-5">
-              <div className="mb-4 rounded-lg bg-sigep-cinza p-3">
+              <div className="mb-4 rounded-lg bg-white/5 p-3">
                 {aberta.periodos.map((p, i) => (
-                  <p key={i} className="text-sm text-sigep-navy">
+                  <p key={i} className="text-sm text-white">
                     <span className="font-semibold">
                       {aberta.periodos.length > 1 ? p.rotulo : "Período"}:
                     </span>{" "}
                     {p.inicioBR} → {p.fimBR}
                     {p.apres && p.apres.trim() && (
-                      <span className="text-gray-500"> · Apres.: {p.apres}</span>
+                      <span className="text-[#94A3B8]"> · Apres.: {p.apres}</span>
                     )}
                   </p>
                 ))}
               </div>
 
-              <div className="max-h-[50vh] overflow-y-auto rounded-lg ring-1 ring-gray-100">
+              <div className="max-h-[50vh] overflow-y-auto rounded-lg border border-white/10">
                 <table className="min-w-full text-sm">
-                  <thead className="sticky top-0 bg-white">
-                    <tr className="border-b border-gray-100 text-left text-xs uppercase tracking-wider text-gray-500">
+                  <thead className="sticky top-0 bg-[#0F1B2D]">
+                    <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wider text-[#94A3B8]">
                       <th className="px-3 py-2 font-semibold">#</th>
                       <th className="px-3 py-2 font-semibold">Posto/Grad</th>
                       <th className="px-3 py-2 font-semibold">Nº/Barra</th>
@@ -304,44 +287,29 @@ export default function PlanoFerias({
                       {isAdmin && <th className="px-3 py-2 font-semibold">Ação</th>}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-white/5">
                     {filtrarMembros(aberta.membros).map((m, i) => (
-                      <tr key={m.efetivoId} className="hover:bg-sigep-cinza/50">
-                        <td className="px-3 py-2 text-gray-400">{i + 1}º</td>
-                        <td className="whitespace-nowrap px-3 py-2 text-gray-700">
-                          {m.postoGrad ?? "—"}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-gray-600">
-                          {m.numeroBarra ?? "—"}
-                        </td>
+                      <tr key={m.efetivoId} className="hover:bg-white/5">
+                        <td className="px-3 py-2 text-[#94A3B8]">{i + 1}º</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.postoGrad ?? "—"}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.numeroBarra ?? "—"}</td>
                         <td className="px-3 py-2">
-                          <span className="font-medium text-sigep-navy">
-                            {m.nome ?? "—"}
-                          </span>
-                          {m.nomeGuerra && (
-                            <span className="ml-1 text-xs text-gray-400">
-                              ({m.nomeGuerra})
-                            </span>
-                          )}
+                          <span className="font-medium text-white">{m.nome ?? "—"}</span>
+                          {m.nomeGuerra && <span className="ml-1 text-xs text-[#94A3B8]">({m.nomeGuerra})</span>}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-gray-600">
-                          {m.matricula ?? "—"}
-                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.matricula ?? "—"}</td>
                         {isAdmin && (
                           <td className="whitespace-nowrap px-3 py-2">
                             <div className="flex gap-1.5">
                               <button
                                 onClick={() => abrirMemorando(m, aberta, i + 1)}
-                                className="inline-flex items-center gap-1 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                                className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-[#94A3B8] hover:border-white/30 hover:text-white"
                               >
                                 <FileText className="h-3.5 w-3.5" /> Memorando
                               </button>
                               <button
-                                onClick={() => {
-                                  setPermuta(m);
-                                  setNovaEquipe("");
-                                }}
-                                className="inline-flex items-center gap-1 rounded border border-sigep-navy/20 px-2 py-1 text-xs text-sigep-navy hover:bg-sigep-navy hover:text-white"
+                                onClick={() => { setPermuta(m); setNovaEquipe(""); }}
+                                className="inline-flex items-center gap-1 rounded border border-[#D4AF37]/30 px-2 py-1 text-xs text-[#D4AF37] hover:bg-[#D4AF37] hover:text-[#1a1205]"
                               >
                                 <Pencil className="h-3.5 w-3.5" /> Editar
                               </button>
@@ -352,7 +320,7 @@ export default function PlanoFerias({
                     ))}
                     {filtrarMembros(aberta.membros).length === 0 && (
                       <tr>
-                        <td colSpan={isAdmin ? 6 : 5} className="px-3 py-8 text-center text-gray-400">
+                        <td colSpan={isAdmin ? 6 : 5} className="px-3 py-8 text-center text-[#94A3B8]">
                           Nenhum militar nesta equipe com o filtro atual.
                         </td>
                       </tr>
@@ -364,7 +332,7 @@ export default function PlanoFerias({
               <div className="mt-4 flex justify-end">
                 <button
                   onClick={() => setAberta(null)}
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 transition hover:bg-gray-50"
+                  className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] transition hover:bg-white/5 hover:text-white"
                 >
                   Fechar
                 </button>
@@ -376,28 +344,24 @@ export default function PlanoFerias({
 
       {/* modal de permuta */}
       {permuta && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-xl bg-white shadow-xl">
-            <div className="flex items-center justify-between rounded-t-xl bg-sigep-navy px-5 py-4 text-white">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-xl border border-white/10 bg-[#0F1B2D] shadow-xl">
+            <div className="flex items-center justify-between rounded-t-xl border-b border-white/10 bg-white/5 px-5 py-4 text-white">
               <h3 className="font-bold">Editar Férias do Militar</h3>
-              <button onClick={() => setPermuta(null)} aria-label="Fechar">
+              <button onClick={() => setPermuta(null)} aria-label="Fechar" className="text-[#94A3B8] hover:text-white">
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="p-5">
-              <div className="mb-4 rounded-lg bg-sigep-cinza p-3 text-sm">
-                <p className="font-semibold text-sigep-navy">{permuta.nome}</p>
-                <p className="text-gray-500">
-                  Matrícula {permuta.matricula ?? "—"}
-                </p>
+              <div className="mb-4 rounded-lg bg-white/5 p-3 text-sm">
+                <p className="font-semibold text-white">{permuta.nome}</p>
+                <p className="text-[#94A3B8]">Matrícula {permuta.matricula ?? "—"}</p>
               </div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Trocar para a equipe
-              </label>
+              <label className="mb-1 block text-sm font-medium text-white">Trocar para a equipe</label>
               <select
                 value={novaEquipe}
                 onChange={(e) => setNovaEquipe(e.target.value)}
-                className="mb-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-sigep-dourado"
+                className="mb-4 w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
               >
                 <option value="">Selecione a nova equipe</option>
                 {equipes.map((eq) => (
@@ -409,14 +373,14 @@ export default function PlanoFerias({
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => setPermuta(null)}
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                  className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-white"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={confirmarPermuta}
                   disabled={!novaEquipe || salvandoPermuta}
-                  className="inline-flex items-center gap-2 rounded-lg bg-sigep-navy px-4 py-2 text-sm font-semibold text-white hover:bg-sigep-azul disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] hover:brightness-110 disabled:opacity-60"
                 >
                   {salvandoPermuta && <Loader2 className="h-4 w-4 animate-spin" />}
                   Salvar alteração

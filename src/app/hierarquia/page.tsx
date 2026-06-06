@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import { PATENTES, classificarPatente } from "@/lib/patentes";
@@ -11,11 +12,8 @@ export default async function HierarquiaPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  const militares = await prisma.efetivo.findMany({
-    select: { postoGrad: true },
-  });
+  const militares = await prisma.efetivo.findMany({ select: { postoGrad: true } });
 
-  // conta por patente
   const contagem = new Map<number, number>();
   let semInfo = 0;
   for (const m of militares) {
@@ -23,51 +21,33 @@ export default async function HierarquiaPage() {
     if (p.ordem === 99) semInfo++;
     else contagem.set(p.ordem, (contagem.get(p.ordem) ?? 0) + 1);
   }
-
   const total = militares.length;
   const oficiais = PATENTES.filter((p) => p.ordem <= 7);
   const pracas = PATENTES.filter((p) => p.ordem >= 8);
 
-  const Cartao = ({
-    rotulo,
-    qtd,
-  }: {
-    rotulo: string;
-    qtd: number;
-  }) => (
-    <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100">
-      <p className="text-2xl font-bold text-sigep-navy">{qtd}</p>
-      <p className="text-xs text-gray-500">{rotulo}</p>
-    </div>
-  );
-
-  const Grupo = ({
-    titulo,
-    patentes,
-  }: {
-    titulo: string;
-    patentes: typeof PATENTES;
-  }) => {
+  const Grupo = ({ titulo, patentes }: { titulo: string; patentes: typeof PATENTES }) => {
     const soma = patentes.reduce((a, p) => a + (contagem.get(p.ordem) ?? 0), 0);
     return (
       <section className="mb-8">
         <div className="mb-3 flex items-center gap-2">
-          <span className="h-4 w-1 rounded bg-sigep-dourado" />
-          <h2 className="text-sm font-bold uppercase tracking-wider text-sigep-navy">
-            {titulo}
-          </h2>
-          <span className="ml-auto text-sm font-semibold text-gray-500">
-            {soma}
-          </span>
+          <span className="h-4 w-1 rounded bg-[#D4AF37]" />
+          <h2 className="text-sm font-bold uppercase tracking-wider text-white">{titulo}</h2>
+          <span className="ml-auto text-sm font-semibold text-[#94A3B8]">{soma}</span>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {patentes.map((p) => (
-            <Cartao
-              key={p.ordem}
-              rotulo={p.rotulo}
-              qtd={contagem.get(p.ordem) ?? 0}
-            />
-          ))}
+          {patentes.map((p) => {
+            const qtd = contagem.get(p.ordem) ?? 0;
+            return (
+              <Link
+                key={p.ordem}
+                href={`/antiguidade?posto=${encodeURIComponent(p.rotulo)}`}
+                className="ui-card group p-4"
+              >
+                <p className="text-2xl font-bold text-white">{qtd}</p>
+                <p className="text-xs text-[#94A3B8] group-hover:text-[#D4AF37]">{p.rotulo}</p>
+              </Link>
+            );
+          })}
         </div>
       </section>
     );
@@ -76,18 +56,15 @@ export default async function HierarquiaPage() {
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-5xl">
-        <h1 className="mb-1 text-2xl font-bold text-sigep-navy">Hierarquia</h1>
-        <p className="mb-6 text-sm text-gray-500">
-          Distribuição do efetivo por posto e graduação — {total} militares.
+        <h1 className="mb-1 text-2xl font-bold text-white">Hierarquia</h1>
+        <p className="mb-6 text-sm text-[#94A3B8]">
+          Distribuição do efetivo por posto e graduação — {total} militares. Clique numa patente para ver os militares.
         </p>
-
         <Grupo titulo="Oficiais" patentes={oficiais} />
         <Grupo titulo="Praças" patentes={pracas} />
-
         {semInfo > 0 && (
-          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
-            {semInfo} militar(es) sem posto/graduação reconhecido. Verifique o
-            campo Posto/Grad na ficha desses militares.
+          <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+            {semInfo} militar(es) sem posto/graduação reconhecido.
           </p>
         )}
       </div>

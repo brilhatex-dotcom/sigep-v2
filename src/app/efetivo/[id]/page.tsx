@@ -4,84 +4,36 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
-import { ArrowLeft, Pencil } from "lucide-react";
+import { ArrowLeft, Pencil, User } from "lucide-react";
+import { hojeLocal, montarIdsEmFerias, situacaoCalculada } from "@/lib/situacao";
 
 export const dynamic = "force-dynamic";
 
-function corSituacao(s: string | null): string {
-  const v = (s ?? "").toLowerCase();
-  if (v.includes("pronto")) return "bg-emerald-100 text-emerald-700";
-  if (v.includes("jms")) return "bg-red-100 text-red-700";
-  if (v.includes("licen") || v === "lp" || v === "ltip")
-    return "bg-amber-100 text-amber-700";
-  if (v.includes("reserva")) return "bg-gray-200 text-gray-600";
-  return "bg-slate-100 text-slate-600";
-}
+type Campo = { label: string; valor: string | null; data?: boolean };
+type Bloco = { titulo: string; campos: Campo[] };
 
-// Formata datas para dd/mm/aaaa (e dd/mm/aaaa hh:mm quando comHora).
-// - ISO so-data (2016-01-15) e formatado direto, sem fuso (evita
-//   o dia "escorregar").
-// - O formato cru do Sheets (Fri Jan 15 2016 ... GMT-0300) e a hora
-//   sao convertidos no fuso de Brasilia.
-// - O que nao for data reconhecivel volta como veio.
-function formatarData(valor: string | null, comHora = false): string {
-  if (!valor) return "";
+function fmtData(valor: string | null): string {
+  if (!valor || !String(valor).trim()) return "—";
   const s = String(valor).trim();
-  if (!s) return "";
-
-  const soData = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (soData) return `${soData[3]}/${soData[2]}/${soData[1]}`;
-
+  const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) return `${br[1]}/${br[2]}/${br[3]}`;
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
   const d = new Date(s);
-  if (isNaN(d.getTime())) return s;
-
-  const base: Intl.DateTimeFormatOptions = {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "America/Sao_Paulo",
-  };
-  const opts: Intl.DateTimeFormatOptions = comHora
-    ? { ...base, hour: "2-digit", minute: "2-digit" }
-    : base;
-
-  return new Intl.DateTimeFormat("pt-BR", opts).format(d);
+  if (!isNaN(d.getTime())) {
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    return `${dd}/${mm}/${d.getFullYear()}`;
+  }
+  return s;
 }
 
-function Campo({ label, valor }: { label: string; valor: string | null }) {
-  return (
-    <div>
-      <dt className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-        {label}
-      </dt>
-      <dd className="mt-0.5 text-sm text-sigep-navy">
-        {valor && String(valor).trim() ? String(valor) : "—"}
-      </dd>
-    </div>
-  );
+function valorCampo(c: Campo): string {
+  if (c.data) return fmtData(c.valor);
+  return c.valor && String(c.valor).trim() ? String(c.valor) : "—";
 }
 
-function Secao({
-  titulo,
-  children,
-}: {
-  titulo: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
-      <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-sigep-navy">
-        <span className="h-4 w-1 rounded bg-sigep-dourado" />
-        {titulo}
-      </h2>
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3">
-        {children}
-      </dl>
-    </section>
-  );
-}
-
-export default async function FichaPage({
+export default async function FichaEfetivoPage({
   params,
 }: {
   params: { id: string };
@@ -89,157 +41,171 @@ export default async function FichaPage({
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  const id = decodeURIComponent(params.id);
-  const m = await prisma.efetivo.findUnique({ where: { id } });
+  const m = await prisma.efetivo.findUnique({ where: { id: params.id } });
+  if (!m) redirect("/efetivo");
 
-  if (!m) {
-    return (
-      <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
-        <div className="mx-auto max-w-3xl">
-          <Link
-            href="/efetivo"
-            className="mb-4 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-sigep-navy"
-          >
-            <ArrowLeft className="h-4 w-4" /> Voltar
-          </Link>
-          <div className="rounded-xl bg-white p-10 text-center text-gray-500 shadow-sm ring-1 ring-gray-100">
-            Militar não encontrado.
-          </div>
-        </div>
-      </AppShell>
-    );
-  }
+  const ehAdmin = (session.user.perfil ?? "").toLowerCase() === "admin";
+  const ehDono = session.user.refEfetivo === m.id;
+  const podeEditar = ehAdmin || ehDono;
 
-  const isAdmin = (session.user.perfil ?? "").toLowerCase() === "admin";
-  const isDono = session.user.refEfetivo === id;
-  const podeEditar = isAdmin || isDono;
+  // situacao calculada
+  const hoje = hojeLocal();
+  const equipes = await prisma.equipeFerias.findMany();
+  const membros = await prisma.membroFerias.findMany();
+  const idsFerias = montarIdsEmFerias(equipes, membros, hoje);
+  const sitCalc = situacaoCalculada(m, idsFerias, hoje);
+  const sitDifere = sitCalc !== (m.situacao ?? "").trim() && sitCalc !== "—";
 
-  const iniciais = (m.nomeGuerra || m.nome || "?")
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((s) => s[0])
-    .join("")
-    .toUpperCase();
+  const blocos: Bloco[] = [
+    {
+      titulo: "Dados funcionais",
+      campos: [
+        { label: "Nome completo", valor: m.nome },
+        { label: "Nome de guerra", valor: m.nomeGuerra },
+        { label: "Posto/Graduação", valor: m.postoGrad },
+        { label: "Número/Barra", valor: m.numeroBarra },
+        { label: "Matrícula", valor: m.matricula },
+        { label: "ID PMMA", valor: m.id },
+        { label: "Quadro", valor: m.quadro },
+        { label: "Função", valor: m.funcao },
+        { label: "Lotação", valor: m.lotacao },
+        { label: "Situação (atual)", valor: sitCalc },
+        { label: "Situação (cadastro)", valor: m.situacao },
+        { label: "Data de incorporação", valor: m.dataIncorp, data: true },
+        { label: "Data da promoção", valor: m.dataPromocao, data: true },
+        { label: "Equipe de férias", valor: m.equipeFerias },
+      ],
+    },
+    {
+      titulo: "Dados pessoais",
+      campos: [
+        { label: "CPF", valor: m.cpf },
+        { label: "RG", valor: m.rg },
+        { label: "Data de nascimento", valor: m.dataNasc, data: true },
+        { label: "Sexo", valor: m.sexo },
+        { label: "Estado civil", valor: m.estadoCivil },
+        { label: "Naturalidade", valor: m.naturalidade },
+        { label: "UF", valor: m.naturalidadeUF },
+        { label: "Nome do pai", valor: m.nomePai },
+        { label: "Nome da mãe", valor: m.nomeMae },
+        { label: "Tipo sanguíneo", valor: m.tipoSanguineo },
+        { label: "Fator RH", valor: m.fatorRH },
+        { label: "Escolaridade", valor: m.grauEscolaridade },
+        { label: "Cursos PMMA", valor: m.cursosPMMA },
+      ],
+    },
+    {
+      titulo: "Contato e endereço",
+      campos: [
+        { label: "Telefone", valor: m.telefone },
+        { label: "E-mail", valor: m.email },
+        { label: "Endereço", valor: m.endereco },
+        { label: "Bairro", valor: m.bairro },
+        { label: "Cidade", valor: m.cidade },
+        { label: "CEP", valor: m.cep },
+      ],
+    },
+    {
+      titulo: "Dados bancários",
+      campos: [
+        { label: "Banco", valor: m.banco },
+        { label: "Agência", valor: m.agencia },
+        { label: "Conta", valor: m.conta },
+        { label: "Tipo de conta", valor: m.tipoConta },
+      ],
+    },
+    {
+      titulo: "Emergência e dependentes",
+      campos: [
+        { label: "Possui dependentes", valor: m.possuiDependentes },
+        { label: "Contato de emergência", valor: m.emergenciaNome },
+        { label: "Telefone de emergência", valor: m.emergenciaTelefone },
+        { label: "Grau de parentesco", valor: m.emergenciaGrau },
+      ],
+    },
+    {
+      titulo: "CNH",
+      campos: [
+        { label: "CNH", valor: m.cnh },
+        { label: "Categoria", valor: m.cnhCategoria },
+        { label: "Vencimento", valor: m.cnhVencimento, data: true },
+      ],
+    },
+    {
+      titulo: "JMS",
+      campos: [
+        { label: "Início JMS", valor: m.jmsDataInicio, data: true },
+        { label: "Retorno JMS", valor: m.jmsDataRetorno, data: true },
+        { label: "Motivo", valor: m.jmsMotivo },
+      ],
+    },
+  ];
 
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
-      <div className="mx-auto max-w-5xl space-y-5">
-        <div className="flex items-center justify-between">
-          <Link
-            href="/efetivo"
-            className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-sigep-navy"
-          >
-            <ArrowLeft className="h-4 w-4" /> Voltar ao efetivo
-          </Link>
+      <div className="mx-auto max-w-5xl">
+        <Link
+          href="/efetivo"
+          className="mb-3 inline-flex items-center gap-1.5 text-sm text-[#94A3B8] transition hover:text-white"
+        >
+          <ArrowLeft className="h-4 w-4" /> Voltar à lista
+        </Link>
+
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#D4AF37]/15 text-[#D4AF37]">
+              <User className="h-8 w-8" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">{m.nome ?? "—"}</h1>
+              <p className="text-sm text-[#94A3B8]">
+                {m.postoGrad ?? ""} {m.nomeGuerra ? `· ${m.nomeGuerra}` : ""}{" "}
+                {m.matricula ? `· Mat. ${m.matricula}` : ""}
+              </p>
+              <span className="mt-1 inline-block rounded-full bg-[#D4AF37]/15 px-2.5 py-0.5 text-xs font-semibold text-[#D4AF37]">
+                {sitCalc}
+              </span>
+            </div>
+          </div>
           {podeEditar && (
             <Link
-              href={`/efetivo/${encodeURIComponent(id)}/editar`}
-              className="inline-flex items-center gap-2 rounded-lg bg-sigep-navy px-4 py-2 text-sm font-semibold text-white transition hover:bg-sigep-azul"
+              href={`/efetivo/${encodeURIComponent(m.id)}/editar`}
+              className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110"
             >
               <Pencil className="h-4 w-4" /> Editar
             </Link>
           )}
         </div>
 
-        <div className="flex flex-col items-start gap-4 rounded-xl bg-sigep-navy p-6 text-white sm:flex-row sm:items-center">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white/10 text-xl font-bold text-sigep-dourado">
-            {iniciais}
+        {sitDifere && (
+          <div className="mb-4 rounded-lg border border-sky-500/30 bg-sky-500/10 p-3 text-sm text-sky-200">
+            Situação atual <strong>{sitCalc}</strong> calculada automaticamente (férias/JMS de hoje).
+            O cadastro permanece como <strong>{m.situacao || "—"}</strong> e volta sozinho ao fim do afastamento.
           </div>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-bold leading-tight">
-              {m.nome ?? "(sem nome)"}
-            </h1>
-            <p className="text-sm text-white/70">
-              {[m.postoGrad, m.nomeGuerra].filter(Boolean).join(" · ") || "—"}
-            </p>
-          </div>
-          <div className="flex flex-col items-start gap-1 sm:items-end">
-            <span
-              className={`rounded-full px-3 py-0.5 text-xs font-medium ${corSituacao(
-                m.situacao
-              )}`}
-            >
-              {m.situacao && m.situacao.trim() ? m.situacao : "—"}
-            </span>
-            <span className="text-xs text-white/50">ID PMMA {m.id}</span>
-          </div>
+        )}
+
+        <div className="space-y-4">
+          {blocos.map((b) => (
+            <section key={b.titulo} className="ui-card p-6">
+              <h2 className="mb-4 flex items-center gap-2 text-base font-bold uppercase tracking-wider text-[#D4AF37]">
+                <span className="h-5 w-1.5 rounded bg-[#D4AF37]" />
+                {b.titulo}
+              </h2>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
+                {b.campos.map((c) => (
+                  <div key={c.label} className="border-b border-white/5 pb-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">
+                      {c.label}
+                    </p>
+                    <p className="mt-0.5 text-[15px] font-medium text-white">
+                      {valorCampo(c)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
-
-        <Secao titulo="Dados funcionais">
-          <Campo label="Posto/Graduação" valor={m.postoGrad} />
-          <Campo label="Número/Barra" valor={m.numeroBarra} />
-          <Campo label="Matrícula" valor={m.matricula} />
-          <Campo label="Quadro" valor={m.quadro} />
-          <Campo label="Função" valor={m.funcao} />
-          <Campo label="Lotação" valor={m.lotacao} />
-          <Campo label="Situação" valor={m.situacao} />
-          <Campo label="Status" valor={m.status} />
-          <Campo label="Data de incorporação" valor={formatarData(m.dataIncorp)} />
-          <Campo label="Data da promoção" valor={formatarData(m.dataPromocao)} />
-          <Campo label="Equipe de férias" valor={m.equipeFerias} />
-        </Secao>
-
-        <Secao titulo="Dados pessoais">
-          <Campo label="CPF" valor={m.cpf} />
-          <Campo label="RG" valor={m.rg} />
-          <Campo label="Data de nascimento" valor={formatarData(m.dataNasc)} />
-          <Campo label="Sexo" valor={m.sexo} />
-          <Campo label="Estado civil" valor={m.estadoCivil} />
-          <Campo label="Naturalidade" valor={m.naturalidade} />
-          <Campo label="UF naturalidade" valor={m.naturalidadeUF} />
-          <Campo label="Nome do pai" valor={m.nomePai} />
-          <Campo label="Nome da mãe" valor={m.nomeMae} />
-          <Campo label="Tipo sanguíneo" valor={m.tipoSanguineo} />
-          <Campo label="Fator RH" valor={m.fatorRH} />
-          <Campo label="Escolaridade" valor={m.grauEscolaridade} />
-          <Campo label="Cursos PMMA" valor={m.cursosPMMA} />
-        </Secao>
-
-        <Secao titulo="Contato e endereço">
-          <Campo label="Telefone" valor={m.telefone} />
-          <Campo label="E-mail" valor={m.email} />
-          <Campo label="Endereço" valor={m.endereco} />
-          <Campo label="Bairro" valor={m.bairro} />
-          <Campo label="Cidade" valor={m.cidade} />
-          <Campo label="CEP" valor={m.cep} />
-        </Secao>
-
-        <Secao titulo="Dados bancários">
-          <Campo label="Banco" valor={m.banco} />
-          <Campo label="Agência" valor={m.agencia} />
-          <Campo label="Conta" valor={m.conta} />
-          <Campo label="Tipo de conta" valor={m.tipoConta} />
-        </Secao>
-
-        <Secao titulo="Emergência e dependentes">
-          <Campo label="Contato de emergência" valor={m.emergenciaNome} />
-          <Campo label="Telefone de emergência" valor={m.emergenciaTelefone} />
-          <Campo label="Grau de parentesco" valor={m.emergenciaGrau} />
-          <Campo label="Possui dependentes" valor={m.possuiDependentes} />
-        </Secao>
-
-        <Secao titulo="CNH">
-          <Campo label="CNH" valor={m.cnh} />
-          <Campo label="Categoria" valor={m.cnhCategoria} />
-          <Campo label="Vencimento" valor={formatarData(m.cnhVencimento)} />
-        </Secao>
-
-        <Secao titulo="Junta Médica de Saúde (JMS)">
-          <Campo label="Início JMS" valor={formatarData(m.jmsDataInicio)} />
-          <Campo label="Retorno JMS" valor={formatarData(m.jmsDataRetorno)} />
-          <Campo label="Motivo" valor={m.jmsMotivo} />
-        </Secao>
-
-        <Secao titulo="Registro">
-          <Campo label="Observações" valor={m.observacoes} />
-          <Campo label="Foto (URL)" valor={m.fotoURL} />
-          <Campo label="Cadastrado em" valor={formatarData(m.dataCadastro, true)} />
-          <Campo
-            label="Última atualização"
-            valor={formatarData(m.ultimaAtualizacao, true)}
-          />
-        </Secao>
       </div>
     </AppShell>
   );
