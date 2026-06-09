@@ -22,7 +22,7 @@ export default function AcoesRapidas({ isAdmin }: { isAdmin: boolean }) {
   if (!isAdmin) return null;
 
   const acoes = [
-    { rotulo: "Novo Militar", Icone: UserPlus, href: "/efetivo" },
+    { rotulo: "Novo Militar", Icone: UserPlus, href: "/efetivo/novo" },
     { rotulo: "Promoções / Certidões", Icone: FileText, href: "/promocoes" },
     { rotulo: "Plano de Férias", Icone: HeartPulse, href: "/ferias" },
   ];

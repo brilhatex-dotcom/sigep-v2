@@ -1,10 +1,9 @@
 // ==========================================================
 //  Organograma do 18º BPM — Memorando nº 116/2022
+//  (Joselandia movida para a 3ª CIA - Dom Pedro)
 //
 //  Regra do ADIDO: militar cuja lotacao contem "adido" pertence
-//  SO a caixa Adidos, nunca a uma CIA (mesmo que a lotacao cite
-//  a cidade, ex.: "ADIDO CMT SAO DOMINGOS"). Assim nao ha
-//  contagem dupla e o topo soma o efetivo total.
+//  SO a caixa Adidos, nunca a uma CIA.
 // ==========================================================
 
 export type NoOrg = {
@@ -47,6 +46,7 @@ export const ORGANOGRAMA: NoOrg = {
         { id: "3cia-p1", rotulo: "1º Pel. Dom Pedro", cidade: "Dom Pedro - MA", chaves: ["dom pedro"] },
         { id: "3cia-p2", rotulo: "2º Pel. Gonçalves Dias", cidade: "Gonçalves Dias - MA", chaves: ["goncalves dias"] },
         { id: "3cia-p3", rotulo: "3º Pel. São José dos Basílios", cidade: "São José dos Basílios - MA", chaves: ["basilios"] },
+        { id: "3cia-p4", rotulo: "4º Pel. Joselândia", cidade: "Joselândia - MA", chaves: ["joselandia"] },
       ],
     },
     {
@@ -63,7 +63,6 @@ export const ORGANOGRAMA: NoOrg = {
       chaves: ["5a cia", "5ª cia", "tuntum"],
       filhos: [
         { id: "5cia-p1", rotulo: "1º Pel. Tuntum", cidade: "Tuntum - MA", chaves: ["tuntum"] },
-        { id: "5cia-p2", rotulo: "2º Pel. Joselândia", cidade: "Joselândia - MA", chaves: ["joselandia"] },
       ],
     },
     {
@@ -81,28 +80,22 @@ export const ORGANOGRAMA: NoOrg = {
 function normaliza(s: string): string {
   return s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
-
 function ehAdido(lotacao: string | null): boolean {
   if (!lotacao) return false;
   return normaliza(lotacao).includes("adido");
 }
-
 function noEhAdidos(no: NoOrg): boolean {
   return no.chaves.some((c) => normaliza(c) === "adido");
 }
-
-// Pertence DIRETAMENTE a este no (sem olhar filhos)?
 function pertenceDireto(lotacao: string | null, no: NoOrg): boolean {
   if (!lotacao || no.chaves.length === 0) return false;
   const adido = ehAdido(lotacao);
   const ehAdidos = noEhAdidos(no);
-  if (adido) return ehAdidos;     // adido -> so na caixa Adidos
-  if (ehAdidos) return false;     // nao-adido nunca em Adidos
+  if (adido) return ehAdidos;
+  if (ehAdidos) return false;
   const l = normaliza(lotacao);
   return no.chaves.some((c) => l.includes(normaliza(c)));
 }
-
-// Pertence a este no OU a qualquer descendente (para contagem e listagem).
 export function pertenceAoNo(lotacao: string | null, no: NoOrg): boolean {
   if (pertenceDireto(lotacao, no)) return true;
   for (const f of no.filhos ?? []) {
@@ -110,7 +103,6 @@ export function pertenceAoNo(lotacao: string | null, no: NoOrg): boolean {
   }
   return false;
 }
-
 export function acharNo(id: string, raiz: NoOrg = ORGANOGRAMA): NoOrg | null {
   if (raiz.id === id) return raiz;
   for (const f of raiz.filhos ?? []) {

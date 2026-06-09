@@ -52,7 +52,7 @@ const NAV: Secao[] = [
       { rotulo: "Hierarquia", href: "/hierarquia", Icone: Network, disponivel: true },
       { rotulo: "Organograma", href: "/organograma", Icone: Network, disponivel: true },{ rotulo: "Efetivo por Antiguidade", href: "/antiguidade", Icone: ListOrdered, disponivel: true },
       { rotulo: "Efetivo por Lotação", href: "/lotacao", Icone: Building2, disponivel: true },
-      { rotulo: "Ficha Individual", Icone: Contact },
+      { rotulo: "Ficha Individual", href: "/ficha", Icone: Contact, disponivel: true },
       { rotulo: "Promoções / Certidões", href: "/promocoes", Icone: Award, disponivel: true },
     ],
   },
