@@ -32,15 +32,20 @@ export async function POST(req: NextRequest) {
       "possuiDependentes","emergenciaNome","emergenciaTelefone","emergenciaGrau",
       "cnh","cnhCategoria","cnhVencimento","fotoURL","observacoes",
       "jmsDataInicio","jmsDataRetorno","jmsMotivo",
-    ];
-    const dados: Record<string, string> = { id };
+    ] as const;
+
+    // monta um objeto solto com os opcionais e injeta o id (obrigatorio)
+    const opcionais: Record<string, string> = {};
     for (const c of campos) {
-      if (body[c] !== undefined && body[c] !== null && String(body[c]).trim() !== "") {
-        dados[c] = String(body[c]);
+      const v = body[c];
+      if (v !== undefined && v !== null && String(v).trim() !== "") {
+        opcionais[c] = String(v);
       }
     }
 
-    const novo = await prisma.efetivo.create({ data: dados });
+    const novo = await prisma.efetivo.create({
+      data: { id, ...opcionais },
+    });
     return NextResponse.json({ ok: true, id: novo.id }, { status: 201 });
   } catch (e) {
     console.error(e);
