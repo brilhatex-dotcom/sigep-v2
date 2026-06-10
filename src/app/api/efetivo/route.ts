@@ -1,41 +1,62 @@
-// ==========================================================
-//  /api/efetivo  — Fase 3
-//  Padrao para os demais modulos. Substitui o doGet/doPost.
-// ==========================================================
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
+/* =========================================================================
+   GET /api/efetivo  ->  lista enxuta do efetivo para o seletor da Escala.
+   Devolve so o que a escala precisa (id + campos do nome + situacao).
+   Se voce JA tem uma rota que lista o efetivo com estes campos, pode
+   apontar o fetch do EscalaClient/MapaClient para ela e descartar este
+   arquivo. O formato esperado pelo cliente e: { efetivo: Militar[] }.
+
+   ATENCAO a 2 imports que dependem do seu projeto:
+   - "@/lib/auth"   -> onde estao seus authOptions (igual ao das pages).
+   - "@/lib/prisma" -> onde voce instancia o PrismaClient. Se o seu for
+     export default, troque por:  import prisma from "@/lib/prisma";
+   ========================================================================= */
+
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ erro: "Nao autorizado" }, { status: 401 });
+  if (!session?.user) {
+    return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
   }
-
-  const efetivo = await prisma.efetivo.findMany({
-    orderBy: { nome: "asc" },
-  });
-  return NextResponse.json(efetivo);
-}
-
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ erro: "Nao autorizado" }, { status: 401 });
-  }
-  // TODO (Fase 4): restringir por perfil quando mapearmos os
-  // valores reais do campo Perfil (admin / comandante / etc.).
 
   try {
-    const dados = await req.json();
-    const novo = await prisma.efetivo.create({ data: dados });
-    return NextResponse.json(novo, { status: 201 });
-  } catch (e) {
-    console.error(e);
-    return NextResponse.json(
-      { erro: "Nao foi possivel cadastrar" },
-      { status: 400 }
-    );
+    const linhas = await prisma.efetivo.findMany({
+      select: {
+        id: true,
+        postoGrad: true,
+        numeroBarra: true,
+        nome: true,
+        nomeGuerra: true,
+        matricula: true,
+        situacao: true,
+        status: true,
+        funcao: true,
+        lotacao: true,
+      },
+    });
+
+    // Normaliza null -> "" para o cliente nunca quebrar.
+    const efetivo = linhas.map((m) => ({
+      id: m.id,
+      postoGrad: m.postoGrad ?? "",
+      numeroBarra: m.numeroBarra ?? "",
+      nome: m.nome ?? "",
+      nomeGuerra: m.nomeGuerra ?? "",
+      matricula: m.matricula ?? "",
+      situacao: m.situacao ?? "",
+      status: m.status ?? "",
+      funcao: m.funcao ?? "",
+      lotacao: m.lotacao ?? "",
+    }));
+
+    return NextResponse.json({ efetivo });
+  } catch (err) {
+    console.error("[GET /api/efetivo]", err);
+    return NextResponse.json({ error: "Falha ao consultar o efetivo" }, { status: 500 });
   }
 }

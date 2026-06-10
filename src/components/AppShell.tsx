@@ -16,6 +16,7 @@ import {
   Palmtree,
   Gavel,
   ClipboardList,
+  Map,
   Car,
   Phone,
   LogOut,
@@ -50,7 +51,8 @@ const NAV: Secao[] = [
     itens: [
       { rotulo: "Cadastro de Efetivo", href: "/efetivo", Icone: Users, disponivel: true },
       { rotulo: "Hierarquia", href: "/hierarquia", Icone: Network, disponivel: true },
-      { rotulo: "Organograma", href: "/organograma", Icone: Network, disponivel: true },{ rotulo: "Efetivo por Antiguidade", href: "/antiguidade", Icone: ListOrdered, disponivel: true },
+      { rotulo: "Organograma", href: "/organograma", Icone: Network, disponivel: true },
+      { rotulo: "Efetivo por Antiguidade", href: "/antiguidade", Icone: ListOrdered, disponivel: true },
       { rotulo: "Efetivo por Lotação", href: "/lotacao", Icone: Building2, disponivel: true },
       { rotulo: "Ficha Individual", href: "/ficha", Icone: Contact, disponivel: true },
       { rotulo: "Promoções / Certidões", href: "/promocoes", Icone: Award, disponivel: true },
@@ -61,7 +63,8 @@ const NAV: Secao[] = [
     itens: [
       { rotulo: "Plano de Férias", href: "/ferias", Icone: Palmtree, disponivel: true },
       { rotulo: "Disciplinar", Icone: Gavel },
-      { rotulo: "Escalas de Serviço", Icone: ClipboardList },
+      { rotulo: "Escalas de Serviço", href: "/escalas", Icone: ClipboardList, disponivel: true },
+      { rotulo: "Mapa de Escala", href: "/escalas/mapa", Icone: Map, disponivel: true },
     ],
   },
   {
@@ -75,14 +78,19 @@ const NAV: Secao[] = [
 
 // Acha o rotulo da pagina atual para o breadcrumb e saudacao.
 function tituloAtual(pathname: string): string {
+  let melhor = "Painel";
+  let tam = -1;
   for (const s of NAV) {
     for (const i of s.itens) {
       if (i.href && (pathname === i.href || pathname.startsWith(i.href + "/"))) {
-        return i.rotulo;
+        if (i.href.length > tam) {
+          tam = i.href.length;
+          melhor = i.rotulo;
+        }
       }
     }
   }
-  return "Painel";
+  return melhor;
 }
 
 function saudacao(): string {
