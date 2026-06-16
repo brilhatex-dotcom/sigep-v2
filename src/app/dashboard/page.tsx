@@ -1,8 +1,6 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { exigirAdmin } from "@/lib/guard";
 import AppShell from "@/components/AppShell";
 import BarrasPosto from "@/components/BarrasPosto";
 import BannerAlertas, { Alerta } from "@/components/BannerAlertas";
@@ -28,8 +26,7 @@ function isoDe(valor: string | null): string {
 }
 
 export default async function DashboardPage() {
-  const session = await getServerSession(authOptions);
-  if (!session) redirect("/login");
+  const session = await exigirAdmin();
 
   const hoje = hojeBR();
   const mesAtual = hoje.getMonth();

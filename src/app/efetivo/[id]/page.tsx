@@ -1,9 +1,9 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { exigirLogin } from "@/lib/guard";
 import AppShell from "@/components/AppShell";
+import CopiarDados from "./CopiarDados";
 import { ArrowLeft, Pencil, User } from "lucide-react";
 import { hojeLocal, montarIdsEmFerias, situacaoCalculada } from "@/lib/situacao";
 
@@ -38,14 +38,22 @@ export default async function FichaEfetivoPage({
 }: {
   params: { id: string };
 }) {
-  const session = await getServerSession(authOptions);
-  if (!session) redirect("/login");
-
-  const m = await prisma.efetivo.findUnique({ where: { id: params.id } });
-  if (!m) redirect("/efetivo");
+  const session = await exigirLogin();
 
   const ehAdmin = (session.user.perfil ?? "").toLowerCase() === "admin";
-  const ehDono = session.user.refEfetivo === m.id;
+  const meuEfetivo = (session.user as any).refEfetivo as string | undefined;
+
+  // >>> SEGURANCA: policial so pode ver a PROPRIA ficha. <<<
+  // admin ve qualquer uma; policial que tentar abrir outra vai para a propria.
+  if (!ehAdmin) {
+    if (!meuEfetivo) redirect("/ficha");
+    if (params.id !== meuEfetivo) redirect(`/efetivo/${encodeURIComponent(String(meuEfetivo))}`);
+  }
+
+  const m = await prisma.efetivo.findUnique({ where: { id: params.id } });
+  if (!m) redirect(ehAdmin ? "/efetivo" : "/ficha");
+
+  const ehDono = meuEfetivo === m.id;
   const podeEditar = ehAdmin || ehDono;
 
   // situacao calculada
@@ -145,10 +153,10 @@ export default async function FichaEfetivoPage({
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-5xl">
         <Link
-          href="/efetivo"
+          href={ehAdmin ? "/efetivo" : "/ficha"}
           className="mb-3 inline-flex items-center gap-1.5 text-sm text-[#94A3B8] transition hover:text-white"
         >
-          <ArrowLeft className="h-4 w-4" /> Voltar à lista
+          <ArrowLeft className="h-4 w-4" /> Voltar
         </Link>
 
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
@@ -167,14 +175,28 @@ export default async function FichaEfetivoPage({
               </span>
             </div>
           </div>
-          {podeEditar && (
-            <Link
-              href={`/efetivo/${encodeURIComponent(m.id)}/editar`}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110"
-            >
-              <Pencil className="h-4 w-4" /> Editar
-            </Link>
-          )}
+          <div className="flex items-center gap-2">
+            <CopiarDados
+              dados={{
+                postoGrad: m.postoGrad,
+                numeroBarra: m.numeroBarra,
+                nomeGuerra: m.nomeGuerra,
+                nome: m.nome,
+                matricula: m.matricula,
+                id: m.id,
+                quadro: m.quadro,
+                lotacao: m.lotacao,
+              }}
+            />
+            {podeEditar && (
+              <Link
+                href={`/efetivo/${encodeURIComponent(m.id)}/editar`}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110"
+              >
+                <Pencil className="h-4 w-4" /> Editar
+              </Link>
+            )}
+          </div>
         </div>
 
         {sitDifere && (

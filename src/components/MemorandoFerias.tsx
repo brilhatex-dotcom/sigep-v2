@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { X, Printer, Pencil } from "lucide-react";
+import { useRef, useEffect, useState } from "react";
+import { X, Printer, Pencil, Check, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 
 export type DadosMemorando = {
   numero: string;
@@ -14,172 +14,246 @@ export type DadosMemorando = {
 };
 
 function hojeExtenso() {
-  const d = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" })
-  );
-  const meses = [
-    "janeiro", "fevereiro", "março", "abril", "maio", "junho",
-    "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
-  ];
+  const d = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+  const meses = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
   return `${d.getDate()} de ${meses[d.getMonth()]} de ${d.getFullYear()}`;
 }
 
-export default function MemorandoFerias({
-  dados,
-  ano,
-  onFechar,
+function dataExtenso(br: string): string {
+  const meses = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+  const m = br.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return br;
+  return `${parseInt(m[1])} de ${meses[parseInt(m[2]) - 1]} de ${m[3]}`;
+}
+
+// Campo editável com contentEditable — suporta bold/italic/underline via execCommand
+function Campo({
+  html, editando, style, multiline,
 }: {
-  dados: DadosMemorando;
-  ano: string;
-  onFechar: () => void;
+  html: string; editando: boolean; style?: React.CSSProperties; multiline?: boolean;
 }) {
-  const [editando, setEditando] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
-  const [m, setM] = useState({
-    numero: dados.numero,
-    cidadeData: `Presidente Dutra-MA, ${hojeExtenso()}.`,
-    cmt: "Cmt. do 18º BPM",
-    de: "Asp. Of. PM Chefe da 1ª Seção do 18º BPM.",
-    ao: `${dados.postoGrad} PM nº ${dados.numeroBarra} - ${dados.nome}.`,
-    assunto: `Concessão de Férias (${dados.diasFerias} dias).`,
-    inicio: dados.inicioBR,
-    apresentacao: dados.apresentacaoBR,
-    dias: String(dados.diasFerias),
-    exercicio: String(Number(ano) - 1),
-    assinatura: "Chefe da 1ª Seção (P1) do 18º BPM",
-  });
-
-  function set<K extends keyof typeof m>(k: K, v: string) {
-    setM((p) => ({ ...p, [k]: v }));
-  }
-
-  const E = ({
-    campo,
-    multiline,
-    classe,
-    size,
-  }: {
-    campo: keyof typeof m;
-    multiline?: boolean;
-    classe?: string;
-    size?: number;
-  }) =>
-    editando ? (
-      multiline ? (
-        <textarea
-          value={m[campo]}
-          onChange={(e) => set(campo, e.target.value)}
-          className={`w-full rounded border border-amber-300 bg-amber-50 px-1 ${classe ?? ""}`}
-          rows={2}
-        />
-      ) : (
-        <input
-          value={m[campo]}
-          onChange={(e) => set(campo, e.target.value)}
-          size={size}
-          className={`rounded border border-amber-300 bg-amber-50 px-1 ${classe ?? ""}`}
-        />
-      )
-    ) : (
-      <span className={classe}>{m[campo]}</span>
-    );
+  // só injeta o html quando ENTRA em modo edição ou na montagem
+  useEffect(() => {
+    if (ref.current && ref.current.innerHTML !== html) {
+      ref.current.innerHTML = html;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editando]);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 print:bg-white">
-      <div className="sticky top-0 z-10 flex items-center gap-2 bg-sigep-navy px-4 py-3 text-white print:hidden">
-        <span className="font-semibold">Memorando — Concessão de Férias</span>
+    <div
+      ref={ref}
+      contentEditable={editando}
+      suppressContentEditableWarning
+      style={{
+        display: "inline",
+        outline: editando ? "1px solid #f59e0b" : "none",
+        background: editando ? "#fefce8" : "transparent",
+        borderRadius: 2,
+        padding: editando ? "0 2px" : 0,
+        minWidth: "2ch",
+        whiteSpace: multiline ? "pre-wrap" : "normal",
+        ...style,
+      }}
+      dangerouslySetInnerHTML={editando ? undefined : { __html: html }}
+    />
+  );
+}
+
+export default function MemorandoFerias({ dados, ano, onFechar }: {
+  dados: DadosMemorando; ano: string; onFechar: () => void;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [fontSize, setFontSize] = useState(12);
+
+  const pt = `${fontSize}pt`;
+  const nomeNegrito = `<strong>${dados.nome.toUpperCase()}</strong>`;
+
+  // HTMLs iniciais de cada campo (suportam tags html para negrito/itálico)
+  const campos = {
+    numero:        useRef(`${dados.numero}`),
+    cidadeData:    useRef(`Presidente Dutra-MA, ${hojeExtenso()}.`),
+    de:            useRef(`1º Ten QOEM Chefe da 1ª Seção do 18º BPM.`),
+    ao:            useRef(`${dados.postoGrad} PM nº ${dados.numeroBarra} - ${nomeNegrito}.`),
+    assunto:       useRef(`Concessão de Férias (${dados.diasFerias} dias).`),
+    inicioExtenso: useRef(`<strong><u>${dataExtenso(dados.inicioBR)}</u></strong>`),
+    apresExtenso:  useRef(`<strong><u>${dataExtenso(dados.apresentacaoBR)}</u></strong>`),
+    dias:          useRef(`${dados.diasFerias}`),
+    exercicio:     useRef(`${Number(ano) - 1}`),
+    assinaturaAo:  useRef(`${dados.postoGrad}<br/><strong>${dados.nome.toUpperCase()}</strong>`),
+    nomeCmt:       useRef(`1º TEN. QOEM. <strong>JOELSON DOS REIS SILVA</strong>`),
+    cargoCmt:      useRef(`CHEFE DO P/1 DO 18º BPM`),
+  };
+
+  function fmt(cmd: string) {
+    document.execCommand(cmd, false, undefined);
+  }
+
+  const C = ({ campo, style, multiline }: {
+    campo: keyof typeof campos; style?: React.CSSProperties; multiline?: boolean;
+  }) => (
+    <Campo html={campos[campo].current} editando={editando} style={style} multiline={multiline} />
+  );
+
+  return (
+    <div className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 print:bg-white">
+
+      {/* BARRA DE FERRAMENTAS */}
+      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-1 bg-[#0b1626] px-3 py-2 shadow print:hidden">
+
+        <div className="flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 px-2 py-1">
+          <button onMouseDown={(e) => { e.preventDefault(); fmt("bold"); }} title="Negrito (Ctrl+B)"
+            className="rounded p-1.5 text-white hover:bg-white/20"><Bold className="h-4 w-4" /></button>
+          <button onMouseDown={(e) => { e.preventDefault(); fmt("italic"); }} title="Itálico (Ctrl+I)"
+            className="rounded p-1.5 text-white hover:bg-white/20"><Italic className="h-4 w-4" /></button>
+          <button onMouseDown={(e) => { e.preventDefault(); fmt("underline"); }} title="Sublinhado (Ctrl+U)"
+            className="rounded p-1.5 text-white hover:bg-white/20"><Underline className="h-4 w-4" /></button>
+          <div className="mx-1 h-5 w-px bg-white/20" />
+          <button onMouseDown={(e) => { e.preventDefault(); fmt("justifyLeft"); }} title="Esquerda"
+            className="rounded p-1.5 text-white hover:bg-white/20"><AlignLeft className="h-4 w-4" /></button>
+          <button onMouseDown={(e) => { e.preventDefault(); fmt("justifyCenter"); }} title="Centralizar"
+            className="rounded p-1.5 text-white hover:bg-white/20"><AlignCenter className="h-4 w-4" /></button>
+          <button onMouseDown={(e) => { e.preventDefault(); fmt("justifyRight"); }} title="Direita"
+            className="rounded p-1.5 text-white hover:bg-white/20"><AlignRight className="h-4 w-4" /></button>
+          <div className="mx-1 h-5 w-px bg-white/20" />
+          <button onMouseDown={(e) => { e.preventDefault(); setFontSize((s) => Math.max(8, s - 1)); }}
+            className="rounded px-2 py-1 text-sm font-bold text-white hover:bg-white/20">A-</button>
+          <span className="w-9 text-center text-xs text-white/80">{fontSize}pt</span>
+          <button onMouseDown={(e) => { e.preventDefault(); setFontSize((s) => Math.min(20, s + 1)); }}
+            className="rounded px-2 py-1 text-sm font-bold text-white hover:bg-white/20">A+</button>
+        </div>
+
         <div className="ml-auto flex gap-2">
-          <button
-            onClick={() => setEditando((v) => !v)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-medium hover:bg-amber-600"
-          >
-            <Pencil className="h-4 w-4" /> {editando ? "Pronto" : "Editar tudo"}
+          <button onClick={() => setEditando((v) => !v)}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+              editando ? "bg-emerald-600 hover:bg-emerald-700" : "bg-amber-500 hover:bg-amber-600"}`}>
+            {editando ? <><Check className="h-4 w-4" /> Pronto</> : <><Pencil className="h-4 w-4" /> Editar</>}
           </button>
-          <button
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium hover:bg-emerald-700"
-          >
+          <button onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium hover:bg-blue-700">
             <Printer className="h-4 w-4" /> Imprimir / PDF
           </button>
-          <button
-            onClick={onFechar}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-red-500 px-3 py-1.5 text-sm font-medium hover:bg-red-600"
-          >
+          <button onClick={onFechar}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium hover:bg-red-700">
             <X className="h-4 w-4" /> Fechar
           </button>
         </div>
       </div>
 
-      <div className="mx-auto my-6 max-w-3xl bg-white p-10 text-[13px] leading-relaxed text-black shadow-lg print:my-0 print:max-w-none print:p-0 print:shadow-none">
-        <div className="flex items-center justify-between">
-          <div className="flex h-16 w-16 items-center justify-center rounded border border-dashed border-gray-300 text-[8px] text-gray-400 print:border-transparent">
-            BRASÃO PMMA
+      {/* FOLHA A4 */}
+      <div className="mx-auto my-6 bg-white text-black shadow-2xl print:my-0 print:shadow-none"
+        style={{ width: "210mm", minHeight: "297mm", padding: "12mm 20mm 20mm 20mm",
+          fontFamily: "Times New Roman, Times, serif", fontSize: pt, lineHeight: "1.5", position: "relative" }}>
+
+        {/* Cabeçalho */}
+        <div style={{ display: "flex", alignItems: "center", gap: "4mm", marginBottom: "3mm" }}>
+          <div style={{ width: "24mm", height: "24mm", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #ccc" }}
+            className="print:border-0">
+            <img src="/brasao-pmma.png" alt="Brasão PMMA"
+              style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
           </div>
-          <div className="px-2 text-center text-[12px] font-bold uppercase leading-tight">
-            <p>Estado do Maranhão</p>
-            <p>Secretaria de Estado da Segurança Pública</p>
-            <p>Polícia Militar do Maranhão</p>
-            <p>Comando do Policiamento de Área I/2</p>
-            <p>18º Batalhão de Polícia Militar</p>
-            <p className="text-[10px] font-normal normal-case">
-              Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP 65.760-000 · (99) 3663-3892 · 18batalhaopmma@gmail.com
+
+          <div style={{ flex: 1, textAlign: "center", lineHeight: "1.35" }}>
+            <p style={{ margin: 0, fontWeight: "bold", textTransform: "uppercase" }}>Estado do Maranhão</p>
+            <p style={{ margin: 0, fontWeight: "bold", textTransform: "uppercase" }}>Secretaria de Estado da Segurança Pública</p>
+            <p style={{ margin: 0, fontWeight: "bold", textTransform: "uppercase" }}>Polícia Militar do Maranhão</p>
+            <p style={{ margin: 0, fontWeight: "bold", textTransform: "uppercase" }}>Comando do Policiamento de Área I/2</p>
+            <p style={{ margin: 0, fontWeight: "bold", textTransform: "uppercase" }}>18º Batalhão de Policia Militar</p>
+            <p style={{ margin: "1.5mm 0 0 0", fontSize: `${fontSize - 1}pt` }}>
+              Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP-65.760-000
+            </p>
+            <p style={{ margin: 0, fontSize: `${fontSize - 1}pt` }}>
+              TELEFAX: (99) 98509-5005 (Permanência) – <u>18batalhaopmma@gmail.com</u>
             </p>
           </div>
-          <div className="flex h-16 w-16 items-center justify-center rounded border border-dashed border-gray-300 text-[8px] text-gray-400 print:border-transparent">
-            BRASÃO 18º BPM
+
+          <div style={{ width: "24mm", height: "24mm", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #ccc" }}
+            className="print:border-0">
+            <img src="/brasao-18bpm.png" alt="Brasão 18º BPM"
+              style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
           </div>
         </div>
 
-        <hr className="my-4 border-black" />
+        <hr style={{ borderTop: "1.5px solid black", margin: "3mm 0 5mm 0" }} />
 
-        <div className="mb-4 flex justify-between">
-          <span className="font-semibold">VISTO</span>
-          <div className="text-right">
-            <E campo="cidadeData" size={38} classe="text-right" />
-            <p className="mt-8">
-              <E campo="cmt" size={20} />
-            </p>
+        {/* VISTO + Cidade/Data */}
+        <div style={{ position: "relative", minHeight: "28mm", marginBottom: "8mm" }}>
+          <div style={{ position: "absolute", left: 0, top: 0 }}>
+            <p style={{ fontWeight: "bold", margin: "0 0 2mm 0" }}>VISTO</p>
+            <div style={{ width: "38mm", height: "16mm", border: "1px dashed #ccc", marginBottom: "1mm", display: "flex", alignItems: "center", justifyContent: "center" }}
+              className="print:border-0">
+              <img src="/assinatura-cmt.png" alt=""
+                style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+            </div>
+            <p style={{ margin: 0, fontSize: `${fontSize - 1}pt` }}>Cmt. do 18º BPM</p>
+          </div>
+
+          {/* Cidade/Data — centralizado na página */}
+          <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: "4mm", textAlign: "center", whiteSpace: "nowrap" }}>
+            <C campo="cidadeData" style={{ display: "block", textAlign: "center" }} />
           </div>
         </div>
 
-        <p className="mb-4 text-center font-bold">
-          Memorando nº <E campo="numero" size={5} />/{ano} – 18º BPM
+        {/* Número */}
+        <p style={{ margin: "0 0 5mm 0" }}>
+          Memorando nº <C campo="numero" />/{ano} – 18º BPM
         </p>
 
-        <table className="mb-4 w-full">
-          <tbody>
-            <tr>
-              <td className="w-16 align-top font-bold">Do:</td>
-              <td><E campo="de" multiline classe="w-full" /></td>
-            </tr>
-            <tr>
-              <td className="align-top font-bold">Ao:</td>
-              <td><E campo="ao" multiline classe="w-full" /></td>
-            </tr>
-            <tr>
-              <td className="align-top font-bold">Assunto:</td>
-              <td><E campo="assunto" classe="w-full" /></td>
-            </tr>
-          </tbody>
-        </table>
+        {/* Do / Ao / Assunto */}
+        <div style={{ marginLeft: "60mm", marginBottom: "6mm" }}>
+          <table style={{ borderCollapse: "collapse" }}>
+            <tbody>
+              <tr>
+                <td style={{ fontWeight: "bold", verticalAlign: "top", paddingRight: "3mm", whiteSpace: "nowrap" }}>Do:</td>
+                <td style={{ verticalAlign: "top", paddingBottom: "0.5mm" }}><C campo="de" /></td>
+              </tr>
+              <tr>
+                <td style={{ fontWeight: "bold", verticalAlign: "top", paddingRight: "3mm", whiteSpace: "nowrap" }}>Ao:</td>
+                <td style={{ verticalAlign: "top", paddingBottom: "0.5mm" }}><C campo="ao" /></td>
+              </tr>
+              <tr>
+                <td style={{ fontWeight: "bold", verticalAlign: "top", paddingRight: "3mm", whiteSpace: "nowrap" }}>Assunto:</td>
+                <td style={{ verticalAlign: "top" }}><C campo="assunto" /></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-        <p className="text-justify indent-8">
-          Informo a Vossa Senhoria, para conhecimento, que a partir do dia{" "}
-          <E campo="inicio" size={10} classe="text-center font-semibold" />{" "}
-          encontra-se de Férias Regulamentares (<E campo="dias" size={2} /> dias)
-          referente ao exercício de <E campo="exercicio" size={5} />, devendo
-          apresentar-se pronto para o serviço Policial Militar no dia{" "}
-          <E campo="apresentacao" size={10} classe="text-center font-semibold" />.
+        {/* Corpo */}
+        <p style={{ textAlign: "justify", textIndent: "15mm", marginBottom: "15mm" }}>
+          Informo a Vossa Senhoria, para conhecimento que a partir do dia{" "}
+          <C campo="inicioExtenso" />
+          {", "}encontra-se de Férias Regulamentares (<C campo="dias" /> dias) referente ao exercício de{" "}
+          <C campo="exercicio" />, devendo apresentar-se pronto para o serviço Policial Militar, no dia{" "}
+          <C campo="apresExtenso" />.
         </p>
 
-        <p className="mt-12 text-center">
-          Atenciosamente,
-          <br /><br /><br />
-          _______________________________________
-          <br />
-          <E campo="assinatura" size={32} classe="text-center" />
-        </p>
+        {/* Assinatura do destinatário */}
+        <div style={{ textAlign: "center", marginBottom: "12mm" }}>
+          <C campo="assinaturaAo" style={{ display: "block", textAlign: "center" }} multiline />
+        </div>
+
+        {/* Assinatura do emissor */}
+        <div style={{ textAlign: "center" }}>
+          <C campo="nomeCmt" style={{ display: "block", textAlign: "center" }} />
+          <C campo="cargoCmt" style={{ display: "block", textAlign: "center" }} />
+        </div>
+
       </div>
+
+      <style>{`
+        @media print {
+          .print\\:hidden { display: none !important; }
+          .print\\:border-0 { border: none !important; }
+          body { margin: 0; }
+          @page { size: A4; margin: 0; }
+        }
+      `}</style>
     </div>
   );
 }

@@ -1,0 +1,115 @@
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions, hashSenha } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import crypto from "crypto";
+
+export const dynamic = "force-dynamic";
+
+/* =========================================================================
+   /api/admin/resetar-senha   (SOMENTE ADMIN)
+
+   GET ?busca=texto
+     -> procura militares por nome/nome de guerra/matricula/ID e diz se cada
+        um tem login. Retorna ate 20 resultados para a tela de reset.
+
+   POST { efetivoId }
+     -> reseta a senha daquele policial DE VOLTA para o ID e marca
+        precisaTrocar = true (ele tera que criar senha nova no proximo acesso).
+        Tambem zera tentativas/bloqueio. Nunca mexe em admin.
+   ========================================================================= */
+
+function ehAdmin(perfil: string | null | undefined): boolean {
+  return (perfil || "").toLowerCase() === "admin";
+}
+
+function soDigitos(v: string | null | undefined): string {
+  return String(v == null ? "" : v).replace(/\D/g, "");
+}
+
+export async function GET(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session || !session.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
+  if (!ehAdmin((session.user as any).perfil)) return NextResponse.json({ error: "Apenas admin" }, { status: 403 });
+
+  const url = new URL(req.url);
+  const busca = (url.searchParams.get("busca") || "").trim();
+
+  try {
+    const efetivo = await prisma.efetivo.findMany({
+      select: { id: true, postoGrad: true, numeroBarra: true, nome: true, nomeGuerra: true, matricula: true },
+    });
+    const usuarios = await prisma.usuario.findMany({ select: { refEfetivo: true } });
+    const comLogin = new Set(usuarios.map((u: { refEfetivo: string | null }) => u.refEfetivo).filter(Boolean) as string[]);
+
+    const b = busca.toLowerCase();
+    const bd = soDigitos(busca);
+
+    type Ef = { id: string; postoGrad: string | null; numeroBarra: string | null; nome: string | null; nomeGuerra: string | null; matricula: string | null };
+    const filtrados = (busca === "" ? efetivo : efetivo.filter((m: Ef) => {
+      const nome = (m.nome || "").toLowerCase();
+      const guerra = (m.nomeGuerra || "").toLowerCase();
+      const mat = soDigitos(m.matricula);
+      const id = soDigitos(m.id);
+      return nome.includes(b) || guerra.includes(b) || (bd !== "" && (mat.includes(bd) || id.includes(bd)));
+    })).slice(0, 20);
+
+    const resultados = filtrados.map((m: Ef) => ({
+      efetivoId: m.id,
+      postoGrad: m.postoGrad,
+      numeroBarra: m.numeroBarra,
+      nome: m.nome,
+      nomeGuerra: m.nomeGuerra,
+      matricula: m.matricula,
+      temLogin: comLogin.has(m.id),
+      idSimples: soDigitos(m.id),
+    }));
+
+    return NextResponse.json({ resultados });
+  } catch (err) {
+    console.error("[GET resetar-senha]", err);
+    return NextResponse.json({ error: "Falha na busca" }, { status: 500 });
+  }
+}
+
+export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session || !session.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
+  if (!ehAdmin((session.user as any).perfil)) return NextResponse.json({ error: "Apenas admin" }, { status: 403 });
+
+  let body: any = {};
+  try { body = await req.json(); } catch {}
+  const efetivoId = String(body.efetivoId || "");
+  if (!efetivoId) return NextResponse.json({ error: "Informe o militar" }, { status: 400 });
+
+  try {
+    const usuario = await prisma.usuario.findFirst({ where: { refEfetivo: efetivoId } });
+    if (!usuario) return NextResponse.json({ error: "Este militar nao tem login criado" }, { status: 404 });
+    if ((usuario.perfil || "").toLowerCase() === "admin") {
+      return NextResponse.json({ error: "Nao e permitido resetar a senha de um administrador por aqui" }, { status: 403 });
+    }
+
+    const idSimples = soDigitos(efetivoId);
+    if (!idSimples) return NextResponse.json({ error: "ID do militar invalido para senha" }, { status: 400 });
+
+    const salt = crypto.randomBytes(16).toString("hex");
+    const senhaHash = hashSenha(idSimples, salt);
+
+    await prisma.usuario.update({
+      where: { id: usuario.id },
+      data: {
+        senhaHash,
+        salt,
+        precisaTrocar: true,
+        tentativas: 0,
+        bloqueadoAte: null,
+        ativo: "SIM",
+      } as any,
+    });
+
+    return NextResponse.json({ ok: true, idSimples });
+  } catch (err) {
+    console.error("[POST resetar-senha]", err);
+    return NextResponse.json({ error: "Falha ao resetar" }, { status: 500 });
+  }
+}

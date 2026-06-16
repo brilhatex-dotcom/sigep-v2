@@ -82,6 +82,15 @@ function fmtMilitar(m: Militar): string {
   return [posto, guerra].filter(Boolean).join(" ").trim();
 }
 
+function semTags(html: string): string {
+  if (!html) return "";
+  if (html.indexOf("<") === -1) return html.trim();
+  if (typeof document === "undefined") return html.replace(/<[^>]*>/g, "").trim();
+  const d = document.createElement("div");
+  d.innerHTML = html;
+  return (d.textContent || "").trim();
+}
+
 const SEED_CADASTRO: Cadastro = {
   cpu: [], ftGraduado: [], ftMotorista: [], ftPatrulheiro: [],
   rpAdjunto: [], rpMotorista: [], rpPatrulheiro: [],
@@ -136,7 +145,7 @@ function assignDia(iso: string, cad: Cadastro, escalas: Record<string, any>, idD
   if (e) {
     // Dias salvos guardam NOMES na folha; normalizamos para ID quando possivel
     // para casar com pools/afastamentos (que sao IDs).
-    const t = (s: any) => (s && s.titular ? idDe(String(s.titular).trim()) : "");
+    const t = (s: any) => (s && s.titular ? idDe(semTags(String(s.titular))) : "");
     const lst = (arr: any[]) => (arr || []).map(t).filter(Boolean);
     return {
       cpu: [t(e.cpuDeDia)].filter(Boolean),

@@ -35,6 +35,10 @@ model Usuario {
   perfil       String? @map("Perfil")
   refEfetivo   String? @map("RefEfetivo")
 
+  precisaTrocar Boolean? @default(true) @map("PrecisaTrocar")    // NOVO
+  tentativas    Int?     @default(0)    @map("Tentativas")        // NOVO
+  bloqueadoAte  String?                 @map("BloqueadoAte")      // NOVO
+
   efetivo Efetivo? @relation(fields: [refEfetivo], references: [id])
 
   @@map("usuarios")
@@ -254,4 +258,125 @@ model Aviso {
   criadoEm   DateTime @default(now()) @map("criado_em")
 
   @@map("avisos")
+}
+// ==========================================================
+//  >>> ANEXAR AO FINAL DO prisma/schema.prisma <<<
+//  JOE — Jornada Operacional Extraordinaria (servico extra
+//  remunerado). O P1 (admin) abre um JOE com vagas e valor;
+//  policiais com login se candidatam; o P1 aprova um a um.
+//  Depois rode: npx prisma db push
+// ==========================================================
+
+model Joe {
+  id          String   @id @default(cuid())
+  evento      String                                  // nome da operacao/evento
+  local       String?                                 // onde sera
+  data        String                                  // "aaaa-mm-dd"
+  horaInicio  String   @map("hora_inicio")            // "HH:MM"
+  horaFim     String   @map("hora_fim")               // "HH:MM"
+  vagas       Int      @default(1)                    // quantas vagas
+  valor       Float    @default(0)                    // diaria/remuneracao por militar (R$)
+  observacao  String?                                 // detalhes livres
+  status      String   @default("aberta")             // "aberta" | "encerrada"
+  criadoPor   String?  @map("criado_por")             // login do P1 que abriu
+  criadoEm    DateTime @default(now()) @map("criado_em")
+
+  inscricoes  JoeInscricao[]
+
+  @@map("joe")
+}
+
+model JoeInscricao {
+  id          String   @id @default(cuid())
+  joeId       String   @map("joe_id")
+  efetivoId   String   @map("efetivo_id")             // ID PMMA do candidato
+  status      String   @default("pendente")           // "pendente" | "aprovado" | "recusado"
+  inscritoEm  DateTime @default(now()) @map("inscrito_em")
+  decididoEm  DateTime? @map("decidido_em")
+  decididoPor String?  @map("decidido_por")           // login do P1 que decidiu
+
+  joe         Joe      @relation(fields: [joeId], references: [id], onDelete: Cascade)
+
+  @@unique([joeId, efetivoId])                          // 1 candidatura por militar por JOE
+  @@map("joe_inscricoes")
+}
+// ==========================================================
+//  >>> ANEXAR AO FINAL do prisma/schema.prisma <<<
+//  Cursos: o admin abre um curso; policiais demonstram
+//  interesse (inscricao). Sem aprovacao, sem valor.
+//  Depois: npx prisma db push
+// ==========================================================
+
+model Curso {
+  id          String   @id @default(cuid())
+  nome        String                                   // ex: "Curso de Formacao de Sargentos"
+  local       String?                                  // onde sera
+  vagas       Int      @default(0)                     // 0 = nao informado
+  prazo       String?  @map("prazo")                   // "aaaa-mm-dd" limite de inscricao
+  descricao   String?                                  // detalhes livres
+  status      String   @default("aberto")              // "aberto" | "encerrado"
+  criadoPor   String?  @map("criado_por")              // login do admin que abriu
+  criadoEm    DateTime @default(now()) @map("criado_em")
+
+  inscricoes  CursoInscricao[]
+
+  @@map("cursos")
+}
+
+model CursoInscricao {
+  id          String   @id @default(cuid())
+  cursoId     String   @map("curso_id")
+  efetivoId   String   @map("efetivo_id")              // ID PMMA do interessado
+  inscritoEm  DateTime @default(now()) @map("inscrito_em")
+
+  curso       Curso    @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+
+  @@unique([cursoId, efetivoId])                        // 1 interesse por militar por curso
+  @@map("curso_inscricoes")
+}
+// ============================================================
+// ADICIONAR ESTE MODEL AO SEU prisma/schema.prisma
+// Depois rodar: npx prisma migrate dev --name add_cfs2026
+// ============================================================
+
+model RequerimentoCFS2026 {
+  id              String   @id @default(cuid())
+  
+  // Dados do PM
+  matricula       String   @unique
+  idPmma          String?  // ID PMMA opcional para vincular ao cadastro
+  nomeCompleto    String
+  nomeGuerra      String?
+  graduacao       String   // SD PM, CB PM, 3 SGT PM, 2 SGT PM, 1 SGT PM
+  dataNascimento  DateTime
+  cpf             String?
+  rg              String?
+  
+  // Contato
+  email           String
+  telefone        String
+  
+  // Lotacao
+  lotacao         String   // Ex: 1 CIA, 2 CIA, ROTEM, P1, P2, P3, P4
+  funcaoAtual     String?
+  
+  // Inscricao
+  dataInscricao   DateTime @default(now())
+  status          String   @default("PENDENTE") // PENDENTE, VALIDADO, REJEITADO
+  observacoes     String?
+  validadoPor     String?
+  validadoEm      DateTime?
+  
+  // Auditoria
+  ipOrigem        String?
+  userAgent       String?
+  fonteOrigem     String   @default("GOOGLE_FORMS") // GOOGLE_FORMS, MANUAL, IMPORT
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([status])
+  @@index([graduacao])
+  @@index([lotacao])
+  @@map("requerimentos_cfs_2026")
 }

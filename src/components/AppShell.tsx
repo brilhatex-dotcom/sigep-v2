@@ -38,22 +38,25 @@ type Item = {
 };
 type Secao = { titulo: string; itens: Item[] };
 
+// adminOnly: true  -> SO o admin ve/acessa.
+// Sem adminOnly    -> todos (inclusive policial) veem.
+// Regra final: o policial so enxerga Ficha Individual, JOE e Promocoes/Certidoes.
 const NAV: Secao[] = [
   {
     titulo: "Principal",
     itens: [
-      { rotulo: "Dashboard", href: "/dashboard", Icone: LayoutDashboard, disponivel: true },
+      { rotulo: "Dashboard", href: "/dashboard", Icone: LayoutDashboard, disponivel: true, adminOnly: true },
       { rotulo: "Avisos", href: "/avisos", Icone: Bell, disponivel: true, adminOnly: true },
     ],
   },
   {
     titulo: "Recursos Humanos",
     itens: [
-      { rotulo: "Cadastro de Efetivo", href: "/efetivo", Icone: Users, disponivel: true },
-      { rotulo: "Hierarquia", href: "/hierarquia", Icone: Network, disponivel: true },
-      { rotulo: "Organograma", href: "/organograma", Icone: Network, disponivel: true },
-      { rotulo: "Efetivo por Antiguidade", href: "/antiguidade", Icone: ListOrdered, disponivel: true },
-      { rotulo: "Efetivo por Lotação", href: "/lotacao", Icone: Building2, disponivel: true },
+      { rotulo: "Cadastro de Efetivo", href: "/efetivo", Icone: Users, disponivel: true, adminOnly: true },
+      { rotulo: "Hierarquia", href: "/hierarquia", Icone: Network, disponivel: true, adminOnly: true },
+      { rotulo: "Organograma", href: "/organograma", Icone: Network, disponivel: true, adminOnly: true },
+      { rotulo: "Efetivo por Antiguidade", href: "/antiguidade", Icone: ListOrdered, disponivel: true, adminOnly: true },
+      { rotulo: "Efetivo por Lotação", href: "/lotacao", Icone: Building2, disponivel: true, adminOnly: true },
       { rotulo: "Ficha Individual", href: "/ficha", Icone: Contact, disponivel: true },
       { rotulo: "Promoções / Certidões", href: "/promocoes", Icone: Award, disponivel: true },
     ],
@@ -61,20 +64,27 @@ const NAV: Secao[] = [
   {
     titulo: "Operacional",
     itens: [
-      { rotulo: "Plano de Férias", href: "/ferias", Icone: Palmtree, disponivel: true },
-      { rotulo: "Disciplinar", Icone: Gavel },
-      { rotulo: "Escalas de Serviço", href: "/escalas", Icone: ClipboardList, disponivel: true },
-      { rotulo: "Mapa de Escala", href: "/escalas/mapa", Icone: Map, disponivel: true },
+      { rotulo: "Plano de Férias", href: "/ferias", Icone: Palmtree, disponivel: true, adminOnly: true },
+      { rotulo: "Disciplinar", Icone: Gavel, adminOnly: true },
+      { rotulo: "JOE", href: "/joe", Icone: ClipboardList, disponivel: true },
+      { rotulo: "Cursos", href: "/cursos", Icone: Award, disponivel: true },
+      { rotulo: "Escalas de Serviço", href: "/escalas", Icone: ClipboardList, disponivel: true, adminOnly: true },
+      { rotulo: "Mapa de Escala", href: "/escalas/mapa", Icone: Map, disponivel: true, adminOnly: true },
     ],
   },
   {
     titulo: "Próximas versões",
     itens: [
-      { rotulo: "Motoristas / CNH", Icone: Car },
-      { rotulo: "Telefones", Icone: Phone },
+      { rotulo: "Motoristas / CNH", Icone: Car, adminOnly: true },
+      { rotulo: "Telefones", Icone: Phone, adminOnly: true },
     ],
   },
 ];
+
+// admin = acesso total. Qualquer outro perfil (ex: "policial") = restrito.
+function ehAdmin(perfil?: string | null): boolean {
+  return (perfil ?? "").toLowerCase() === "admin";
+}
 
 // Acha o rotulo da pagina atual para o breadcrumb e saudacao.
 function tituloAtual(pathname: string): string {
@@ -114,7 +124,16 @@ export default function AppShell({
   const pathname = usePathname();
   const [aberto, setAberto] = useState(false);
   const pagina = tituloAtual(pathname);
+  const admin = ehAdmin(perfil);
   const primeiroNome = (userName || "").split(" ")[0] || "Usuário";
+
+  // Secoes ja filtradas pelo perfil; secoes que ficaram vazias somem.
+  const secoesVisiveis = NAV
+    .map((secao) => ({
+      ...secao,
+      itens: secao.itens.filter((item) => admin || !item.adminOnly),
+    }))
+    .filter((secao) => secao.itens.length > 0);
 
   const sidebar = (
     <div className="ui-glass flex h-full w-60 flex-col border-r border-white/5 text-white">
@@ -138,15 +157,13 @@ export default function AppShell({
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
-        {NAV.map((secao) => (
+        {secoesVisiveis.map((secao) => (
           <div key={secao.titulo} className="mb-5">
             <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#94A3B8]/60">
               {secao.titulo}
             </p>
             <ul className="space-y-1">
-              {secao.itens
-                .filter((item) => !item.adminOnly || (perfil ?? "").toLowerCase() === "admin")
-                .map((item) => {
+              {secao.itens.map((item) => {
                 const ativo =
                   !!item.href &&
                   (pathname === item.href || pathname.startsWith(item.href + "/"));
@@ -224,14 +241,14 @@ export default function AppShell({
               <span className="truncate text-white/80">{pagina}</span>
             </div>
             <p className="text-sm font-semibold text-white">
-              {saudacao()}, Seção P1
+              {saudacao()}, {admin ? "Seção P1" : primeiroNome}
             </p>
           </div>
 
           <BuscaGlobal />
 
           <div className="ml-auto flex items-center gap-3">
-            <AcoesRapidas isAdmin={(perfil ?? "").toLowerCase() === "admin"} />
+            {admin && <AcoesRapidas isAdmin={true} />}
             <Relogio />
 
             <button
@@ -244,13 +261,13 @@ export default function AppShell({
 
             <div className="hidden items-center gap-3 border-l border-white/10 pl-4 sm:flex">
               <div className="text-right leading-tight">
-                <p className="text-sm font-semibold text-white">Seção P1</p>
+                <p className="text-sm font-semibold text-white">{admin ? "Seção P1" : primeiroNome}</p>
                 <p className="text-[11px] uppercase tracking-wide text-[#D4AF37]">
                   {perfil}
                 </p>
               </div>
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#D4AF37]/15 text-sm font-bold text-[#D4AF37]">
-                P
+                {(admin ? "P" : (primeiroNome.charAt(0) || "P")).toUpperCase()}
               </div>
             </div>
 

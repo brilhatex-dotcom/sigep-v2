@@ -1,7 +1,6 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { exigirAdmin } from "@/lib/guard";
 import AppShell from "@/components/AppShell";
 import EfetivoLista from "@/components/EfetivoLista";
 import { hojeLocal, montarIdsEmFerias, situacaoCalculada } from "@/lib/situacao";
@@ -13,8 +12,8 @@ export default async function EfetivoPage({
 }: {
   searchParams: { q?: string };
 }) {
-  const session = await getServerSession(authOptions);
-  if (!session) redirect("/login");
+  // >>> SEGURANCA: bloqueia policial por URL e empurra 1o acesso p/ trocar senha. <<<
+  const session = await exigirAdmin();
 
   const hoje = hojeLocal();
 

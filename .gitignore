@@ -38,3 +38,6 @@ next-env.d.ts
 
 # csv exportados (backup local — guarde no Drive, nao no git)
 /dados-export/
+
+.vercel
+.env*

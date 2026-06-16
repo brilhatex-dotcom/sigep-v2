@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import type { ReactNode } from "react";
 
 /* =========================================================================
    SIGEP-18BPM  ·  MODULO DE ESCALAS  (Escala de Servico diaria)  ·  v2 UX
@@ -418,13 +420,25 @@ function proximoDoPool(key: PoolKey, dataISO: string, cad: Cadastro): string {
 
 /* ============================== EDICAO EM LINHA (folha) ============================== */
 
+// Remove tags HTML, devolvendo so o texto (para comparacoes e para o Mapa).
+function semTags(html: string): string {
+  if (!html) return "";
+  if (html.indexOf("<") === -1) return html.trim();
+  if (typeof document === "undefined") return html.replace(/<[^>]*>/g, "").trim();
+  const d = document.createElement("div");
+  d.innerHTML = html;
+  return (d.textContent || "").trim();
+}
+
+// Campo editavel rico: guarda innerHTML (negrito/italico/cor sobrevivem e
+// imprimem). A barra flutuante (BarraFormatacao) age sobre a selecao.
 function Editable({
   value, onChange, placeholder, className,
 }: {
   value: string; onChange: (v: string) => void; placeholder?: string; className?: string;
 }) {
   const ref = (el: HTMLSpanElement | null) => {
-    if (el && el.textContent !== value) el.textContent = value;
+    if (el && el.innerHTML !== (value || "")) el.innerHTML = value || "";
   };
   return (
     <span
@@ -432,7 +446,7 @@ function Editable({
       contentEditable
       suppressContentEditableWarning
       data-ph={placeholder || ""}
-      onInput={(e) => onChange(e.currentTarget.textContent || "")}
+      onInput={(e) => onChange(e.currentTarget.innerHTML)}
       className={"editavel " + (className || "")}
     />
   );
@@ -458,13 +472,13 @@ function SlotInline({ slot, onChange, semPermuta }: { slot: Slot; onChange: (s: 
 }
 
 function SlotList({
-  slots, onChange, center, semPermuta,
-}: { slots: Slot[]; onChange: (s: Slot[]) => void; center?: boolean; semPermuta?: boolean }) {
+  slots, onChange, center, centro, semPermuta,
+}: { slots: Slot[]; onChange: (s: Slot[]) => void; center?: boolean; centro?: boolean; semPermuta?: boolean }) {
   const upd = (i: number, ns: Slot) => { const a = slots.slice(); a[i] = ns; onChange(a); };
   const rm = (i: number) => onChange(slots.filter((_, j) => j !== i));
   const add = () => onChange([...slots, s()]);
   return (
-    <div className={center ? "lista center" : "lista"}>
+    <div className={centro ? "lista centro" : center ? "lista center" : "lista"}>
       {slots.map((sl, i) => (
         <div key={i} className="linha">
           <SlotInline slot={sl} onChange={(ns) => upd(i, ns)} semPermuta={semPermuta} />
@@ -481,7 +495,7 @@ function HorarioList({ horarios, onChange }: { horarios: string[]; onChange: (h:
   const rm = (i: number) => onChange(horarios.filter((_, j) => j !== i));
   const add = () => onChange([...horarios, ""]);
   return (
-    <div className="lista center bold-italic">
+    <div className="lista centro bold-italic">
       {horarios.map((h, i) => (
         <div key={i} className="linha">
           <Editable value={h} placeholder="00h às 00h" onChange={(v) => upd(i, v)} />
@@ -1002,6 +1016,114 @@ function PreviaRodizio({ cad, data, nomeDe }: { cad: Cadastro; data: string; nom
 
 /* ============================== PAGINA ============================== */
 
+/* ===== Barra flutuante de formatacao (aparece ao selecionar texto na folha) =====
+   Usa a formatacao nativa do navegador (execCommand). O que aparece e o que
+   imprime. Negrito/italico/sublinhado/tamanho/cor ficam salvos no innerHTML
+   da slot; o alinhamento e aplicado na celula (efeito imediato, para o PDF). */
+
+const CORES_TEXTO = ["#000000", "#b3261e", "#1d6f3a", "#1456a0", "#7a5a17"];
+const CORES_REALCE = ["#fff3a3", "#c8f0d2", "#cfe2ff", "#ffd6d6", "#e7d9ff"];
+
+function BarraFormatacao() {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [paleta, setPaleta] = useState<null | "cor" | "realce">(null);
+  const barraRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const dentroDaBarra = (n: Node | null) =>
+      !!(n && barraRef.current && barraRef.current.contains(n));
+
+    const atualizar = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+        if (!paleta) { setPos(null); }
+        return;
+      }
+      const node = sel.anchorNode;
+      if (dentroDaBarra(node)) return;
+      const host = node && (node.nodeType === 3 ? node.parentElement : (node as HTMLElement));
+      if (!host || !host.closest || !host.closest(".editavel")) { setPos(null); setPaleta(null); return; }
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) return;
+      setPos({ top: rect.top - 6, left: rect.left + rect.width / 2 });
+    };
+
+    const esconder = () => { setPos(null); setPaleta(null); };
+    document.addEventListener("selectionchange", atualizar);
+    window.addEventListener("scroll", esconder, true);
+    window.addEventListener("resize", esconder);
+    return () => {
+      document.removeEventListener("selectionchange", atualizar);
+      window.removeEventListener("scroll", esconder, true);
+      window.removeEventListener("resize", esconder);
+    };
+  }, [paleta]);
+
+  if (!pos) return null;
+
+  const cmd = (c: string, v?: string) => {
+    try { document.execCommand("styleWithCSS", false, "true"); } catch {}
+    document.execCommand(c, false, v);
+  };
+
+  const alinhar = (al: "left" | "center" | "right" | "justify") => {
+    const sel = window.getSelection();
+    const node = sel && sel.anchorNode;
+    const host = node && (node.nodeType === 3 ? node.parentElement : (node as HTMLElement));
+    const td = host && host.closest ? (host.closest("td") as HTMLElement | null) : null;
+    if (!td) return;
+    td.style.textAlign = al;
+    const just = al === "center" ? "center" : al === "right" ? "flex-end" : al === "justify" ? "space-between" : "flex-start";
+    const ali = al === "center" ? "center" : al === "right" ? "flex-end" : "flex-start";
+    td.querySelectorAll<HTMLElement>(".lista").forEach((l) => { l.style.alignItems = ali; });
+    td.querySelectorAll<HTMLElement>(".linha").forEach((l) => { l.style.justifyContent = just; });
+  };
+
+  const Btn = ({ on, title, children }: { on: () => void; title: string; children: ReactNode }) => (
+    <button className="fmt-btn" title={title} onClick={on}>{children}</button>
+  );
+
+  return createPortal(
+    <div
+      ref={barraRef}
+      className="fmt-bar no-print"
+      style={{ top: pos.top, left: pos.left }}
+      onMouseDown={(e) => e.preventDefault()}
+    >
+      <Btn title="Negrito" on={() => cmd("bold")}><b>N</b></Btn>
+      <Btn title="Italico" on={() => cmd("italic")}><i>I</i></Btn>
+      <Btn title="Sublinhado" on={() => cmd("underline")}><u>S</u></Btn>
+      <span className="fmt-sep" />
+      <Btn title="Diminuir fonte" on={() => cmd("fontSize", "2")}>A-</Btn>
+      <Btn title="Fonte normal" on={() => cmd("fontSize", "3")}>A</Btn>
+      <Btn title="Aumentar fonte" on={() => cmd("fontSize", "5")}>A+</Btn>
+      <span className="fmt-sep" />
+      <Btn title="Alinhar a esquerda" on={() => alinhar("left")}>☰←</Btn>
+      <Btn title="Centralizar" on={() => alinhar("center")}>☰</Btn>
+      <Btn title="Alinhar a direita" on={() => alinhar("right")}>→☰</Btn>
+      <Btn title="Justificar" on={() => alinhar("justify")}>≡</Btn>
+      <span className="fmt-sep" />
+      <Btn title="Cor do texto" on={() => setPaleta(paleta === "cor" ? null : "cor")}><span className="fmt-cor">A</span></Btn>
+      <Btn title="Realce" on={() => setPaleta(paleta === "realce" ? null : "realce")}><span className="fmt-realce">✎</span></Btn>
+
+      {paleta && (
+        <div className="fmt-paleta">
+          {(paleta === "cor" ? CORES_TEXTO : CORES_REALCE).map((c) => (
+            <button
+              key={c}
+              className="fmt-swatch"
+              style={{ background: c }}
+              title={c}
+              onClick={() => { cmd(paleta === "cor" ? "foreColor" : "hiliteColor", c); setPaleta(null); }}
+            />
+          ))}
+        </div>
+      )}
+    </div>,
+    document.body
+  );
+}
+
 export default function EscalaClient() {
   const [cad, setCad] = useState<Cadastro>(SEED_CADASTRO);
   const [escalas, setEscalas] = useState<Record<string, Escala>>({});
@@ -1149,7 +1271,7 @@ export default function EscalaClient() {
     const nomes: string[] = [];
     const checa = (sl?: Slot) => {
       if (!sl) return;
-      const n = (sl.titular || "").trim();
+      const n = semTags(sl.titular || "");
       if (!n) return;
       const id = nameToId[n] || n; // resolve o nome da folha para ID, se possivel
       if (afastado(id, data, cad.afastamentos) && !nomes.includes(n)) nomes.push(n);
@@ -1174,6 +1296,7 @@ export default function EscalaClient() {
   return (
     <div className="app-shell">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <BarraFormatacao />
 
       {/* ---- Barra principal: o fluxo diario ---- */}
       <div className="toolbar no-print">
@@ -1314,7 +1437,7 @@ export default function EscalaClient() {
                 <tr><td className="lbl w-cpu">PATRULHEIRO</td><td className="val"><SlotList slots={e.rpPatrulheiro} onChange={(arr) => editE((d) => { d.rpPatrulheiro = arr; })} /></td></tr>
 
                 <tr><td className="hd" colSpan={2}>SERVIÇO DE INTELIGÊNCIA 24 HRS</td></tr>
-                <tr><td className="val" colSpan={2}><SlotList center slots={e.inteligencia} onChange={(arr) => editE((d) => { d.inteligencia = arr; })} /></td></tr>
+                <tr><td className="val" colSpan={2}><SlotList centro slots={e.inteligencia} onChange={(arr) => editE((d) => { d.inteligencia = arr; })} /></td></tr>
 
                 <tr><td className="hd" colSpan={2}>FORÇA TÁTICA</td></tr>
                 <tr><td className="lbl w-cpu">GRADUADO</td><td className="val"><SlotInline slot={e.ftGraduado} onChange={(ns) => editE((d) => { d.ftGraduado = ns; })} /></td></tr>
@@ -1527,6 +1650,8 @@ const CSS = `
 
 .lista{ display:flex; flex-direction:column; gap:1px; }
 .lista.center{ align-items:flex-start; text-align:left; }
+.lista.centro{ align-items:center; text-align:center; }
+.lista.centro .linha{ justify-content:center; }
 .lista.bold-italic{ font-weight:700; font-style:italic; }
 .linha{ display:flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:flex-start; }
 .slot{ display:inline; } .perm{ font-weight:700; }
@@ -1543,6 +1668,22 @@ const CSS = `
 .mini:hover{ border-color:#888; }
 .mini.add{ color:#1d6f3a; border-color:#bfe0c8; background:#eef8f1; }
 
+.fmt-bar{ position:fixed; transform:translate(-50%, -100%); z-index:9999;
+  display:flex; align-items:center; gap:2px; background:#0F1B2D; border:1px solid #2b3f63;
+  border-radius:9px; padding:4px 6px; box-shadow:0 8px 28px rgba(0,0,0,.55); }
+.fmt-bar::after{ content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+  border:6px solid transparent; border-top-color:#0F1B2D; }
+.fmt-btn{ background:#16243a; color:#E8EEF6; border:1px solid #2b3f63; border-radius:6px;
+  min-width:26px; height:26px; padding:0 6px; font-size:13px; cursor:pointer; line-height:1;
+  display:inline-flex; align-items:center; justify-content:center; font-family: ui-sans-serif, system-ui, sans-serif; }
+.fmt-btn:hover{ border-color:#D4AF37; }
+.fmt-sep{ width:1px; height:18px; background:#2b3f63; margin:0 3px; }
+.fmt-cor{ font-weight:700; border-bottom:3px solid #b3261e; padding-bottom:1px; }
+.fmt-realce{ background:#fff3a3; color:#222; border-radius:3px; padding:0 3px; }
+.fmt-paleta{ position:absolute; top:calc(100% + 8px); left:50%; transform:translateX(-50%);
+  display:flex; gap:5px; background:#0F1B2D; border:1px solid #2b3f63; border-radius:8px; padding:6px; }
+.fmt-swatch{ width:22px; height:22px; border-radius:5px; border:1px solid #00000040; cursor:pointer; }
+.fmt-swatch:hover{ outline:2px solid #D4AF37; }
 @media screen{
   .editavel:hover{ background:rgba(212,175,55,.10); }
   .editavel:focus{ background:rgba(212,175,55,.18); }

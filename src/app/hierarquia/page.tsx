@@ -1,6 +1,4 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { redirect } from "next/navigation";
+import { exigirAdmin } from "@/lib/guard";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
@@ -9,8 +7,7 @@ import { PATENTES, classificarPatente } from "@/lib/patentes";
 export const dynamic = "force-dynamic";
 
 export default async function HierarquiaPage() {
-  const session = await getServerSession(authOptions);
-  if (!session) redirect("/login");
+  const session = await exigirAdmin();
 
   const militares = await prisma.efetivo.findMany({ select: { postoGrad: true } });
 
