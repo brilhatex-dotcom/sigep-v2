@@ -380,3 +380,20 @@ model RequerimentoCFS2026 {
   @@index([lotacao])
   @@map("requerimentos_cfs_2026")
 }
+model Auditoria {
+  id         String   @id @default(cuid())
+  quando     DateTime @default(now()) @map("Quando")
+  autorLogin String?  @map("AutorLogin")
+  autorNome  String?  @map("AutorNome")
+  acao       String   @map("Acao")
+  alvo       String?  @map("Alvo")
+  alvoNome   String?  @map("AlvoNome")
+  detalhe    String?  @map("Detalhe")
+  antes      String?  @map("Antes")
+  depois     String?  @map("Depois")
+  ip         String?  @map("Ip")
+
+  @@index([quando])
+  @@index([autorLogin])
+  @@map("auditoria")
+}

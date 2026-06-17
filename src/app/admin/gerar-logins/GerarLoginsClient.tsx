@@ -9,6 +9,8 @@ type Militar = {
   nome: string | null; nomeGuerra: string | null; matricula: string | null;
   temLogin: boolean; idSimples: string;
 };
+type AdminAtual = { efetivoId: string | null; login: string; nome: string; matricula: string };
+type AdminBusca = { efetivoId: string; nome: string; matricula: string; jaAdmin: boolean; temLogin: boolean };
 
 function nomeMil(m: Militar): string {
   const posto = (m.postoGrad || "").trim();
@@ -33,6 +35,14 @@ export default function GerarLoginsClient() {
   const [resetando, setResetando] = useState<string | null>(null);
   const [msgReset, setMsgReset] = useState<string | null>(null);
 
+  // ---- gerenciar admins ----
+  const [admins, setAdmins] = useState<AdminAtual[]>([]);
+  const [buscaAdm, setBuscaAdm] = useState("");
+  const [listaAdm, setListaAdm] = useState<AdminBusca[]>([]);
+  const [buscandoAdm, setBuscandoAdm] = useState(false);
+  const [mexendoAdm, setMexendoAdm] = useState<string | null>(null);
+  const [msgAdm, setMsgAdm] = useState<string | null>(null);
+
   const carregarPrevia = async () => {
     setCarregando(true);
     setErro(null);
@@ -47,6 +57,43 @@ export default function GerarLoginsClient() {
     }
   };
   useEffect(() => { carregarPrevia(); }, []);
+
+  // carrega admins atuais
+  const carregarAdmins = async (busca?: string) => {
+    setBuscandoAdm(true);
+    setMsgAdm(null);
+    try {
+      const url = "/api/admin/gerenciar-admins" + (busca ? "?busca=" + encodeURIComponent(busca) : "");
+      const r = await fetch(url);
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsgAdm(d.error || "Falha ao carregar admins."); return; }
+      setAdmins(d.admins || []);
+      if (busca !== undefined) setListaAdm(d.resultados || []);
+    } finally {
+      setBuscandoAdm(false);
+    }
+  };
+  useEffect(() => { carregarAdmins(); }, []);
+
+  const mudarPerfil = async (efetivoId: string, acao: "promover" | "rebaixar", nome: string) => {
+    const verbo = acao === "promover" ? "tornar ADMIN" : "remover o admin de";
+    if (!confirm(`Confirma ${verbo} ${nome}?`)) return;
+    setMexendoAdm(efetivoId);
+    setMsgAdm(null);
+    try {
+      const r = await fetch("/api/admin/gerenciar-admins", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ efetivoId, acao }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsgAdm(d.error || "Falha ao alterar."); return; }
+      setMsgAdm(acao === "promover" ? `${nome} agora e administrador.` : `${nome} voltou a ser policial.`);
+      carregarAdmins(buscaAdm || undefined);
+    } finally {
+      setMexendoAdm(null);
+    }
+  };
 
   const aplicar = async () => {
     setGerando(true);
@@ -192,6 +239,88 @@ export default function GerarLoginsClient() {
         )}
         {lista.length === 0 && busca !== "" && !buscando && (
           <div style={box("#16243a", "#2b3f63", "#9fb0c7")}>Nenhum militar encontrado para a busca.</div>
+        )}
+      </div>
+
+      {/* ===== BLOCO 3: gerenciar admins ===== */}
+      <div style={{ background: "#0F1B2D", border: "1px solid #1d2c44", borderRadius: 12, padding: 18, marginTop: 22 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#D4AF37", marginBottom: 4 }}>Administradores do sistema</div>
+        <p style={{ fontSize: 12, color: "#94A3B8", margin: "0 0 12px" }}>
+          Quem tem acesso total. Promova ou rebaixe pelo nome/matricula. Todas as mudancas ficam registradas na auditoria.
+        </p>
+
+        {msgAdm && <div style={box("#10301f", "#2e6b48", "#bff0d0")}>{msgAdm}</div>}
+
+        {/* admins atuais */}
+        <div style={{ fontSize: 12, color: "#9fb0c7", marginBottom: 6 }}>Admins atuais ({admins.length})</div>
+        {admins.length === 0 ? (
+          <div style={box("#16243a", "#2b3f63", "#9fb0c7")}>Nenhum admin encontrado.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
+            {admins.map((a) => (
+              <div key={a.login} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, background: "#0a1626", border: "1px solid #1d2c44", borderRadius: 8, padding: "8px 12px" }}>
+                <div>
+                  <div style={{ fontSize: 13, color: "#E8EEF6" }}>{a.nome}</div>
+                  <div style={{ fontSize: 11, color: "#6f82a0" }}>Login: {a.matricula}</div>
+                </div>
+                {a.efetivoId ? (
+                  <button
+                    style={btn("#3a1414", "#ffb3b3", "#7a1f1f")}
+                    disabled={mexendoAdm === a.efetivoId}
+                    onClick={() => mudarPerfil(a.efetivoId as string, "rebaixar", a.nome)}
+                  >
+                    {mexendoAdm === a.efetivoId ? "..." : "Remover admin"}
+                  </button>
+                ) : (
+                  <span style={{ fontSize: 11, color: "#6f82a0" }}>conta de sistema</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* buscar para promover */}
+        <div style={{ fontSize: 12, color: "#9fb0c7", marginBottom: 6 }}>Adicionar novo admin</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <input
+            value={buscaAdm}
+            onChange={(e) => setBuscaAdm(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") carregarAdmins(buscaAdm); }}
+            placeholder="Nome, nome de guerra, matricula ou ID..."
+            style={{ flex: 1, background: "#0a1626", color: "#E8EEF6", border: "1px solid #28395a", borderRadius: 8, padding: "9px 12px", fontSize: 13 }}
+          />
+          <button style={btn("#16243a", "#E8EEF6", "#2b3f63")} disabled={buscandoAdm} onClick={() => carregarAdmins(buscaAdm)}>
+            {buscandoAdm ? "..." : "Buscar"}
+          </button>
+        </div>
+
+        {listaAdm.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {listaAdm.map((m) => (
+              <div key={m.efetivoId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, background: "#0a1626", border: "1px solid #1d2c44", borderRadius: 8, padding: "8px 12px" }}>
+                <div>
+                  <div style={{ fontSize: 13, color: "#E8EEF6" }}>{m.nome}</div>
+                  <div style={{ fontSize: 11, color: "#6f82a0" }}>
+                    Mat: {m.matricula} {m.jaAdmin ? "· ja e admin" : m.temLogin ? "" : "· (sem login)"}
+                  </div>
+                </div>
+                {m.jaAdmin ? (
+                  <span style={{ fontSize: 12, color: "#9fe6bd" }}>✓ admin</span>
+                ) : (
+                  <button
+                    style={btn(m.temLogin ? "#D4AF37" : "#16243a", m.temLogin ? "#0a1020" : "#6f82a0", m.temLogin ? "#D4AF37" : "#2b3f63")}
+                    disabled={!m.temLogin || mexendoAdm === m.efetivoId}
+                    onClick={() => mudarPerfil(m.efetivoId, "promover", m.nome)}
+                  >
+                    {mexendoAdm === m.efetivoId ? "..." : "Tornar admin"}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {listaAdm.length === 0 && buscaAdm !== "" && !buscandoAdm && (
+          <div style={box("#16243a", "#2b3f63", "#9fb0c7")}>Nenhum militar encontrado.</div>
         )}
       </div>
 

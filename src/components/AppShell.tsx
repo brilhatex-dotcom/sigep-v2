@@ -23,6 +23,8 @@ import {
   Menu,
   Bell,
   ChevronRight,
+  ShieldCheck,
+  KeyRound,
 } from "lucide-react";
 import Relogio from "@/components/Relogio";
 import BuscaGlobal from "@/components/BuscaGlobal";
@@ -70,6 +72,13 @@ const NAV: Secao[] = [
       { rotulo: "Cursos", href: "/cursos", Icone: Award, disponivel: true },
       { rotulo: "Escalas de Serviço", href: "/escalas", Icone: ClipboardList, disponivel: true, adminOnly: true },
       { rotulo: "Mapa de Escala", href: "/escalas/mapa", Icone: Map, disponivel: true, adminOnly: true },
+    ],
+  },
+  {
+    titulo: "Administração",
+    itens: [
+      { rotulo: "Gerenciar Acessos", href: "/admin/gerar-logins", Icone: KeyRound, disponivel: true, adminOnly: true },
+      { rotulo: "Auditoria", href: "/auditoria", Icone: ShieldCheck, disponivel: true, adminOnly: true },
     ],
   },
   {

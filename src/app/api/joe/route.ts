@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { registrar } from "@/lib/auditoria";
 
 export const dynamic = "force-dynamic";
 
@@ -138,6 +139,13 @@ export async function POST(req: Request) {
         status: "aberta",
         criadoPor: (session.user as any).login || session.user.name || null,
       },
+    });
+
+    await registrar({
+      acao: "criar_joe",
+      alvo: criado.id,
+      alvoNome: evento,
+      detalhe: `JOE de ${data} (${horaInicio}-${horaFim}), ${criado.vagas} vaga(s)`,
     });
 
     return NextResponse.json({ ok: true, joe: criado });

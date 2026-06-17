@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions, hashSenha } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { registrar } from "@/lib/auditoria";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -105,6 +106,21 @@ export async function POST(req: Request) {
         bloqueadoAte: null,
         ativo: "SIM",
       } as any,
+    });
+
+    // busca nome do alvo para a auditoria
+    const ficha = await prisma.efetivo.findUnique({
+      where: { id: efetivoId },
+      select: { postoGrad: true, nome: true, nomeGuerra: true },
+    });
+    const nomeAlvo = ficha
+      ? [ficha.postoGrad || "", (ficha.nomeGuerra || ficha.nome || "")].filter(Boolean).join(" ").trim()
+      : usuario.login;
+    await registrar({
+      acao: "resetar_senha",
+      alvo: efetivoId,
+      alvoNome: nomeAlvo,
+      detalhe: "Senha redefinida para o ID; troca obrigatoria no proximo acesso",
     });
 
     return NextResponse.json({ ok: true, idSimples });

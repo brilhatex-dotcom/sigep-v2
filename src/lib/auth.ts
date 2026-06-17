@@ -80,6 +80,20 @@ export const authOptions: NextAuthOptions = {
           });
         } catch {}
 
+        // ---- auditoria: registra a entrada no sistema ----
+        // Grava direto aqui (sem importar @/lib/auditoria) para evitar
+        // dependencia circular auth <-> auditoria.
+        try {
+          await prisma.auditoria.create({
+            data: {
+              acao: "login",
+              autorLogin: usuario.login,
+              autorNome: usuario.nomeCompleto ?? usuario.login,
+              detalhe: "Entrou no sistema",
+            } as any,
+          });
+        } catch {}
+
         return {
           id: usuario.id,
           name: usuario.nomeCompleto ?? usuario.login,

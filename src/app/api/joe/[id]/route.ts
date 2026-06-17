@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { registrar } from "@/lib/auditoria";
 
 export const dynamic = "force-dynamic";
 
@@ -145,6 +146,22 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           decididoPor: (session.user as any).login || session.user.name || null,
         },
       });
+
+      // nome do candidato para a auditoria
+      const fichaC = await prisma.efetivo.findUnique({
+        where: { id: insc.efetivoId },
+        select: { postoGrad: true, nome: true, nomeGuerra: true },
+      });
+      const nomeCand = fichaC
+        ? [fichaC.postoGrad || "", (fichaC.nomeGuerra || fichaC.nome || "")].filter(Boolean).join(" ").trim()
+        : insc.efetivoId;
+      await registrar({
+        acao: decisao === "aprovado" ? "aprovar_joe" : "recusar_joe",
+        alvo: insc.efetivoId,
+        alvoNome: nomeCand,
+        detalhe: `JOE: ${joe.evento}`,
+      });
+
       return NextResponse.json({ ok: true });
     }
 
