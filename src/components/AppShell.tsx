@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -29,6 +29,7 @@ import {
 import Relogio from "@/components/Relogio";
 import BuscaGlobal from "@/components/BuscaGlobal";
 import AcoesRapidas from "@/components/AcoesRapidas";
+import AvatarUpload from "@/components/AvatarUpload";
 import "@/components/ui-theme.css";
 
 type Item = {
@@ -136,6 +137,29 @@ export default function AppShell({
   const admin = ehAdmin(perfil);
   const primeiroNome = (userName || "").split(" ")[0] || "Usuário";
 
+  // Busca o efetivoId e se ja tem foto, para montar o avatar (sem que as
+  // paginas precisem passar isso). Roda uma vez ao carregar.
+  const [meuEfetivoId, setMeuEfetivoId] = useState<string | null>(null);
+  const [tenhoFoto, setTenhoFoto] = useState(false);
+  const [meuNome, setMeuNome] = useState<string>("");
+  useEffect(() => {
+    let vivo = true;
+    fetch("/api/eu")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!vivo) return;
+        setMeuEfetivoId(d.efetivoId ?? null);
+        setTenhoFoto(!!d.temFoto);
+        setMeuNome(d.nomeExibicao || "");
+      })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
+
+  // Nome a exibir no cabecalho: usa "Posto + nome de guerra" da ficha quando
+  // disponivel; enquanto carrega, cai no primeiro nome do login.
+  const nomeExibir = meuNome || primeiroNome;
+
   // Secoes ja filtradas pelo perfil; secoes que ficaram vazias somem.
   const secoesVisiveis = NAV
     .map((secao) => ({
@@ -233,7 +257,7 @@ export default function AppShell({
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="ui-glass sticky top-0 z-30 flex items-center gap-3 border-b border-white/5 px-4 py-3">
+        <header className="ui-glass sticky top-0 z-30 flex items-center gap-3 border-b border-white/5 px-4 py-4">
           <button
             className="md:hidden"
             onClick={() => setAberto(true)}
@@ -250,7 +274,7 @@ export default function AppShell({
               <span className="truncate text-white/80">{pagina}</span>
             </div>
             <p className="text-sm font-semibold text-white">
-              {saudacao()}, {admin ? "Seção P1" : primeiroNome}
+              {saudacao()}, {nomeExibir}
             </p>
           </div>
 
@@ -270,14 +294,17 @@ export default function AppShell({
 
             <div className="hidden items-center gap-3 border-l border-white/10 pl-4 sm:flex">
               <div className="text-right leading-tight">
-                <p className="text-sm font-semibold text-white">{admin ? "Seção P1" : primeiroNome}</p>
+                <p className="text-sm font-semibold text-white">{nomeExibir}</p>
                 <p className="text-[11px] uppercase tracking-wide text-[#D4AF37]">
                   {perfil}
                 </p>
               </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#D4AF37]/15 text-sm font-bold text-[#D4AF37]">
-                {(admin ? "P" : (primeiroNome.charAt(0) || "P")).toUpperCase()}
-              </div>
+              <AvatarUpload
+                efetivoId={meuEfetivoId}
+                inicial={(admin ? "P" : (primeiroNome.charAt(0) || "P")).toUpperCase()}
+                temFoto={tenhoFoto}
+                podeEditar={!!meuEfetivoId}
+              />
             </div>
 
             <button

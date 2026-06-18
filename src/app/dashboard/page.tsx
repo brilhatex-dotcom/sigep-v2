@@ -131,36 +131,47 @@ export default async function DashboardPage() {
     }))
     .sort((a,b)=> a.dia-b.dia);
 
-  // ---- ferias hoje (do plano do ano corrente) ----
+  // ---- ferias hoje: AGRUPADO POR EQUIPE (do plano do ano corrente) ----
   const anoStr=String(hoje.getFullYear());
   const equipes = await prisma.equipeFerias.findMany({ where:{ anoGozo:anoStr } });
   const membros = await prisma.membroFerias.findMany({ where:{ anoGozo:anoStr } });
   const mapaEquipe=new Map(equipes.map((e)=>[e.numeroEquipe,e]));
   const fichasMap=new Map(militares.map((m)=>[m.id,m]));
-  type FeriaItem={ nome:string; posto:string; retornoBR:string; restam:number; retornoTime:number };
-  const emFeriasHoje:FeriaItem[]=[];
-  membros.forEach((mb)=>{
-    const e=mapaEquipe.get(mb.numeroEquipe); if(!e)return;
+
+  // conta quantos militares cada equipe tem (do plano do ano)
+  const totalPorEquipe=new Map<string,number>();
+  membros.forEach((mb)=>{ totalPorEquipe.set(mb.numeroEquipe,(totalPorEquipe.get(mb.numeroEquipe)??0)+1); });
+
+  // monta as equipes que estao de ferias HOJE (periodo 1 ou 2 engloba hoje)
+  type EquipeFeriasItem={
+    numero:string; periodo:1|2; inicioBR:string; fimBR:string;
+    restam:number; fimTime:number; qtd:number;
+  };
+  const equipesEmFerias:EquipeFeriasItem[]=[];
+  equipes.forEach((e)=>{
     const periodos=[
-      {i:paraData(e.periodo1Inicio),f:paraData(e.periodo1Fim)},
-      {i:paraData(e.periodo2Inicio),f:paraData(e.periodo2Fim)},
+      { n:1 as const, i:paraData(e.periodo1Inicio), f:paraData(e.periodo1Fim), iRaw:e.periodo1Inicio, fRaw:e.periodo1Fim },
+      { n:2 as const, i:paraData(e.periodo2Inicio), f:paraData(e.periodo2Fim), iRaw:e.periodo2Inicio, fRaw:e.periodo2Fim },
     ];
     for(const p of periodos){
       if(p.i&&p.f&&p.i<=hoje&&hoje<=p.f){
-        const fic=fichasMap.get(mb.idPmma);
-        emFeriasHoje.push({
-          nome:fic?.nomeGuerra||fic?.nome||mb.idPmma,
-          posto:fic?.postoGrad||"—",
-          retornoBR:dataBR(e.periodo1Fim&&p.f===paraData(e.periodo1Fim)?e.periodo1Fim:e.periodo2Fim),
+        equipesEmFerias.push({
+          numero:e.numeroEquipe,
+          periodo:p.n,
+          inicioBR:dataBR(p.iRaw),
+          fimBR:dataBR(p.fRaw),
           restam:Math.max(0,diffDias(hoje,p.f)),
-          retornoTime:p.f.getTime(),
+          fimTime:p.f.getTime(),
+          qtd: totalPorEquipe.get(e.numeroEquipe) ?? 0,
         });
-        break;
       }
     }
   });
-  emFeriasHoje.sort((a,b)=>a.retornoTime-b.retornoTime);
-  const pctFerias= total? Math.round((emFeriasHoje.length/total)*100):0;
+  equipesEmFerias.sort((a,b)=>a.fimTime-b.fimTime);
+
+  // total de militares de ferias hoje (soma das equipes em ferias)
+  const totalMilitaresFerias = equipesEmFerias.reduce((s,e)=>s+e.qtd,0);
+  const pctFerias= total? Math.round((totalMilitaresFerias/total)*100):0;
 
   // ---- reserva: tempo de servico (sem cor) ----
   const tempoServ = militares
@@ -194,7 +205,7 @@ export default async function DashboardPage() {
             <Mini Icone={Users} cor="#D4AF37" valor={total} rotulo="Efetivo total" />
             <Mini Icone={CheckCircle2} cor="#22C55E" valor={prontos} rotulo={`Prontos · ${pctOper}%`} />
             <Mini Icone={HeartPulse} cor="#F59E0B" valor={jmsCount} rotulo="Em JMS" />
-            <Mini Icone={Plane} cor="#3B82F6" valor={emFeriasHoje.length} rotulo="Em férias" />
+            <Mini Icone={Plane} cor="#3B82F6" valor={totalMilitaresFerias} rotulo="Em férias" />
             <Mini Icone={ShieldAlert} cor="#94A3B8" valor={licencas} rotulo="Licenças" />
             <Mini Icone={Cake} cor="#EC4899" valor={aniversariantesHoje} rotulo="Aniv. hoje" />
           </div>
@@ -236,27 +247,36 @@ export default async function DashboardPage() {
         {/* JMS */}
         <JmsTabela linhas={linhasJms} />
 
-        {/* ferias + aniversariantes */}
+        {/* ferias (por equipe) + aniversariantes */}
         <div className="grid gap-4 lg:grid-cols-2">
           <section className="ui-card p-5">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-                <Plane className="h-4 w-4 text-[#3B82F6]" /> Efetivo em férias · {emFeriasHoje.length} ({pctFerias}%)
+                <Plane className="h-4 w-4 text-[#3B82F6]" /> Efetivo em férias · {totalMilitaresFerias} ({pctFerias}%)
               </h2>
             </div>
-            {emFeriasHoje.length===0 ? (
-              <p className="py-8 text-center text-sm text-[#94A3B8]">Nenhum militar em férias hoje.</p>
+            {equipesEmFerias.length===0 ? (
+              <p className="py-8 text-center text-sm text-[#94A3B8]">Nenhuma equipe em férias hoje.</p>
             ):(
-              <ul className="divide-y divide-white/5">
-                {emFeriasHoje.slice(0,6).map((f,i)=>(
-                  <li key={i} className="flex items-center justify-between py-2.5">
-                    <div>
-                      <p className="text-sm text-white">{f.posto} {f.nome}</p>
-                      <p className="text-[11px] text-[#94A3B8]">retorno {f.retornoBR}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-base font-bold text-[#D4AF37]">{f.restam}</p>
-                      <p className="text-[10px] text-[#94A3B8]">dias restantes</p>
+              <ul className="space-y-3">
+                {equipesEmFerias.map((e,i)=>(
+                  <li key={i} className="rounded-xl border border-white/5 bg-white/5 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-bold text-white">
+                          Equipe {e.numero}
+                          <span className="ml-2 rounded-full bg-[#3B82F6]/15 px-2 py-0.5 text-[10px] font-semibold text-[#7Fb4ff]">
+                            {e.qtd} {e.qtd===1?"militar":"militares"}
+                          </span>
+                        </p>
+                        <p className="mt-1 text-[12px] text-[#94A3B8]">
+                          {e.inicioBR} <span className="text-[#5b6b85]">até</span> {e.fimBR}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xl font-bold text-[#D4AF37]">{e.restam}</p>
+                        <p className="text-[10px] text-[#94A3B8]">dias p/ voltar</p>
+                      </div>
                     </div>
                   </li>
                 ))}

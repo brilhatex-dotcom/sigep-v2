@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Save, Lock } from "lucide-react";
 
@@ -151,6 +151,33 @@ export default function EfetivoForm({
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
 
+  // ---- autocomplete da lotacao ----
+  const [lotacoes, setLotacoes] = useState<string[]>([]);
+  const [lotFocado, setLotFocado] = useState(false);
+  const lotBoxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // so o admin edita lotacao; busca a lista de lotacoes existentes
+    if (!isAdmin) return;
+    let vivo = true;
+    fetch("/api/lotacoes")
+      .then((r) => r.json())
+      .then((d) => { if (vivo) setLotacoes(Array.isArray(d.lotacoes) ? d.lotacoes : []); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, [isAdmin]);
+
+  // fecha a lista de sugestoes ao clicar fora
+  useEffect(() => {
+    function aoClicarFora(e: MouseEvent) {
+      if (lotBoxRef.current && !lotBoxRef.current.contains(e.target as Node)) {
+        setLotFocado(false);
+      }
+    }
+    document.addEventListener("mousedown", aoClicarFora);
+    return () => document.removeEventListener("mousedown", aoClicarFora);
+  }, []);
+
   function podeEditar(grupo: Grupo): boolean {
     return isAdmin || grupo === "pessoal";
   }
@@ -158,6 +185,12 @@ export default function EfetivoForm({
   function mudar(key: string, valor: string) {
     setForm((f) => ({ ...f, [key]: valor }));
   }
+
+  // sugestoes filtradas pelo que ja foi digitado na lotacao
+  const termoLot = (form["lotacao"] ?? "").trim().toLowerCase();
+  const sugestoesLot = termoLot
+    ? lotacoes.filter((l) => l.toLowerCase().includes(termoLot) && l.toLowerCase() !== termoLot).slice(0, 8)
+    : lotacoes.slice(0, 8);
 
   async function salvar() {
     setErro("");
@@ -233,6 +266,34 @@ export default function EfetivoForm({
                       rows={3}
                       className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50 disabled:opacity-50"
                     />
+                  ) : c.key === "lotacao" && editavel ? (
+                    // campo lotacao com autocomplete (sugestoes das lotacoes existentes)
+                    <div className="relative" ref={lotBoxRef}>
+                      <input
+                        type="text"
+                        value={form[c.key]}
+                        onChange={(e) => { mudar(c.key, e.target.value); setLotFocado(true); }}
+                        onFocus={() => setLotFocado(true)}
+                        autoComplete="off"
+                        placeholder="Digite e escolha a lotação..."
+                        className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                      />
+                      {lotFocado && sugestoesLot.length > 0 && (
+                        <ul className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-white/10 bg-[#0b1626] py-1 shadow-xl">
+                          {sugestoesLot.map((s) => (
+                            <li key={s}>
+                              <button
+                                type="button"
+                                onClick={() => { mudar("lotacao", s); setLotFocado(false); }}
+                                className="block w-full px-3 py-2 text-left text-sm text-[#E8EEF6] transition hover:bg-[#D4AF37]/15 hover:text-white"
+                              >
+                                {s}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   ) : (
                     <input
                       type="text"

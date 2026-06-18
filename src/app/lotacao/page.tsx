@@ -6,6 +6,7 @@ import AppShell from "@/components/AppShell";
 import LotacaoLista, { GrupoLot } from "@/components/LotacaoLista";
 import { classificarPatente } from "@/lib/patentes";
 import { hojeLocal, montarIdsEmFerias, situacaoCalculada } from "@/lib/situacao";
+import { lotacaoLimpa } from "@/lib/formatarLotacao";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,9 @@ export default async function LotacaoPage() {
 
   const mapa = new Map<string, typeof militares>();
   militares.forEach((m) => {
-    const lot = (m.lotacao && m.lotacao.trim()) ? m.lotacao.trim() : "(sem lotação)";
+    // agrupa pela lotacao JA SEM o prefixo numerico ("01. ROTEM" -> "ROTEM")
+    const limpa = lotacaoLimpa(m.lotacao);
+    const lot = limpa || "(sem lotação)";
     if (!mapa.has(lot)) mapa.set(lot, []);
     mapa.get(lot)!.push(m);
   });

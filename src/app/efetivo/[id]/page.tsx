@@ -3,8 +3,9 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { exigirLogin } from "@/lib/guard";
 import AppShell from "@/components/AppShell";
+import AvatarUpload from "@/components/AvatarUpload";
 import CopiarDados from "./CopiarDados";
-import { ArrowLeft, Pencil, User } from "lucide-react";
+import { ArrowLeft, Pencil } from "lucide-react";
 import { hojeLocal, montarIdsEmFerias, situacaoCalculada } from "@/lib/situacao";
 
 export const dynamic = "force-dynamic";
@@ -161,9 +162,13 @@ export default async function FichaEfetivoPage({
 
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#D4AF37]/15 text-[#D4AF37]">
-              <User className="h-8 w-8" />
-            </div>
+            <AvatarUpload
+              efetivoId={m.id}
+              inicial={(m.nomeGuerra || m.nome || "?").charAt(0).toUpperCase()}
+              temFoto={!!(m.fotoURL && m.fotoURL.startsWith("fotos/"))}
+              podeEditar={podeEditar}
+              tamanho={64}
+            />
             <div>
               <h1 className="text-2xl font-bold text-white">{m.nome ?? "—"}</h1>
               <p className="text-sm text-[#94A3B8]">
