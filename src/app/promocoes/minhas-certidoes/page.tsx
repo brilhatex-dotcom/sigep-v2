@@ -19,7 +19,7 @@ export default async function MinhasCertidoesPage() {
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-3xl">
-        <h1 className="mb-1 text-2xl font-bold text-sigep-navy">
+        <h1 className="mb-1 text-2xl font-bold text-white">
           Minhas Certidões para Promoção
         </h1>
         <Conteudo efetivoId={efetivoId} />
@@ -31,7 +31,7 @@ export default async function MinhasCertidoesPage() {
 async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
   if (!efetivoId) {
     return (
-      <div className="mt-4 flex items-start gap-2 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
+      <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
         Seu usuário não está vinculado a uma ficha de efetivo, então não é
         possível enviar certidões por aqui. Avise o administrador.
@@ -42,7 +42,7 @@ async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
   const periodo = await periodoAtivo();
   if (!periodo) {
     return (
-      <div className="mt-4 rounded-xl bg-white p-6 text-sm text-gray-500 shadow-sm ring-1 ring-gray-100">
+      <div className="mt-4 rounded-xl ui-card p-6 text-sm text-[#94A3B8]">
         Nenhum período de promoção está aberto no momento. Quando o
         administrador abrir, as certidões aparecerão aqui para envio.
       </div>
@@ -68,8 +68,8 @@ async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
 
   return (
     <>
-      <p className="mb-5 text-sm text-gray-500">
-        Período: <span className="font-medium text-sigep-navy">{periodo.nome}</span>.
+      <p className="mb-5 text-sm text-[#94A3B8]">
+        Período: <span className="font-semibold text-[#D4AF37]">{periodo.nome}</span>.
         Envie cada certidão em PDF. Quando as {TOTAL_CERTIDOES} estiverem
         enviadas, gere o PDF unificado na ordem oficial.
       </p>
