@@ -74,8 +74,8 @@ function linhaIdentificacao(d: DadosMemorando): string {
 }
 
 // Campo editável com contentEditable — suporta bold/italic/underline via execCommand.
-// onCommit devolve o HTML editado para o pai persistir (corrige o bug de a edicao
-// se perder ao sair do modo de edicao).
+// Salva a edicao no ref a CADA digitacao (onInput), de modo que o conteudo nunca
+// se perde ao sair do modo de edicao ou ao re-renderizar.
 function Campo({
   html, editando, style, multiline, onCommit,
 }: {
@@ -83,27 +83,23 @@ function Campo({
   onCommit?: (novoHtml: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const editandoAnterior = useRef(editando);
 
+  // injeta/atualiza o conteudo no DOM sempre que o html base muda
+  // (na montagem e ao alternar edicao), sem sobrescrever o que o usuario digita.
   useEffect(() => {
-    const saiuDaEdicao = editandoAnterior.current && !editando;
-    // ao SAIR da edicao: captura o que o usuario digitou e devolve ao pai
-    if (saiuDaEdicao && ref.current && onCommit) {
-      onCommit(ref.current.innerHTML);
-    }
-    // ao ENTRAR na edicao (ou montar): garante que o conteudo atual esteja no DOM
     if (ref.current && ref.current.innerHTML !== html) {
       ref.current.innerHTML = html;
     }
-    editandoAnterior.current = editando;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editando]);
+  }, [html, editando]);
 
   return (
     <div
       ref={ref}
       contentEditable={editando}
       suppressContentEditableWarning
+      onInput={() => { if (ref.current && onCommit) onCommit(ref.current.innerHTML); }}
+      onBlur={() => { if (ref.current && onCommit) onCommit(ref.current.innerHTML); }}
       style={{
         display: "inline",
         outline: editando ? "1px solid #f59e0b" : "none",
@@ -114,7 +110,6 @@ function Campo({
         whiteSpace: multiline ? "pre-wrap" : "normal",
         ...style,
       }}
-      dangerouslySetInnerHTML={editando ? undefined : { __html: html }}
     />
   );
 }
@@ -154,6 +149,7 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
     campo: keyof typeof campos; style?: React.CSSProperties; multiline?: boolean;
   }) => (
     <Campo
+      key={`campo-${campo}`}
       html={campos[campo].current}
       editando={editando}
       style={style}
@@ -163,7 +159,7 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
   );
 
   return (
-    <div className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 print:bg-white">
+    <div id="memorando-overlay" className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 print:bg-white">
 
       {/* BARRA DE FERRAMENTAS */}
       <div className="sticky top-0 z-10 flex flex-wrap items-center gap-1 bg-[#0b1626] px-3 py-2 shadow print:hidden">
@@ -209,7 +205,7 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
 
       {/* FOLHA A4 */}
       <div id="memorando-print" className="mx-auto my-6 bg-white text-black shadow-2xl print:my-0 print:shadow-none"
-        style={{ width: "210mm", minHeight: "297mm", maxHeight: "297mm", overflow: "hidden",
+        style={{ width: "210mm", minHeight: "297mm",
           padding: "10mm 20mm 12mm 20mm",
           fontFamily: "Times New Roman, Times, serif", fontSize: pt, lineHeight: "1.45", position: "relative" }}>
 
@@ -325,26 +321,38 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
 
       <style>{`
         @media print {
-          /* esconde tudo que esta fora do memorando (ex.: titulo "Plano de Ferias") */
+          /* esconde tudo, mostra so o memorando, e neutraliza o overlay
+             (que tinha overflow/altura forcando uma 2a pagina em branco) */
           body * { visibility: hidden !important; }
+          #memorando-overlay {
+            position: static !important;
+            overflow: visible !important;
+            background: transparent !important;
+            inset: auto !important;
+          }
           #memorando-print, #memorando-print * { visibility: visible !important; }
           #memorando-print {
             position: absolute !important;
-            left: 0; top: 0;
+            left: 0 !important;
+            top: 0 !important;
             margin: 0 !important;
             box-shadow: none !important;
+            /* na impressao a altura e a do conteudo, nao 297mm fixos */
+            min-height: 0 !important;
+            max-height: none !important;
+            height: auto !important;
+            overflow: visible !important;
           }
           /* remove o fundo amarelo e o contorno dos campos editaveis na impressao */
-          #memorando-print [contenteditable],
-          #memorando-print [contenteditable="false"] {
+          #memorando-print [contenteditable] {
             background: transparent !important;
             outline: none !important;
             padding: 0 !important;
           }
           .print\\:hidden { display: none !important; }
           .print\\:border-0 { border: none !important; }
-          body { margin: 0; }
-          @page { size: A4; margin: 0; }
+          html, body { margin: 0 !important; padding: 0 !important; height: auto !important; }
+          @page { size: A4; margin: 12mm 0; }
         }
       `}</style>
     </div>
