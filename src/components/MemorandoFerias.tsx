@@ -362,7 +362,7 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
         </div>
 
         {/* Corpo */}
-        <p style={{ textAlign: "justify", textIndent: "15mm", marginBottom: temObs ? "4mm" : "12mm" }}>
+        <p style={{ textAlign: "justify", textIndent: "15mm", marginBottom: temObs ? "4mm" : "22mm" }}>
           Informo a Vossa Senhoria, para conhecimento que a partir do dia{" "}
           <C campo="inicioExtenso" />
           {", "}encontra-se de Férias Regulamentares (<C campo="dias" /> dias) referente ao exercício de{" "}
@@ -372,7 +372,7 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
 
         {/* OBS (opcional) */}
         {temObs && (
-          <p style={{ textAlign: "justify", textIndent: "15mm", marginBottom: "9mm" }}>
+          <p style={{ textAlign: "justify", textIndent: "15mm", marginBottom: "20mm" }}>
             <C campo="observacao" multiline />
           </p>
         )}
