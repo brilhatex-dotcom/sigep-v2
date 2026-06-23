@@ -73,19 +73,29 @@ function linhaIdentificacao(d: DadosMemorando): string {
   return `${posto} PM nº ${barra} - ${nome}`;
 }
 
-// Campo editável com contentEditable — suporta bold/italic/underline via execCommand
+// Campo editável com contentEditable — suporta bold/italic/underline via execCommand.
+// onCommit devolve o HTML editado para o pai persistir (corrige o bug de a edicao
+// se perder ao sair do modo de edicao).
 function Campo({
-  html, editando, style, multiline,
+  html, editando, style, multiline, onCommit,
 }: {
   html: string; editando: boolean; style?: React.CSSProperties; multiline?: boolean;
+  onCommit?: (novoHtml: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const editandoAnterior = useRef(editando);
 
-  // só injeta o html quando ENTRA em modo edição ou na montagem
   useEffect(() => {
+    const saiuDaEdicao = editandoAnterior.current && !editando;
+    // ao SAIR da edicao: captura o que o usuario digitou e devolve ao pai
+    if (saiuDaEdicao && ref.current && onCommit) {
+      onCommit(ref.current.innerHTML);
+    }
+    // ao ENTRAR na edicao (ou montar): garante que o conteudo atual esteja no DOM
     if (ref.current && ref.current.innerHTML !== html) {
       ref.current.innerHTML = html;
     }
+    editandoAnterior.current = editando;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editando]);
 
@@ -143,7 +153,13 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
   const C = ({ campo, style, multiline }: {
     campo: keyof typeof campos; style?: React.CSSProperties; multiline?: boolean;
   }) => (
-    <Campo html={campos[campo].current} editando={editando} style={style} multiline={multiline} />
+    <Campo
+      html={campos[campo].current}
+      editando={editando}
+      style={style}
+      multiline={multiline}
+      onCommit={(novo) => { campos[campo].current = novo; }}
+    />
   );
 
   return (
@@ -192,9 +208,10 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
       </div>
 
       {/* FOLHA A4 */}
-      <div className="mx-auto my-6 bg-white text-black shadow-2xl print:my-0 print:shadow-none"
-        style={{ width: "210mm", minHeight: "297mm", padding: "12mm 20mm 20mm 20mm",
-          fontFamily: "Times New Roman, Times, serif", fontSize: pt, lineHeight: "1.5", position: "relative" }}>
+      <div id="memorando-print" className="mx-auto my-6 bg-white text-black shadow-2xl print:my-0 print:shadow-none"
+        style={{ width: "210mm", minHeight: "297mm", maxHeight: "297mm", overflow: "hidden",
+          padding: "10mm 20mm 12mm 20mm",
+          fontFamily: "Times New Roman, Times, serif", fontSize: pt, lineHeight: "1.45", position: "relative" }}>
 
         {/* Cabeçalho — 3 brasões: PMMA (esq) · Estado MA (centro-topo) · 18º BPM (dir) */}
         <div style={{ display: "flex", alignItems: "flex-start", gap: "3mm", marginBottom: "2mm" }}>
@@ -237,7 +254,7 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
         <hr style={{ borderTop: "1.5px solid black", margin: "1mm 0 5mm 0" }} />
 
         {/* VISTO + Cidade/Data */}
-        <div style={{ position: "relative", minHeight: "28mm", marginBottom: "8mm" }}>
+        <div style={{ position: "relative", minHeight: "24mm", marginBottom: "6mm" }}>
           <div style={{ position: "absolute", left: 0, top: 0 }}>
             <p style={{ fontWeight: "bold", margin: "0 0 1mm 0" }}>VISTO</p>
             <div style={{ width: "38mm", height: "16mm", marginBottom: "1mm", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -280,7 +297,7 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
         </div>
 
         {/* Corpo */}
-        <p style={{ textAlign: "justify", textIndent: "15mm", marginBottom: "15mm" }}>
+        <p style={{ textAlign: "justify", textIndent: "15mm", marginBottom: "12mm" }}>
           Informo a Vossa Senhoria, para conhecimento que a partir do dia{" "}
           <C campo="inicioExtenso" />
           {", "}encontra-se de Férias Regulamentares (<C campo="dias" /> dias) referente ao exercício de{" "}
@@ -289,7 +306,7 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
         </p>
 
         {/* Assinatura do destinatário (mesma linha: posto + quadro/numero + nome) */}
-        <div style={{ textAlign: "center", marginBottom: "12mm" }}>
+        <div style={{ textAlign: "center", marginBottom: "10mm" }}>
           <C campo="assinaturaAo" style={{ display: "block", textAlign: "center" }} />
         </div>
 
@@ -308,6 +325,22 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
 
       <style>{`
         @media print {
+          /* esconde tudo que esta fora do memorando (ex.: titulo "Plano de Ferias") */
+          body * { visibility: hidden !important; }
+          #memorando-print, #memorando-print * { visibility: visible !important; }
+          #memorando-print {
+            position: absolute !important;
+            left: 0; top: 0;
+            margin: 0 !important;
+            box-shadow: none !important;
+          }
+          /* remove o fundo amarelo e o contorno dos campos editaveis na impressao */
+          #memorando-print [contenteditable],
+          #memorando-print [contenteditable="false"] {
+            background: transparent !important;
+            outline: none !important;
+            padding: 0 !important;
+          }
           .print\\:hidden { display: none !important; }
           .print\\:border-0 { border: none !important; }
           body { margin: 0; }

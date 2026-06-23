@@ -199,10 +199,11 @@ export default function PlanoFerias({
     }
   }
 
-  function abrirMemorando(m: MembroEquipe, e: EquipeView, ordemMembro: number) {
+  function abrirMemorando(m: MembroEquipe, e: EquipeView) {
     const p = e.periodos[0];
+    const numeroGlobal = mapaNumeroGlobal.get(m.efetivoId) ?? 1;
     setMemorando({
-      numero: String(ordemMembro).padStart(3, "0"),
+      numero: String(numeroGlobal).padStart(3, "0"),
       postoGrad: m.postoGrad ?? "",
       numeroBarra: m.numeroBarra ?? "",
       nome: m.nome ?? "",
@@ -219,6 +220,24 @@ export default function PlanoFerias({
     if (filtro === "pracas") return membros.filter((m) => !m.ehOficial);
     return membros;
   }
+
+  // Numeracao GLOBAL e continua do memorando: percorre todas as equipes
+  // em ordem e atribui um numero sequencial a cada militar do plano inteiro,
+  // sem reiniciar a contagem quando muda de equipe.
+  const mapaNumeroGlobal = useMemo(() => {
+    const mapa = new Map<string, number>();
+    let seq = 0;
+    const equipesOrdenadas = [...equipes].sort(
+      (a, b) => Number(a.numeroEquipe) - Number(b.numeroEquipe)
+    );
+    for (const eq of equipesOrdenadas) {
+      for (const m of eq.membros) {
+        seq += 1;
+        mapa.set(m.efetivoId, seq);
+      }
+    }
+    return mapa;
+  }, [equipes]);
 
   const cartoes = useMemo(() => {
     const comMilitares = equipes.filter((e) => e.membros.length > 0).length;
@@ -505,7 +524,7 @@ export default function PlanoFerias({
                           <td className="whitespace-nowrap px-3 py-2">
                             <div className="flex gap-1.5">
                               <button
-                                onClick={() => abrirMemorando(m, aberta, i + 1)}
+                                onClick={() => abrirMemorando(m, aberta)}
                                 className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-[#94A3B8] hover:border-white/30 hover:text-white"
                               >
                                 <FileText className="h-3.5 w-3.5" /> Memorando
