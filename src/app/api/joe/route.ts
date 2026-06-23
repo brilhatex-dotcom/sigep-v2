@@ -69,23 +69,28 @@ export async function GET() {
         : null;
 
       const base = {
-        id: j.id,
-        evento: j.evento,
-        local: j.local,
-        data: j.data,
-        horaInicio: j.horaInicio,
-        horaFim: j.horaFim,
-        vagas: j.vagas,
-        valor: j.valor,
-        observacao: j.observacao,
-        status: j.status,
-        totalCandidatos: j.inscricoes.length,
-        totalAprovados: aprovados,
-        vagasRestantes: Math.max(0, j.vagas - aprovados),
-        minhaInscricao: minhaInscricao
-          ? { id: minhaInscricao.id, status: minhaInscricao.status }
-          : null,
-      };
+  id: j.id,
+  evento: j.evento,
+  local: j.local,
+  data: j.data,
+  horaInicio: j.horaInicio,
+  horaFim: j.horaFim,
+  vagas: j.vagas,
+  valor: j.valor,
+  observacao: j.observacao,
+  status: j.status,
+  // ---- campos da RENE ----
+  comandanteOp: j.comandanteOp,
+  horario: j.horario,
+  areaAtuacao: j.areaAtuacao,
+  processoSei: j.processoSei,
+  totalCandidatos: j.inscricoes.length,
+  totalAprovados: aprovados,
+  vagasRestantes: Math.max(0, j.vagas - aprovados),
+  minhaInscricao: minhaInscricao
+    ? { id: minhaInscricao.id, status: minhaInscricao.status }
+    : null,
+};
 
       if (!admin) return base; // policial nao ve a lista dos outros candidatos
 
@@ -127,19 +132,24 @@ export async function POST(req: Request) {
     if (!horaInicio || !horaFim) return NextResponse.json({ error: "Informe os horarios" }, { status: 400 });
 
     const criado = await prisma.joe.create({
-      data: {
-        evento,
-        local: String(b.local || "").trim() || null,
-        data,
-        horaInicio,
-        horaFim,
-        vagas: Math.max(1, parseInt(String(b.vagas), 10) || 1),
-        valor: Math.max(0, parseFloat(String(b.valor)) || 0),
-        observacao: String(b.observacao || "").trim() || null,
-        status: "aberta",
-        criadoPor: (session.user as any).login || session.user.name || null,
-      },
-    });
+  data: {
+    evento,
+    local: String(b.local || "").trim() || null,
+    data,
+    horaInicio,
+    horaFim,
+    vagas: Math.max(1, parseInt(String(b.vagas), 10) || 1),
+    valor: Math.max(0, parseFloat(String(b.valor)) || 0),
+    observacao: String(b.observacao || "").trim() || null,
+    status: "aberta",
+    criadoPor: (session.user as any).login || session.user.name || null,
+    // ---- campos da RENE ----
+    comandanteOp: String(b.comandanteOp || "").trim() || null,
+    horario: String(b.horario || "").trim() || null,
+    areaAtuacao: String(b.areaAtuacao || "").trim() || null,
+    processoSei: String(b.processoSei || "").trim() || null,
+  },
+});
 
     await registrar({
       acao: "criar_joe",

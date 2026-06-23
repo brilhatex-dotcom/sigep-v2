@@ -56,6 +56,7 @@ export default async function FeriasPage({
       nome: true,
       nomeGuerra: true,
       matricula: true,
+      quadro: true,
     },
   });
   const mapaFicha = new Map(fichas.map((f) => [f.id, f]));
@@ -100,6 +101,7 @@ export default async function FeriasPage({
           nome: f?.nome ?? null,
           nomeGuerra: f?.nomeGuerra ?? null,
           matricula: f?.matricula ?? null,
+          quadro: f?.quadro ?? null,
           ehOficial: ehOficial(f?.postoGrad ?? null),
         };
       })

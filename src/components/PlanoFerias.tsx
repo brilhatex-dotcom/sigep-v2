@@ -23,6 +23,7 @@ export type MembroEquipe = {
   nome: string | null;
   nomeGuerra: string | null;
   matricula: string | null;
+  quadro: string | null;
   ehOficial: boolean;
 };
 
@@ -205,6 +206,8 @@ export default function PlanoFerias({
       postoGrad: m.postoGrad ?? "",
       numeroBarra: m.numeroBarra ?? "",
       nome: m.nome ?? "",
+      quadro: m.quadro ?? "",
+      ehOficial: m.ehOficial,
       inicioBR: p?.inicioBR ?? "",
       apresentacaoBR: p?.apres ?? p?.fimBR ?? "",
       diasFerias: 35,

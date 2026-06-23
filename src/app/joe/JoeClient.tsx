@@ -80,7 +80,10 @@ export default function JoeClient({ perfil }: { perfil: string }) {
   const [ocupado, setOcupado] = useState<string | null>(null); // id em processamento
 
   // formulario admin
-  const vazio = { evento: "", local: "", data: "", horaInicio: "", horaFim: "", vagas: "1", valor: "", observacao: "" };
+  const vazio = {
+    evento: "", local: "", data: "", horaInicio: "", horaFim: "", vagas: "1", valor: "", observacao: "",
+    comandanteOp: "", horario: "", areaAtuacao: "", processoSei: "",
+  };
   const [form, setForm] = useState({ ...vazio });
   const [criando, setCriando] = useState(false);
 
@@ -202,6 +205,18 @@ export default function JoeClient({ perfil }: { perfil: string }) {
             </label>
             <label>Valor por militar (R$)
               <input type="number" min={0} step="0.01" value={form.valor} placeholder="0,00" onChange={(e) => setForm({ ...form, valor: e.target.value })} />
+            </label>
+            <label>Comandante da operação
+              <input value={form.comandanteOp} placeholder="ex: MAJOR FRANS" onChange={(e) => setForm({ ...form, comandanteOp: e.target.value })} />
+            </label>
+            <label>Horário (RENE)
+              <input value={form.horario} placeholder="ex: 20h às 02h" onChange={(e) => setForm({ ...form, horario: e.target.value })} />
+            </label>
+            <label>Área de atuação
+              <input value={form.areaAtuacao} placeholder="ex: Graça Aranha-MA" onChange={(e) => setForm({ ...form, areaAtuacao: e.target.value })} />
+            </label>
+            <label>Nº processo SEI – autorização
+              <input value={form.processoSei} placeholder="ex: 2026.190.110.24899" onChange={(e) => setForm({ ...form, processoSei: e.target.value })} />
             </label>
             <label className="f-obs">Observação
               <input value={form.observacao} placeholder="detalhes, fardamento, ponto de encontro..." onChange={(e) => setForm({ ...form, observacao: e.target.value })} />
@@ -369,6 +384,17 @@ function JoeCardComp({
           )}
 
           <div className="jc-admin-rod">
+            {j.totalAprovados > 0 && (
+              <a
+                className="link-btn"
+                href={`/api/joe/${j.id}/rene`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "#D4AF37" }}
+              >
+                📄 Gerar RENE
+              </a>
+            )}
             {j.status === "aberta"
               ? <button className="link-btn" disabled={ocupado} onClick={onEncerrar}>Encerrar inscrições</button>
               : <button className="link-btn" disabled={ocupado} onClick={onReabrir}>Reabrir</button>}

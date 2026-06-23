@@ -269,17 +269,24 @@ model Aviso {
 
 model Joe {
   id          String   @id @default(cuid())
-  evento      String                                  // nome da operacao/evento
-  local       String?                                 // onde sera
-  data        String                                  // "aaaa-mm-dd"
-  horaInicio  String   @map("hora_inicio")            // "HH:MM"
-  horaFim     String   @map("hora_fim")               // "HH:MM"
-  vagas       Int      @default(1)                    // quantas vagas
-  valor       Float    @default(0)                    // diaria/remuneracao por militar (R$)
-  observacao  String?                                 // detalhes livres
+  evento      String                                  // OPERAÇÃO (nome) — usado como "OPERAÇÃO:" na RENE
+  local       String?
+  data        String                                  // "aaaa-mm-dd" — vira "DATA:" na RENE
+  horaInicio  String   @map("hora_inicio")
+  horaFim     String   @map("hora_fim")
+  vagas       Int      @default(1)
+  valor       Float    @default(0)
+  observacao  String?
   status      String   @default("aberta")             // "aberta" | "encerrada"
-  criadoPor   String?  @map("criado_por")             // login do P1 que abriu
+  criadoPor   String?  @map("criado_por")
   criadoEm    DateTime @default(now()) @map("criado_em")
+
+  // ---- campos da RENE (novos) ----
+  comandanteOp String? @map("comandante_op")          // COMANDANTE DA OPERAÇÃO
+  horario      String? @map("horario_rene")           // HORÁRIO ex.: "20h às 02h"
+  areaAtuacao  String? @map("area_atuacao")           // ÁREA DE ATUAÇÃO
+  processoSei  String? @map("processo_sei")           // Nº PROCESSO SEI – AUTORIZAÇÃO
+  reneKey      String? @map("rene_key")               // chave do DOCX da RENE no R2
 
   inscricoes  JoeInscricao[]
 
@@ -289,15 +296,15 @@ model Joe {
 model JoeInscricao {
   id          String   @id @default(cuid())
   joeId       String   @map("joe_id")
-  efetivoId   String   @map("efetivo_id")             // ID PMMA do candidato
+  efetivoId   String   @map("efetivo_id")
   status      String   @default("pendente")           // "pendente" | "aprovado" | "recusado"
   inscritoEm  DateTime @default(now()) @map("inscrito_em")
   decididoEm  DateTime? @map("decidido_em")
-  decididoPor String?  @map("decidido_por")           // login do P1 que decidiu
+  decididoPor String?  @map("decidido_por")
 
   joe         Joe      @relation(fields: [joeId], references: [id], onDelete: Cascade)
 
-  @@unique([joeId, efetivoId])                          // 1 candidatura por militar por JOE
+  @@unique([joeId, efetivoId])
   @@map("joe_inscricoes")
 }
 // ==========================================================
@@ -396,4 +403,94 @@ model Auditoria {
   @@index([quando])
   @@index([autorLogin])
   @@map("auditoria")
+}
+// ==========================================================
+//  >>> ANEXAR AO FINAL DO prisma/schema.prisma <<<
+//  Modulo de Requerimentos. O policial preenche e envia; o
+//  admin (P/1) analisa, preenche a pagina 2 e defere/indefere.
+//  Depois rode: npx prisma db push
+// ==========================================================
+
+model Requerimento {
+  id          String   @id @default(cuid())
+
+  // quem fez
+  efetivoId   String   @map("efetivo_id")            // ID PMMA do requerente
+
+  // tipo
+  modelo      String                                 // "comum" | "cursos"
+  modalidade  String                                 // ex: "SALÁRIO FAMÍLIA", "CFS", "OUTROS"
+  modalidadeOutros String? @map("modalidade_outros") // texto quando modalidade = OUTROS
+
+  // dados pessoais (snapshot no momento do envio; tudo editavel pelo policial)
+  nomeCompleto String? @map("nome_completo")
+  endereco     String?
+  complemento  String?
+  bairro       String?
+  municipio    String?
+  fone         String?
+  dataNasc     String? @map("data_nasc")
+  dataInclusao String? @map("data_inclusao")
+  matricula    String?
+  idPmmaTxt    String? @map("id_pmma_txt")            // o "ID" que aparece no modelo cursos
+  postoGrad    String? @map("posto_grad")
+  numeroPm     String? @map("numero_pm")
+  tempoServico String? @map("tempo_servico")
+  cargoFuncao  String? @map("cargo_funcao")
+  estadoCivil  String? @map("estado_civil")
+  opmClassificado String? @map("opm_classificado")
+  opmExercicio    String? @map("opm_exercicio")
+
+  // so cursos
+  cpf          String?
+  email        String?
+
+  // corpo
+  amparoLegal  String? @map("amparo_legal")
+  infoAdicional String? @map("info_adicional")
+
+  // pagina 2 (policial sugere, admin confirma)
+  p2Conceito      String? @map("p2_conceito")         // Comportamento/Conceito militar
+  p2SituacaoJur   String? @map("p2_situacao_jur")     // Situacao juridica
+  p2Complementares String? @map("p2_complementares")  // os 6 itens (texto)
+  p2UltimaPromocao String? @map("p2_ultima_promocao")
+  p2DataInclusao   String? @map("p2_data_inclusao")
+
+  // fluxo
+  status      String   @default("rascunho")           // rascunho | enviado | deferido | indeferido
+  parecer     String?                                 // parecer do admin
+  analisadoPor String? @map("analisado_por")
+  analisadoEm  DateTime? @map("analisado_em")
+
+  // arquivos gerados (chaves no R2)
+  docxKey     String?  @map("docx_key")
+  pdfKey      String?  @map("pdf_key")
+  assinado    Boolean  @default(false)                // se ja foi assinado no sistema
+
+  criadoEm    DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  @@index([efetivoId])
+  @@index([status])
+  @@map("requerimentos")
+}
+
+// Perfil de dados do requerente, salvo para reuso (preenche uma vez,
+// reaproveita nos proximos requerimentos). 1 por efetivo.
+model PerfilRequerente {
+  efetivoId    String  @id @map("efetivo_id")
+  endereco     String?
+  complemento  String?
+  bairro       String?
+  municipio    String?
+  fone         String?
+  cargoFuncao  String? @map("cargo_funcao")
+  estadoCivil  String? @map("estado_civil")
+  opmClassificado String? @map("opm_classificado")
+  opmExercicio    String? @map("opm_exercicio")
+  cpf          String?
+  email        String?
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  @@map("perfis_requerente")
 }

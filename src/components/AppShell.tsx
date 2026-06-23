@@ -24,6 +24,7 @@ import {
   Bell,
   ChevronRight,
   ShieldCheck,
+  FileText,
   KeyRound,
 } from "lucide-react";
 import Relogio from "@/components/Relogio";
@@ -70,7 +71,9 @@ const NAV: Secao[] = [
       { rotulo: "Plano de Férias", href: "/ferias", Icone: Palmtree, disponivel: true, adminOnly: true },
       { rotulo: "Disciplinar", Icone: Gavel, adminOnly: true },
       { rotulo: "JOE", href: "/joe", Icone: ClipboardList, disponivel: true },
+      { rotulo: "Requerimentos", href: "/requerimentos", Icone: FileText, disponivel: true },
       { rotulo: "Cursos", href: "/cursos", Icone: Award, disponivel: true },
+      { rotulo: "Diárias", Icone: FileText, adminOnly: true },
       { rotulo: "Escalas de Serviço", href: "/escalas", Icone: ClipboardList, disponivel: true, adminOnly: true },
       { rotulo: "Mapa de Escala", href: "/escalas/mapa", Icone: Map, disponivel: true, adminOnly: true },
     ],
