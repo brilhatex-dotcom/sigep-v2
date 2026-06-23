@@ -26,6 +26,12 @@ import {
   ShieldCheck,
   FileText,
   KeyRound,
+  BookOpen,
+  Receipt,
+  Landmark,
+  CreditCard,
+  Shield,
+  Truck,
 } from "lucide-react";
 import Relogio from "@/components/Relogio";
 import BuscaGlobal from "@/components/BuscaGlobal";
@@ -90,6 +96,12 @@ const NAV: Secao[] = [
     itens: [
       { rotulo: "Motoristas / CNH", Icone: Car, adminOnly: true },
       { rotulo: "Telefones", Icone: Phone, adminOnly: true },
+      { rotulo: "Livro do CPU", Icone: BookOpen, adminOnly: true },
+      { rotulo: "Controle de Diárias", Icone: Receipt, adminOnly: true },
+      { rotulo: "Cadastro de Credor", Icone: Landmark, adminOnly: true },
+      { rotulo: "RG Militar Digital (via DAL)", Icone: CreditCard, adminOnly: true },
+      { rotulo: "P/3", Icone: Shield, adminOnly: true },
+      { rotulo: "P/4", Icone: Truck, adminOnly: true },
     ],
   },
 ];
