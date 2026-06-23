@@ -32,6 +32,7 @@ import {
   CreditCard,
   Shield,
   Truck,
+  History,
 } from "lucide-react";
 import Relogio from "@/components/Relogio";
 import BuscaGlobal from "@/components/BuscaGlobal";
@@ -94,6 +95,7 @@ const NAV: Secao[] = [
   {
     titulo: "Próximas versões",
     itens: [
+      { rotulo: "Histórico Policial Militar", Icone: History, adminOnly: true },
       { rotulo: "Motoristas / CNH", Icone: Car, adminOnly: true },
       { rotulo: "Telefones", Icone: Phone, adminOnly: true },
       { rotulo: "Livro do CPU", Icone: BookOpen, adminOnly: true },

@@ -37,6 +37,29 @@ function escXml(s: string): string {
     .replace(/>/g, "&gt;");
 }
 
+// Formata CPF (11 digitos) -> 000.000.000-00. Se nao tiver 11 digitos,
+// devolve o valor original (apenas limpo de espacos).
+export function formatarCpf(cpf: string): string {
+  const so = (cpf || "").replace(/\D/g, "");
+  if (so.length === 11) {
+    return `${so.slice(0, 3)}.${so.slice(3, 6)}.${so.slice(6, 9)}-${so.slice(9)}`;
+  }
+  return (cpf || "").trim();
+}
+
+// Formata telefone -> (00)00000-0000 ou (00)0000-0000.
+// Se nao reconhecer o formato, devolve o valor original limpo.
+export function formatarTelefone(tel: string): string {
+  const so = (tel || "").replace(/\D/g, "");
+  if (so.length === 11) {
+    return `(${so.slice(0, 2)})${so.slice(2, 7)}-${so.slice(7)}`;
+  }
+  if (so.length === 10) {
+    return `(${so.slice(0, 2)})${so.slice(2, 6)}-${so.slice(6)}`;
+  }
+  return (tel || "").trim();
+}
+
 export async function gerarReneDocx(dados: ReneDados): Promise<Buffer> {
   const templatePath = path.join(process.cwd(), "public", "templates", "rene-template.docx");
   const templateBuf = fs.readFileSync(templatePath);
@@ -67,9 +90,9 @@ export async function gerarReneDocx(dados: ReneDados): Promise<Buffer> {
         .replace(/\{\{ORD\}\}/g, escXml(p.ord))
         .replace(/\{\{NOME\}\}/g, escXml(p.nome))
         .replace(/\{\{ID\}\}/g, escXml(p.id))
-        .replace(/\{\{CPF\}\}/g, escXml(p.cpf))
+        .replace(/\{\{CPF\}\}/g, escXml(formatarCpf(p.cpf)))
         .replace(/\{\{UPM_LINHA\}\}/g, escXml(p.upm))
-        .replace(/\{\{CONTATO\}\}/g, escXml(p.contato))
+        .replace(/\{\{CONTATO\}\}/g, escXml(formatarTelefone(p.contato)))
     )
     .join("");
 
