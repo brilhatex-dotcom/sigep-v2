@@ -69,21 +69,23 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
   const [fontSize, setFontSize] = useState(12);
 
   const pt = `${fontSize}pt`;
-  const nomeNegrito = `<strong>${dados.nome.toUpperCase()}</strong>`;
 
-  // HTMLs iniciais de cada campo (suportam tags html para negrito/itálico)
+  // Nomes SEM negrito (conforme solicitado) — apenas caixa alta
+  const nomeMaiusculo = dados.nome.toUpperCase();
+
+  // HTMLs iniciais de cada campo (suportam tags html para negrito/itálico na edição manual)
   const campos = {
     numero:        useRef(`${dados.numero}`),
     cidadeData:    useRef(`Presidente Dutra-MA, ${hojeExtenso()}.`),
     de:            useRef(`1º Ten QOEM Chefe da 1ª Seção do 18º BPM.`),
-    ao:            useRef(`${dados.postoGrad} PM nº ${dados.numeroBarra} - ${nomeNegrito}.`),
+    ao:            useRef(`${dados.postoGrad} PM nº ${dados.numeroBarra} - ${nomeMaiusculo}.`),
     assunto:       useRef(`Concessão de Férias (${dados.diasFerias} dias).`),
     inicioExtenso: useRef(`<strong><u>${dataExtenso(dados.inicioBR)}</u></strong>`),
     apresExtenso:  useRef(`<strong><u>${dataExtenso(dados.apresentacaoBR)}</u></strong>`),
     dias:          useRef(`${dados.diasFerias}`),
     exercicio:     useRef(`${Number(ano) - 1}`),
-    assinaturaAo:  useRef(`${dados.postoGrad}<br/><strong>${dados.nome.toUpperCase()}</strong>`),
-    nomeCmt:       useRef(`1º TEN. QOEM. <strong>JOELSON DOS REIS SILVA</strong>`),
+    assinaturaAo:  useRef(`${dados.postoGrad}<br/>${nomeMaiusculo}`),
+    nomeCmt:       useRef(`1º TEN. QOEM. JOELSON DOS REIS SILVA`),
     cargoCmt:      useRef(`CHEFE DO P/1 DO 18º BPM`),
   };
 
@@ -147,45 +149,51 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
         style={{ width: "210mm", minHeight: "297mm", padding: "12mm 20mm 20mm 20mm",
           fontFamily: "Times New Roman, Times, serif", fontSize: pt, lineHeight: "1.5", position: "relative" }}>
 
-        {/* Cabeçalho */}
-        <div style={{ display: "flex", alignItems: "center", gap: "4mm", marginBottom: "3mm" }}>
-          <div style={{ width: "24mm", height: "24mm", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #ccc" }}
-            className="print:border-0">
+        {/* Cabeçalho — 3 brasões: PMMA (esq) · Estado MA (centro-topo) · 18º BPM (dir) */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: "4mm", marginBottom: "2mm" }}>
+
+          {/* Brasão PMMA — esquerda */}
+          <div style={{ width: "26mm", height: "26mm", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <img src="/brasao-pmma.png" alt="Brasão PMMA"
               style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
           </div>
 
-          <div style={{ flex: 1, textAlign: "center", lineHeight: "1.35" }}>
+          {/* Texto central com o brasão do Estado MA acima */}
+          <div style={{ flex: 1, textAlign: "center", lineHeight: "1.3" }}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "1mm" }}>
+              <img src="/brasao-estado-ma.png" alt="Brasão do Estado do Maranhão"
+                style={{ height: "13mm", objectFit: "contain" }}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+            </div>
             <p style={{ margin: 0, fontWeight: "bold", textTransform: "uppercase" }}>Estado do Maranhão</p>
             <p style={{ margin: 0, fontWeight: "bold", textTransform: "uppercase" }}>Secretaria de Estado da Segurança Pública</p>
             <p style={{ margin: 0, fontWeight: "bold", textTransform: "uppercase" }}>Polícia Militar do Maranhão</p>
             <p style={{ margin: 0, fontWeight: "bold", textTransform: "uppercase" }}>Comando do Policiamento de Área I/2</p>
             <p style={{ margin: 0, fontWeight: "bold", textTransform: "uppercase" }}>18º Batalhão de Policia Militar</p>
-            <p style={{ margin: "1.5mm 0 0 0", fontSize: `${fontSize - 1}pt` }}>
+            <p style={{ margin: "1.5mm 0 0 0", fontSize: `${fontSize - 2}pt` }}>
               Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP-65.760-000
             </p>
-            <p style={{ margin: 0, fontSize: `${fontSize - 1}pt` }}>
+            <p style={{ margin: 0, fontWeight: "bold", fontSize: `${fontSize - 2}pt` }}>
               TELEFAX: (99) 98509-5005 (Permanência) – <u>18batalhaopmma@gmail.com</u>
             </p>
           </div>
 
-          <div style={{ width: "24mm", height: "24mm", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #ccc" }}
-            className="print:border-0">
+          {/* Brasão 18º BPM — direita */}
+          <div style={{ width: "26mm", height: "26mm", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <img src="/brasao-18bpm.png" alt="Brasão 18º BPM"
               style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
           </div>
         </div>
 
-        <hr style={{ borderTop: "1.5px solid black", margin: "3mm 0 5mm 0" }} />
+        <hr style={{ borderTop: "1.5px solid black", margin: "1mm 0 5mm 0" }} />
 
         {/* VISTO + Cidade/Data */}
         <div style={{ position: "relative", minHeight: "28mm", marginBottom: "8mm" }}>
           <div style={{ position: "absolute", left: 0, top: 0 }}>
-            <p style={{ fontWeight: "bold", margin: "0 0 2mm 0" }}>VISTO</p>
-            <div style={{ width: "38mm", height: "16mm", border: "1px dashed #ccc", marginBottom: "1mm", display: "flex", alignItems: "center", justifyContent: "center" }}
-              className="print:border-0">
+            <p style={{ fontWeight: "bold", margin: "0 0 1mm 0" }}>VISTO</p>
+            <div style={{ width: "38mm", height: "16mm", marginBottom: "1mm", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <img src="/assinatura-cmt.png" alt=""
                 style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
@@ -238,8 +246,13 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
           <C campo="assinaturaAo" style={{ display: "block", textAlign: "center" }} multiline />
         </div>
 
-        {/* Assinatura do emissor */}
+        {/* Assinatura do emissor (Chefe P/1) — com a rubrica do Joelson acima do nome */}
         <div style={{ textAlign: "center" }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: "1mm" }}>
+            <img src="/assinatura-joelson.png" alt=""
+              style={{ height: "16mm", objectFit: "contain" }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          </div>
           <C campo="nomeCmt" style={{ display: "block", textAlign: "center" }} />
           <C campo="cargoCmt" style={{ display: "block", textAlign: "center" }} />
         </div>
