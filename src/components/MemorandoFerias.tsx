@@ -378,7 +378,7 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
         )}
 
         {/* Assinatura do destinatário (CAIXA-ALTA, nome de guerra em negrito) */}
-        <div style={{ textAlign: "center", marginBottom: "8mm" }}>
+        <div style={{ textAlign: "center", marginBottom: "22mm" }}>
           <C campo="assinaturaAo" style={{ display: "block", textAlign: "center" }} />
         </div>
 
