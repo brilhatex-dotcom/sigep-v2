@@ -321,38 +321,43 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
 
       <style>{`
         @media print {
-          /* esconde tudo, mostra so o memorando, e neutraliza o overlay
-             (que tinha overflow/altura forcando uma 2a pagina em branco) */
+          /* esconde tudo, mostra so o memorando, e neutraliza o overlay */
           body * { visibility: hidden !important; }
           #memorando-overlay {
             position: static !important;
             overflow: visible !important;
             background: transparent !important;
             inset: auto !important;
+            display: block !important;
           }
           #memorando-print, #memorando-print * { visibility: visible !important; }
           #memorando-print {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            margin: 0 !important;
+            position: static !important;
+            margin: 0 auto !important;
             box-shadow: none !important;
-            /* na impressao a altura e a do conteudo, nao 297mm fixos */
+            /* CRITICO: sem altura minima de 297mm — encolhe ao tamanho do conteudo,
+               assim nao sobra uma 2a pagina em branco */
             min-height: 0 !important;
             max-height: none !important;
             height: auto !important;
+            width: 100% !important;
             overflow: visible !important;
+            padding: 12mm 16mm !important;
           }
-          /* remove o fundo amarelo e o contorno dos campos editaveis na impressao */
-          #memorando-print [contenteditable] {
+          /* zera fundo amarelo, contorno e bordas de TODOS os campos (editaveis ou nao) */
+          #memorando-print [contenteditable],
+          #memorando-print [contenteditable="true"],
+          #memorando-print [contenteditable="false"] {
             background: transparent !important;
             outline: none !important;
+            border: none !important;
             padding: 0 !important;
           }
           .print\\:hidden { display: none !important; }
           .print\\:border-0 { border: none !important; }
-          html, body { margin: 0 !important; padding: 0 !important; height: auto !important; }
-          @page { size: A4; margin: 12mm 0; }
+          html, body { margin: 0 !important; padding: 0 !important; height: auto !important; background: #fff !important; }
+          /* margin:0 no @page ajuda a suprimir o cabecalho/rodape automatico do navegador */
+          @page { size: A4; margin: 0; }
         }
       `}</style>
     </div>
