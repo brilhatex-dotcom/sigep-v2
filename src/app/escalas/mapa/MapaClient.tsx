@@ -327,6 +327,14 @@ export default function MapaClient() {
   };
   const clickNome = (n: string) => setSelNome((s) => (s === n ? null : n));
 
+  // Lista numerada dos militares de um pool (na ordem do rodizio).
+  const listaPool = (ids: string[]) =>
+    ids.length ? (
+      <ol className="mp-eq-lista">{ids.map((id, i) => <li key={id + i}>{nomeDe(id)}</li>)}</ol>
+    ) : (
+      <div className="mp-eq-vazio">(vazio)</div>
+    );
+
   return (
     <div className="mapa-shell">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
@@ -508,6 +516,58 @@ export default function MapaClient() {
         )}
       </div>
 
+      {/* ---- Composicao das equipes (tela + impressao) ---- */}
+      <div className="mp-equipes">
+        <div className="mp-equipes-tit">Composição das equipes</div>
+        <div className="mp-equipes-sub no-print">
+          Quem entra no rodízio de cada serviço (na ordem da fila) e as equipes da ROTEM.
+        </div>
+        <div className="mp-eq-grid">
+          <div className="mp-eq-grupo">
+            <div className="mp-eq-h">CPU de dia (oficiais)</div>
+            {listaPool(cad.cpu)}
+          </div>
+
+          <div className="mp-eq-grupo">
+            <div className="mp-eq-h">Força Tática</div>
+            <div className="mp-eq-sub">Graduado</div>{listaPool(cad.ftGraduado)}
+            <div className="mp-eq-sub">Motorista</div>{listaPool(cad.ftMotorista)}
+            <div className="mp-eq-sub">Armeiro / Patrulheiro</div>{listaPool(cad.ftPatrulheiro)}
+          </div>
+
+          <div className="mp-eq-grupo">
+            <div className="mp-eq-h">Rádio Patrulha</div>
+            <div className="mp-eq-sub">Adjunto de dia</div>{listaPool(cad.rpAdjunto)}
+            <div className="mp-eq-sub">Motorista</div>{listaPool(cad.rpMotorista)}
+            <div className="mp-eq-sub">Patrulheiro</div>{listaPool(cad.rpPatrulheiro)}
+          </div>
+
+          <div className="mp-eq-grupo">
+            <div className="mp-eq-h">Serviço de Inteligência</div>
+            {listaPool(cad.inteligencia)}
+          </div>
+
+          <div className="mp-eq-grupo">
+            <div className="mp-eq-h">Guarda do Quartel</div>
+            {listaPool(cad.guardaPermanente)}
+          </div>
+
+          <div className="mp-eq-grupo">
+            <div className="mp-eq-h">ROTEM · equipes</div>
+            {cad.rotemEquipes.length === 0 ? (
+              <div className="mp-eq-vazio">(sem equipes)</div>
+            ) : (
+              cad.rotemEquipes.map((eq, i) => (
+                <div key={i} className="mp-eq-rotem">
+                  <div className="mp-eq-sub">{eq.nome} · {eq.turnos.join(" / ")}</div>
+                  {listaPool(eq.militares)}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
       <div className="mp-rodape no-print">
         Gerado pelo motor (24/72 + ROTEM por equipes). Dias já salvos na escala diária aparecem como estão; os demais vêm do rodízio automático.
       </div>
@@ -589,18 +649,33 @@ const CSS = `
 .sel-row .mp-rot{ color:#f3df9d; box-shadow:inset 3px 0 0 #D4AF37; }
 
 .mp-rodape{ margin-top:10px; font-size:12px; color:#6f82a0; }
+
+/* Composicao das equipes */
+.mp-equipes{ margin-top:14px; background:#0F1B2D; border:1px solid #1d2c44; border-radius:12px; padding:14px; }
+.mp-equipes-tit{ color:#D4AF37; font-weight:700; font-size:15px; }
+.mp-equipes-sub{ font-size:12px; color:#9fb0c7; margin:3px 0 12px; }
+.mp-eq-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:12px; }
+.mp-eq-grupo{ background:#0d1830; border:1px solid #1d2c44; border-radius:10px; padding:10px 12px; }
+.mp-eq-h{ font-size:12.5px; font-weight:700; color:#D4AF37; margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid #1d2c44; }
+.mp-eq-sub{ font-size:10.5px; font-weight:700; color:#9fd9ff; margin:7px 0 2px; text-transform:uppercase; letter-spacing:.3px; }
+.mp-eq-lista{ margin:0; padding-left:20px; font-size:12px; color:#cdd9ea; }
+.mp-eq-lista li{ margin:1px 0; }
+.mp-eq-vazio{ font-size:11.5px; color:#6f82a0; font-style:italic; padding:1px 0; }
+.mp-eq-rotem{ margin-bottom:4px; }
+
 .mp-print-titulo{ display:none; }
 
 @media print{
   @page{ size:A4 landscape; margin:6mm; }
   body{ background:#fff !important; }
   body *{ visibility:hidden !important; }
-  .mp-print-titulo, .mp-print-titulo *, .mp-scroll, .mp-scroll *{ visibility:visible !important; }
-  .mp-print-titulo{ display:block !important; position:absolute; top:0; left:0; right:0; text-align:center; font-weight:700; font-size:12px; color:#000 !important; }
-  .mp-scroll{ position:absolute; top:20px; left:0; right:0; overflow:visible !important; max-height:none !important; border:none !important; }
+  .mapa-shell, .mapa-shell *{ visibility:visible !important; }
+  .no-print{ display:none !important; }
+  .mp-print-titulo{ display:block !important; text-align:center; font-weight:700; font-size:12px; color:#000 !important; margin-bottom:6px; }
+  .mp-scroll{ overflow:visible !important; max-height:none !important; border:none !important; }
   .mp-tab{ font-size:8px; }
   .mp-tab th, .mp-tab td{ border:1px solid #999 !important; }
-  .mp-rot, .mp-dia, .mp-tot{ background:#eee !important; color:#000 !important; }
+  .mp-rot, .mp-dia, .mp-tot{ position:static !important; background:#eee !important; color:#000 !important; }
   .mp-dia.hoje{ background:#fff2c2 !important; box-shadow:none !important; }
   .mp-dnum, .mp-dia.hoje .mp-dnum{ color:#000 !important; }
   .mp-cel, .mp-cel.mil{ background:#fff !important; color:#000 !important; box-shadow:none !important; }
@@ -610,5 +685,13 @@ const CSS = `
   .mp-cel.mil.dobra{ background:#f3e3a6 !important; color:#000 !important; }
   .mp-nome.sel{ background:#fff !important; color:#000 !important; box-shadow:none !important; font-weight:400 !important; }
   .sel-row .mp-rot{ box-shadow:none !important; }
+  /* Composicao das equipes na impressao */
+  .mp-equipes{ background:#fff !important; border:none !important; margin-top:12px; padding:0 !important; break-before:page; }
+  .mp-equipes *{ color:#000 !important; }
+  .mp-equipes-tit{ font-size:12px; margin-bottom:6px; }
+  .mp-eq-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
+  .mp-eq-grupo{ background:#fff !important; border:1px solid #999 !important; break-inside:avoid; }
+  .mp-eq-h{ color:#000 !important; border-bottom:1px solid #999 !important; }
+  .mp-eq-lista{ font-size:9px; }
 }
 `;
