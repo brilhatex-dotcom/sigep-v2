@@ -40,25 +40,6 @@ async function efetivoIdDaSessao(session: any): Promise<string | null> {
   return null;
 }
 
-// "HH:MM" -> minutos. Trata fim <= inicio como virada de dia (+24h).
-function intervalo(data: string, hi: string, hf: string): { ini: number; fim: number } {
-  const m = (h: string) => {
-    const [a, b] = (h || "0:0").split(":").map((x) => parseInt(x, 10) || 0);
-    return a * 60 + b;
-  };
-  let ini = m(hi);
-  let fim = m(hf);
-  if (fim <= ini) fim += 24 * 60;
-  return { ini, fim };
-}
-
-function choca(aData: string, aHi: string, aHf: string, bData: string, bHi: string, bHf: string): boolean {
-  if (aData !== bData) return false;
-  const A = intervalo(aData, aHi, aHf);
-  const B = intervalo(bData, bHi, bHf);
-  return A.ini < B.fim && B.ini < A.fim;
-}
-
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
@@ -87,19 +68,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       const ja = joe.inscricoes.find((i) => i.efetivoId === meuEfetivoId);
       if (ja) return NextResponse.json({ error: "Voce ja se candidatou a este JOE" }, { status: 400 });
 
-      const minhasAtivas = await prisma.joeInscricao.findMany({
-        where: { efetivoId: meuEfetivoId, status: { in: ["pendente", "aprovado"] } },
-        include: { joe: true },
-      });
-      const conflito = minhasAtivas.find((i) =>
-        choca(joe.data, joe.horaInicio, joe.horaFim, i.joe.data, i.joe.horaInicio, i.joe.horaFim)
-      );
-      if (conflito) {
-        return NextResponse.json(
-          { error: `Conflito de horario com o JOE "${conflito.joe.evento}" (${conflito.joe.data} ${conflito.joe.horaInicio}-${conflito.joe.horaFim})` },
-          { status: 409 }
-        );
-      }
+      // (trava de conflito de horario removida: o P1 controla as aprovacoes)
 
       await prisma.joeInscricao.create({
         data: { joeId, efetivoId: meuEfetivoId, status: "pendente", origem: "auto" },

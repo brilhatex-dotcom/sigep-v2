@@ -131,12 +131,13 @@ export async function POST(req: Request) {
     const b = await req.json();
     const evento = String(b.evento || "").trim();
     const data = String(b.data || "").trim();
+    // Inicio/Fim foram removidos do formulario; o horario agora e o texto da RENE.
     const horaInicio = String(b.horaInicio || "").trim();
     const horaFim = String(b.horaFim || "").trim();
+    const horario = String(b.horario || "").trim();
 
     if (!evento) return NextResponse.json({ error: "Informe o evento" }, { status: 400 });
     if (!data) return NextResponse.json({ error: "Informe a data" }, { status: 400 });
-    if (!horaInicio || !horaFim) return NextResponse.json({ error: "Informe os horarios" }, { status: 400 });
 
     const criado = await prisma.joe.create({
       data: {
@@ -161,7 +162,7 @@ export async function POST(req: Request) {
       acao: "criar_joe",
       alvo: criado.id,
       alvoNome: evento,
-      detalhe: `JOE de ${data} (${horaInicio}-${horaFim}), ${criado.vagas} vaga(s)`,
+      detalhe: `JOE de ${data}${horario ? ` (${horario})` : ""}, ${criado.vagas} vaga(s)`,
     });
 
     return NextResponse.json({ ok: true, joe: criado });

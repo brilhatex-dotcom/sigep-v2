@@ -40,6 +40,10 @@ type Joe = {
   valor: number;
   observacao: string | null;
   status: "aberta" | "encerrada";
+  horario?: string | null;
+  comandanteOp?: string | null;
+  areaAtuacao?: string | null;
+  processoSei?: string | null;
   totalCandidatos: number;
   totalAprovados: number;
   vagasRestantes: number;
@@ -101,6 +105,27 @@ function diaSemana(iso: string): string {
   return ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][g];
 }
 
+const MESES = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+];
+
+// extrai ano/mes de uma data "aaaa-mm-dd"; null se invalida
+function anoMes(iso: string): { ano: number; mes: number } | null {
+  const m = /^(\d{4})-(\d{2})/.exec(iso || "");
+  if (!m) return null;
+  return { ano: +m[1], mes: +m[2] };
+}
+
+// ordena os cards de um mes: abertos primeiro, depois por data
+function ordenarCards(joes: Joe[]): Joe[] {
+  return [...joes].sort(
+    (a, b) =>
+      (a.status === "aberta" ? 0 : 1) - (b.status === "aberta" ? 0 : 1) ||
+      a.data.localeCompare(b.data)
+  );
+}
+
 export default function JoeClient({ perfil }: { perfil: string }) {
   const ehAdmin = useMemo(() => {
     const p = (perfil || "").toLowerCase();
@@ -118,6 +143,18 @@ export default function JoeClient({ perfil }: { perfil: string }) {
 
   // modal de inscricao manual: guarda o id do JOE alvo (ou null = fechado)
   const [modalJoe, setModalJoe] = useState<string | null>(null);
+
+  // acordeao por mes/ano: guarda as chaves expandidas. Comeca com o mes atual aberto.
+  const [expandido, setExpandido] = useState<Set<string>>(() => {
+    const h = new Date();
+    return new Set([`${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, "0")}`]);
+  });
+  const toggle = (k: string) =>
+    setExpandido((s) => {
+      const n = new Set(s);
+      n.has(k) ? n.delete(k) : n.add(k);
+      return n;
+    });
 
   const vazio = {
     evento: "", local: "", data: "", horaInicio: "", horaFim: "", vagas: "1", valor: "", observacao: "",
@@ -156,7 +193,6 @@ export default function JoeClient({ perfil }: { perfil: string }) {
   const criarJoe = async () => {
     if (!form.evento.trim()) return aviso("Informe o evento.");
     if (!form.data) return aviso("Informe a data.");
-    if (!form.horaInicio || !form.horaFim) return aviso("Informe início e fim.");
     setCriando(true);
     try {
       const r = await fetch("/api/joe", {
@@ -206,14 +242,64 @@ export default function JoeClient({ perfil }: { perfil: string }) {
     }
   };
 
-  const abertos = lista.filter((j) => j.status === "aberta");
-  const encerrados = lista.filter((j) => j.status !== "aberta");
-
   // ids ja inscritos no JOE alvo (para o autocomplete nao oferecer repetido)
   const joeAlvo = modalJoe ? lista.find((j) => j.id === modalJoe) : null;
   const idsJaInscritos = new Set(
     (joeAlvo?.candidatos || []).map((c) => c.efetivoId).filter(Boolean) as string[]
   );
+
+  // agrupa os JOE por ano -> mes (para o acordeao)
+  const porAno = new Map<number, Map<number, Joe[]>>();
+  const semData: Joe[] = [];
+  for (const j of lista) {
+    const am = anoMes(j.data);
+    if (!am) { semData.push(j); continue; }
+    if (!porAno.has(am.ano)) porAno.set(am.ano, new Map());
+    const meses = porAno.get(am.ano)!;
+    if (!meses.has(am.mes)) meses.set(am.mes, []);
+    meses.get(am.mes)!.push(j);
+  }
+  const anosOrdenados = [...porAno.keys()].sort((a, b) => b - a);
+  const anoAtual = new Date().getFullYear();
+
+  // um card completo (o proprio card decide o que exibir por status/perfil)
+  const renderCard = (j: Joe) => (
+    <JoeCardComp
+      key={j.id} j={j} ehAdmin={ehAdmin} ocupado={ocupado === j.id}
+      onCandidatar={() => acao(j.id, { acao: "candidatar" }, "Candidatura enviada.")}
+      onCancelar={() => acao(j.id, { acao: "cancelar" }, "Candidatura cancelada.")}
+      onDecidir={(inscricaoId, decisao) => acao(j.id, { acao: "decidir", inscricaoId, decisao }, decisao === "aprovado" ? "Aprovado." : "Recusado.")}
+      onEncerrar={() => acao(j.id, { acao: "encerrar" }, "JOE encerrado.")}
+      onReabrir={() => acao(j.id, { acao: "reabrir" }, "JOE reaberto.")}
+      onExcluir={() => excluir(j.id)}
+      onAdicionar={() => setModalJoe(j.id)}
+    />
+  );
+
+  // um bloco de mes: cabecalho clicavel + grade de cards quando aberto
+  const renderMes = (ano: number, mes: number, joes: Joe[]) => {
+    const key = mes === 0 ? `${ano}-sem` : `${ano}-${String(mes).padStart(2, "0")}`;
+    const aberto = expandido.has(key);
+    const nAbertos = joes.filter((j) => j.status === "aberta").length;
+    const titulo = mes === 0 ? "Sem data" : `${MESES[mes - 1]} ${ano}`;
+    return (
+      <div className="joe-mes" key={key}>
+        <button className="joe-mes-head" onClick={() => toggle(key)}>
+          <span className="joe-chevron">{aberto ? "▾" : "▸"}</span>
+          <span className="joe-mes-nome">{titulo}</span>
+          <span className="joe-mes-meta">
+            {joes.length} JOE{joes.length > 1 ? "s" : ""}
+            {nAbertos > 0 ? ` · ${nAbertos} aberto${nAbertos > 1 ? "s" : ""}` : ""}
+          </span>
+        </button>
+        {aberto && (
+          <div className="joe-mes-corpo">
+            <div className="joe-grid">{joes.map(renderCard)}</div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="joe-shell">
@@ -246,12 +332,6 @@ export default function JoeClient({ perfil }: { perfil: string }) {
             </label>
             <label>Data
               <input type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} />
-            </label>
-            <label>Início
-              <input type="time" value={form.horaInicio} onChange={(e) => setForm({ ...form, horaInicio: e.target.value })} />
-            </label>
-            <label>Fim
-              <input type="time" value={form.horaFim} onChange={(e) => setForm({ ...form, horaFim: e.target.value })} />
             </label>
             <label>Vagas
               <input type="number" min={1} value={form.vagas} onChange={(e) => setForm({ ...form, vagas: e.target.value })} />
@@ -291,37 +371,37 @@ export default function JoeClient({ perfil }: { perfil: string }) {
         </div>
       )}
 
-      {abertos.length > 0 && <div className="joe-secao">Abertos</div>}
-      <div className="joe-grid">
-        {abertos.map((j) => (
-          <JoeCardComp
-            key={j.id} j={j} ehAdmin={ehAdmin} ocupado={ocupado === j.id}
-            onCandidatar={() => acao(j.id, { acao: "candidatar" }, "Candidatura enviada.")}
-            onCancelar={() => acao(j.id, { acao: "cancelar" }, "Candidatura cancelada.")}
-            onDecidir={(inscricaoId, decisao) => acao(j.id, { acao: "decidir", inscricaoId, decisao }, decisao === "aprovado" ? "Aprovado." : "Recusado.")}
-            onEncerrar={() => acao(j.id, { acao: "encerrar" }, "JOE encerrado.")}
-            onReabrir={() => acao(j.id, { acao: "reabrir" }, "JOE reaberto.")}
-            onExcluir={() => excluir(j.id)}
-            onAdicionar={() => setModalJoe(j.id)}
-          />
-        ))}
-      </div>
-
-      {encerrados.length > 0 && <div className="joe-secao">Encerrados</div>}
-      <div className="joe-grid">
-        {encerrados.map((j) => (
-          <JoeCardComp
-            key={j.id} j={j} ehAdmin={ehAdmin} ocupado={ocupado === j.id}
-            onCandidatar={() => {}}
-            onCancelar={() => {}}
-            onDecidir={(inscricaoId, decisao) => acao(j.id, { acao: "decidir", inscricaoId, decisao }, "Atualizado.")}
-            onEncerrar={() => {}}
-            onReabrir={() => acao(j.id, { acao: "reabrir" }, "JOE reaberto.")}
-            onExcluir={() => excluir(j.id)}
-            onAdicionar={() => setModalJoe(j.id)}
-          />
-        ))}
-      </div>
+      {!carregando && lista.length > 0 && (
+        <div className="joe-accordion">
+          {anosOrdenados.map((ano) => {
+            const meses = porAno.get(ano)!;
+            const mesesOrd = [...meses.keys()].sort((a, b) => b - a);
+            // Ano corrente (exercicio atual): mostra os meses direto.
+            if (ano === anoAtual) {
+              return mesesOrd.map((mes) => renderMes(ano, mes, ordenarCards(meses.get(mes)!)));
+            }
+            // Exercicios passados: agrupa dentro de um ano recolhivel.
+            const yKey = `y${ano}`;
+            const anoAberto = expandido.has(yKey);
+            const totalAno = [...meses.values()].reduce((s, a) => s + a.length, 0);
+            return (
+              <div className="joe-ano" key={yKey}>
+                <button className="joe-ano-head" onClick={() => toggle(yKey)}>
+                  <span className="joe-chevron">{anoAberto ? "▾" : "▸"}</span>
+                  <span className="joe-ano-nome">Exercício {ano}</span>
+                  <span className="joe-mes-meta">{totalAno} JOE{totalAno > 1 ? "s" : ""}</span>
+                </button>
+                {anoAberto && (
+                  <div className="joe-ano-corpo">
+                    {mesesOrd.map((mes) => renderMes(ano, mes, ordenarCards(meses.get(mes)!)))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {semData.length > 0 && renderMes(0, 0, ordenarCards(semData))}
+        </div>
+      )}
 
       {/* MODAL: inscricao manual pelo P1 */}
       {modalJoe && joeAlvo && (
@@ -331,8 +411,9 @@ export default function JoeClient({ perfil }: { perfil: string }) {
           idsJaInscritos={idsJaInscritos}
           onFechar={() => setModalJoe(null)}
           onConfirmar={async (payload) => {
-            const ok = await acao(modalJoe, { acao: "inscrever_manual", ...payload }, "Militar inscrito.");
-            if (ok) setModalJoe(null);
+            // NAO fecha ao inscrever: mantem aberto para adicionar o proximo
+            // militar. A modal fecha sozinha quando as vagas sao preenchidas.
+            return await acao(joeAlvo.id, { acao: "inscrever_manual", ...payload }, "Militar inscrito.");
           }}
         />
       )}
@@ -349,9 +430,15 @@ function ModalInscrever({
   efetivo: Militar[];
   idsJaInscritos: Set<string>;
   onFechar: () => void;
-  onConfirmar: (payload: any) => void;
+  onConfirmar: (payload: any) => Promise<boolean>;
 }) {
   const [aba, setAba] = useState<"interno" | "externo">("interno");
+
+  // fecha sozinha quando as vagas sao preenchidas
+  useEffect(() => {
+    if (joe.vagasRestantes <= 0) onFechar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [joe.vagasRestantes]);
   const [busca, setBusca] = useState("");
   const [selecionado, setSelecionado] = useState<Militar | null>(null);
 
@@ -378,17 +465,27 @@ function ModalInscrever({
   const confirmar = async () => {
     setEnviando(true);
     try {
+      let ok = false;
       if (aba === "interno") {
-        if (!selecionado) { setEnviando(false); return; }
-        await onConfirmar({ efetivoId: selecionado.id });
+        if (!selecionado) return;
+        ok = await onConfirmar({ efetivoId: selecionado.id });
       } else {
-        if (!extNome.trim()) { setEnviando(false); return; }
-        await onConfirmar({
+        if (!extNome.trim()) return;
+        ok = await onConfirmar({
           extNome: extNome.trim(),
           extPostoGrad: extPostoGrad.trim() || null,
           extMatricula: extMatricula.trim() || null,
           extUnidade: extUnidade.trim() || null,
         });
+      }
+      if (ok) {
+        // limpa os campos para inscrever o proximo militar sem fechar a janela
+        setSelecionado(null);
+        setBusca("");
+        setExtNome("");
+        setExtPostoGrad("");
+        setExtMatricula("");
+        setExtUnidade("");
       }
     } finally {
       setEnviando(false);
@@ -508,7 +605,7 @@ function JoeCardComp({
 
       <div className="jc-meta">
         <span title="Data"><b>{brData(j.data)}</b> <i>{diaSemana(j.data)}</i></span>
-        <span title="Horário">{j.horaInicio}–{j.horaFim}</span>
+        {j.horario && <span title="Horário">🕒 {j.horario}</span>}
         {j.local && <span title="Local">📍 {j.local}</span>}
       </div>
 
@@ -658,6 +755,20 @@ const CSS = `
 
 .joe-secao{ font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:#6f82a0; margin:18px 2px 8px; }
 .joe-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(330px, 1fr)); gap:14px; }
+
+/* ACORDEAO por mes / ano */
+.joe-accordion{ display:flex; flex-direction:column; gap:10px; margin-top:8px; }
+.joe-mes{ border:1px solid #1d2c44; border-radius:12px; overflow:hidden; }
+.joe-mes-head, .joe-ano-head{ width:100%; display:flex; align-items:center; gap:10px; background:#0F1B2D; border:none; color:#E8EEF6; padding:12px 14px; cursor:pointer; text-align:left; }
+.joe-mes-head:hover, .joe-ano-head:hover{ background:#13223a; }
+.joe-chevron{ color:#6f82a0; font-size:12px; width:14px; display:inline-block; }
+.joe-mes-nome{ font-weight:700; font-size:14px; color:#D4AF37; }
+.joe-ano-nome{ font-weight:700; font-size:14px; color:#E8EEF6; }
+.joe-mes-meta{ margin-left:auto; font-size:11.5px; color:#6f82a0; }
+.joe-mes-corpo{ padding:10px 12px 12px; background:#0a1424; }
+.joe-ano{ border:1px solid #26364f; border-radius:12px; overflow:hidden; }
+.joe-ano-corpo{ display:flex; flex-direction:column; gap:8px; padding:8px; }
+.joe-ano-corpo .joe-mes{ border-color:#1d2c44; }
 
 .joe-card.item{ display:flex; flex-direction:column; gap:10px; }
 .joe-card.item.off{ opacity:.72; }
