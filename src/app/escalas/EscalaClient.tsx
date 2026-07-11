@@ -1307,16 +1307,62 @@ export default function EscalaClient() {
   const [migrado, setMigrado] = useState(false);
   const [joeLista, setJoeLista] = useState<JoeLite[]>([]);
 
+  const cadSaveTimer = useRef<any>(null);
+  const ultimoCadSalvo = useRef<string>("");
+
   useEffect(() => {
+    // Dias salvos e o parametro ?data continuam locais.
     try {
-      const c = localStorage.getItem("sigep_cadastro"); if (c) setCad(JSON.parse(c));
-      const e = localStorage.getItem("sigep_escalas"); if (e) setEscalas(JSON.parse(e));
+      const eLS = localStorage.getItem("sigep_escalas"); if (eLS) setEscalas(JSON.parse(eLS));
       const qd = new URLSearchParams(window.location.search).get("data");
       if (qd && /^\d{4}-\d{2}-\d{2}$/.test(qd)) setData(qd);
     } catch {}
-    setReady(true);
+    // Equipes/afastamentos vem do servidor (migra o localStorage antigo se preciso).
+    (async () => {
+      try {
+        const r = await fetch("/api/escala-config");
+        const d = r.ok ? await r.json() : null;
+        if (d && d.cad) {
+          setCad(d.cad);
+          ultimoCadSalvo.current = JSON.stringify(d.cad);
+          setReady(true);
+          return;
+        }
+      } catch {}
+      try {
+        const cLS = localStorage.getItem("sigep_cadastro");
+        if (cLS) {
+          const parsed = JSON.parse(cLS);
+          setCad(parsed);
+          ultimoCadSalvo.current = JSON.stringify(parsed);
+          fetch("/api/escala-config", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cad: parsed }),
+          }).catch(() => {});
+        } else {
+          ultimoCadSalvo.current = JSON.stringify(SEED_CADASTRO);
+        }
+      } catch { ultimoCadSalvo.current = JSON.stringify(SEED_CADASTRO); }
+      setReady(true);
+    })();
   }, []);
-  useEffect(() => { if (ready) try { localStorage.setItem("sigep_cadastro", JSON.stringify(cad)); } catch {} }, [cad, ready]);
+
+  // Salva as equipes no servidor (debounce) + backup local.
+  useEffect(() => {
+    if (!ready) return;
+    const s = JSON.stringify(cad);
+    if (s === ultimoCadSalvo.current) return;
+    if (cadSaveTimer.current) clearTimeout(cadSaveTimer.current);
+    cadSaveTimer.current = setTimeout(() => {
+      ultimoCadSalvo.current = s;
+      fetch("/api/escala-config", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cad }),
+      }).catch(() => {});
+      try { localStorage.setItem("sigep_cadastro", s); } catch {}
+    }, 800);
+  }, [cad, ready]);
+
   useEffect(() => { if (ready) try { localStorage.setItem("sigep_escalas", JSON.stringify(escalas)); } catch {} }, [escalas, ready]);
 
   // Chefe do P/1: vem do servidor (aba "Chefe do P1"), igual em todos os PCs.

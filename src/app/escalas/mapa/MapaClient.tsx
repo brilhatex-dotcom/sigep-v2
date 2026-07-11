@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 /* =========================================================================
    SIGEP-18BPM · MAPA DE ESCALA (GUARDIAO) — semi-automatico  ·  v2 UX
@@ -209,6 +209,78 @@ function sobrenome(n: string): string {
 function fimDeSemana(iso: string) { const g = parseISO(iso).getDay(); return g === 0 || g === 6; }
 function brCurto(iso: string) { return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`; }
 
+/* Editor compacto de um pool no painel de equipes: lista numerada (ordem do
+   rodizio) com subir/descer/remover e uma busca para adicionar. Controles
+   somem na impressao. */
+function PoolMini({
+  ids, onChange, efetivo, nomeDe,
+}: {
+  ids: string[];
+  onChange: (ids: string[]) => void;
+  efetivo: Militar[];
+  nomeDe: (t: string) => string;
+}) {
+  const [q, setQ] = useState("");
+  const [abrir, setAbrir] = useState(false);
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir; if (j < 0 || j >= ids.length) return;
+    const a = ids.slice(); [a[i], a[j]] = [a[j], a[i]]; onChange(a);
+  };
+  const rm = (i: number) => onChange(ids.filter((_, j) => j !== i));
+  const add = (id: string) => { if (!id || ids.includes(id)) return; onChange([...ids, id]); setQ(""); setAbrir(false); };
+  const res = useMemo(() => {
+    const t = q.trim().toLowerCase(); if (!t) return [];
+    const ex = new Set(ids);
+    return efetivo.filter((m) => !ex.has(m.id))
+      .filter((m) => (fmtMilitar(m) + " " + (m.matricula || "")).toLowerCase().includes(t))
+      .slice(0, 6);
+  }, [q, efetivo, ids]);
+
+  return (
+    <div className="mp-pool">
+      {ids.length === 0 && <div className="mp-eq-vazio">(vazio)</div>}
+      {ids.length > 0 && (
+        <ol className="mp-eq-lista">
+          {ids.map((id, i) => (
+            <li key={id + i} className="mp-pool-li">
+              <span className="mp-pool-nome">{nomeDe(id)}</span>
+              <span className="mp-pool-btns no-print">
+                <button disabled={i === 0} title="subir" onClick={() => move(i, -1)}>↑</button>
+                <button disabled={i === ids.length - 1} title="descer" onClick={() => move(i, 1)}>↓</button>
+                <button className="del" title="remover" onClick={() => rm(i)}>×</button>
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+      <div className="mp-pool-add no-print">
+        {abrir ? (
+          <div className="mp-pool-search">
+            <input
+              autoFocus value={q} placeholder="buscar militar..."
+              onChange={(e) => setQ(e.target.value)}
+              onBlur={() => setTimeout(() => setAbrir(false), 160)}
+            />
+            {q.trim() !== "" && (
+              <div className="mp-pool-res">
+                {res.length === 0
+                  ? <div className="mp-pool-vazio">nenhum encontrado</div>
+                  : res.map((m) => (
+                      <button key={m.id} onMouseDown={(e) => e.preventDefault()} onClick={() => add(m.id)}>
+                        {fmtMilitar(m)}
+                      </button>
+                    ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <button className="mp-pool-mais" onClick={() => setAbrir(true)}>+ adicionar</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ===================== PAGINA ===================== */
 
 export default function MapaClient() {
@@ -222,9 +294,11 @@ export default function MapaClient() {
   const [selNome, setSelNome] = useState<string | null>(null);
   const [efetivo, setEfetivo] = useState<Militar[]>([]);
 
+  const cadSaveTimer = useRef<any>(null);
+  const ultimoCadSalvo = useRef<string>(JSON.stringify(SEED_CADASTRO));
+
   useEffect(() => {
     try {
-      const c = localStorage.getItem("sigep_cadastro"); if (c) setCad(JSON.parse(c));
       const e = localStorage.getItem("sigep_escalas"); if (e) setEscalas(JSON.parse(e));
     } catch {}
     setHoje(toISO(new Date()));
@@ -232,7 +306,36 @@ export default function MapaClient() {
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((d) => setEfetivo((d.efetivo || d || []) as Militar[]))
       .catch(() => {});
+    // Equipes/afastamentos do servidor (migra o localStorage antigo se preciso).
+    (async () => {
+      try {
+        const r = await fetch("/api/escala-config");
+        const d = r.ok ? await r.json() : null;
+        if (d && d.cad) { setCad(d.cad); ultimoCadSalvo.current = JSON.stringify(d.cad); return; }
+      } catch {}
+      try {
+        const cLS = localStorage.getItem("sigep_cadastro");
+        if (cLS) {
+          const parsed = JSON.parse(cLS);
+          setCad(parsed);
+          ultimoCadSalvo.current = JSON.stringify(parsed);
+          fetch("/api/escala-config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cad: parsed }) }).catch(() => {});
+        }
+      } catch {}
+    })();
   }, []);
+
+  // Salva as equipes no servidor ao editar no mapa (debounce) + backup local.
+  useEffect(() => {
+    const s = JSON.stringify(cad);
+    if (s === ultimoCadSalvo.current) return;
+    if (cadSaveTimer.current) clearTimeout(cadSaveTimer.current);
+    cadSaveTimer.current = setTimeout(() => {
+      ultimoCadSalvo.current = s;
+      fetch("/api/escala-config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cad }) }).catch(() => {});
+      try { localStorage.setItem("sigep_cadastro", s); } catch {}
+    }, 800);
+  }, [cad]);
 
   const efMap = useMemo(() => {
     const mm: Record<string, Militar> = {};
@@ -327,13 +430,18 @@ export default function MapaClient() {
   };
   const clickNome = (n: string) => setSelNome((s) => (s === n ? null : n));
 
-  // Lista numerada dos militares de um pool (na ordem do rodizio).
-  const listaPool = (ids: string[]) =>
-    ids.length ? (
-      <ol className="mp-eq-lista">{ids.map((id, i) => <li key={id + i}>{nomeDe(id)}</li>)}</ol>
-    ) : (
-      <div className="mp-eq-vazio">(vazio)</div>
-    );
+  const setPool = (patch: Partial<Cadastro>) => setCad((c) => ({ ...c, ...patch }));
+  const setRotemMil = (i: number, ids: string[]) =>
+    setCad((c) => ({ ...c, rotemEquipes: c.rotemEquipes.map((eq, j) => (j === i ? { ...eq, militares: ids } : eq)) }));
+
+  // Saidas previstas: afastamentos que COMECAM no mes exibido — aviso pro escalante.
+  const saidasPrevistas = useMemo(() => {
+    const ini = `${mes}-01`;
+    const fim = `${mes}-${String(nDias).padStart(2, "0")}`;
+    return cad.afastamentos
+      .filter((a) => a.inicio && a.inicio >= ini && a.inicio <= fim)
+      .sort((a, b) => a.inicio.localeCompare(b.inicio));
+  }, [cad.afastamentos, mes, nDias]);
 
   return (
     <div className="mapa-shell">
@@ -410,6 +518,18 @@ export default function MapaClient() {
         <span><i className="lg fds" /> fim de semana</span>
         <span><i className="lg sel" /> militar destacado</span>
       </div>
+
+      {saidasPrevistas.length > 0 && (
+        <div className="mp-saidas no-print">
+          <b>📌 Saídas previstas em {MESNOME[m - 1]}:</b>{" "}
+          {saidasPrevistas.map((a, i) => (
+            <span key={i}>
+              {sobrenome(nomeDe(a.militar))} <span className="mp-saida-tag">{ABBR_AF[a.tipo]}</span> a partir de {brCurto(a.inicio)}
+              {i < saidasPrevistas.length - 1 ? "  ·  " : ""}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="mp-print-titulo">
         Mapa de Escala — {MESNOME[m - 1]} / {ano} — {vista === "servico" ? "Por serviço" : "Por militar"} — 18º BPM
@@ -525,31 +645,31 @@ export default function MapaClient() {
         <div className="mp-eq-grid">
           <div className="mp-eq-grupo">
             <div className="mp-eq-h">CPU de dia (oficiais)</div>
-            {listaPool(cad.cpu)}
+            <PoolMini ids={cad.cpu} onChange={(v) => setPool({ cpu: v })} efetivo={efetivo} nomeDe={nomeDe} />
           </div>
 
           <div className="mp-eq-grupo">
             <div className="mp-eq-h">Força Tática</div>
-            <div className="mp-eq-sub">Graduado</div>{listaPool(cad.ftGraduado)}
-            <div className="mp-eq-sub">Motorista</div>{listaPool(cad.ftMotorista)}
-            <div className="mp-eq-sub">Armeiro / Patrulheiro</div>{listaPool(cad.ftPatrulheiro)}
+            <div className="mp-eq-sub">Graduado</div><PoolMini ids={cad.ftGraduado} onChange={(v) => setPool({ ftGraduado: v })} efetivo={efetivo} nomeDe={nomeDe} />
+            <div className="mp-eq-sub">Motorista</div><PoolMini ids={cad.ftMotorista} onChange={(v) => setPool({ ftMotorista: v })} efetivo={efetivo} nomeDe={nomeDe} />
+            <div className="mp-eq-sub">Armeiro / Patrulheiro</div><PoolMini ids={cad.ftPatrulheiro} onChange={(v) => setPool({ ftPatrulheiro: v })} efetivo={efetivo} nomeDe={nomeDe} />
           </div>
 
           <div className="mp-eq-grupo">
             <div className="mp-eq-h">Rádio Patrulha</div>
-            <div className="mp-eq-sub">Adjunto de dia</div>{listaPool(cad.rpAdjunto)}
-            <div className="mp-eq-sub">Motorista</div>{listaPool(cad.rpMotorista)}
-            <div className="mp-eq-sub">Patrulheiro</div>{listaPool(cad.rpPatrulheiro)}
+            <div className="mp-eq-sub">Adjunto de dia</div><PoolMini ids={cad.rpAdjunto} onChange={(v) => setPool({ rpAdjunto: v })} efetivo={efetivo} nomeDe={nomeDe} />
+            <div className="mp-eq-sub">Motorista</div><PoolMini ids={cad.rpMotorista} onChange={(v) => setPool({ rpMotorista: v })} efetivo={efetivo} nomeDe={nomeDe} />
+            <div className="mp-eq-sub">Patrulheiro</div><PoolMini ids={cad.rpPatrulheiro} onChange={(v) => setPool({ rpPatrulheiro: v })} efetivo={efetivo} nomeDe={nomeDe} />
           </div>
 
           <div className="mp-eq-grupo">
             <div className="mp-eq-h">Serviço de Inteligência</div>
-            {listaPool(cad.inteligencia)}
+            <PoolMini ids={cad.inteligencia} onChange={(v) => setPool({ inteligencia: v })} efetivo={efetivo} nomeDe={nomeDe} />
           </div>
 
           <div className="mp-eq-grupo">
             <div className="mp-eq-h">Guarda do Quartel</div>
-            {listaPool(cad.guardaPermanente)}
+            <PoolMini ids={cad.guardaPermanente} onChange={(v) => setPool({ guardaPermanente: v })} efetivo={efetivo} nomeDe={nomeDe} />
           </div>
 
           <div className="mp-eq-grupo">
@@ -560,7 +680,7 @@ export default function MapaClient() {
               cad.rotemEquipes.map((eq, i) => (
                 <div key={i} className="mp-eq-rotem">
                   <div className="mp-eq-sub">{eq.nome} · {eq.turnos.join(" / ")}</div>
-                  {listaPool(eq.militares)}
+                  <PoolMini ids={eq.militares} onChange={(v) => setRotemMil(i, v)} efetivo={efetivo} nomeDe={nomeDe} />
                 </div>
               ))
             )}
@@ -662,6 +782,29 @@ const CSS = `
 .mp-eq-lista li{ margin:1px 0; }
 .mp-eq-vazio{ font-size:11.5px; color:#6f82a0; font-style:italic; padding:1px 0; }
 .mp-eq-rotem{ margin-bottom:4px; }
+.mp-pool{ margin-bottom:2px; }
+.mp-pool-li{ display:flex; align-items:center; gap:6px; }
+.mp-pool-nome{ flex:1; }
+.mp-pool-btns{ display:inline-flex; gap:2px; }
+.mp-pool-btns button{ background:#0a1626; color:#9fb0c7; border:1px solid #28395a; border-radius:5px; width:20px; height:20px; font-size:11px; line-height:1; cursor:pointer; padding:0; }
+.mp-pool-btns button:hover:not(:disabled){ border-color:#D4AF37; color:#E8EEF6; }
+.mp-pool-btns button:disabled{ opacity:.3; cursor:default; }
+.mp-pool-btns button.del:hover{ border-color:#e06464; color:#ffb3b3; }
+.mp-pool-add{ margin-top:4px; }
+.mp-pool-mais{ background:none; border:1px dashed #2b3f63; color:#9fb0c7; border-radius:6px; padding:3px 8px; font-size:11px; cursor:pointer; }
+.mp-pool-mais:hover{ border-color:#D4AF37; color:#E8EEF6; }
+.mp-pool-search{ position:relative; }
+.mp-pool-search input{ width:100%; background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:6px; padding:5px 8px; font-size:11.5px; }
+.mp-pool-search input:focus{ outline:none; border-color:#D4AF37; }
+.mp-pool-res{ position:absolute; z-index:20; left:0; right:0; top:calc(100% + 3px); background:#0d1830; border:1px solid #2b3f63; border-radius:6px; max-height:180px; overflow:auto; box-shadow:0 8px 24px rgba(0,0,0,.5); }
+.mp-pool-res button{ display:block; width:100%; text-align:left; background:none; border:0; border-bottom:1px solid #18263d; color:#E8EEF6; padding:6px 9px; font-size:11.5px; cursor:pointer; }
+.mp-pool-res button:hover{ background:#16243a; }
+.mp-pool-vazio{ padding:6px 9px; font-size:11px; color:#6f82a0; }
+
+/* Aviso de saidas previstas (ferias etc.) */
+.mp-saidas{ margin:10px 2px; font-size:12.5px; color:#f3df9d; background:#2a2410; border:1px solid #6b5320; border-radius:8px; padding:9px 12px; line-height:1.7; }
+.mp-saidas b{ color:#ffe9a8; }
+.mp-saida-tag{ font-size:10px; background:#6b5320; color:#ffe9a8; border-radius:999px; padding:1px 7px; }
 
 .mp-print-titulo{ display:none; }
 
