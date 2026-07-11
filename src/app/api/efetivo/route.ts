@@ -37,6 +37,7 @@ export async function GET() {
         status: true,
         funcao: true,
         lotacao: true,
+        quadro: true,
       },
     });
 
@@ -52,6 +53,7 @@ export async function GET() {
       status: m.status ?? "",
       funcao: m.funcao ?? "",
       lotacao: m.lotacao ?? "",
+      quadro: m.quadro ?? "",
     }));
 
     return NextResponse.json({ efetivo });

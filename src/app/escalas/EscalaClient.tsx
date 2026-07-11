@@ -114,6 +114,7 @@ type Militar = {
   status: string;
   funcao?: string;
   lotacao?: string;
+  quadro?: string;
 };
 
 const ABREV_POSTO: { re: RegExp; abbr: string }[] = [
@@ -154,8 +155,16 @@ function capitalizaNome(s: string): string {
   }).join(" ");
 }
 
+// Oficiais usam o QUADRO (QOEM/QOE/...) no lugar de "PM"; subtenente e praca nao.
+function ehOficialAbbr(posto: string): boolean {
+  if (/sub\s*ten/i.test(posto)) return false; // subtenente e praca
+  return /\bTC\b|\bCel\b|\bMaj\b|\bCap\b|\bAsp\b|\d\S*\s*Ten/i.test(posto);
+}
+
 function fmtMilitar(m: Militar): string {
-  const posto = abreviaPosto(m.postoGrad || "");
+  let posto = abreviaPosto(m.postoGrad || "");
+  const quadro = (m.quadro || "").trim().toUpperCase();
+  if (quadro && ehOficialAbbr(posto)) posto = posto.replace(/\bPM\b/, quadro);
   const barra = (m.numeroBarra || "").trim();
   const guerra = capitalizaNome(m.nomeGuerra || m.nome || "");
   if (barraValida(barra)) return [posto, "n\u00ba", barra, guerra].filter(Boolean).join(" ").trim();
@@ -1128,15 +1137,19 @@ export default function EscalaClient() {
   const [cad, setCad] = useState<Cadastro>(SEED_CADASTRO);
   const [escalas, setEscalas] = useState<Record<string, Escala>>({});
   const [data, setData] = useState<string>("2026-06-10");
-  const [aba, setAba] = useState<"dia" | "config">("dia");
+  const [aba, setAba] = useState<"dia" | "config" | "chefe">("dia");
+  // Brasoes: arquivos fixos do sistema (public/brasoes) \u2014 aparecem em todos os PCs.
   const [brasoes, setBrasoes] = useState<Brasoes>({
-    pmma: "/brasoes/pmma190.png",
+    pmma: "/brasoes/pmma-190.jpg",
     ma: "/brasoes/armas-ma.png",
-    bpm: "/brasoes/escudo-18bpm.png",
-    vistoCmt: "",
-    assinaturaChefe: "",
+    bpm: "/brasoes/brasao-18bpm.png",
+    vistoCmt: "/brasoes/assinatura-cmt.png",
+    assinaturaChefe: "/brasoes/assinatura-joelson.png",
   });
+  // Chefe do P/1: carregado do servidor (aba "Chefe do P1"), igual em todo PC.
   const [chefe, setChefe] = useState<Chefe>({ nome: "1\u00ba TEN QOEM JOELSON DOS REIS SILVA", funcao: "CHEFE DO P/1 DO 18\u00ba BPM" });
+  const [chefeSalvando, setChefeSalvando] = useState(false);
+  const [chefeMsg, setChefeMsg] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [efetivo, setEfetivo] = useState<Militar[]>([]);
   const [efErro, setEfErro] = useState<string | null>(null);
@@ -1146,18 +1159,6 @@ export default function EscalaClient() {
     try {
       const c = localStorage.getItem("sigep_cadastro"); if (c) setCad(JSON.parse(c));
       const e = localStorage.getItem("sigep_escalas"); if (e) setEscalas(JSON.parse(e));
-      const b = localStorage.getItem("sigep_brasoes");
-      if (b) {
-        const p = JSON.parse(b);
-        setBrasoes((prev) => ({
-          pmma: p.pmma || prev.pmma,
-          ma: p.ma || prev.ma,
-          bpm: p.bpm || prev.bpm,
-          vistoCmt: p.vistoCmt || prev.vistoCmt,
-          assinaturaChefe: p.assinaturaChefe || prev.assinaturaChefe,
-        }));
-      }
-      const ch = localStorage.getItem("sigep_chefe"); if (ch) setChefe(JSON.parse(ch));
       const qd = new URLSearchParams(window.location.search).get("data");
       if (qd && /^\d{4}-\d{2}-\d{2}$/.test(qd)) setData(qd);
     } catch {}
@@ -1165,8 +1166,33 @@ export default function EscalaClient() {
   }, []);
   useEffect(() => { if (ready) try { localStorage.setItem("sigep_cadastro", JSON.stringify(cad)); } catch {} }, [cad, ready]);
   useEffect(() => { if (ready) try { localStorage.setItem("sigep_escalas", JSON.stringify(escalas)); } catch {} }, [escalas, ready]);
-  useEffect(() => { if (ready) try { localStorage.setItem("sigep_brasoes", JSON.stringify(brasoes)); } catch {} }, [brasoes, ready]);
-  useEffect(() => { if (ready) try { localStorage.setItem("sigep_chefe", JSON.stringify(chefe)); } catch {} }, [chefe, ready]);
+
+  // Chefe do P/1: vem do servidor (aba "Chefe do P1"), igual em todos os PCs.
+  useEffect(() => {
+    fetch("/api/escala-chefe")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d && (d.nome || d.funcao)) setChefe({ nome: d.nome || "", funcao: d.funcao || "" }); })
+      .catch(() => {});
+  }, []);
+
+  const salvarChefe = async () => {
+    setChefeSalvando(true);
+    setChefeMsg(null);
+    try {
+      const r = await fetch("/api/escala-chefe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(chefe),
+      });
+      const d = await r.json().catch(() => ({}));
+      setChefeMsg(r.ok ? "Chefe salvo. Aparece em todos os computadores." : (d.error || "Falha ao salvar."));
+    } catch {
+      setChefeMsg("Falha ao salvar.");
+    } finally {
+      setChefeSalvando(false);
+      setTimeout(() => setChefeMsg(null), 4000);
+    }
+  };
 
   // Carrega o efetivo real do Cadastro (Prisma) via API.
   useEffect(() => {
@@ -1341,10 +1367,52 @@ export default function EscalaClient() {
         <button className={"aba-btn" + (aba === "config" ? " on" : "")} onClick={() => setAba("config")}>
           ⚙ Efetivo e equipes
         </button>
+        <button className={"aba-btn" + (aba === "chefe" ? " on" : "")} onClick={() => setAba("chefe")}>
+          👤 Chefe do P1
+        </button>
         <a className="aba-btn link" href="/escalas/mapa">🗓 Mapa de Escala →</a>
       </div>
 
       {aba === "config" && <ConfigMotor cad={cad} setCad={setCad} data={data} efetivo={efetivo} nomeDe={nomeDe} efMap={efMap} efErro={efErro} />}
+
+      {aba === "chefe" && (
+        <div className="cfg no-print">
+          <div className="cfg-sec">
+            <div className="cfg-sec-titulo">Chefe do P/1 · quem assina a escala</div>
+            <div className="cfg-sec-sub">
+              Preencha uma vez: fica salvo no sistema e aparece na assinatura da escala em <b>todos os computadores</b>.
+              Quando trocar o chefe, é só alterar aqui e salvar — sem mexer em banco de dados.
+            </div>
+            <div className="chefe-form">
+              <label>Nome (posto + nome)
+                <input
+                  value={chefe.nome}
+                  placeholder="ex: 1º TEN QOEM JOELSON DOS REIS SILVA"
+                  onChange={(e) => setChefe((c) => ({ ...c, nome: e.target.value }))}
+                />
+              </label>
+              <label>Função / cargo
+                <input
+                  value={chefe.funcao}
+                  placeholder="ex: CHEFE DO P/1 DO 18º BPM"
+                  onChange={(e) => setChefe((c) => ({ ...c, funcao: e.target.value }))}
+                />
+              </label>
+              <div className="chefe-acoes">
+                <button className="btn primary" disabled={chefeSalvando} onClick={salvarChefe}>
+                  {chefeSalvando ? "Salvando..." : "💾 Salvar chefe"}
+                </button>
+                {chefeMsg && <span className="chefe-msg">{chefeMsg}</span>}
+              </div>
+              <div className="chefe-preview">
+                <span className="chefe-preview-lbl">Prévia da assinatura na escala:</span>
+                <div className="chefe-preview-nome">{chefe.nome || "—"}</div>
+                <div className="chefe-preview-func">{chefe.funcao || "—"}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {aba === "dia" && (
         <>
@@ -1455,8 +1523,8 @@ export default function EscalaClient() {
 
               <div className="assinatura">
                 <BrasaoSlot src={brasoes.assinaturaChefe} alt="assinatura" onPick={() => pickBrasao("assinaturaChefe")} w={220} h={50} />
-                <div className="ass-nome"><Editable value={chefe.nome} onChange={(v) => setChefe((c) => ({ ...c, nome: v }))} /></div>
-                <div className="ass-funcao"><Editable value={chefe.funcao} onChange={(v) => setChefe((c) => ({ ...c, funcao: v }))} /></div>
+                <div className="ass-nome">{chefe.nome}</div>
+                <div className="ass-funcao">{chefe.funcao}</div>
               </div>
             </div>
           </div>
@@ -1615,10 +1683,22 @@ const CSS = `
 .cfg-refs label{ display:flex; flex-direction:column; gap:4px; font-size:11px; color:#9fb0c7; }
 .cfg-refs input{ background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:8px; padding:7px 9px; font-size:12.5px; }
 
+/* Aba Chefe do P1 */
+.chefe-form{ display:flex; flex-direction:column; gap:12px; max-width:560px; }
+.chefe-form label{ display:flex; flex-direction:column; gap:5px; font-size:12px; color:#9fb0c7; }
+.chefe-form input{ background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:8px; padding:9px 11px; font-size:14px; }
+.chefe-form input:focus{ outline:none; border-color:#D4AF37; }
+.chefe-acoes{ display:flex; align-items:center; gap:12px; }
+.chefe-msg{ font-size:12.5px; color:#9fe6bd; }
+.chefe-preview{ background:#0a1626; border:1px solid #28395a; border-radius:10px; padding:14px; text-align:center; }
+.chefe-preview-lbl{ display:block; font-size:11px; color:#6f82a0; margin-bottom:8px; }
+.chefe-preview-nome{ font-weight:700; color:#E8EEF6; font-size:14px; }
+.chefe-preview-func{ color:#cdd9ea; font-size:13px; }
+
 /* Folha */
 .paper-wrap{ display:flex; justify-content:center; }
-.doc-paper{ background:#fff; color:#000; width:210mm; max-width:100%; padding:9mm 16mm;
-  box-shadow:0 10px 40px rgba(0,0,0,.5); font-family:"Times New Roman", Georgia, serif; line-height:1.12; }
+.doc-paper{ background:#fff; color:#000; width:210mm; max-width:100%; padding:8mm 14mm;
+  box-shadow:0 10px 40px rgba(0,0,0,.5); font-family:"Times New Roman", Georgia, serif; line-height:1.1; }
 
 .hdr{ display:flex; gap:6px; align-items:flex-start; }
 .hdr-left{ width:122px; text-align:center; font-size:11px; display:flex; flex-direction:column; align-items:center; }
@@ -1628,18 +1708,18 @@ const CSS = `
 .titulo-wrap{ position:relative; }
 .visto-side{ position:absolute; left:0; bottom:0; width:122px; text-align:center; font-size:11px; line-height:1.15; }
 .hdr-center{ flex:1; text-align:center; display:flex; flex-direction:column; align-items:center; }
-.orgtext{ font-size:12.5px; margin-top:4px; } .orgtext .org-strong{ font-weight:700; }
+.orgtext{ font-size:13.5px; margin-top:4px; } .orgtext .org-strong{ font-weight:700; }
 .brasao{ border:1px dashed #b9b9b9; display:flex; align-items:center; justify-content:center; overflow:hidden; cursor:pointer; background:#fafafa; margin:0 auto; }
 .brasao img{ max-width:100%; max-height:100%; object-fit:contain; }
 .brasao-ph{ font-size:8px; color:#9a9a9a; text-align:center; padding:2px; }
 
-.titulo{ text-align:center; font-weight:700; font-size:24px; text-decoration:underline; margin-top:6px; }
-.subt{ text-align:center; font-weight:700; font-size:15.5px; text-decoration:underline; margin-top:4px; }
-.subt2{ text-align:center; font-weight:700; font-size:14px; text-decoration:underline; margin:2px 0 8px; }
+.titulo{ text-align:center; font-weight:700; font-size:27px; text-decoration:underline; margin-top:6px; }
+.subt{ text-align:center; font-weight:700; font-size:17px; text-decoration:underline; margin-top:4px; }
+.subt2{ text-align:center; font-weight:700; font-size:15px; text-decoration:underline; margin:2px 0 8px; }
 
 .tbl{ width:100%; border-collapse:collapse; table-layout:fixed; }
 .tbl.mt{ margin-top:2px; }
-.tbl td{ border:1px solid #000; padding:2px 7px; font-size:13.5px; vertical-align:top; }
+.tbl td{ border:1px solid #000; padding:2px 6px; font-size:15px; vertical-align:top; }
 .tbl .hd{ text-align:center; font-weight:700; }
 .tbl .lbl{ font-weight:700; text-align:center; vertical-align:middle; }
 .tbl .val{ font-style:italic; }
@@ -1656,9 +1736,9 @@ const CSS = `
 .linha{ display:flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:flex-start; }
 .slot{ display:inline; } .perm{ font-weight:700; }
 
-.rodape-local{ text-align:center; font-size:13.5px; margin-top:10px; }
+.rodape-local{ text-align:center; font-size:15px; margin-top:10px; }
 .assinatura{ text-align:center; margin-top:14px; }
-.ass-nome{ font-weight:700; font-size:14px; } .ass-funcao{ font-size:14px; }
+.ass-nome{ font-weight:700; font-size:15px; } .ass-funcao{ font-size:15px; }
 .data-confec{ margin-top:18px; font-size:12px; color:#444; }
 .data-confec input{ border:1px solid #bbb; border-radius:6px; padding:4px 6px; }
 
