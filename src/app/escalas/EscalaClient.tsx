@@ -1147,7 +1147,7 @@ export default function EscalaClient() {
     assinaturaChefe: "/brasoes/assinatura-joelson.png",
   });
   // Chefe do P/1: carregado do servidor (aba "Chefe do P1"), igual em todo PC.
-  const [chefe, setChefe] = useState<Chefe>({ nome: "1\u00ba TEN QOEM JOELSON DOS REIS SILVA", funcao: "CHEFE DO P/1 DO 18\u00ba BPM", assinatura: "", assinarGov: false });
+  const [chefe, setChefe] = useState<Chefe>({ nome: "1\u00ba TEN QOEM JOELSON DOS REIS SILVA", funcao: "CHEFE DO P/1 DO 18\u00ba BPM", assinatura: "/brasoes/assinatura-joelson.png", assinarGov: false });
   const [chefeSalvando, setChefeSalvando] = useState(false);
   const [chefeMsg, setChefeMsg] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -1447,14 +1447,14 @@ export default function EscalaClient() {
                 ) : (
                   <>
                     <div className="chefe-ass-box">
-                      {(chefe.assinatura || brasoes.assinaturaChefe)
-                        ? <img src={chefe.assinatura || brasoes.assinaturaChefe} alt="assinatura" />
-                        : <span className="chefe-ass-ph">sem assinatura</span>}
+                      {chefe.assinatura
+                        ? <img src={chefe.assinatura} alt="assinatura" />
+                        : <span className="chefe-ass-ph">sem assinatura (em branco)</span>}
                     </div>
                     <div className="chefe-ass-btns">
                       <button className="btn" onClick={pickAssinaturaChefe}>📤 Subir do PC</button>
                       {chefe.assinatura && (
-                        <button className="btn danger" onClick={() => setChefe((c) => ({ ...c, assinatura: "" }))}>Remover</button>
+                        <button className="btn danger" onClick={() => setChefe((c) => ({ ...c, assinatura: "" }))}>🗑 Remover</button>
                       )}
                     </div>
                     <div className="chefe-ass-dica">Salve o chefe para guardar a assinatura no sistema (todos os PCs).</div>
@@ -1463,8 +1463,8 @@ export default function EscalaClient() {
 
                 <div className="chefe-preview">
                   <span className="chefe-preview-lbl">Prévia na escala:</span>
-                  {!chefe.assinarGov && (chefe.assinatura || brasoes.assinaturaChefe) && (
-                    <img className="chefe-preview-img" src={chefe.assinatura || brasoes.assinaturaChefe} alt="assinatura" />
+                  {!chefe.assinarGov && chefe.assinatura && (
+                    <img className="chefe-preview-img" src={chefe.assinatura} alt="assinatura" />
                   )}
                   <div className="chefe-preview-nome">{chefe.nome || "—"}</div>
                   <div className="chefe-preview-func">{chefe.funcao || "—"}</div>
@@ -1586,8 +1586,8 @@ export default function EscalaClient() {
                 {chefe.assinarGov ? (
                   <div className="ass-gov-espaco" />
                 ) : (
-                  (chefe.assinatura || brasoes.assinaturaChefe) ? (
-                    <img className="ass-img" src={chefe.assinatura || brasoes.assinaturaChefe} alt="assinatura" />
+                  chefe.assinatura ? (
+                    <img className="ass-img" src={chefe.assinatura} alt="assinatura" />
                   ) : <div className="ass-gov-espaco" />
                 )}
                 <div className="ass-nome">{chefe.nome}</div>

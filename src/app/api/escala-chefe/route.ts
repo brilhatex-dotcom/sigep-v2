@@ -18,7 +18,7 @@ const CHAVE = "escala_chefe_p1";
 const PADRAO = {
   nome: "1º TEN QOEM JOELSON DOS REIS SILVA",
   funcao: "CHEFE DO P/1 DO 18º BPM",
-  assinatura: "",       // imagem da assinatura (data URL) ou "" para usar a padrao
+  assinatura: "/brasoes/assinatura-joelson.png",  // imagem da assinatura (data URL/caminho); "" = em branco
   assinarGov: false,    // se true, a assinatura sai em branco (assina pelo Gov.br)
 };
 
