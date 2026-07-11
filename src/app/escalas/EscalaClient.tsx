@@ -26,7 +26,10 @@ import type { ReactNode } from "react";
 
 type PermutaStatus = null | "pendente" | "aprovada" | "negada";
 type Slot = { titular: string; permuta: string | null; status?: PermutaStatus };
-type Tipo = "normal" | "feriado" | "facultativo";
+type Tipo = "normal" | "feriado" | "facultativo" | "extraordinaria";
+
+// Linha da tabela REFORÇO SEDE da escala extraordinaria (print 3).
+type ReforcoLinha = { postoGrad: string; nome: string };
 
 type Expediente = {
   horario: string;
@@ -59,6 +62,12 @@ type Escala = {
   ftPatrulheiro: Slot;
   rotemHorarios: string[];
   rotemMilitares: Slot[];
+  // ---- Escala Extraordinaria (tipo "extraordinaria", print 3) ----
+  extraOperacao?: string;
+  extraLocal?: string;
+  extraHorario?: string;
+  extraUniforme?: string;
+  extraReforco?: ReforcoLinha[];
 };
 
 type TipoAfastamento =
@@ -169,6 +178,16 @@ function fmtMilitar(m: Militar): string {
   const guerra = capitalizaNome(m.nomeGuerra || m.nome || "");
   if (barraValida(barra)) return [posto, "n\u00ba", barra, guerra].filter(Boolean).join(" ").trim();
   return [posto, guerra].filter(Boolean).join(" ").trim();
+}
+
+// Divide o militar em (POST/GRAD, NOME) para a tabela REFOR\u00c7O SEDE (extraordinaria).
+function fmtMilitarPartes(m: Militar): ReforcoLinha {
+  let posto = abreviaPosto(m.postoGrad || "");
+  const quadro = (m.quadro || "").trim().toUpperCase();
+  if (quadro && ehOficialAbbr(posto)) posto = posto.replace(/\bPM\b/, quadro);
+  const barra = (m.numeroBarra || "").trim();
+  const postoGrad = barraValida(barra) ? [posto, "n\u00ba", barra].filter(Boolean).join(" ").trim() : posto;
+  return { postoGrad, nome: capitalizaNome(m.nomeGuerra || m.nome || "") };
 }
 
 /* ============================== CONSTANTES ============================== */
@@ -413,6 +432,11 @@ function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
     ftPatrulheiro: s(rod(cad.ftPatrulheiro)[0] || ""),
     rotemHorarios: eq ? eq.turnos.slice() : ["07h \u00e0s 12h", "18h \u00e0s 23h"],
     rotemMilitares: eq ? sList(nmList(eq.militares)) : [s(), s(), s()],
+    extraOperacao: "",
+    extraLocal: "",
+    extraHorario: "",
+    extraUniforme: "4\u00aaA (ARMADO E EQUIPADO)",
+    extraReforco: [{ postoGrad: "", nome: "" }],
   };
 }
 
@@ -522,6 +546,56 @@ function BrasaoSlot({
   return (
     <div className="brasao" style={{ width: w, height: h }} onClick={onPick} title="Clique para enviar imagem">
       {src ? <img src={src} alt={alt} /> : <span className="brasao-ph no-print">{alt}</span>}
+    </div>
+  );
+}
+
+/* Tabela REFORÇO SEDE da escala extraordinaria (print 3): ORD | POST/GRAD | NOME.
+   Celulas editaveis; busca no efetivo preenche uma linha automaticamente. */
+function ReforcoTabela({
+  linhas, onChange, efetivo,
+}: {
+  linhas: ReforcoLinha[];
+  onChange: (l: ReforcoLinha[]) => void;
+  efetivo: Militar[];
+}) {
+  const upd = (i: number, patch: Partial<ReforcoLinha>) =>
+    onChange(linhas.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  const rm = (i: number) => onChange(linhas.filter((_, j) => j !== i));
+  const add = () => onChange([...linhas, { postoGrad: "", nome: "" }]);
+  const addMilitar = (id: string) => {
+    const m = efetivo.find((x) => x.id === id);
+    if (!m) return;
+    const p = fmtMilitarPartes(m);
+    const iVazia = linhas.findIndex((l) => !l.postoGrad.trim() && !l.nome.trim());
+    if (iVazia >= 0) upd(iVazia, p);
+    else onChange([...linhas, p]);
+  };
+
+  return (
+    <div className="reforco">
+      <div className="reforco-add no-print">
+        <SeletorMilitar efetivo={efetivo} exclude={[]} onPick={addMilitar} placeholder="Buscar militar para adicionar ao reforço..." />
+      </div>
+      <table className="tbl reforco-tbl"><tbody>
+        <tr><td className="hd" colSpan={3}>REFORÇO SEDE</td></tr>
+        <tr>
+          <td className="lbl reforco-ord">ORD</td>
+          <td className="lbl">POST/GRAD</td>
+          <td className="lbl">NOME</td>
+        </tr>
+        {linhas.map((l, i) => (
+          <tr key={i}>
+            <td className="reforco-ord">{String(i + 1).padStart(2, "0")}</td>
+            <td className="val-c"><Editable value={l.postoGrad} placeholder="posto/grad" onChange={(v) => upd(i, { postoGrad: v })} /></td>
+            <td className="val-c reforco-nome-cell">
+              <Editable value={l.nome} placeholder="nome" onChange={(v) => upd(i, { nome: v })} />
+              {linhas.length > 1 && <button className="no-print mini" title="remover" onClick={() => rm(i)}>×</button>}
+            </td>
+          </tr>
+        ))}
+      </tbody></table>
+      <button className="no-print mini add" onClick={add}>+ adicionar linha</button>
     </div>
   );
 }
@@ -1332,7 +1406,8 @@ export default function EscalaClient() {
   }, [e, data, cad.afastamentos, nameToId]);
 
   const fimDeSemana = ehFimDeSemana(data);
-  const mostraExpediente = !fimDeSemana;
+  const ehExtra = e.tipo === "extraordinaria";
+  const mostraExpediente = !fimDeSemana && !ehExtra;
   const feriadoTexto =
     e.tipo === "facultativo"
       ? `PONTO FACULTATIVO${e.feriadoLabel ? " (" + e.feriadoLabel + ")" : ""}`
@@ -1356,6 +1431,7 @@ export default function EscalaClient() {
               <option value="normal">Normal</option>
               <option value="feriado">Feriado</option>
               <option value="facultativo">Ponto facultativo</option>
+              <option value="extraordinaria">Extraordinária</option>
             </select>
           </label>
           {e.tipo !== "normal" && (
@@ -1503,13 +1579,27 @@ export default function EscalaClient() {
                   <BrasaoSlot src={brasoes.vistoCmt} alt="assinatura Cmt" onPick={() => pickBrasao("vistoCmt")} w={118} h={44} />
                   <div className="hdr-left-cargo">Cmt. do 18º BPM</div>
                 </div>
-                <div className="titulo">ESCALA DE SERVIÇO</div>
+                <div className="titulo">{ehExtra ? "ESCALA DE SERVIÇO EXTRAORDINÁRIA" : "ESCALA DE SERVIÇO"}</div>
               </div>
               <div className="subt">PARA O DIA {extensoUpper(data)} ({diaSemana(data)})</div>
-              <div className="subt2">
-                SERVIÇO - <Editable value={e.servicoHoras} onChange={(v) => editE((d) => { d.servicoHoras = v; })} /> (APRESENTAÇÃO ÀS{" "}
-                <Editable value={e.apresentacao} onChange={(v) => editE((d) => { d.apresentacao = v; })} />)
-              </div>
+
+              {/* ---------- ESCALA EXTRAORDINARIA (print 3) ---------- */}
+              {ehExtra && (
+                <div className="extra">
+                  <div className="extra-campos">
+                    <div className="extra-linha"><span className="extra-lbl">OPERAÇÃO:</span> <Editable value={e.extraOperacao || ""} placeholder="ex: ANIVERSÁRIO DA CIDADE..." onChange={(v) => editE((d) => { d.extraOperacao = v; })} /></div>
+                    <div className="extra-linha"><span className="extra-lbl">LOCAL:</span> <Editable value={e.extraLocal || ""} placeholder="ex: PRESIDENTE DUTRA-MA" onChange={(v) => editE((d) => { d.extraLocal = v; })} /></div>
+                    <div className="extra-linha"><span className="extra-lbl">HORÁRIO:</span> <Editable value={e.extraHorario || ""} placeholder="ex: 21H NA SEDE DO 18º BPM" onChange={(v) => editE((d) => { d.extraHorario = v; })} /></div>
+                    <div className="extra-linha"><span className="extra-lbl">UNIFORME:</span> <Editable value={e.extraUniforme || ""} placeholder="ex: 4ªA (ARMADO E EQUIPADO)" onChange={(v) => editE((d) => { d.extraUniforme = v; })} /></div>
+                  </div>
+
+                  <ReforcoTabela
+                    linhas={e.extraReforco || []}
+                    onChange={(rows) => editE((d) => { d.extraReforco = rows; })}
+                    efetivo={efetivo}
+                  />
+                </div>
+              )}
 
               {/* EXPEDIENTE */}
               {mostraExpediente && (
@@ -1553,6 +1643,7 @@ export default function EscalaClient() {
                 </tbody></table>
               )}
 
+              {!ehExtra && (<>
               {/* SERVICO 24H */}
               <table className="tbl mt"><tbody>
                 <tr><td className="lbl w-cpu">CPU DE DIA</td><td className="val"><SlotInline slot={e.cpuDeDia} onChange={(ns) => editE((d) => { d.cpuDeDia = ns; })} /></td></tr>
@@ -1581,6 +1672,7 @@ export default function EscalaClient() {
               </tbody></table>
 
               <div className="rodape-local">Quartel do 18º BPM, em Presidente Dutra-MA, {extensoLow(e.dataConfeccao)}.</div>
+              </>)}
 
               <div className="assinatura">
                 {chefe.assinarGov ? (
@@ -1807,6 +1899,16 @@ const CSS = `
 .tbl .feriado{ text-align:center; font-style:italic; font-weight:700; vertical-align:middle; }
 .w-cpu{ width:30%; }
 .rotem-h{ font-style:italic; font-weight:700; vertical-align:middle; }
+
+/* Escala extraordinaria (print 3) */
+.extra{ margin-top:8px; }
+.extra-campos{ margin:8px 0 10px; }
+.extra-linha{ font-size:15px; margin:4px 0; }
+.extra-lbl{ font-weight:700; }
+.reforco-add{ margin-bottom:8px; max-width:440px; }
+.reforco-tbl{ margin-top:2px; }
+.reforco-ord{ width:12%; text-align:center; font-weight:700; vertical-align:middle; font-style:normal; }
+.reforco-nome-cell{ position:relative; }
 
 .lista{ display:flex; flex-direction:column; gap:1px; }
 .lista.center{ align-items:flex-start; text-align:left; }
