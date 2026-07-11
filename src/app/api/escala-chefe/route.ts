@@ -18,6 +18,8 @@ const CHAVE = "escala_chefe_p1";
 const PADRAO = {
   nome: "1º TEN QOEM JOELSON DOS REIS SILVA",
   funcao: "CHEFE DO P/1 DO 18º BPM",
+  assinatura: "",       // imagem da assinatura (data URL) ou "" para usar a padrao
+  assinarGov: false,    // se true, a assinatura sai em branco (assina pelo Gov.br)
 };
 
 function ehAdmin(perfil?: string | null): boolean {
@@ -37,6 +39,8 @@ export async function GET() {
       return NextResponse.json({
         nome: typeof v.nome === "string" ? v.nome : PADRAO.nome,
         funcao: typeof v.funcao === "string" ? v.funcao : PADRAO.funcao,
+        assinatura: typeof v.assinatura === "string" ? v.assinatura : "",
+        assinarGov: v.assinarGov === true,
       });
     } catch {
       return NextResponse.json(PADRAO);
@@ -58,9 +62,11 @@ export async function POST(req: Request) {
     const b = await req.json();
     const nome = String(b.nome || "").trim();
     const funcao = String(b.funcao || "").trim();
+    const assinatura = typeof b.assinatura === "string" ? b.assinatura : "";
+    const assinarGov = b.assinarGov === true;
     if (!nome) return NextResponse.json({ error: "Informe o nome do chefe" }, { status: 400 });
 
-    const valor = JSON.stringify({ nome, funcao });
+    const valor = JSON.stringify({ nome, funcao, assinatura, assinarGov });
     await prisma.config.upsert({
       where: { chave: CHAVE },
       update: { valor },

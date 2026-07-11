@@ -99,7 +99,7 @@ type Cadastro = {
 type Brasoes = {
   pmma: string; ma: string; bpm: string; vistoCmt: string; assinaturaChefe: string;
 };
-type Chefe = { nome: string; funcao: string };
+type Chefe = { nome: string; funcao: string; assinatura?: string; assinarGov?: boolean };
 
 /* Efetivo (Cadastro de Efetivo via Prisma). Os POOLS guardam o ID PMMA;
    o nome exibido/impresso e montado a partir da ficha em fmtMilitar(). */
@@ -1147,7 +1147,7 @@ export default function EscalaClient() {
     assinaturaChefe: "/brasoes/assinatura-joelson.png",
   });
   // Chefe do P/1: carregado do servidor (aba "Chefe do P1"), igual em todo PC.
-  const [chefe, setChefe] = useState<Chefe>({ nome: "1\u00ba TEN QOEM JOELSON DOS REIS SILVA", funcao: "CHEFE DO P/1 DO 18\u00ba BPM" });
+  const [chefe, setChefe] = useState<Chefe>({ nome: "1\u00ba TEN QOEM JOELSON DOS REIS SILVA", funcao: "CHEFE DO P/1 DO 18\u00ba BPM", assinatura: "", assinarGov: false });
   const [chefeSalvando, setChefeSalvando] = useState(false);
   const [chefeMsg, setChefeMsg] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -1171,9 +1171,31 @@ export default function EscalaClient() {
   useEffect(() => {
     fetch("/api/escala-chefe")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d && (d.nome || d.funcao)) setChefe({ nome: d.nome || "", funcao: d.funcao || "" }); })
+      .then((d) => {
+        if (d && (d.nome || d.funcao)) {
+          setChefe({
+            nome: d.nome || "",
+            funcao: d.funcao || "",
+            assinatura: d.assinatura || "",
+            assinarGov: d.assinarGov === true,
+          });
+        }
+      })
       .catch(() => {});
   }, []);
+
+  // sobe a imagem da assinatura do chefe (guardada como data URL, salva no servidor)
+  const pickAssinaturaChefe = () => {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "image/*";
+    inp.onchange = () => {
+      const f = inp.files && inp.files[0]; if (!f) return;
+      const r = new FileReader();
+      r.onload = () => setChefe((c) => ({ ...c, assinatura: String(r.result) }));
+      r.readAsDataURL(f);
+    };
+    inp.click();
+  };
 
   const salvarChefe = async () => {
     setChefeSalvando(true);
@@ -1383,31 +1405,70 @@ export default function EscalaClient() {
               Preencha uma vez: fica salvo no sistema e aparece na assinatura da escala em <b>todos os computadores</b>.
               Quando trocar o chefe, é só alterar aqui e salvar — sem mexer em banco de dados.
             </div>
-            <div className="chefe-form">
-              <label>Nome (posto + nome)
-                <input
-                  value={chefe.nome}
-                  placeholder="ex: 1º TEN QOEM JOELSON DOS REIS SILVA"
-                  onChange={(e) => setChefe((c) => ({ ...c, nome: e.target.value }))}
-                />
-              </label>
-              <label>Função / cargo
-                <input
-                  value={chefe.funcao}
-                  placeholder="ex: CHEFE DO P/1 DO 18º BPM"
-                  onChange={(e) => setChefe((c) => ({ ...c, funcao: e.target.value }))}
-                />
-              </label>
-              <div className="chefe-acoes">
-                <button className="btn primary" disabled={chefeSalvando} onClick={salvarChefe}>
-                  {chefeSalvando ? "Salvando..." : "💾 Salvar chefe"}
-                </button>
-                {chefeMsg && <span className="chefe-msg">{chefeMsg}</span>}
+            <div className="chefe-grid">
+              <div className="chefe-form">
+                <label>Nome (posto + nome)
+                  <input
+                    value={chefe.nome}
+                    placeholder="ex: 1º TEN QOEM JOELSON DOS REIS SILVA"
+                    onChange={(e) => setChefe((c) => ({ ...c, nome: e.target.value }))}
+                  />
+                </label>
+                <label>Função / cargo
+                  <input
+                    value={chefe.funcao}
+                    placeholder="ex: CHEFE DO P/1 DO 18º BPM"
+                    onChange={(e) => setChefe((c) => ({ ...c, funcao: e.target.value }))}
+                  />
+                </label>
+                <div className="chefe-acoes">
+                  <button className="btn primary" disabled={chefeSalvando} onClick={salvarChefe}>
+                    {chefeSalvando ? "Salvando..." : "💾 Salvar chefe"}
+                  </button>
+                  {chefeMsg && <span className="chefe-msg">{chefeMsg}</span>}
+                </div>
               </div>
-              <div className="chefe-preview">
-                <span className="chefe-preview-lbl">Prévia da assinatura na escala:</span>
-                <div className="chefe-preview-nome">{chefe.nome || "—"}</div>
-                <div className="chefe-preview-func">{chefe.funcao || "—"}</div>
+
+              <div className="chefe-ass">
+                <div className="chefe-ass-tit">Assinatura do chefe</div>
+                <label className="chefe-gov">
+                  <input
+                    type="checkbox"
+                    checked={!!chefe.assinarGov}
+                    onChange={(e) => setChefe((c) => ({ ...c, assinarGov: e.target.checked }))}
+                  />
+                  Assinar pelo Gov.br (sai em branco na escala)
+                </label>
+
+                {chefe.assinarGov ? (
+                  <div className="chefe-gov-nota">
+                    A assinatura sairá <b>em branco</b> na escala; o chefe assina digitalmente pelo Gov.br.
+                  </div>
+                ) : (
+                  <>
+                    <div className="chefe-ass-box">
+                      {(chefe.assinatura || brasoes.assinaturaChefe)
+                        ? <img src={chefe.assinatura || brasoes.assinaturaChefe} alt="assinatura" />
+                        : <span className="chefe-ass-ph">sem assinatura</span>}
+                    </div>
+                    <div className="chefe-ass-btns">
+                      <button className="btn" onClick={pickAssinaturaChefe}>📤 Subir do PC</button>
+                      {chefe.assinatura && (
+                        <button className="btn danger" onClick={() => setChefe((c) => ({ ...c, assinatura: "" }))}>Remover</button>
+                      )}
+                    </div>
+                    <div className="chefe-ass-dica">Salve o chefe para guardar a assinatura no sistema (todos os PCs).</div>
+                  </>
+                )}
+
+                <div className="chefe-preview">
+                  <span className="chefe-preview-lbl">Prévia na escala:</span>
+                  {!chefe.assinarGov && (chefe.assinatura || brasoes.assinaturaChefe) && (
+                    <img className="chefe-preview-img" src={chefe.assinatura || brasoes.assinaturaChefe} alt="assinatura" />
+                  )}
+                  <div className="chefe-preview-nome">{chefe.nome || "—"}</div>
+                  <div className="chefe-preview-func">{chefe.funcao || "—"}</div>
+                </div>
               </div>
             </div>
           </div>
@@ -1522,7 +1583,13 @@ export default function EscalaClient() {
               <div className="rodape-local">Quartel do 18º BPM, em Presidente Dutra-MA, {extensoLow(e.dataConfeccao)}.</div>
 
               <div className="assinatura">
-                <BrasaoSlot src={brasoes.assinaturaChefe} alt="assinatura" onPick={() => pickBrasao("assinaturaChefe")} w={220} h={50} />
+                {chefe.assinarGov ? (
+                  <div className="ass-gov-espaco" />
+                ) : (
+                  (chefe.assinatura || brasoes.assinaturaChefe) ? (
+                    <img className="ass-img" src={chefe.assinatura || brasoes.assinaturaChefe} alt="assinatura" />
+                  ) : <div className="ass-gov-espaco" />
+                )}
                 <div className="ass-nome">{chefe.nome}</div>
                 <div className="ass-funcao">{chefe.funcao}</div>
               </div>
@@ -1684,14 +1751,27 @@ const CSS = `
 .cfg-refs input{ background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:8px; padding:7px 9px; font-size:12.5px; }
 
 /* Aba Chefe do P1 */
-.chefe-form{ display:flex; flex-direction:column; gap:12px; max-width:560px; }
+.chefe-grid{ display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start; }
+@media (max-width: 760px){ .chefe-grid{ grid-template-columns:1fr; } }
+.chefe-form{ display:flex; flex-direction:column; gap:12px; }
 .chefe-form label{ display:flex; flex-direction:column; gap:5px; font-size:12px; color:#9fb0c7; }
 .chefe-form input{ background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:8px; padding:9px 11px; font-size:14px; }
 .chefe-form input:focus{ outline:none; border-color:#D4AF37; }
 .chefe-acoes{ display:flex; align-items:center; gap:12px; }
 .chefe-msg{ font-size:12.5px; color:#9fe6bd; }
+.chefe-ass{ display:flex; flex-direction:column; gap:10px; border:1px solid #1d2c44; border-radius:10px; padding:14px; background:#0d1830; }
+.chefe-ass-tit{ font-size:12.5px; font-weight:700; color:#D4AF37; }
+.chefe-gov{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:#cdd9ea; cursor:pointer; }
+.chefe-gov input{ width:16px; height:16px; accent-color:#D4AF37; }
+.chefe-gov-nota{ font-size:12px; color:#f3df9d; background:#2a2410; border:1px solid #6b5320; border-radius:8px; padding:9px 11px; }
+.chefe-ass-box{ background:#fff; border:1px solid #28395a; border-radius:8px; height:70px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+.chefe-ass-box img{ max-width:100%; max-height:100%; object-fit:contain; }
+.chefe-ass-ph{ font-size:12px; color:#9a9a9a; }
+.chefe-ass-btns{ display:flex; gap:8px; }
+.chefe-ass-dica{ font-size:11px; color:#6f82a0; }
 .chefe-preview{ background:#0a1626; border:1px solid #28395a; border-radius:10px; padding:14px; text-align:center; }
 .chefe-preview-lbl{ display:block; font-size:11px; color:#6f82a0; margin-bottom:8px; }
+.chefe-preview-img{ max-height:46px; max-width:220px; object-fit:contain; display:block; margin:0 auto 4px; background:#fff; border-radius:4px; padding:2px; }
 .chefe-preview-nome{ font-weight:700; color:#E8EEF6; font-size:14px; }
 .chefe-preview-func{ color:#cdd9ea; font-size:13px; }
 
@@ -1738,6 +1818,8 @@ const CSS = `
 
 .rodape-local{ text-align:center; font-size:15px; margin-top:10px; }
 .assinatura{ text-align:center; margin-top:14px; }
+.ass-img{ max-height:50px; max-width:240px; object-fit:contain; display:block; margin:0 auto 2px; }
+.ass-gov-espaco{ height:50px; }
 .ass-nome{ font-weight:700; font-size:15px; } .ass-funcao{ font-size:15px; }
 .data-confec{ margin-top:18px; font-size:12px; color:#444; }
 .data-confec input{ border:1px solid #bbb; border-radius:6px; padding:4px 6px; }
