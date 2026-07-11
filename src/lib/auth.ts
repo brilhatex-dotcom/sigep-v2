@@ -1,6 +1,7 @@
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import crypto from "crypto";
+import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 
 // ==========================================================
@@ -10,6 +11,27 @@ import { prisma } from "@/lib/prisma";
 // ==========================================================
 export function hashSenha(senha: string, salt: string): string {
   return crypto.createHash("sha256").update(salt + senha + salt, "utf8").digest("hex");
+}
+
+// Le o IP injetado pelo middleware no header x-sigep-ip.
+// Fallback para x-forwarded-for / x-real-ip caso disponivel.
+// Nunca quebra: fora de contexto de request, retorna "desconhecido".
+function ipDaRequisicao(): string {
+  try {
+    const h = headers();
+    const sigep = h.get("x-sigep-ip");
+    if (sigep) return sigep.trim();
+    const xff = h.get("x-forwarded-for");
+    if (xff) {
+      const primeiro = xff.split(",")[0]?.trim();
+      if (primeiro) return primeiro;
+    }
+    const real = h.get("x-real-ip");
+    if (real) return real.trim();
+    return "desconhecido";
+  } catch {
+    return "desconhecido";
+  }
 }
 
 // ----- Protecao contra forca bruta -----
@@ -48,10 +70,24 @@ export const authOptions: NextAuthOptions = {
         // precisa estar ativo (Ativo == "SIM")
         if ((usuario.ativo ?? "").toUpperCase() !== "SIM") return null;
 
+        // IP de quem esta tentando logar (injetado pelo middleware)
+        const ip = ipDaRequisicao();
+
         // ---- bloqueio por forca bruta ----
         const restante = minutosRestantes((usuario as any).bloqueadoAte ?? null);
         if (restante > 0) {
-          // bloqueado: nega sem nem checar a senha
+          // bloqueado: registra a tentativa negada e nega sem checar senha
+          try {
+            await prisma.auditoria.create({
+              data: {
+                acao: "login_bloqueado",
+                autorLogin: usuario.login,
+                autorNome: usuario.nomeCompleto ?? usuario.login,
+                detalhe: `Tentativa em conta bloqueada (${restante} min restantes)`,
+                ip,
+              } as any,
+            });
+          } catch {}
           throw new Error(`BLOQUEADO:${restante}`);
         }
 
@@ -68,6 +104,22 @@ export const authOptions: NextAuthOptions = {
             data.tentativas = 0; // zera o contador ao bloquear
           }
           try { await prisma.usuario.update({ where: { id: usuario.id }, data }); } catch {}
+
+          // auditoria da tentativa falha (com IP)
+          try {
+            await prisma.auditoria.create({
+              data: {
+                acao: "login_falha",
+                autorLogin: usuario.login,
+                autorNome: usuario.nomeCompleto ?? usuario.login,
+                detalhe: data.bloqueadoAte
+                  ? `Senha incorreta — conta BLOQUEADA por ${BLOQUEIO_MINUTOS} min`
+                  : `Senha incorreta (tentativa ${tent}/${MAX_TENTATIVAS})`,
+                ip,
+              } as any,
+            });
+          } catch {}
+
           if (data.bloqueadoAte) throw new Error(`BLOQUEADO:${BLOQUEIO_MINUTOS}`);
           return null;
         }
@@ -80,7 +132,7 @@ export const authOptions: NextAuthOptions = {
           });
         } catch {}
 
-        // ---- auditoria: registra a entrada no sistema ----
+        // ---- auditoria: registra a entrada no sistema (com IP) ----
         // Grava direto aqui (sem importar @/lib/auditoria) para evitar
         // dependencia circular auth <-> auditoria.
         try {
@@ -90,6 +142,7 @@ export const authOptions: NextAuthOptions = {
               autorLogin: usuario.login,
               autorNome: usuario.nomeCompleto ?? usuario.login,
               detalhe: "Entrou no sistema",
+              ip,
             } as any,
           });
         } catch {}

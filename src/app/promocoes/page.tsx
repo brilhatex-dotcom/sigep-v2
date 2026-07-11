@@ -77,12 +77,28 @@ async function PainelConteudo({
       };
     })
     .sort((a, b) => b.enviadas - a.enviadas);
+
+  // lista de todos os periodos (pro seletor e aba de arquivadas)
+  const todos = await prisma.periodoPromocao.findMany({
+    orderBy: [{ ativo: "desc" }, { criadoEm: "desc" }],
+    include: { _count: { select: { participantes: true } } },
+  });
+  const periodos = todos.map((p) => ({
+    id: p.id,
+    nome: p.nome,
+    dataAlvo: p.dataAlvo,
+    ativo: p.ativo,
+    participantes: p._count.participantes,
+  }));
+
   return (
     <PainelPromocoes
+      periodoId={periodoId}
       periodoNome={nome}
       periodoData={dataAlvo}
       total={TOTAL_CERTIDOES}
       participantes={linhas}
+      periodos={periodos}
     />
   );
 }

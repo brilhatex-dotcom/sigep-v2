@@ -1,11 +1,44 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Save, Loader2 } from "lucide-react";
 
 type Campo = { key: string; label: string; tipo?: "texto" | "area" };
 type Secao = { titulo: string; campos: Campo[] };
+
+// Hierarquia oficial (do mais alto para o mais baixo) usada no dropdown de posto.
+const POSTOS = [
+  "Coronel",
+  "Tenente-Coronel",
+  "Major",
+  "Capitão",
+  "1º Tenente",
+  "2º Tenente",
+  "Aspirante a Oficial",
+  "Subtenente",
+  "1º Sargento",
+  "2º Sargento",
+  "3º Sargento",
+  "Cabo",
+  "Soldado",
+];
+
+// Opcoes fixas do dropdown de Situacao. ATENCAO: alguns desses textos sao
+// reconhecidos por trechos do sistema (dashboard, badges de cor, filtros) via
+// correspondencia de substring (ex.: "licen", "jms", "pronto", "reserva",
+// "ltip"). Nao renomear sem checar lib/situacao.ts e os componentes que usam
+// corSituacao/porSituacao.
+const SITUACOES = [
+  "Pronto",
+  "Licença",
+  "LTIP",
+  "Reserva",
+  "JMS",
+  "Férias",
+  "Licença-Prêmio",
+  "Agregação",
+];
 
 const SECOES: Secao[] = [
   {
@@ -94,9 +127,40 @@ export default function NovoEfetivoForm() {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
 
+  // ---- autocomplete da lotacao ----
+  const [lotacoes, setLotacoes] = useState<string[]>([]);
+  const [lotFocado, setLotFocado] = useState(false);
+  const lotBoxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    fetch("/api/lotacoes")
+      .then((r) => r.json())
+      .then((d) => { if (vivo) setLotacoes(Array.isArray(d.lotacoes) ? d.lotacoes : []); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
+
+  // fecha a lista de sugestoes ao clicar fora
+  useEffect(() => {
+    function aoClicarFora(e: MouseEvent) {
+      if (lotBoxRef.current && !lotBoxRef.current.contains(e.target as Node)) {
+        setLotFocado(false);
+      }
+    }
+    document.addEventListener("mousedown", aoClicarFora);
+    return () => document.removeEventListener("mousedown", aoClicarFora);
+  }, []);
+
   function mudar(key: string, valor: string) {
     setForm((f) => ({ ...f, [key]: valor }));
   }
+
+  // sugestoes filtradas pelo que ja foi digitado na lotacao
+  const termoLot = (form["lotacao"] ?? "").trim().toLowerCase();
+  const sugestoesLot = termoLot
+    ? lotacoes.filter((l) => l.toLowerCase().includes(termoLot) && l.toLowerCase() !== termoLot).slice(0, 8)
+    : lotacoes.slice(0, 8);
 
   async function salvar() {
     setErro("");
@@ -154,6 +218,58 @@ export default function NovoEfetivoForm() {
                     rows={3}
                     className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
                   />
+                ) : c.key === "postoGrad" ? (
+                  // posto: dropdown com a hierarquia oficial
+                  <select
+                    value={form[c.key] ?? ""}
+                    onChange={(e) => mudar(c.key, e.target.value)}
+                    className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                  >
+                    <option value="">Selecione...</option>
+                    {POSTOS.map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                ) : c.key === "situacao" ? (
+                  // situacao: dropdown com os valores reconhecidos pelo sistema
+                  <select
+                    value={form[c.key] ?? ""}
+                    onChange={(e) => mudar(c.key, e.target.value)}
+                    className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                  >
+                    <option value="">Selecione...</option>
+                    {SITUACOES.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                ) : c.key === "lotacao" ? (
+                  // lotacao: autocomplete das lotacoes existentes
+                  <div className="relative" ref={lotBoxRef}>
+                    <input
+                      type="text"
+                      value={form[c.key] ?? ""}
+                      onChange={(e) => { mudar(c.key, e.target.value); setLotFocado(true); }}
+                      onFocus={() => setLotFocado(true)}
+                      autoComplete="off"
+                      placeholder="Digite e escolha a lotação..."
+                      className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                    />
+                    {lotFocado && sugestoesLot.length > 0 && (
+                      <ul className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-white/10 bg-[#0b1626] py-1 shadow-xl">
+                        {sugestoesLot.map((s) => (
+                          <li key={s}>
+                            <button
+                              type="button"
+                              onClick={() => { mudar("lotacao", s); setLotFocado(false); }}
+                              className="block w-full px-3 py-2 text-left text-sm text-[#E8EEF6] transition hover:bg-[#D4AF37]/15 hover:text-white"
+                            >
+                              {s}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 ) : (
                   <input
                     type="text"

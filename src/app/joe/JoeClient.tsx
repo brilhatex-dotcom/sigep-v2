@@ -3,12 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 
 /* =========================================================================
-   SIGEP-18BPM · JOE — Jornada Operacional Extraordinaria (servico extra
-   remunerado). Duas visoes no mesmo componente:
-   - ADMIN (P1): abre JOE (evento, data, horario, vagas, valor) e aprova/
-     recusa cada candidato, respeitando o numero de vagas.
-   - POLICIAL: ve os JOE abertos, candidata-se e acompanha o status.
-   Tudo via /api/joe e /api/joe/[id]. Tema escuro do SIGEP.
+   SIGEP-18BPM · JOE — Jornada Operacional Extraordinaria.
+   ADMIN (P1): abre JOE, aprova/recusa candidatos, e AGORA pode inscrever
+   manualmente militares do 18 (autocomplete) ou de fora (dados manuais),
+   ja como aprovados.
+   POLICIAL: ve os JOE abertos, candidata-se e acompanha o status.
    ========================================================================= */
 
 type Ficha = {
@@ -20,10 +19,15 @@ type Ficha = {
 };
 type Candidato = {
   id: string;
-  efetivoId: string;
+  efetivoId: string | null;
   status: "pendente" | "aprovado" | "recusado";
   inscritoEm: string;
+  origem?: string;
   ficha: Ficha | null;
+  extNome?: string | null;
+  extMatricula?: string | null;
+  extPostoGrad?: string | null;
+  extUnidade?: string | null;
 };
 type Joe = {
   id: string;
@@ -43,6 +47,16 @@ type Joe = {
   candidatos?: Candidato[];
 };
 
+// militar do efetivo, para o autocomplete
+type Militar = {
+  id: string;
+  postoGrad: string;
+  numeroBarra: string;
+  nome: string;
+  nomeGuerra: string;
+  matricula: string;
+};
+
 function nomeCurto(f: Ficha | null, fallbackId: string): string {
   if (!f) return "ID " + fallbackId;
   const posto = (f.postoGrad || "").trim();
@@ -51,6 +65,26 @@ function nomeCurto(f: Ficha | null, fallbackId: string): string {
   const cap = guerra ? guerra.charAt(0).toUpperCase() + guerra.slice(1).toLowerCase() : "";
   const temBarra = /\d/.test(barra);
   return [posto, temBarra ? "nº " + barra : "", cap].filter(Boolean).join(" ").trim() || ("ID " + fallbackId);
+}
+
+// nome de um candidato (do 18 OU externo)
+function nomeCandidato(c: Candidato): string {
+  if (c.efetivoId) return nomeCurto(c.ficha, c.efetivoId);
+  const posto = (c.extPostoGrad || "").trim();
+  const nome = (c.extNome || "").trim();
+  const unid = (c.extUnidade || "").trim();
+  const base = [posto, nome].filter(Boolean).join(" ").trim() || "Militar externo";
+  return unid ? `${base} (${unid})` : base;
+}
+
+// nome para o autocomplete
+function nomeMilitar(m: Militar): string {
+  const posto = (m.postoGrad || "").trim();
+  const barra = (m.numeroBarra || "").trim();
+  const guerra = (m.nomeGuerra || m.nome || "").trim();
+  const cap = guerra ? guerra.charAt(0).toUpperCase() + guerra.slice(1).toLowerCase() : "";
+  const temBarra = /\d/.test(barra);
+  return [posto, temBarra ? "nº " + barra : "", cap].filter(Boolean).join(" ").trim();
 }
 
 function brData(iso: string): string {
@@ -77,9 +111,14 @@ export default function JoeClient({ perfil }: { perfil: string }) {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [ocupado, setOcupado] = useState<string | null>(null); // id em processamento
+  const [ocupado, setOcupado] = useState<string | null>(null);
 
-  // formulario admin
+  // efetivo (para autocomplete da inscricao manual) - carregado so 1x se admin
+  const [efetivo, setEfetivo] = useState<Militar[]>([]);
+
+  // modal de inscricao manual: guarda o id do JOE alvo (ou null = fechado)
+  const [modalJoe, setModalJoe] = useState<string | null>(null);
+
   const vazio = {
     evento: "", local: "", data: "", horaInicio: "", horaFim: "", vagas: "1", valor: "", observacao: "",
     comandanteOp: "", horario: "", areaAtuacao: "", processoSei: "",
@@ -102,6 +141,15 @@ export default function JoeClient({ perfil }: { perfil: string }) {
     }
   };
   useEffect(() => { carregar(); }, []);
+
+  // carrega o efetivo so se for admin (para o autocomplete)
+  useEffect(() => {
+    if (!ehAdmin) return;
+    fetch("/api/efetivo")
+      .then((r) => r.json())
+      .then((d) => setEfetivo(d.efetivo || []))
+      .catch(() => {});
+  }, [ehAdmin]);
 
   const aviso = (t: string) => { setMsg(t); setTimeout(() => setMsg(null), 3500); };
 
@@ -161,6 +209,12 @@ export default function JoeClient({ perfil }: { perfil: string }) {
   const abertos = lista.filter((j) => j.status === "aberta");
   const encerrados = lista.filter((j) => j.status !== "aberta");
 
+  // ids ja inscritos no JOE alvo (para o autocomplete nao oferecer repetido)
+  const joeAlvo = modalJoe ? lista.find((j) => j.id === modalJoe) : null;
+  const idsJaInscritos = new Set(
+    (joeAlvo?.candidatos || []).map((c) => c.efetivoId).filter(Boolean) as string[]
+  );
+
   return (
     <div className="joe-shell">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
@@ -180,7 +234,6 @@ export default function JoeClient({ perfil }: { perfil: string }) {
       {msg && <div className="joe-toast">{msg}</div>}
       {erro && <div className="joe-banner erro">{erro}</div>}
 
-      {/* ---------------- ADMIN: criar JOE ---------------- */}
       {ehAdmin && (
         <div className="joe-card form">
           <div className="joe-card-tit">Abrir novo JOE</div>
@@ -238,7 +291,6 @@ export default function JoeClient({ perfil }: { perfil: string }) {
         </div>
       )}
 
-      {/* ---------------- LISTA ---------------- */}
       {abertos.length > 0 && <div className="joe-secao">Abertos</div>}
       <div className="joe-grid">
         {abertos.map((j) => (
@@ -250,6 +302,7 @@ export default function JoeClient({ perfil }: { perfil: string }) {
             onEncerrar={() => acao(j.id, { acao: "encerrar" }, "JOE encerrado.")}
             onReabrir={() => acao(j.id, { acao: "reabrir" }, "JOE reaberto.")}
             onExcluir={() => excluir(j.id)}
+            onAdicionar={() => setModalJoe(j.id)}
           />
         ))}
       </div>
@@ -265,8 +318,162 @@ export default function JoeClient({ perfil }: { perfil: string }) {
             onEncerrar={() => {}}
             onReabrir={() => acao(j.id, { acao: "reabrir" }, "JOE reaberto.")}
             onExcluir={() => excluir(j.id)}
+            onAdicionar={() => setModalJoe(j.id)}
           />
         ))}
+      </div>
+
+      {/* MODAL: inscricao manual pelo P1 */}
+      {modalJoe && joeAlvo && (
+        <ModalInscrever
+          joe={joeAlvo}
+          efetivo={efetivo}
+          idsJaInscritos={idsJaInscritos}
+          onFechar={() => setModalJoe(null)}
+          onConfirmar={async (payload) => {
+            const ok = await acao(modalJoe, { acao: "inscrever_manual", ...payload }, "Militar inscrito.");
+            if (ok) setModalJoe(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ===================== MODAL DE INSCRICAO MANUAL ===================== */
+
+function ModalInscrever({
+  joe, efetivo, idsJaInscritos, onFechar, onConfirmar,
+}: {
+  joe: Joe;
+  efetivo: Militar[];
+  idsJaInscritos: Set<string>;
+  onFechar: () => void;
+  onConfirmar: (payload: any) => void;
+}) {
+  const [aba, setAba] = useState<"interno" | "externo">("interno");
+  const [busca, setBusca] = useState("");
+  const [selecionado, setSelecionado] = useState<Militar | null>(null);
+
+  // externo
+  const [extNome, setExtNome] = useState("");
+  const [extPostoGrad, setExtPostoGrad] = useState("");
+  const [extMatricula, setExtMatricula] = useState("");
+  const [extUnidade, setExtUnidade] = useState("");
+
+  const [enviando, setEnviando] = useState(false);
+
+  const filtrados = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return efetivo
+      .filter((m) => !idsJaInscritos.has(m.id))
+      .filter((m) => {
+        const alvo = `${m.nome} ${m.nomeGuerra} ${m.matricula} ${m.numeroBarra} ${m.postoGrad}`.toLowerCase();
+        return alvo.includes(q);
+      })
+      .slice(0, 8);
+  }, [busca, efetivo, idsJaInscritos]);
+
+  const confirmar = async () => {
+    setEnviando(true);
+    try {
+      if (aba === "interno") {
+        if (!selecionado) { setEnviando(false); return; }
+        await onConfirmar({ efetivoId: selecionado.id });
+      } else {
+        if (!extNome.trim()) { setEnviando(false); return; }
+        await onConfirmar({
+          extNome: extNome.trim(),
+          extPostoGrad: extPostoGrad.trim() || null,
+          extMatricula: extMatricula.trim() || null,
+          extUnidade: extUnidade.trim() || null,
+        });
+      }
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const podeConfirmar = aba === "interno" ? !!selecionado : extNome.trim().length > 0;
+
+  return (
+    <div className="joe-modal-overlay" onClick={onFechar}>
+      <div className="joe-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="jm-head">
+          <div>
+            <div className="jm-tit">Adicionar militar</div>
+            <div className="jm-sub">{joe.evento} · {joe.totalAprovados}/{joe.vagas} vagas</div>
+          </div>
+          <button className="jm-x" onClick={onFechar}>✕</button>
+        </div>
+
+        <div className="jm-abas">
+          <button className={"jm-aba " + (aba === "interno" ? "on" : "")} onClick={() => setAba("interno")}>Do 18º BPM</button>
+          <button className={"jm-aba " + (aba === "externo" ? "on" : "")} onClick={() => setAba("externo")}>De fora (outra OPM)</button>
+        </div>
+
+        {aba === "interno" ? (
+          <div className="jm-corpo">
+            {selecionado ? (
+              <div className="jm-sel">
+                <span>{nomeMilitar(selecionado)}{selecionado.matricula ? ` · Mat. ${selecionado.matricula}` : ""}</span>
+                <button className="mini-btn" onClick={() => { setSelecionado(null); setBusca(""); }}>trocar</button>
+              </div>
+            ) : (
+              <>
+                <input
+                  className="jm-input"
+                  autoFocus
+                  placeholder="Buscar por nome, nome de guerra ou matrícula..."
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                />
+                {busca.trim().length >= 2 && (
+                  <div className="jm-result">
+                    {filtrados.length === 0 ? (
+                      <div className="jm-vazio">Nenhum militar encontrado (ou já inscrito).</div>
+                    ) : (
+                      filtrados.map((m) => (
+                        <button key={m.id} className="jm-opt" onClick={() => setSelecionado(m)}>
+                          <span className="jm-opt-nome">{nomeMilitar(m)}</span>
+                          {m.matricula && <span className="jm-opt-mat">Mat. {m.matricula}</span>}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="jm-corpo">
+            <label className="jm-label">Nome completo *
+              <input className="jm-input" value={extNome} placeholder="ex: João da Silva Santos" onChange={(e) => setExtNome(e.target.value)} />
+            </label>
+            <div className="jm-row">
+              <label className="jm-label">Posto/Grad
+                <input className="jm-input" value={extPostoGrad} placeholder="ex: Cb PM" onChange={(e) => setExtPostoGrad(e.target.value)} />
+              </label>
+              <label className="jm-label">Matrícula
+                <input className="jm-input" value={extMatricula} placeholder="ex: 123456" onChange={(e) => setExtMatricula(e.target.value)} />
+              </label>
+            </div>
+            <label className="jm-label">Unidade de origem (OPM)
+              <input className="jm-input" value={extUnidade} placeholder="ex: 3º BPM" onChange={(e) => setExtUnidade(e.target.value)} />
+            </label>
+          </div>
+        )}
+
+        <div className="jm-rod">
+          <span className="jm-nota">Será inscrito já como <b>aprovado</b>.</span>
+          <div className="jm-rod-btns">
+            <button className="btn" onClick={onFechar}>Cancelar</button>
+            <button className="btn primary" disabled={!podeConfirmar || enviando} onClick={confirmar}>
+              {enviando ? "Inscrevendo..." : "Inscrever"}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -275,7 +482,7 @@ export default function JoeClient({ perfil }: { perfil: string }) {
 /* ============================== CARD ============================== */
 
 function JoeCardComp({
-  j, ehAdmin, ocupado, onCandidatar, onCancelar, onDecidir, onEncerrar, onReabrir, onExcluir,
+  j, ehAdmin, ocupado, onCandidatar, onCancelar, onDecidir, onEncerrar, onReabrir, onExcluir, onAdicionar,
 }: {
   j: Joe;
   ehAdmin: boolean;
@@ -286,6 +493,7 @@ function JoeCardComp({
   onEncerrar: () => void;
   onReabrir: () => void;
   onExcluir: () => void;
+  onAdicionar: () => void;
 }) {
   const lotado = j.vagasRestantes <= 0;
   const minha = j.minhaInscricao;
@@ -361,7 +569,11 @@ function JoeCardComp({
             <div className="jc-cand-lista">
               {j.candidatos.map((c) => (
                 <div key={c.id} className={"jc-cand " + c.status}>
-                  <span className="jc-cand-nome">{nomeCurto(c.ficha, c.efetivoId)}</span>
+                  <span className="jc-cand-nome">
+                    {nomeCandidato(c)}
+                    {!c.efetivoId && <span className="tag ext">externo</span>}
+                    {c.origem === "p1" && c.efetivoId && <span className="tag p1">P1</span>}
+                  </span>
                   {c.status === "aprovado" ? (
                     <span className="jc-cand-acoes">
                       <span className="tag ok">aprovado</span>
@@ -384,6 +596,9 @@ function JoeCardComp({
           )}
 
           <div className="jc-admin-rod">
+            {j.status === "aberta" && !lotado && (
+              <button className="link-btn add" disabled={ocupado} onClick={onAdicionar}>+ Adicionar militar</button>
+            )}
             {j.totalAprovados > 0 && (
               <a
                 className="link-btn"
@@ -478,20 +693,52 @@ const CSS = `
 .jc-cand{ display:flex; justify-content:space-between; align-items:center; gap:8px; background:#13223a; border:1px solid #28395a; border-radius:8px; padding:6px 10px; }
 .jc-cand.aprovado{ border-color:#235b3c; background:#102a1f; }
 .jc-cand.recusado{ opacity:.7; }
-.jc-cand-nome{ font-size:13px; }
+.jc-cand-nome{ font-size:13px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
 .jc-cand-acoes{ display:flex; align-items:center; gap:5px; }
 .tag{ font-size:10.5px; border-radius:999px; padding:2px 8px; }
 .tag.ok{ background:#10301f; color:#9fe6bd; border:1px solid #235b3c; }
 .tag.no{ background:#2a1a1a; color:#e6a3a3; border:1px solid #5b2323; }
+.tag.ext{ background:#2a2410; color:#f3df9d; border:1px solid #6b5320; }
+.tag.p1{ background:#16243a; color:#9fd9ff; border:1px solid #2b4f7a; }
 .mini-btn{ background:#0a1626; color:#cdd9ea; border:1px solid #28395a; border-radius:6px; padding:3px 9px; font-size:11.5px; cursor:pointer; }
 .mini-btn:hover:not(:disabled){ border-color:#D4AF37; }
 .mini-btn:disabled{ opacity:.4; cursor:default; }
 .mini-btn.ok:hover:not(:disabled){ border-color:#46c47e; color:#bff0d0; }
 .mini-btn.no:hover:not(:disabled){ border-color:#e06464; color:#ffb3b3; }
 
-.jc-admin-rod{ display:flex; justify-content:space-between; margin-top:2px; }
+.jc-admin-rod{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:2px; flex-wrap:wrap; }
 .link-btn{ background:none; border:none; color:#9fb0c7; font-size:12px; cursor:pointer; padding:2px; }
 .link-btn:hover:not(:disabled){ color:#D4AF37; text-decoration:underline; }
+.link-btn.add{ color:#9fe6bd; font-weight:600; }
 .link-btn.danger:hover:not(:disabled){ color:#ffb3b3; }
 .link-btn:disabled{ opacity:.5; cursor:default; }
+
+/* MODAL */
+.joe-modal-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:50; padding:16px; }
+.joe-modal{ background:#0F1B2D; border:1px solid #2b3f63; border-radius:14px; width:100%; max-width:480px; max-height:90vh; overflow:auto; }
+.jm-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; padding:16px 16px 12px; border-bottom:1px solid #1d2c44; }
+.jm-tit{ font-size:16px; font-weight:700; color:#D4AF37; }
+.jm-sub{ font-size:12px; color:#9fb0c7; margin-top:2px; }
+.jm-x{ background:none; border:none; color:#9fb0c7; font-size:16px; cursor:pointer; padding:2px 6px; }
+.jm-x:hover{ color:#ffb3b3; }
+.jm-abas{ display:flex; gap:6px; padding:12px 16px 0; }
+.jm-aba{ flex:1; background:#0a1626; color:#9fb0c7; border:1px solid #28395a; border-radius:8px; padding:8px; font-size:12.5px; cursor:pointer; }
+.jm-aba.on{ background:#2a2410; color:#f3df9d; border-color:#6b5320; font-weight:600; }
+.jm-corpo{ padding:14px 16px; display:flex; flex-direction:column; gap:10px; }
+.jm-input{ width:100%; background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:8px; padding:9px 11px; font-size:13px; }
+.jm-input:focus{ outline:none; border-color:#D4AF37; }
+.jm-label{ display:flex; flex-direction:column; gap:4px; font-size:11px; color:#9fb0c7; }
+.jm-row{ display:flex; gap:10px; }
+.jm-row .jm-label{ flex:1; }
+.jm-result{ border:1px solid #28395a; border-radius:8px; overflow:hidden; max-height:240px; overflow-y:auto; }
+.jm-opt{ width:100%; display:flex; justify-content:space-between; align-items:center; gap:8px; background:#0a1626; color:#E8EEF6; border:none; border-bottom:1px solid #1d2c44; padding:9px 11px; font-size:13px; cursor:pointer; text-align:left; }
+.jm-opt:last-child{ border-bottom:none; }
+.jm-opt:hover{ background:#13223a; }
+.jm-opt-mat{ font-size:11px; color:#6f82a0; }
+.jm-vazio{ padding:12px; font-size:12.5px; color:#6f82a0; text-align:center; }
+.jm-sel{ display:flex; justify-content:space-between; align-items:center; gap:8px; background:#102a1f; border:1px solid #235b3c; border-radius:8px; padding:10px 12px; font-size:13px; color:#bff0d0; }
+.jm-rod{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:12px 16px 16px; border-top:1px solid #1d2c44; flex-wrap:wrap; }
+.jm-nota{ font-size:11.5px; color:#9fb0c7; }
+.jm-nota b{ color:#9fe6bd; }
+.jm-rod-btns{ display:flex; gap:8px; }
 `;

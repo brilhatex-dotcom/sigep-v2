@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { headers } from "next/headers";
 
 /* =========================================================================
    src/lib/auditoria.ts  — registro central de auditoria.
@@ -18,6 +19,7 @@ import { authOptions } from "@/lib/auth";
      });
 
    O autor (quem fez) e descoberto sozinho pela sessao.
+   O IP e capturado sozinho dos headers da requisicao (x-forwarded-for).
    Nunca quebra a acao principal: se a auditoria falhar, apenas loga no console.
    ========================================================================= */
 
@@ -31,6 +33,7 @@ type RegistroEntrada = {
   // opcional: passar autor manualmente (ex: no proprio login, antes da sessao existir)
   autorLogin?: string | null;
   autorNome?: string | null;
+  // opcional: passar IP manualmente; se ausente, e capturado dos headers.
   ip?: string | null;
 };
 
@@ -40,6 +43,27 @@ function comoJson(v: unknown): string | null {
     return JSON.stringify(v);
   } catch {
     return String(v);
+  }
+}
+
+/* Captura o IP da requisicao atual a partir dos headers.
+   Funciona em Route Handlers, Server Actions e Server Components do Next 14.
+   Ordem de preferencia: x-forwarded-for (primeiro IP) > x-real-ip.
+   Fora de um contexto de requisicao, retorna null sem quebrar. */
+function capturarIp(): string | null {
+  try {
+    const h = headers();
+    const xff = h.get("x-forwarded-for");
+    if (xff) {
+      const primeiro = xff.split(",")[0]?.trim();
+      if (primeiro) return primeiro;
+    }
+    const real = h.get("x-real-ip");
+    if (real) return real.trim();
+    return null;
+  } catch {
+    // headers() lanca se chamado fora de um contexto de requisicao
+    return null;
   }
 }
 
@@ -56,6 +80,9 @@ export async function registrar(e: RegistroEntrada): Promise<void> {
       }
     }
 
+    // IP: usa o passado manualmente; senao captura dos headers da requisicao.
+    const ip = e.ip ?? capturarIp();
+
     await prisma.auditoria.create({
       data: {
         acao: e.acao,
@@ -66,7 +93,7 @@ export async function registrar(e: RegistroEntrada): Promise<void> {
         depois: comoJson(e.depois),
         autorLogin,
         autorNome,
-        ip: e.ip ?? null,
+        ip,
       } as any,
     });
   } catch (err) {

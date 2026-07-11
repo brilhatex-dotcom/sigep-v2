@@ -1,10 +1,29 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Providers from "@/components/Providers";
+import RegistrarSW from "@/components/RegistrarSW";
 
 export const metadata: Metadata = {
   title: "SIGEP 18º BPM",
   description: "Sistema de Gestão de Pessoal — 18º Batalhão de Polícia Militar",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "SIGEP",
+  },
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/icon-192.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#08111F",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -16,6 +35,7 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body>
         <Providers>{children}</Providers>
+        <RegistrarSW />
       </body>
     </html>
   );

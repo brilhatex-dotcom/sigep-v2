@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import AntiguidadeTabela, { MilitarLinha } from "@/components/AntiguidadeTabela";
 import { classificarPatente } from "@/lib/patentes";
-import { hojeLocal, montarIdsEmFerias, situacaoCalculada } from "@/lib/situacao";
+import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
 
 export const dynamic = "force-dynamic";
 
@@ -98,6 +98,11 @@ export default async function AntiguidadePage({
   const membros = await prisma.membroFerias.findMany();
   const idsFerias = montarIdsEmFerias(equipes, membros, hoje);
 
+  // licenca-premio de hoje
+  const equipesLicenca = await prisma.equipeLicencaPremio.findMany();
+  const membrosLicenca = await prisma.membroLicencaPremio.findMany();
+  const idsLicencaPremio = montarIdsEmLicencaPremio(equipesLicenca, membrosLicenca, hoje);
+
   const ordenados = [...militares].sort((a, b) => {
     // 1) posto/graduacao
     const pa = classificarPatente(a.postoGrad).ordem;
@@ -119,7 +124,7 @@ export default async function AntiguidadePage({
     id: m.id, postoGrad: m.postoGrad, numeroBarra: m.numeroBarra,
     nome: m.nome, nomeGuerra: m.nomeGuerra, matricula: m.matricula,
     rg: m.rg, cpf: m.cpf,
-    situacao: situacaoCalculada(m, idsFerias, hoje),
+    situacao: situacaoCalculada(m, idsFerias, hoje, idsLicencaPremio),
     lotacao: m.lotacao,
   }));
 
@@ -128,7 +133,7 @@ export default async function AntiguidadePage({
       <div className="mx-auto max-w-6xl">
         <h1 className="mb-1 text-2xl font-bold text-white">Efetivo por Antiguidade</h1>
         <p className="mb-5 text-sm text-[#94A3B8]">
-          Ordenado por posto e, dentro de cada posto, por data de promoção. Situação atualizada (férias/JMS de hoje).
+          Ordenado por posto e, dentro de cada posto, por data de promoção. Situação atualizada (férias/JMS/licença-prêmio de hoje).
         </p>
         <AntiguidadeTabela militares={linhas} postoInicial={searchParams.posto ?? ""} />
       </div>

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { exigirAdmin } from "@/lib/guard";
 import AppShell from "@/components/AppShell";
 import EfetivoLista from "@/components/EfetivoLista";
-import { hojeLocal, montarIdsEmFerias, situacaoCalculada } from "@/lib/situacao";
+import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +30,11 @@ export default async function EfetivoPage({
   const membros = await prisma.membroFerias.findMany();
   const idsFerias = montarIdsEmFerias(equipes, membros, hoje);
 
+  // licenca-premio de hoje
+  const equipesLicenca = await prisma.equipeLicencaPremio.findMany();
+  const membrosLicenca = await prisma.membroLicencaPremio.findMany();
+  const idsLicencaPremio = montarIdsEmLicencaPremio(equipesLicenca, membrosLicenca, hoje);
+
   // aplica situacao calculada e remove os campos extra
   const lista = militares
     .map((m) => ({
@@ -38,7 +43,7 @@ export default async function EfetivoPage({
       nome: m.nome,
       nomeGuerra: m.nomeGuerra,
       matricula: m.matricula,
-      situacao: situacaoCalculada(m, idsFerias, hoje),
+      situacao: situacaoCalculada(m, idsFerias, hoje, idsLicencaPremio),
       lotacao: m.lotacao,
       telefone: m.telefone,
     }))

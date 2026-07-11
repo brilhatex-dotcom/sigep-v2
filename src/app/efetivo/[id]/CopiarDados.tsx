@@ -11,6 +11,7 @@ import { Copy, Check } from "lucide-react";
      Oficial:  Maj QOE Herbert, mat. ..., ID PMMA ...   (sem nº/barra)
 
    Quadro (QOE/QOEM) so aparece para oficiais; vazio => QOEM por padrao.
+   A unidade ao final e sempre fixa: "do 18º BPM".
    ========================================================================= */
 
 type Dados = {
@@ -84,12 +85,12 @@ function montarTexto(d: Dados): string {
 
   const mat = soDigitos(d.matricula);
   const id = soDigitos(d.id);
-  const lotacao = (d.lotacao || "").trim();
 
   const fim: string[] = [];
   if (mat) fim.push(`matrícula n° ${mat}`);
   if (id) fim.push(`ID nº ${id}`);
-  if (lotacao) fim.push(`do ${lotacao}`);
+  // unidade fixa: sempre "do 18º BPM" (independente da lotacao do militar)
+  fim.push("do 18º BPM");
 
   return fim.length ? `${ident}, ${fim.join(", ")}` : ident;
 }

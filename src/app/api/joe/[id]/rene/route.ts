@@ -33,21 +33,37 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ error: "Nenhum candidato aprovado neste JOE ainda" }, { status: 400 });
     }
 
-    const fichas = await prisma.efetivo.findMany({
-      where: { id: { in: joe.inscricoes.map((i) => i.efetivoId) } },
-    });
+    // busca fichas SO dos inscritos que tem efetivoId (do 18)
+    const idsInternos = joe.inscricoes
+      .map((i) => i.efetivoId)
+      .filter((x): x is string => !!x);
+    const fichas = idsInternos.length
+      ? await prisma.efetivo.findMany({ where: { id: { in: idsInternos } } })
+      : [];
     const mapaFicha: Record<string, (typeof fichas)[number]> = {};
     for (const f of fichas) mapaFicha[f.id] = f;
 
     const pessoas = joe.inscricoes.map((insc, idx) => {
-      const f = mapaFicha[insc.efetivoId];
+      if (insc.efetivoId && mapaFicha[insc.efetivoId]) {
+        // militar do 18 BPM
+        const f = mapaFicha[insc.efetivoId];
+        return {
+          ord: String(idx + 1).padStart(2, "0"),
+          nome: f.nome || insc.efetivoId,
+          id: f.id || insc.efetivoId,
+          cpf: f.cpf || "",
+          upm: "18º BPM",
+          contato: f.telefone || "",
+        };
+      }
+      // militar externo (dados manuais)
       return {
         ord: String(idx + 1).padStart(2, "0"),
-        nome: f?.nome || insc.efetivoId,
-        id: f?.id || insc.efetivoId,
-        cpf: f?.cpf || "",
-        upm: "18º BPM",
-        contato: f?.telefone || "",
+        nome: insc.extNome || "—",
+        id: insc.extMatricula || "",
+        cpf: "",
+        upm: insc.extUnidade || "—",
+        contato: "",
       };
     });
 

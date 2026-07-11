@@ -2,12 +2,16 @@
 //  Situacao calculada (Opcao A: so mostra, nao altera o banco)
 //
 //  Prioridade:
-//   1) Esta de ferias HOJE (pelo plano)  -> "Férias"
-//   2) Esta em JMS HOJE (pelas datas)     -> "JMS"
-//   3) Caso contrario                     -> situacao da ficha
+//   1) Esta de ferias HOJE (pelo plano)         -> "Férias"
+//   2) Esta em JMS HOJE (pelas datas)            -> "JMS"
+//   3) Esta em Licenca-Premio HOJE (pelo plano)  -> "Licença-Prêmio"
+//   4) Caso contrario                            -> situacao da ficha
 //
 //  Uso: montar o conjunto de IDs em ferias (1x, no servidor) e
 //  chamar situacaoCalculada(militar, idsEmFerias, hoje) por linha.
+//  O 4o parametro (idsEmLicencaPremio) e opcional: telas que ainda
+//  nao foram atualizadas para ler o plano de licenca-premio continuam
+//  funcionando normalmente, so sem essa checagem extra.
 // ==========================================================
 
 function parseData(valor: string | null): Date | null {
@@ -55,10 +59,12 @@ export function estaEmJmsHoje(m: MilSituacao, hoje: Date): boolean {
 export function situacaoCalculada(
   m: MilSituacao,
   idsEmFerias: Set<string>,
-  hoje: Date
+  hoje: Date,
+  idsEmLicencaPremio?: Set<string>
 ): string {
   if (idsEmFerias.has(m.id)) return "Férias";
   if (estaEmJmsHoje(m, hoje)) return "JMS";
+  if (idsEmLicencaPremio && idsEmLicencaPremio.has(m.id)) return "Licença-Prêmio";
   return m.situacao && m.situacao.trim() ? m.situacao.trim() : "—";
 }
 
@@ -92,6 +98,35 @@ export function montarIdsEmFerias(
   const ids = new Set<string>();
   membros
     .filter((m) => m.anoGozo === ano && equipeEmFerias.has(m.numeroEquipe))
+    .forEach((m) => ids.add(m.idPmma));
+  return ids;
+}
+
+// Monta o conjunto de IDs que estao em Licenca-Premio hoje, a partir das
+// equipes (1 periodo cada) e membros do ano corrente.
+export function montarIdsEmLicencaPremio(
+  equipes: {
+    numeroEquipe: string;
+    anoGozo: string;
+    periodoInicio: string | null;
+    periodoFim: string | null;
+  }[],
+  membros: { idPmma: string; numeroEquipe: string; anoGozo: string }[],
+  hoje: Date
+): Set<string> {
+  const ano = String(hoje.getFullYear());
+  const equipeAtiva = new Set<string>();
+  equipes
+    .filter((e) => e.anoGozo === ano)
+    .forEach((e) => {
+      const i = parseData(e.periodoInicio);
+      const f = parseData(e.periodoFim);
+      if (i && f && i <= hoje && hoje <= f) equipeAtiva.add(e.numeroEquipe);
+    });
+
+  const ids = new Set<string>();
+  membros
+    .filter((m) => m.anoGozo === ano && equipeAtiva.has(m.numeroEquipe))
     .forEach((m) => ids.add(m.idPmma));
   return ids;
 }

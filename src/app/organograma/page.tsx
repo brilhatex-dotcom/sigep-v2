@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import OrganogramaArvore, { Contagens } from "@/components/OrganogramaArvore";
 import { ORGANOGRAMA, NoOrg, pertenceAoNo } from "@/lib/organograma";
-import { hojeLocal, montarIdsEmFerias, situacaoCalculada } from "@/lib/situacao";
+import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
 import {
   calcularStatusUnidades,
   mapaMinimos,
@@ -42,19 +42,24 @@ export default async function OrganogramaPage() {
   const membros = await prisma.membroFerias.findMany();
   const idsFerias = montarIdsEmFerias(equipes, membros, hoje);
 
+  // licenca-premio de hoje
+  const equipesLicenca = await prisma.equipeLicencaPremio.findMany();
+  const membrosLicenca = await prisma.membroLicencaPremio.findMany();
+  const idsLicencaPremio = montarIdsEmLicencaPremio(equipesLicenca, membrosLicenca, hoje);
+
   // contagem total por no (efetivo lotado, como antes)
   const lotacoes = militares.map((m) => m.lotacao);
   const contagens: Contagens = {};
   contar(ORGANOGRAMA, lotacoes, contagens);
 
-  // situacao calculada de cada militar (Pronto / Ferias / JMS / ...)
+  // situacao calculada de cada militar (Pronto / Ferias / JMS / Licença-Prêmio / ...)
   const comSituacao = militares.map((m) => ({
     id: m.id,
     lotacao: m.lotacao,
     situacao: m.situacao,
     jmsDataInicio: m.jmsDataInicio,
     jmsDataRetorno: m.jmsDataRetorno,
-    situacaoCalc: situacaoCalculada(m, idsFerias, hoje),
+    situacaoCalc: situacaoCalculada(m, idsFerias, hoje, idsLicencaPremio),
   }));
 
   // status de efetivo minimo por unidade controlada

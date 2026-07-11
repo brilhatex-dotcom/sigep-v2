@@ -11,11 +11,13 @@ export const dynamic = "force-dynamic";
    POST   body { acao: "candidatar" }                  (policial)
           body { acao: "cancelar" }                    (policial, tira a propria inscricao)
           body { acao: "decidir", inscricaoId, decisao: "aprovado"|"recusado" }  (admin)
+          body { acao: "inscrever_manual", ... }       (admin/P1 inscreve, ja aprovado)
           body { acao: "encerrar" | "reabrir" }        (admin)
    DELETE -> exclui o JOE inteiro                       (admin)
 
-   Regra de horario: um policial nao pode ter 2 inscricoes (pendente ou
-   aprovada) em JOE cujos intervalos de tempo se sobrepoem no mesmo dia.
+   inscrever_manual aceita:
+     - militar do 18: { efetivoId }
+     - militar de fora: { extNome, extMatricula, extPostoGrad, extUnidade }
    ========================================================================= */
 
 function ehAdmin(perfil?: string | null): boolean {
@@ -23,8 +25,7 @@ function ehAdmin(perfil?: string | null): boolean {
   return p !== "" && p !== "policial";
 }
 
-// Descobre o ID PMMA (efetivo) do usuario logado. Tenta a sessao; se nao
-// houver, busca o Usuario no banco por id/login/email e le o refEfetivo.
+// Descobre o ID PMMA (efetivo) do usuario logado.
 async function efetivoIdDaSessao(session: any): Promise<string | null> {
   const u = session?.user || {};
   if (u.refEfetivo) return String(u.refEfetivo);
@@ -39,7 +40,6 @@ async function efetivoIdDaSessao(session: any): Promise<string | null> {
   return null;
 }
 
-
 // "HH:MM" -> minutos. Trata fim <= inicio como virada de dia (+24h).
 function intervalo(data: string, hi: string, hf: string): { ini: number; fim: number } {
   const m = (h: string) => {
@@ -48,12 +48,12 @@ function intervalo(data: string, hi: string, hf: string): { ini: number; fim: nu
   };
   let ini = m(hi);
   let fim = m(hf);
-  if (fim <= ini) fim += 24 * 60; // passou da meia-noite
+  if (fim <= ini) fim += 24 * 60;
   return { ini, fim };
 }
 
 function choca(aData: string, aHi: string, aHf: string, bData: string, bHi: string, bHf: string): boolean {
-  if (aData !== bData) return false; // (simplificacao: mesmo dia)
+  if (aData !== bData) return false;
   const A = intervalo(aData, aHi, aHf);
   const B = intervalo(bData, bHi, bHf);
   return A.ini < B.fim && B.ini < A.fim;
@@ -87,7 +87,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       const ja = joe.inscricoes.find((i) => i.efetivoId === meuEfetivoId);
       if (ja) return NextResponse.json({ error: "Voce ja se candidatou a este JOE" }, { status: 400 });
 
-      // checa conflito de horario com inscricoes ativas em outros JOE
       const minhasAtivas = await prisma.joeInscricao.findMany({
         where: { efetivoId: meuEfetivoId, status: { in: ["pendente", "aprovado"] } },
         include: { joe: true },
@@ -103,7 +102,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       }
 
       await prisma.joeInscricao.create({
-        data: { joeId, efetivoId: meuEfetivoId, status: "pendente" },
+        data: { joeId, efetivoId: meuEfetivoId, status: "pendente", origem: "auto" },
       });
       return NextResponse.json({ ok: true });
     }
@@ -117,6 +116,69 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         return NextResponse.json({ error: "Inscricao ja aprovada; fale com o P1" }, { status: 400 });
       }
       await prisma.joeInscricao.delete({ where: { id: minha.id } });
+      return NextResponse.json({ ok: true });
+    }
+
+    /* ---------- ADMIN: inscrever manualmente (ja aprovado) ---------- */
+    if (acao === "inscrever_manual") {
+      if (!admin) return NextResponse.json({ error: "Apenas o P1 inscreve" }, { status: 403 });
+
+      const efetivoId = body.efetivoId ? String(body.efetivoId).trim() : null;
+      const extNome = body.extNome ? String(body.extNome).trim() : null;
+      const extMatricula = body.extMatricula ? String(body.extMatricula).trim() : null;
+      const extPostoGrad = body.extPostoGrad ? String(body.extPostoGrad).trim() : null;
+      const extUnidade = body.extUnidade ? String(body.extUnidade).trim() : null;
+
+      // valida: ou e do banco (efetivoId) ou e externo (extNome no minimo)
+      if (!efetivoId && !extNome) {
+        return NextResponse.json({ error: "Informe um militar do efetivo ou os dados do militar externo" }, { status: 400 });
+      }
+
+      // checa vagas (aprovados nao podem passar do total)
+      const aprovados = joe.inscricoes.filter((i) => i.status === "aprovado").length;
+      if (aprovados >= joe.vagas) {
+        return NextResponse.json({ error: "Todas as vagas ja foram preenchidas" }, { status: 400 });
+      }
+
+      // se for do banco, evita duplicata e valida que existe
+      let nomeParaAuditoria = extNome || "militar externo";
+      if (efetivoId) {
+        const ja = joe.inscricoes.find((i) => i.efetivoId === efetivoId);
+        if (ja) {
+          return NextResponse.json({ error: "Este militar ja esta inscrito neste JOE" }, { status: 400 });
+        }
+        const ficha = await prisma.efetivo.findUnique({
+          where: { id: efetivoId },
+          select: { postoGrad: true, nome: true, nomeGuerra: true },
+        });
+        if (!ficha) {
+          return NextResponse.json({ error: "Militar nao encontrado no efetivo" }, { status: 404 });
+        }
+        nomeParaAuditoria = [ficha.postoGrad || "", ficha.nomeGuerra || ficha.nome || ""].filter(Boolean).join(" ").trim();
+      }
+
+      await prisma.joeInscricao.create({
+        data: {
+          joeId,
+          efetivoId: efetivoId,                 // null se externo
+          extNome: efetivoId ? null : extNome,
+          extMatricula: efetivoId ? null : extMatricula,
+          extPostoGrad: efetivoId ? null : extPostoGrad,
+          extUnidade: efetivoId ? null : extUnidade,
+          origem: "p1",
+          status: "aprovado",                   // P1 ja inscreve aprovado
+          decididoEm: new Date(),
+          decididoPor: (session.user as any).login || session.user.name || null,
+        },
+      });
+
+      await registrar({
+        acao: "inscrever_joe_manual",
+        alvo: efetivoId || extMatricula || extNome,
+        alvoNome: nomeParaAuditoria,
+        detalhe: `JOE: ${joe.evento} (inscricao manual pelo P1${efetivoId ? "" : " - militar externo"})`,
+      });
+
       return NextResponse.json({ ok: true });
     }
 
@@ -147,17 +209,20 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         },
       });
 
-      // nome do candidato para a auditoria
-      const fichaC = await prisma.efetivo.findUnique({
-        where: { id: insc.efetivoId },
-        select: { postoGrad: true, nome: true, nomeGuerra: true },
-      });
-      const nomeCand = fichaC
-        ? [fichaC.postoGrad || "", (fichaC.nomeGuerra || fichaC.nome || "")].filter(Boolean).join(" ").trim()
-        : insc.efetivoId;
+      // nome do candidato para a auditoria (do banco ou externo)
+      let nomeCand = insc.extNome || insc.efetivoId || "—";
+      if (insc.efetivoId) {
+        const fichaC = await prisma.efetivo.findUnique({
+          where: { id: insc.efetivoId },
+          select: { postoGrad: true, nome: true, nomeGuerra: true },
+        });
+        if (fichaC) {
+          nomeCand = [fichaC.postoGrad || "", (fichaC.nomeGuerra || fichaC.nome || "")].filter(Boolean).join(" ").trim();
+        }
+      }
       await registrar({
         acao: decisao === "aprovado" ? "aprovar_joe" : "recusar_joe",
-        alvo: insc.efetivoId,
+        alvo: insc.efetivoId || insc.extMatricula || insc.id,
         alvoNome: nomeCand,
         detalhe: `JOE: ${joe.evento}`,
       });

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import LotacaoLista, { GrupoLot } from "@/components/LotacaoLista";
 import { classificarPatente } from "@/lib/patentes";
-import { hojeLocal, montarIdsEmFerias, situacaoCalculada } from "@/lib/situacao";
+import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
 import { lotacaoLimpa } from "@/lib/formatarLotacao";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +28,11 @@ export default async function LotacaoPage() {
   const equipes = await prisma.equipeFerias.findMany();
   const membros = await prisma.membroFerias.findMany();
   const idsFerias = montarIdsEmFerias(equipes, membros, hoje);
+
+  // licenca-premio de hoje
+  const equipesLicenca = await prisma.equipeLicencaPremio.findMany();
+  const membrosLicenca = await prisma.membroLicencaPremio.findMany();
+  const idsLicencaPremio = montarIdsEmLicencaPremio(equipesLicenca, membrosLicenca, hoje);
 
   const mapa = new Map<string, typeof militares>();
   militares.forEach((m) => {
@@ -55,7 +60,7 @@ export default async function LotacaoPage() {
           nome: m.nome,
           nomeGuerra: m.nomeGuerra,
           matricula: m.matricula,
-          situacao: situacaoCalculada(m, idsFerias, hoje),
+          situacao: situacaoCalculada(m, idsFerias, hoje, idsLicencaPremio),
         })),
     }))
     .sort((a, b) => a.lotacao.localeCompare(b.lotacao));

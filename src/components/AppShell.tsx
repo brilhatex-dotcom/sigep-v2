@@ -76,6 +76,7 @@ const NAV: Secao[] = [
     titulo: "Operacional",
     itens: [
       { rotulo: "Plano de Férias", href: "/ferias", Icone: Palmtree, disponivel: true, adminOnly: true },
+      { rotulo: "Licença-Prêmio", href: "/licenca-premio", Icone: Award, disponivel: true, adminOnly: true },
       { rotulo: "Disciplinar", Icone: Gavel, adminOnly: true },
       { rotulo: "JOE", href: "/joe", Icone: ClipboardList, disponivel: true },
       { rotulo: "Requerimentos", href: "/requerimentos", Icone: FileText, disponivel: true },
@@ -126,6 +127,10 @@ function tituloAtual(pathname: string): string {
         }
       }
     }
+  }
+  // rotulos fora do NAV
+  if (pathname === "/trocar-senha" || pathname.startsWith("/trocar-senha/")) {
+    return "Trocar Senha";
   }
   return melhor;
 }
@@ -254,6 +259,35 @@ export default function AppShell({
             </ul>
           </div>
         ))}
+
+        {/* Conta: visivel a todos os perfis */}
+        <div className="mb-5">
+          <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#94A3B8]/60">
+            Conta
+          </p>
+          <ul className="space-y-1">
+            <li>
+              <Link
+                href="/trocar-senha"
+                onClick={() => setAberto(false)}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                  pathname === "/trocar-senha" || pathname.startsWith("/trocar-senha/")
+                    ? "ui-nav-ativo font-semibold text-white"
+                    : "text-[#94A3B8] hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                <KeyRound
+                  className={`h-[18px] w-[18px] ${
+                    pathname === "/trocar-senha" || pathname.startsWith("/trocar-senha/")
+                      ? "text-[#D4AF37]"
+                      : ""
+                  }`}
+                />
+                Trocar Senha
+              </Link>
+            </li>
+          </ul>
+        </div>
       </nav>
 
       <div className="border-t border-white/5 px-5 py-3 text-[10px] text-[#94A3B8]/50">
@@ -323,6 +357,15 @@ export default function AppShell({
                 podeEditar={!!meuEfetivoId}
               />
             </div>
+
+            <Link
+              href="/trocar-senha"
+              title="Trocar senha"
+              className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#94A3B8] transition hover:border-[#D4AF37]/40 hover:bg-[#D4AF37]/10 hover:text-[#D4AF37]"
+            >
+              <KeyRound className="h-4 w-4" />
+              <span className="hidden sm:inline">Senha</span>
+            </Link>
 
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}

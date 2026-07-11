@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import { classificarPatente } from "@/lib/patentes";
 import { acharNo, pertenceAoNo } from "@/lib/organograma";
-import { hojeLocal, montarIdsEmFerias, situacaoCalculada } from "@/lib/situacao";
+import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
 import { ArrowLeft, ChevronRight, Users } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -45,9 +45,14 @@ export default async function NoOrganogramaPage({
   const membros = await prisma.membroFerias.findMany();
   const idsFerias = montarIdsEmFerias(equipes, membros, hoje);
 
+  // licenca-premio de hoje
+  const equipesLicenca = await prisma.equipeLicencaPremio.findMany();
+  const membrosLicenca = await prisma.membroLicencaPremio.findMany();
+  const idsLicencaPremio = montarIdsEmLicencaPremio(equipesLicenca, membrosLicenca, hoje);
+
   const lista = todos
     .filter((m) => pertenceAoNo(m.lotacao, no))
-    .map((m) => ({ ...m, sit: situacaoCalculada(m, idsFerias, hoje) }))
+    .map((m) => ({ ...m, sit: situacaoCalculada(m, idsFerias, hoje, idsLicencaPremio) }))
     .sort((a, b) => {
       const pa = classificarPatente(a.postoGrad).ordem;
       const pb = classificarPatente(b.postoGrad).ordem;

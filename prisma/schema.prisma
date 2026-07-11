@@ -296,15 +296,22 @@ model Joe {
 model JoeInscricao {
   id          String   @id @default(cuid())
   joeId       String   @map("joe_id")
-  efetivoId   String   @map("efetivo_id")
-  status      String   @default("pendente")           // "pendente" | "aprovado" | "recusado"
+  efetivoId   String?  @map("efetivo_id")   // opcional: null = militar de fora do 18
+
+  // dados manuais (usados quando efetivoId e null, militar de outra OPM)
+  extNome      String? @map("ext_nome")
+  extMatricula String? @map("ext_matricula")
+  extPostoGrad String? @map("ext_posto_grad")
+  extUnidade   String? @map("ext_unidade")
+
+  origem      String   @default("auto")     // "auto" = policial se inscreveu | "p1" = P/1 inscreveu
+  status      String   @default("pendente")
   inscritoEm  DateTime @default(now()) @map("inscrito_em")
   decididoEm  DateTime? @map("decidido_em")
   decididoPor String?  @map("decidido_por")
 
   joe         Joe      @relation(fields: [joeId], references: [id], onDelete: Cascade)
 
-  @@unique([joeId, efetivoId])
   @@map("joe_inscricoes")
 }
 // ==========================================================
@@ -493,4 +500,55 @@ model PerfilRequerente {
   atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
   @@map("perfis_requerente")
+}
+// ==========================================================
+//  >>> ANEXAR AO FINAL DO prisma/schema.prisma <
+//  Inscricoes de Web Push: cada navegador/dispositivo que
+//  aceitou notificacoes gera uma inscricao (endpoint + chaves).
+//  Um usuario pode ter varias (celular, desktop, etc.).
+//  Depois rode: npx prisma db push
+// ==========================================================
+
+model PushSubscription {
+  id         String   @id @default(cuid())
+  login      String   @map("login")            // login do usuario dono da inscricao
+  endpoint   String   @unique @map("endpoint")  // URL unica do navegador
+  p256dh     String   @map("p256dh")            // chave publica do cliente
+  auth       String   @map("auth")              // segredo do cliente
+  userAgent  String?  @map("user_agent")
+  criadoEm   DateTime @default(now()) @map("criado_em")
+
+  @@index([login])
+  @@map("push_subscriptions")
+}
+// ==========================================================
+//  >>> ANEXAR AO FINAL DO prisma/schema.prisma <
+//  Licenca-Premio: mesma logica das Equipes de Ferias, porem
+//  com 1 unico periodo (90 dias) e 4 equipes por ano.
+//  Depois rode: npx prisma db push
+// ==========================================================
+
+model EquipeLicencaPremio {
+  numeroEquipe  String  @map("NumeroEquipe")
+  anoGozo       String  @map("AnoGozo")
+  periodoInicio String? @map("Periodo_Inicio")
+  periodoFim    String? @map("Periodo_Fim")
+
+  membros MembroLicencaPremio[]
+
+  @@id([numeroEquipe, anoGozo])
+  @@map("equipes_licenca_premio")
+}
+
+model MembroLicencaPremio {
+  id           String   @id @default(cuid())
+  idPmma       String   @map("ID_PMMA")
+  numeroEquipe String   @map("NumeroEquipe")
+  anoGozo      String   @map("AnoGozo")
+  criadoEm     DateTime @default(now()) @map("criado_em")
+
+  equipe EquipeLicencaPremio @relation(fields: [numeroEquipe, anoGozo], references: [numeroEquipe, anoGozo])
+
+  @@unique([idPmma, anoGozo])
+  @@map("membros_licenca_premio")
 }

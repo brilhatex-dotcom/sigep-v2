@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AtivarNotificacoes from "@/components/AtivarNotificacoes";
 import { prisma } from "@/lib/prisma";
 import { exigirAdmin } from "@/lib/guard";
 import AppShell from "@/components/AppShell";
@@ -7,7 +8,7 @@ import BannerAlertas, { Alerta } from "@/components/BannerAlertas";
 import FraseRotativa from "@/components/FraseRotativa";
 import JmsTabela, { LinhaJms } from "@/components/JmsTabela";
 import { classificarPatente } from "@/lib/patentes";
-import { montarIdsEmFerias, situacaoCalculada } from "@/lib/situacao";
+import { montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
 import {
   hojeBR, paraData, dataBR, diffDias, idade, diasAteAniversario, tempoServico,
 } from "@/lib/datas";
@@ -39,11 +40,16 @@ export default async function DashboardPage() {
   const membrosTodos = await prisma.membroFerias.findMany();
   const idsFerias = montarIdsEmFerias(equipesTodas, membrosTodos, hoje);
 
+  // licenca-premio de hoje (mesma logica das ferias, 1 periodo por equipe)
+  const equipesLicencaTodas = await prisma.equipeLicencaPremio.findMany();
+  const membrosLicencaTodos = await prisma.membroLicencaPremio.findMany();
+  const idsLicencaPremio = montarIdsEmLicencaPremio(equipesLicencaTodas, membrosLicencaTodos, hoje);
+
   // ---- situacao + baldes (usando situacao CALCULADA) ----
   const porSituacao = new Map<string, number>();
   let prontos = 0, licencas = 0, jmsCount = 0, reservaCount = 0, feriasCount = 0;
   militares.forEach((m) => {
-    const s = situacaoCalculada(m, idsFerias, hoje);
+    const s = situacaoCalculada(m, idsFerias, hoje, idsLicencaPremio);
     porSituacao.set(s, (porSituacao.get(s) ?? 0) + 1);
     const low = s.toLowerCase();
     if (low.includes("pronto")) prontos++;
@@ -172,14 +178,6 @@ export default async function DashboardPage() {
   // total de militares de ferias hoje (soma das equipes em ferias)
   const totalMilitaresFerias = equipesEmFerias.reduce((s,e)=>s+e.qtd,0);
   const pctFerias= total? Math.round((totalMilitaresFerias/total)*100):0;
-
-  // ---- reserva: tempo de servico (sem cor) ----
-  const tempoServ = militares
-    .map((m)=>({ m, inc:paraData(m.dataIncorp) }))
-    .filter((x)=>x.inc)
-    .map((x)=>({ ...x.m, ts:tempoServico(x.inc!,hoje) }))
-    .sort((a,b)=> (b.ts.anos*12+b.ts.meses)-(a.ts.anos*12+a.ts.meses))
-    .slice(0,6);
 
   const maxSit=Math.max(1,...situacoes.map((s)=>s.valor));
   const pctOper= total? Math.round((prontos/total)*100):0;
@@ -317,29 +315,8 @@ export default async function DashboardPage() {
           </section>
         </div>
 
-        {/* reserva: tempo de servico */}
-        <section className="ui-card p-5">
-          <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-            <Hourglass className="h-4 w-4 text-[#D4AF37]" /> Maior tempo de serviço
-          </h2>
-          {tempoServ.length===0 ? (
-            <p className="py-8 text-center text-sm text-[#94A3B8]">Sem data de incorporação cadastrada.</p>
-          ):(
-            <ul className="grid gap-2 sm:grid-cols-2">
-              {tempoServ.map((m)=>(
-                <li key={m.id} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
-                  <span className="text-sm text-white">
-                    <span className="text-[#94A3B8]">{m.postoGrad?`${m.postoGrad} `:""}</span>
-                    {m.nomeGuerra||m.nome}
-                  </span>
-                  <span className="text-xs font-semibold text-[#D4AF37]">
-                    {m.ts.anos}a {m.ts.meses}m
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        {/* Notificacoes no celular (movido para o final) */}
+        <AtivarNotificacoes />
       </div>
     </AppShell>
   );

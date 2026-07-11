@@ -9,11 +9,45 @@ type Grupo = "pessoal" | "funcional";
 type Campo = { key: string; label: string; tipo?: "texto" | "area" };
 type Secao = { titulo: string; grupo: Grupo; campos: Campo[] };
 
+// Hierarquia oficial (do mais alto para o mais baixo) usada no dropdown de posto.
+const POSTOS = [
+  "Coronel",
+  "Tenente-Coronel",
+  "Major",
+  "Capitão",
+  "1º Tenente",
+  "2º Tenente",
+  "Aspirante a Oficial",
+  "Subtenente",
+  "1º Sargento",
+  "2º Sargento",
+  "3º Sargento",
+  "Cabo",
+  "Soldado",
+];
+
+// Opcoes fixas do dropdown de Situacao. ATENCAO: alguns desses textos sao
+// reconhecidos por trechos do sistema (dashboard, badges de cor, filtros) via
+// correspondencia de substring (ex.: "licen", "jms", "pronto", "reserva",
+// "ltip"). Nao renomear sem checar lib/situacao.ts e os componentes que usam
+// corSituacao/porSituacao.
+const SITUACOES = [
+  "Pronto",
+  "Licença",
+  "LTIP",
+  "Reserva",
+  "JMS",
+  "Férias",
+  "Licença-Prêmio",
+  "Agregação",
+];
+
 const SECOES: Secao[] = [
   {
     titulo: "Identificação e dados funcionais",
     grupo: "funcional",
     campos: [
+      { key: "id", label: "ID PMMA (não editável)" },
       { key: "nome", label: "Nome completo" },
       { key: "nomeGuerra", label: "Nome de guerra" },
       { key: "postoGrad", label: "Posto/Graduação" },
@@ -146,6 +180,8 @@ export default function EfetivoForm({
       inicial[c.key] = CAMPOS_DATA.has(c.key) ? fmtData(bruto) : bruto;
     })
   );
+  // id nao esta nas SECOES (e somente leitura, tratado a parte)
+  inicial["id"] = militar["id"] ?? "";
 
   const [form, setForm] = useState(inicial);
   const [salvando, setSalvando] = useState(false);
@@ -196,6 +232,7 @@ export default function EfetivoForm({
     setErro("");
     setSalvando(true);
 
+    // ID nunca e enviado no payload de update (e a chave primaria, imutavel).
     const payload: Record<string, string> = {};
     SECOES.forEach((s) => {
       if (podeEditar(s.grupo)) {
@@ -249,6 +286,23 @@ export default function EfetivoForm({
               )}
             </h2>
 
+            {/* ID PMMA: visivel no topo da primeira secao, sempre somente-leitura */}
+            {secao.titulo === "Identificação e dados funcionais" && (
+              <div className="mb-4 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
+                <div>
+                  <label className="mb-1 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+                    <Lock className="h-3 w-3" /> ID PMMA (não editável)
+                  </label>
+                  <input
+                    type="text"
+                    value={form.id}
+                    disabled
+                    className="w-full cursor-not-allowed rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white/60 outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
               {secao.campos.map((c) => (
                 <div
@@ -266,6 +320,37 @@ export default function EfetivoForm({
                       rows={3}
                       className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50 disabled:opacity-50"
                     />
+                  ) : c.key === "postoGrad" && editavel ? (
+                    // posto: dropdown com a hierarquia oficial
+                    <select
+                      value={form[c.key]}
+                      onChange={(e) => mudar(c.key, e.target.value)}
+                      className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                    >
+                      <option value="">Selecione...</option>
+                      {POSTOS.map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                      {/* se o valor atual nao estiver na lista (caso raro), preserva-o */}
+                      {form[c.key] && !POSTOS.includes(form[c.key]) && (
+                        <option value={form[c.key]}>{form[c.key]}</option>
+                      )}
+                    </select>
+                  ) : c.key === "situacao" && editavel ? (
+                    // situacao: dropdown com os valores reconhecidos pelo sistema
+                    <select
+                      value={form[c.key]}
+                      onChange={(e) => mudar(c.key, e.target.value)}
+                      className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                    >
+                      <option value="">Selecione...</option>
+                      {SITUACOES.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                      {form[c.key] && !SITUACOES.includes(form[c.key]) && (
+                        <option value={form[c.key]}>{form[c.key]}</option>
+                      )}
+                    </select>
                   ) : c.key === "lotacao" && editavel ? (
                     // campo lotacao com autocomplete (sugestoes das lotacoes existentes)
                     <div className="relative" ref={lotBoxRef}>

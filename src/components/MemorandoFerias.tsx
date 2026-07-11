@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Printer, Pencil, Check, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
+import { X, Printer, Pencil, Check, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, FileDown, Loader2 } from "lucide-react";
 
 export type DadosMemorando = {
   numero: string;
@@ -180,6 +180,7 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
   const [editando, setEditando] = useState(false);
   const [fontSize, setFontSize] = useState(12);
   const [montado, setMontado] = useState(false);
+  const [baixandoWord, setBaixandoWord] = useState(false);
 
   useEffect(() => { setMontado(true); }, []);
 
@@ -214,6 +215,52 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
     document.execCommand(cmd, false, undefined);
   }
 
+  // Gera e baixa o memorando em .docx, usando o conteudo ATUAL dos campos
+  // (inclui qualquer edicao feita no editor).
+  async function baixarWord() {
+    setBaixandoWord(true);
+    try {
+      const payload = {
+        numero: campos.numero.current,
+        ano,
+        cidadeData: campos.cidadeData.current,
+        de: campos.de.current,
+        ao: campos.ao.current,
+        assunto: campos.assunto.current,
+        inicioExtenso: campos.inicioExtenso.current,
+        dias: campos.dias.current,
+        exercicio: campos.exercicio.current,
+        apresExtenso: campos.apresExtenso.current,
+        observacao: campos.observacao.current,
+        assinaturaAo: campos.assinaturaAo.current,
+        nomeCmt: campos.nomeCmt.current,
+        cargoCmt: campos.cargoCmt.current,
+      };
+      const res = await fetch("/api/ferias/memorando-docx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        alert("Não foi possível gerar o Word.");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Memorando_${campos.numero.current}_${ano}_18BPM.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Erro de conexão ao gerar o Word.");
+    } finally {
+      setBaixandoWord(false);
+    }
+  }
+
   const C = ({ campo, style, multiline }: {
     campo: keyof typeof campos; style?: React.CSSProperties; multiline?: boolean;
   }) => (
@@ -226,6 +273,13 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
       onCommit={(novo) => { campos[campo].current = novo; }}
     />
   );
+
+  // estilo compartilhado das celulas Do/Ao/Assunto — sem borda, sem fundo,
+  // sobrescrevendo qualquer CSS global de tabela do projeto.
+  const celaSemBorda: React.CSSProperties = {
+    border: "none",
+    background: "transparent",
+  };
 
   return (
     <Portal montado={montado}>
@@ -265,6 +319,11 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
           <button onClick={() => window.print()}
             className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium hover:bg-blue-700">
             <Printer className="h-4 w-4" /> Imprimir / PDF
+          </button>
+          <button onClick={baixarWord} disabled={baixandoWord}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-1.5 text-sm font-medium hover:bg-sky-800 disabled:opacity-60">
+            {baixandoWord ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+            {baixandoWord ? "Gerando..." : "Baixar Word"}
           </button>
           <button onClick={onFechar}
             className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium hover:bg-red-700">
@@ -341,21 +400,21 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
           Memorando nº <C campo="numero" />/{ano} – 18º BPM
         </p>
 
-        {/* Do / Ao / Assunto */}
+        {/* Do / Ao / Assunto — tabela SEM borda (sobrescreve qualquer CSS global) */}
         <div style={{ marginLeft: "60mm", marginBottom: "6mm" }}>
-          <table style={{ borderCollapse: "collapse" }}>
+          <table style={{ borderCollapse: "collapse", border: "none" }}>
             <tbody>
               <tr>
-                <td style={{ fontWeight: "bold", verticalAlign: "top", paddingRight: "3mm", whiteSpace: "nowrap" }}>Do:</td>
-                <td style={{ verticalAlign: "top", paddingBottom: "0.5mm" }}><C campo="de" /></td>
+                <td style={{ ...celaSemBorda, fontWeight: "bold", verticalAlign: "top", paddingRight: "3mm", whiteSpace: "nowrap" }}>Do:</td>
+                <td style={{ ...celaSemBorda, verticalAlign: "top", paddingBottom: "0.5mm" }}><C campo="de" /></td>
               </tr>
               <tr>
-                <td style={{ fontWeight: "bold", verticalAlign: "top", paddingRight: "3mm", whiteSpace: "nowrap" }}>Ao:</td>
-                <td style={{ verticalAlign: "top", paddingBottom: "0.5mm" }}><C campo="ao" /></td>
+                <td style={{ ...celaSemBorda, fontWeight: "bold", verticalAlign: "top", paddingRight: "3mm", whiteSpace: "nowrap" }}>Ao:</td>
+                <td style={{ ...celaSemBorda, verticalAlign: "top", paddingBottom: "0.5mm" }}><C campo="ao" /></td>
               </tr>
               <tr>
-                <td style={{ fontWeight: "bold", verticalAlign: "top", paddingRight: "3mm", whiteSpace: "nowrap" }}>Assunto:</td>
-                <td style={{ verticalAlign: "top" }}><C campo="assunto" /></td>
+                <td style={{ ...celaSemBorda, fontWeight: "bold", verticalAlign: "top", paddingRight: "3mm", whiteSpace: "nowrap" }}>Assunto:</td>
+                <td style={{ ...celaSemBorda, verticalAlign: "top" }}><C campo="assunto" /></td>
               </tr>
             </tbody>
           </table>
@@ -429,6 +488,15 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
             outline: none !important;
             border: none !important;
             padding: 0 !important;
+          }
+          /* garante que a tabela Do/Ao/Assunto nunca imprima com borda,
+             mesmo que algum CSS global do projeto defina borda para table/td */
+          #memorando-print table,
+          #memorando-print table tr,
+          #memorando-print table td,
+          #memorando-print table th {
+            border: none !important;
+            background: transparent !important;
           }
           .print\\:hidden { display: none !important; }
           .print\\:border-0 { border: none !important; }

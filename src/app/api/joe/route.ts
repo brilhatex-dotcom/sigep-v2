@@ -12,7 +12,6 @@ export const dynamic = "force-dynamic";
            admin: todos, com candidatos. policial: todos, mas so com a
            contagem e a propria inscricao (sem expor os outros candidatos).
    POST -> cria um JOE (somente admin / P1).
-   Perfil vem de session.user.perfil (campo do model Usuario).
    ========================================================================= */
 
 function ehAdmin(perfil?: string | null): boolean {
@@ -20,8 +19,6 @@ function ehAdmin(perfil?: string | null): boolean {
   return p !== "" && p !== "policial";
 }
 
-// Descobre o ID PMMA (efetivo) do usuario logado. Tenta a sessao; se nao
-// houver, busca o Usuario no banco por id/login/email e le o refEfetivo.
 async function efetivoIdDaSessao(session: any): Promise<string | null> {
   const u = session?.user || {};
   if (u.refEfetivo) return String(u.refEfetivo);
@@ -35,7 +32,6 @@ async function efetivoIdDaSessao(session: any): Promise<string | null> {
   }
   return null;
 }
-
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -51,8 +47,14 @@ export async function GET() {
       include: { inscricoes: true },
     });
 
-    // Enriqudece com nomes do efetivo (uma consulta so).
-    const ids = Array.from(new Set(lista.flatMap((j) => j.inscricoes.map((i) => i.efetivoId))));
+    // Enriquece com nomes do efetivo (so dos inscritos do 18, com efetivoId).
+    const ids = Array.from(
+      new Set(
+        lista
+          .flatMap((j) => j.inscricoes.map((i) => i.efetivoId))
+          .filter((x): x is string => !!x)
+      )
+    );
     const fichas = ids.length
       ? await prisma.efetivo.findMany({
           where: { id: { in: ids } },
@@ -69,28 +71,27 @@ export async function GET() {
         : null;
 
       const base = {
-  id: j.id,
-  evento: j.evento,
-  local: j.local,
-  data: j.data,
-  horaInicio: j.horaInicio,
-  horaFim: j.horaFim,
-  vagas: j.vagas,
-  valor: j.valor,
-  observacao: j.observacao,
-  status: j.status,
-  // ---- campos da RENE ----
-  comandanteOp: j.comandanteOp,
-  horario: j.horario,
-  areaAtuacao: j.areaAtuacao,
-  processoSei: j.processoSei,
-  totalCandidatos: j.inscricoes.length,
-  totalAprovados: aprovados,
-  vagasRestantes: Math.max(0, j.vagas - aprovados),
-  minhaInscricao: minhaInscricao
-    ? { id: minhaInscricao.id, status: minhaInscricao.status }
-    : null,
-};
+        id: j.id,
+        evento: j.evento,
+        local: j.local,
+        data: j.data,
+        horaInicio: j.horaInicio,
+        horaFim: j.horaFim,
+        vagas: j.vagas,
+        valor: j.valor,
+        observacao: j.observacao,
+        status: j.status,
+        comandanteOp: j.comandanteOp,
+        horario: j.horario,
+        areaAtuacao: j.areaAtuacao,
+        processoSei: j.processoSei,
+        totalCandidatos: j.inscricoes.length,
+        totalAprovados: aprovados,
+        vagasRestantes: Math.max(0, j.vagas - aprovados),
+        minhaInscricao: minhaInscricao
+          ? { id: minhaInscricao.id, status: minhaInscricao.status }
+          : null,
+      };
 
       if (!admin) return base; // policial nao ve a lista dos outros candidatos
 
@@ -101,7 +102,13 @@ export async function GET() {
           efetivoId: i.efetivoId,
           status: i.status,
           inscritoEm: i.inscritoEm,
-          ficha: mapaFicha[i.efetivoId] || null,
+          origem: i.origem,
+          ficha: i.efetivoId ? mapaFicha[i.efetivoId] || null : null,
+          // dados de externo (quando efetivoId e null)
+          extNome: i.extNome,
+          extMatricula: i.extMatricula,
+          extPostoGrad: i.extPostoGrad,
+          extUnidade: i.extUnidade,
         })),
       };
     });
@@ -132,24 +139,23 @@ export async function POST(req: Request) {
     if (!horaInicio || !horaFim) return NextResponse.json({ error: "Informe os horarios" }, { status: 400 });
 
     const criado = await prisma.joe.create({
-  data: {
-    evento,
-    local: String(b.local || "").trim() || null,
-    data,
-    horaInicio,
-    horaFim,
-    vagas: Math.max(1, parseInt(String(b.vagas), 10) || 1),
-    valor: Math.max(0, parseFloat(String(b.valor)) || 0),
-    observacao: String(b.observacao || "").trim() || null,
-    status: "aberta",
-    criadoPor: (session.user as any).login || session.user.name || null,
-    // ---- campos da RENE ----
-    comandanteOp: String(b.comandanteOp || "").trim() || null,
-    horario: String(b.horario || "").trim() || null,
-    areaAtuacao: String(b.areaAtuacao || "").trim() || null,
-    processoSei: String(b.processoSei || "").trim() || null,
-  },
-});
+      data: {
+        evento,
+        local: String(b.local || "").trim() || null,
+        data,
+        horaInicio,
+        horaFim,
+        vagas: Math.max(1, parseInt(String(b.vagas), 10) || 1),
+        valor: Math.max(0, parseFloat(String(b.valor)) || 0),
+        observacao: String(b.observacao || "").trim() || null,
+        status: "aberta",
+        criadoPor: (session.user as any).login || session.user.name || null,
+        comandanteOp: String(b.comandanteOp || "").trim() || null,
+        horario: String(b.horario || "").trim() || null,
+        areaAtuacao: String(b.areaAtuacao || "").trim() || null,
+        processoSei: String(b.processoSei || "").trim() || null,
+      },
+    });
 
     await registrar({
       acao: "criar_joe",
