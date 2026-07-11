@@ -26,10 +26,16 @@ import type { ReactNode } from "react";
 
 type PermutaStatus = null | "pendente" | "aprovada" | "negada";
 type Slot = { titular: string; permuta: string | null; status?: PermutaStatus };
-type Tipo = "normal" | "feriado" | "facultativo" | "extraordinaria";
+type Tipo = "normal" | "feriado" | "facultativo" | "extraordinaria" | "joe";
 
 // Linha da tabela REFORÇO SEDE da escala extraordinaria (print 3).
 type ReforcoLinha = { postoGrad: string; nome: string };
+
+// Linha da escala da JOE/RENE (print 4, paisagem).
+type JoeEscalaLinha = {
+  nome: string; id: string; cpf: string;
+  local: string; horario: string; funcao: string;
+};
 
 type Expediente = {
   horario: string;
@@ -68,6 +74,9 @@ type Escala = {
   extraHorario?: string;
   extraUniforme?: string;
   extraReforco?: ReforcoLinha[];
+  // ---- Escala da JOE/RENE (tipo "joe", print 4, paisagem) ----
+  joeId?: string;
+  joeRows?: JoeEscalaLinha[];
 };
 
 type TipoAfastamento =
@@ -124,6 +133,7 @@ type Militar = {
   funcao?: string;
   lotacao?: string;
   quadro?: string;
+  cpf?: string;
 };
 
 const ABREV_POSTO: { re: RegExp; abbr: string }[] = [
@@ -189,6 +199,29 @@ function fmtMilitarPartes(m: Militar): ReforcoLinha {
   const postoGrad = barraValida(barra) ? [posto, "n\u00ba", barra].filter(Boolean).join(" ").trim() : posto;
   return { postoGrad, nome: capitalizaNome(m.nomeGuerra || m.nome || "") };
 }
+
+// CPF 00000000000 -> 000.000.000-00 (se nao tiver 11 digitos, devolve limpo).
+function formatCpf(cpf: string): string {
+  const so = (cpf || "").replace(/\D/g, "");
+  if (so.length === 11) return `${so.slice(0, 3)}.${so.slice(3, 6)}.${so.slice(6, 9)}-${so.slice(9)}`;
+  return (cpf || "").trim();
+}
+
+// JOE puxado da /api/joe (para a escala da JOE/RENE).
+type JoeLite = {
+  id: string;
+  evento: string;
+  local: string | null;
+  data: string;
+  horario?: string | null;
+  candidatos?: {
+    efetivoId: string | null;
+    status: string;
+    ficha: { nome?: string | null } | null;
+    extNome?: string | null;
+    extMatricula?: string | null;
+  }[];
+};
 
 /* ============================== CONSTANTES ============================== */
 
@@ -437,6 +470,8 @@ function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
     extraHorario: "",
     extraUniforme: "4\u00aaA (ARMADO E EQUIPADO)",
     extraReforco: [{ postoGrad: "", nome: "" }],
+    joeId: "",
+    joeRows: [],
   };
 }
 
@@ -594,6 +629,48 @@ function ReforcoTabela({
             </td>
           </tr>
         ))}
+      </tbody></table>
+      <button className="no-print mini add" onClick={add}>+ adicionar linha</button>
+    </div>
+  );
+}
+
+/* Tabela paisagem da escala da JOE/RENE (print 4):
+   Nº | NOME COMPLETO | ID | CPF | LOCAL DE EMPREGO | HORÁRIO DA JORNADA | FUNÇÃO. */
+function JoeEscalaTabela({ rows, onChange }: { rows: JoeEscalaLinha[]; onChange: (r: JoeEscalaLinha[]) => void }) {
+  const upd = (i: number, patch: Partial<JoeEscalaLinha>) =>
+    onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const rm = (i: number) => onChange(rows.filter((_, j) => j !== i));
+  const add = () => onChange([...rows, { nome: "", id: "", cpf: "", local: "", horario: "", funcao: "" }]);
+  return (
+    <div className="joe-esc">
+      <table className="tbl joe-esc-tbl"><tbody>
+        <tr>
+          <td className="lbl joe-c-ord">Nº</td>
+          <td className="lbl">NOME COMPLETO</td>
+          <td className="lbl joe-c-id">ID</td>
+          <td className="lbl joe-c-cpf">CPF</td>
+          <td className="lbl">LOCAL DE EMPREGO</td>
+          <td className="lbl">HORÁRIO DA JORNADA</td>
+          <td className="lbl">FUNÇÃO DESEMPENHADA</td>
+        </tr>
+        {rows.map((r, i) => (
+          <tr key={i}>
+            <td className="joe-c-ord">{String(i + 1).padStart(2, "0")}</td>
+            <td className="val-c"><Editable value={r.nome} placeholder="nome completo" onChange={(v) => upd(i, { nome: v })} /></td>
+            <td className="val-c"><Editable value={r.id} placeholder="ID" onChange={(v) => upd(i, { id: v })} /></td>
+            <td className="val-c"><Editable value={r.cpf} placeholder="CPF" onChange={(v) => upd(i, { cpf: v })} /></td>
+            <td className="val-c"><Editable value={r.local} placeholder="local" onChange={(v) => upd(i, { local: v })} /></td>
+            <td className="val-c"><Editable value={r.horario} placeholder="horário" onChange={(v) => upd(i, { horario: v })} /></td>
+            <td className="val-c joe-func-cell">
+              <Editable value={r.funcao} placeholder="função" onChange={(v) => upd(i, { funcao: v })} />
+              {rows.length > 0 && <button className="no-print mini" title="remover" onClick={() => rm(i)}>×</button>}
+            </td>
+          </tr>
+        ))}
+        {rows.length === 0 && (
+          <tr><td colSpan={7} className="joe-esc-vazio">Selecione uma JOE acima para montar a escala.</td></tr>
+        )}
       </tbody></table>
       <button className="no-print mini add" onClick={add}>+ adicionar linha</button>
     </div>
@@ -1228,6 +1305,7 @@ export default function EscalaClient() {
   const [efetivo, setEfetivo] = useState<Militar[]>([]);
   const [efErro, setEfErro] = useState<string | null>(null);
   const [migrado, setMigrado] = useState(false);
+  const [joeLista, setJoeLista] = useState<JoeLite[]>([]);
 
   useEffect(() => {
     try {
@@ -1297,6 +1375,16 @@ export default function EscalaClient() {
       .then((r) => (r.ok ? r.json() : Promise.reject("HTTP " + r.status)))
       .then((d) => { if (vivo) setEfetivo((d.efetivo || d || []) as Militar[]); })
       .catch((err) => { if (vivo) setEfErro(String(err)); });
+    return () => { vivo = false; };
+  }, []);
+
+  // Carrega os JOE (para a escala da JOE/RENE). Admin ve os candidatos.
+  useEffect(() => {
+    let vivo = true;
+    fetch("/api/joe")
+      .then((r) => (r.ok ? r.json() : Promise.reject("HTTP " + r.status)))
+      .then((d) => { if (vivo) setJoeLista((d.joe || []) as JoeLite[]); })
+      .catch(() => {});
     return () => { vivo = false; };
   }, []);
 
@@ -1378,6 +1466,32 @@ export default function EscalaClient() {
 
   const gerarAutomatica = () => setEscalas((prev) => ({ ...prev, [data]: novaEscala(data, cad, nomeDe) }));
 
+  // Monta a escala da JOE (print 4) a partir dos aprovados do JOE selecionado.
+  const montarDaJoe = (joeId: string) => {
+    const joe = joeLista.find((j) => j.id === joeId);
+    if (!joe) return;
+    const aprovados = (joe.candidatos || []).filter((c) => c.status === "aprovado");
+    const rows: JoeEscalaLinha[] = aprovados.map((c) => {
+      const m = c.efetivoId ? efMap[c.efetivoId] : null;
+      return {
+        nome: m?.nome || c.ficha?.nome || c.extNome || "",
+        id: c.efetivoId || c.extMatricula || "",
+        cpf: m ? formatCpf(m.cpf || "") : "",
+        local: joe.local || "",
+        horario: joe.horario || "",
+        funcao: "",
+      };
+    });
+    editE((d) => {
+      d.joeId = joeId;
+      d.joeRows = rows;
+      d.extraOperacao = joe.evento || "";
+      d.extraLocal = joe.local || "";
+      d.extraHorario = joe.horario || "";
+      if (!d.extraUniforme) d.extraUniforme = "4ªA (ARMADO E EQUIPADO)";
+    });
+  };
+
   const pickBrasao = (key: keyof Brasoes) => {
     const inp = document.createElement("input");
     inp.type = "file"; inp.accept = "image/*";
@@ -1407,7 +1521,8 @@ export default function EscalaClient() {
 
   const fimDeSemana = ehFimDeSemana(data);
   const ehExtra = e.tipo === "extraordinaria";
-  const mostraExpediente = !fimDeSemana && !ehExtra;
+  const ehJoe = e.tipo === "joe";
+  const mostraExpediente = !fimDeSemana && !ehExtra && !ehJoe;
   const feriadoTexto =
     e.tipo === "facultativo"
       ? `PONTO FACULTATIVO${e.feriadoLabel ? " (" + e.feriadoLabel + ")" : ""}`
@@ -1432,6 +1547,7 @@ export default function EscalaClient() {
               <option value="feriado">Feriado</option>
               <option value="facultativo">Ponto facultativo</option>
               <option value="extraordinaria">Extraordinária</option>
+              <option value="joe">Escala da JOE (RENE)</option>
             </select>
           </label>
           {e.tipo !== "normal" && (
@@ -1556,7 +1672,8 @@ export default function EscalaClient() {
           <PreviaRodizio cad={cad} data={data} nomeDe={nomeDe} />
 
           <div className="paper-wrap">
-            <div className="doc-paper">
+            {ehJoe && <style dangerouslySetInnerHTML={{ __html: "@media print{@page{size:A4 landscape;margin:6mm}}" }} />}
+            <div className={"doc-paper" + (ehJoe ? " landscape" : "")}>
               {/* Cabecalho */}
               <div className="hdr">
                 <div className="hdr-left">
@@ -1579,13 +1696,27 @@ export default function EscalaClient() {
                   <BrasaoSlot src={brasoes.vistoCmt} alt="assinatura Cmt" onPick={() => pickBrasao("vistoCmt")} w={118} h={44} />
                   <div className="hdr-left-cargo">Cmt. do 18º BPM</div>
                 </div>
-                <div className="titulo">{ehExtra ? "ESCALA DE SERVIÇO EXTRAORDINÁRIA" : "ESCALA DE SERVIÇO"}</div>
+                <div className="titulo">{(ehExtra || ehJoe) ? "ESCALA DE SERVIÇO EXTRAORDINÁRIA" : "ESCALA DE SERVIÇO"}</div>
               </div>
               <div className="subt">PARA O DIA {extensoUpper(data)} ({diaSemana(data)})</div>
 
-              {/* ---------- ESCALA EXTRAORDINARIA (print 3) ---------- */}
-              {ehExtra && (
+              {/* ---------- EXTRAORDINARIA (print 3) / JOE-RENE (print 4) ---------- */}
+              {(ehExtra || ehJoe) && (
                 <div className="extra">
+                  {ehJoe && (
+                    <div className="joe-picker no-print">
+                      <label>Montar a partir da JOE:
+                        <select value={e.joeId || ""} onChange={(ev) => montarDaJoe(ev.target.value)}>
+                          <option value="">— selecione uma JOE —</option>
+                          {joeLista.map((j) => (
+                            <option key={j.id} value={j.id}>{j.evento} · {brCurto(j.data)}</option>
+                          ))}
+                        </select>
+                      </label>
+                      {e.joeId && <button className="btn" onClick={() => montarDaJoe(e.joeId!)}>↻ Remontar</button>}
+                    </div>
+                  )}
+
                   <div className="extra-campos">
                     <div className="extra-linha"><span className="extra-lbl">OPERAÇÃO:</span> <Editable value={e.extraOperacao || ""} placeholder="ex: ANIVERSÁRIO DA CIDADE..." onChange={(v) => editE((d) => { d.extraOperacao = v; })} /></div>
                     <div className="extra-linha"><span className="extra-lbl">LOCAL:</span> <Editable value={e.extraLocal || ""} placeholder="ex: PRESIDENTE DUTRA-MA" onChange={(v) => editE((d) => { d.extraLocal = v; })} /></div>
@@ -1593,11 +1724,12 @@ export default function EscalaClient() {
                     <div className="extra-linha"><span className="extra-lbl">UNIFORME:</span> <Editable value={e.extraUniforme || ""} placeholder="ex: 4ªA (ARMADO E EQUIPADO)" onChange={(v) => editE((d) => { d.extraUniforme = v; })} /></div>
                   </div>
 
-                  <ReforcoTabela
-                    linhas={e.extraReforco || []}
-                    onChange={(rows) => editE((d) => { d.extraReforco = rows; })}
-                    efetivo={efetivo}
-                  />
+                  {ehExtra && (
+                    <ReforcoTabela linhas={e.extraReforco || []} onChange={(rows) => editE((d) => { d.extraReforco = rows; })} efetivo={efetivo} />
+                  )}
+                  {ehJoe && (
+                    <JoeEscalaTabela rows={e.joeRows || []} onChange={(rows) => editE((d) => { d.joeRows = rows; })} />
+                  )}
                 </div>
               )}
 
@@ -1643,7 +1775,7 @@ export default function EscalaClient() {
                 </tbody></table>
               )}
 
-              {!ehExtra && (<>
+              {!ehExtra && !ehJoe && (<>
               {/* SERVICO 24H */}
               <table className="tbl mt"><tbody>
                 <tr><td className="lbl w-cpu">CPU DE DIA</td><td className="val"><SlotInline slot={e.cpuDeDia} onChange={(ns) => editE((d) => { d.cpuDeDia = ns; })} /></td></tr>
@@ -1905,10 +2037,24 @@ const CSS = `
 .extra-campos{ margin:8px 0 10px; }
 .extra-linha{ font-size:15px; margin:4px 0; }
 .extra-lbl{ font-weight:700; }
+.extra-linha .editavel{ display:inline-block; min-width:260px; }
+@media screen{ .extra-linha .editavel{ border-bottom:1px dotted #a9a9a9; padding-bottom:1px; } }
 .reforco-add{ margin-bottom:8px; max-width:440px; }
 .reforco-tbl{ margin-top:2px; }
 .reforco-ord{ width:12%; text-align:center; font-weight:700; vertical-align:middle; font-style:normal; }
 .reforco-nome-cell{ position:relative; }
+
+/* Escala da JOE/RENE (print 4, paisagem) */
+.doc-paper.landscape{ width:297mm; }
+.joe-picker{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.joe-picker label{ display:flex; align-items:center; gap:8px; font-size:12px; color:#334; }
+.joe-picker select{ background:#fff; color:#111; border:1px solid #99a; border-radius:8px; padding:7px 9px; font-size:13px; }
+.joe-esc{ margin-top:6px; }
+.joe-esc-tbl td{ font-size:12.5px; }
+.joe-c-ord{ width:5%; text-align:center; font-weight:700; vertical-align:middle; font-style:normal; }
+.joe-c-id{ width:9%; }
+.joe-c-cpf{ width:13%; }
+.joe-esc-vazio{ text-align:center; font-style:normal; color:#666; padding:10px; }
 
 .lista{ display:flex; flex-direction:column; gap:1px; }
 .lista.center{ align-items:flex-start; text-align:left; }
