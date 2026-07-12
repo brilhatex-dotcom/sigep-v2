@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 
@@ -534,6 +534,52 @@ function Editable({
   );
 }
 
+// Leva o efetivo ate os SlotInline (autocomplete de permuta) sem prop-drilling.
+const EfetivoCtx = createContext<Militar[]>([]);
+
+/* Autocomplete do substituto da permuta: digita e sugere policiais do efetivo,
+   guardando o NOME formatado. Na tela mostra input + sugestoes; na impressao,
+   so o texto puro. */
+function PermutaBusca({ value, onPick }: { value: string; onPick: (nome: string) => void }) {
+  const efetivo = useContext(EfetivoCtx);
+  const [q, setQ] = useState(value);
+  const [aberto, setAberto] = useState(false);
+  useEffect(() => { setQ(value); }, [value]);
+  const res = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (!t) return [];
+    return efetivo
+      .filter((m) => (fmtMilitar(m) + " " + (m.matricula || "")).toLowerCase().includes(t))
+      .slice(0, 8);
+  }, [q, efetivo]);
+  return (
+    <span className="perm-busca">
+      <span className="only-print">{value}</span>
+      <span className="no-print perm-ed">
+        <input
+          value={q}
+          placeholder="buscar substituto..."
+          onChange={(ev) => { setQ(ev.target.value); setAberto(true); }}
+          onFocus={() => setAberto(true)}
+          onBlur={() => setTimeout(() => { setAberto(false); onPick(q.trim()); }, 150)}
+          onKeyDown={(ev) => { if (ev.key === "Enter" && res[0]) { ev.preventDefault(); onPick(fmtMilitar(res[0])); setAberto(false); } }}
+        />
+        {aberto && q.trim() !== "" && (
+          <div className="sel-mil-list perm-list">
+            {res.length === 0 && <div className="sel-mil-vazio">nenhum</div>}
+            {res.map((m) => (
+              <button key={m.id} className="sel-mil-item" onMouseDown={(ev) => ev.preventDefault()} onClick={() => { onPick(fmtMilitar(m)); setAberto(false); }}>
+                <span className="sel-mil-nome">{fmtMilitar(m)}</span>
+                {m.matricula && <span className="sel-mil-mat">mat {m.matricula}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </span>
+    </span>
+  );
+}
+
 function SlotInline({ slot, onChange, semPermuta }: { slot: Slot; onChange: (s: Slot) => void; semPermuta?: boolean }) {
   const ativo = slot.permuta !== null;
   return (
@@ -542,12 +588,12 @@ function SlotInline({ slot, onChange, semPermuta }: { slot: Slot; onChange: (s: 
       {!semPermuta && (ativo ? (
         <span className="perm">
           {" "}(PERMUTA-{" "}
-          <Editable value={slot.permuta ?? ""} placeholder="substituto" onChange={(v) => onChange({ ...slot, permuta: v })} />
+          <PermutaBusca value={slot.permuta ?? ""} onPick={(nome) => onChange({ ...slot, permuta: nome, status: "aprovada" })} />
           )
           <button className="no-print mini" title="remover permuta" onClick={() => onChange({ ...slot, permuta: null, status: null })}>×</button>
         </span>
       ) : (
-        <button className="no-print mini add" title="adicionar permuta" onClick={() => onChange({ ...slot, permuta: "" })}>+ permuta</button>
+        <button className="no-print mini add" title="adicionar permuta" onClick={() => onChange({ ...slot, permuta: "", status: "aprovada" })}>+ permuta</button>
       ))}
     </span>
   );
@@ -1675,7 +1721,28 @@ export default function EscalaClient() {
 
   const escalaSalva = !!escalas[data];
 
+  const baixarEscala = async (fmt: "docx" | "pdf") => {
+    try {
+      const r = await fetch(`/api/escala/${fmt}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ escala: e }),
+      });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `escala-${data}.${fmt}`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch {
+      alert("Não foi possível gerar o arquivo. Tente novamente.");
+    }
+  };
+
   return (
+    <EfetivoCtx.Provider value={efetivo}>
     <div className="app-shell">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <BarraFormatacao />
@@ -1699,7 +1766,9 @@ export default function EscalaClient() {
           )}
           <span className="tb-spacer" />
           <button className="btn gen" onClick={gerarAutomatica} title="Preenche a folha com o resultado do motor para esta data">⚡ Gerar escala</button>
-          <button className="btn primary" onClick={() => window.print()}>🖨 Imprimir / PDF</button>
+          <button className="btn primary" onClick={() => window.print()}>🖨 Imprimir</button>
+          <button className="btn" onClick={() => baixarEscala("docx")} title="Baixar a escala do dia em Word (.docx)">📝 Word</button>
+          <button className="btn" onClick={() => baixarEscala("pdf")} title="Baixar a escala do dia em PDF">📄 PDF</button>
         </div>
         <div className="tb-row tb-sub">
           <span className="tb-status">
@@ -1986,6 +2055,7 @@ export default function EscalaClient() {
         </>
       )}
     </div>
+    </EfetivoCtx.Provider>
   );
 }
 
@@ -2074,6 +2144,14 @@ const CSS = `
 .sel-mil-item{ display:flex; justify-content:space-between; align-items:center; gap:10px; width:100%; text-align:left; background:none; border:0; border-bottom:1px solid #18263d; color:#E8EEF6; padding:8px 11px; font-size:13px; cursor:pointer; }
 .sel-mil-item:last-child{ border-bottom:0; }
 .sel-mil-item:hover{ background:#16243a; }
+/* Autocomplete do substituto da permuta */
+.perm-busca{ position:relative; display:inline-block; vertical-align:baseline; }
+.perm-ed{ position:relative; display:inline-block; }
+.perm-ed input{ background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:6px; padding:2px 7px; font-size:12px; min-width:160px; }
+.perm-ed input:focus{ outline:none; border-color:#D4AF37; }
+.perm-list{ left:0; right:auto; min-width:230px; }
+.only-print{ display:none; }
+@media print{ .only-print{ display:inline; } }
 .sel-mil-nome{ flex:1; }
 .sel-mil-mat{ font-size:11px; color:#6f82a0; white-space:nowrap; }
 .sel-mil-vazio{ padding:9px 11px; font-size:12.5px; color:#6f82a0; }

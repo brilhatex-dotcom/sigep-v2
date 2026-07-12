@@ -20,6 +20,32 @@ function brDia(iso: string): string {
   return `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")} · ${DSEM[dt.getDay()]}`;
 }
 
+type Periodo = "dia" | "semana" | "mes" | "ano" | "todas";
+const PERIODOS: { v: Periodo; t: string }[] = [
+  { v: "dia", t: "Dia" }, { v: "semana", t: "Semana" }, { v: "mes", t: "Mês" }, { v: "ano", t: "Ano" }, { v: "todas", t: "Todas" },
+];
+function isoDe(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function hojeISO(): string { return isoDe(new Date()); }
+function semanaRange(iso: string): [string, string] {
+  const [a, m, d] = iso.split("-").map(Number);
+  const dt = new Date(a || 2000, (m || 1) - 1, d || 1);
+  const dow = (dt.getDay() + 6) % 7; // 0 = segunda
+  const ini = new Date(dt); ini.setDate(dt.getDate() - dow);
+  const fim = new Date(ini); fim.setDate(ini.getDate() + 6);
+  return [isoDe(ini), isoDe(fim)];
+}
+const MES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+function rotuloPeriodo(periodo: Periodo, ref: string): string {
+  if (periodo === "todas") return "todas as datas";
+  if (periodo === "dia") return brDia(ref);
+  if (periodo === "mes") return `${MES[Number(ref.slice(5, 7)) - 1]}/${ref.slice(0, 4)}`;
+  if (periodo === "ano") return ref.slice(0, 4);
+  const [i, f] = semanaRange(ref);
+  return `${i.slice(8)}/${i.slice(5, 7)} a ${f.slice(8)}/${f.slice(5, 7)}`;
+}
+
 const BADGE: Record<string, { txt: string; bg: string; fg: string }> = {
   pendente: { txt: "Pendente", bg: "#3a2f10", fg: "#f3df9d" },
   aprovada: { txt: "Aprovada", bg: "#12351f", fg: "#9fe6bd" },
@@ -32,6 +58,8 @@ export default function PermutasClient() {
   const [erro, setErro] = useState<string | null>(null);
   const [soPendentes, setSoPendentes] = useState(false);
   const [salvandoKey, setSalvandoKey] = useState<string | null>(null);
+  const [periodo, setPeriodo] = useState<Periodo>("mes");
+  const [ref, setRef] = useState<string>(hojeISO());
 
   const chave = (l: Linha) => `${l.data}|${l.campo}|${l.idx}`;
 
@@ -81,8 +109,18 @@ export default function PermutasClient() {
     }
   };
 
-  const pendentes = useMemo(() => linhas.filter((l) => (l.status || "pendente") === "pendente").length, [linhas]);
-  const visiveis = soPendentes ? linhas.filter((l) => (l.status || "pendente") === "pendente") : linhas;
+  const noPeriodo = useCallback((iso: string): boolean => {
+    if (periodo === "todas") return true;
+    if (periodo === "dia") return iso === ref;
+    if (periodo === "mes") return iso.slice(0, 7) === ref.slice(0, 7);
+    if (periodo === "ano") return iso.slice(0, 4) === ref.slice(0, 4);
+    const [i, f] = semanaRange(ref);
+    return iso >= i && iso <= f;
+  }, [periodo, ref]);
+
+  const doPeriodo = useMemo(() => linhas.filter((l) => noPeriodo(l.data)), [linhas, noPeriodo]);
+  const pendentes = useMemo(() => doPeriodo.filter((l) => (l.status || "pendente") === "pendente").length, [doPeriodo]);
+  const visiveis = soPendentes ? doPeriodo.filter((l) => (l.status || "pendente") === "pendente") : doPeriodo;
 
   return (
     <div className="pm-wrap">
@@ -101,6 +139,18 @@ export default function PermutasClient() {
           </label>
           <button className="pm-refresh" onClick={carregar} title="Atualizar agora">⟳</button>
         </div>
+      </div>
+
+      <div className="pm-periodo">
+        <div className="pm-seg">
+          {PERIODOS.map((p) => (
+            <button key={p.v} className={"pm-seg-b" + (periodo === p.v ? " on" : "")} onClick={() => setPeriodo(p.v)}>{p.t}</button>
+          ))}
+        </div>
+        {periodo !== "todas" && (
+          <input className="pm-ref" type="date" value={ref} onChange={(e) => setRef(e.target.value || hojeISO())} />
+        )}
+        <span className="pm-rot">{rotuloPeriodo(periodo, ref)}</span>
       </div>
 
       {erro && <div className="pm-erro">{erro}</div>}
@@ -163,6 +213,14 @@ const CSS = `
 .pm-filtro{ display:inline-flex; align-items:center; gap:6px; font-size:13px; color:#cdd9ea; cursor:pointer; }
 .pm-refresh{ background:#0a1626; color:#cdd9ea; border:1px solid #28395a; border-radius:8px; width:32px; height:32px; cursor:pointer; font-size:16px; }
 .pm-refresh:hover{ border-color:#D4AF37; color:#fff; }
+.pm-periodo{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+.pm-seg{ display:inline-flex; background:#0a1626; border:1px solid #28395a; border-radius:9px; overflow:hidden; }
+.pm-seg-b{ background:none; border:none; color:#cdd9ea; padding:6px 14px; font-size:13px; cursor:pointer; border-right:1px solid #1d2c44; }
+.pm-seg-b:last-child{ border-right:none; }
+.pm-seg-b:hover{ color:#fff; }
+.pm-seg-b.on{ background:#D4AF37; color:#0a1020; font-weight:700; }
+.pm-ref{ background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:8px; padding:6px 9px; font-size:13px; }
+.pm-rot{ font-size:13px; color:#9fb4d4; font-weight:600; }
 .pm-erro{ background:#3a1d24; color:#f0a0a0; border:1px solid #6b2530; border-radius:9px; padding:9px 12px; margin-bottom:12px; font-size:13px; }
 .pm-vazio{ background:#0F1B2D; border:1px solid #1d2c44; border-radius:12px; padding:26px; text-align:center; color:#8fa3bf; }
 .pm-dica{ font-size:12px; color:#6f88a8; margin-top:10px; max-width:520px; margin-left:auto; margin-right:auto; }
