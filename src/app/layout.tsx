@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Providers from "@/components/Providers";
 import RegistrarSW from "@/components/RegistrarSW";
+import LiveRefresh from "@/components/LiveRefresh";
 
 export const metadata: Metadata = {
   title: "SIGEP 18º BPM",
@@ -36,6 +37,7 @@ export default function RootLayout({
       <body>
         <Providers>{children}</Providers>
         <RegistrarSW />
+        <LiveRefresh />
       </body>
     </html>
   );

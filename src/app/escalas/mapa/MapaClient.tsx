@@ -634,6 +634,36 @@ export default function MapaClient({ servico }: { servico?: string } = {}) {
 
   const cadSaveTimer = useRef<any>(null);
   const ultimoCadSalvo = useRef<string>(JSON.stringify(SEED_CADASTRO));
+  const cadRef = useRef(cad); cadRef.current = cad;
+
+  // Atualizacao ao vivo: puxa do servidor a cada 15s e ao focar a aba, pra que
+  // mudancas de outro PC aparecam sem F5. Nao sobrescreve edicao local pendente:
+  // so aplica o cad do servidor quando o local ja esta salvo (limpo).
+  useEffect(() => {
+    const puxar = async () => {
+      if (document.hidden) return;
+      try {
+        const r = await fetch("/api/escala-dias");
+        if (r.ok) { const d = await r.json(); if (d && d.escalas && Object.keys(d.escalas).length > 0) setEscalas(d.escalas); }
+      } catch {}
+      try {
+        const r = await fetch("/api/escala-config");
+        if (r.ok) {
+          const d = await r.json();
+          if (d && d.cad) {
+            const s = JSON.stringify(d.cad);
+            if (JSON.stringify(cadRef.current) === ultimoCadSalvo.current && s !== ultimoCadSalvo.current) {
+              ultimoCadSalvo.current = s; setCad(d.cad);
+            }
+          }
+        }
+      } catch {}
+    };
+    const iv = setInterval(puxar, 15000);
+    const onFocus = () => puxar();
+    window.addEventListener("focus", onFocus);
+    return () => { clearInterval(iv); window.removeEventListener("focus", onFocus); };
+  }, []);
 
   useEffect(() => {
     try {

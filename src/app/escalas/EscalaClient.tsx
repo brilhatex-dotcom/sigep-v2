@@ -1411,6 +1411,44 @@ export default function EscalaClient() {
     }, 900);
   }, [escalas, ready]);
 
+  // Atualizacao ao vivo: puxa dias e equipes do servidor (15s + foco da aba),
+  // aplicando so quando nao ha edicao local pendente (nao apaga o que voce edita).
+  const cadRefLive = useRef(cad); cadRefLive.current = cad;
+  const escalasRefLive = useRef(escalas); escalasRefLive.current = escalas;
+  useEffect(() => {
+    const puxar = async () => {
+      if (document.hidden) return;
+      try {
+        const r = await fetch("/api/escala-dias");
+        if (r.ok) {
+          const d = await r.json();
+          if (d && d.escalas) {
+            const s = JSON.stringify(d.escalas);
+            if (JSON.stringify(escalasRefLive.current) === ultimoEscalasSalvo.current && s !== ultimoEscalasSalvo.current) {
+              ultimoEscalasSalvo.current = s; setEscalas(d.escalas);
+            }
+          }
+        }
+      } catch {}
+      try {
+        const r = await fetch("/api/escala-config");
+        if (r.ok) {
+          const d = await r.json();
+          if (d && d.cad) {
+            const s = JSON.stringify(d.cad);
+            if (JSON.stringify(cadRefLive.current) === ultimoCadSalvo.current && s !== ultimoCadSalvo.current) {
+              ultimoCadSalvo.current = s; setCad(d.cad);
+            }
+          }
+        }
+      } catch {}
+    };
+    const iv = setInterval(puxar, 15000);
+    const onFocus = () => puxar();
+    window.addEventListener("focus", onFocus);
+    return () => { clearInterval(iv); window.removeEventListener("focus", onFocus); };
+  }, []);
+
   // Chefe do P/1: vem do servidor (aba "Chefe do P1"), igual em todos os PCs.
   useEffect(() => {
     fetch("/api/escala-chefe")
