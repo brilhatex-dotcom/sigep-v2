@@ -1309,14 +1309,35 @@ export default function EscalaClient() {
 
   const cadSaveTimer = useRef<any>(null);
   const ultimoCadSalvo = useRef<string>("");
+  const escalasSaveTimer = useRef<any>(null);
+  const ultimoEscalasSalvo = useRef<string>("{}");
 
   useEffect(() => {
-    // Dias salvos e o parametro ?data continuam locais.
     try {
-      const eLS = localStorage.getItem("sigep_escalas"); if (eLS) setEscalas(JSON.parse(eLS));
       const qd = new URLSearchParams(window.location.search).get("data");
       if (qd && /^\d{4}-\d{2}-\d{2}$/.test(qd)) setData(qd);
     } catch {}
+    // Dias salvos vem do servidor (migra o localStorage antigo se preciso).
+    (async () => {
+      try {
+        const r = await fetch("/api/escala-dias");
+        const d = r.ok ? await r.json() : null;
+        if (d && d.escalas && Object.keys(d.escalas).length > 0) {
+          setEscalas(d.escalas);
+          ultimoEscalasSalvo.current = JSON.stringify(d.escalas);
+          return;
+        }
+      } catch {}
+      try {
+        const eLS = localStorage.getItem("sigep_escalas");
+        if (eLS) {
+          const parsed = JSON.parse(eLS);
+          setEscalas(parsed);
+          ultimoEscalasSalvo.current = JSON.stringify(parsed);
+          fetch("/api/escala-dias", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ escalas: parsed }) }).catch(() => {});
+        }
+      } catch {}
+    })();
     // Equipes/afastamentos vem do servidor (migra o localStorage antigo se preciso).
     (async () => {
       try {
@@ -1363,7 +1384,18 @@ export default function EscalaClient() {
     }, 800);
   }, [cad, ready]);
 
-  useEffect(() => { if (ready) try { localStorage.setItem("sigep_escalas", JSON.stringify(escalas)); } catch {} }, [escalas, ready]);
+  // Salva os dias no servidor (debounce) + backup local.
+  useEffect(() => {
+    if (!ready) return;
+    const s = JSON.stringify(escalas);
+    if (s === ultimoEscalasSalvo.current) return;
+    if (escalasSaveTimer.current) clearTimeout(escalasSaveTimer.current);
+    escalasSaveTimer.current = setTimeout(() => {
+      ultimoEscalasSalvo.current = s;
+      fetch("/api/escala-dias", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ escalas }) }).catch(() => {});
+      try { localStorage.setItem("sigep_escalas", s); } catch {}
+    }, 900);
+  }, [escalas, ready]);
 
   // Chefe do P/1: vem do servidor (aba "Chefe do P1"), igual em todos os PCs.
   useEffect(() => {

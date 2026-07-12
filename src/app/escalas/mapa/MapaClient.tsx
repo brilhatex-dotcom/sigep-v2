@@ -306,6 +306,11 @@ export default function MapaClient() {
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((d) => setEfetivo((d.efetivo || d || []) as Militar[]))
       .catch(() => {});
+    // Dias salvos vem do servidor (localStorage acima e so fallback instantaneo).
+    fetch("/api/escala-dias")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d && d.escalas && Object.keys(d.escalas).length > 0) setEscalas(d.escalas); })
+      .catch(() => {});
     // Equipes/afastamentos do servidor (migra o localStorage antigo se preciso).
     (async () => {
       try {
