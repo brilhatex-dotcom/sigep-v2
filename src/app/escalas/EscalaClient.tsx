@@ -114,6 +114,8 @@ type Cadastro = {
   refRotemISO: string;
   // Quadro por equipe A/B/C/D (editado no Mapa): quadroEquipes[letra][funcao] = ID.
   quadroEquipes?: Record<string, Record<string, string>>;
+  // Linhas extras por funcao no quadro (ex.: 2o patrulheiro); vagas usam chave "<funcao>#2"...
+  linhasExtras?: Record<string, number>;
 };
 
 type Brasoes = {
@@ -449,6 +451,14 @@ function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
   const team = ["A", "B", "C", "D"][(((diasEntre(r, iso) % 4) + 4) % 4)];
   const q = cad.quadroEquipes || {};
   const dqNome = (fk: string) => { const id = q[team]?.[fk] || ""; return id ? nm(id) : ""; };
+  // Titular + linhas extras (ex.: 2o patrulheiro) definidas no Mapa.
+  const dqNomes = (fk: string) => {
+    const out: string[] = [];
+    const b = dqNome(fk); if (b) out.push(b);
+    const n = cad.linhasExtras?.[fk] || 0;
+    for (let k = 2; k <= n + 1; k++) { const id = q[team]?.[`${fk}#${k}`] || ""; if (id) out.push(nm(id)); }
+    return out;
+  };
 
   return {
     data: iso,
@@ -459,11 +469,11 @@ function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
     dataConfeccao: diaAnteriorISO(iso),
     expediente: exp,
     cpuDeDia: s(cpuNome),
-    guardaPermanente: sList([dqNome("guardaPermanente")].filter(Boolean)),
+    guardaPermanente: sList(dqNomes("guardaPermanente")),
     rpAdjunto: s(dqNome("rpAdjunto")),
     rpMotorista: s(dqNome("rpMotorista")),
-    rpPatrulheiro: sList([dqNome("rpPatrulheiro")].filter(Boolean)),
-    inteligencia: sList([dqNome("inteligencia")].filter(Boolean)),
+    rpPatrulheiro: sList(dqNomes("rpPatrulheiro")),
+    inteligencia: sList(dqNomes("inteligencia")),
     ftGraduado: s(dqNome("ftGraduado")),
     ftMotorista: s(dqNome("ftMotorista")),
     ftPatrulheiro: s(dqNome("ftPatrulheiro")),

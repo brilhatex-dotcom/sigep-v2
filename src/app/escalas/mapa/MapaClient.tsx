@@ -32,6 +32,9 @@ type Cadastro = {
   refRodizioISO: string; refCpuISO: string; refRotemISO: string;
   // Quadro por equipe A/B/C/D: quadroEquipes[letra][funcaoKey] = ID do militar.
   quadroEquipes?: Record<string, Record<string, string>>;
+  // Linhas extras por funcao no quadro (ex.: um 2o patrulheiro). linhasExtras[funcaoKey] = qtde extra.
+  // As vagas extras usam chave sintetica "<funcaoKey>#2", "#3"...
+  linhasExtras?: Record<string, number>;
 };
 
 type Militar = {
@@ -100,6 +103,7 @@ const SEED_CADASTRO: Cadastro = {
   rotemEquipes: [],
   afastamentos: [],
   refRodizioISO: "2026-06-01", refCpuISO: "2026-06-01", refRotemISO: "2026-06-01",
+  linhasExtras: {},
 };
 
 const DAY = 86400000;
@@ -167,7 +171,14 @@ function assignDia(iso: string, cad: Cadastro, escalas: Record<string, any>, idD
   // O quadro A/B/C/D e a FONTE: a equipe do dia (ciclo 24/72) cobre cada funcao.
   const team = EQUIPES_ABCD[(((diasEntre(r, iso) % 4) + 4) % 4)];
   const q = cad.quadroEquipes || {};
-  const dq = (fk: string) => { const id = q[team]?.[fk] || ""; return id ? [id] : []; };
+  // Coleta o titular da funcao + eventuais linhas extras (ex.: 2o patrulheiro).
+  const nExtra = (fk: string) => cad.linhasExtras?.[fk] || 0;
+  const dq = (fk: string) => {
+    const ids: string[] = [];
+    const b = q[team]?.[fk] || ""; if (b) ids.push(b);
+    for (let k = 2; k <= nExtra(fk) + 1; k++) { const id = q[team]?.[`${fk}#${k}`] || ""; if (id) ids.push(id); }
+    return ids;
+  };
   return {
     cpu: rodizio(cad.cpu, 1, iso, a, cad.refCpuISO), // CPU nao entra no 24/72 por equipe
     ftGraduado: dq("ftGraduado"),
@@ -454,11 +465,34 @@ function QuadroEquipes({
     setDrag(null);
   };
 
+  // Linhas do quadro = funcoes base + linhas extras (chave sintetica "<key>#2"...).
+  const rows = useMemo(() => {
+    const out: { key: string; label: string; baseKey: string; extra: number }[] = [];
+    for (const f of funcoes) {
+      out.push({ key: f.key, label: f.label, baseKey: f.key, extra: 0 });
+      const n = cad.linhasExtras?.[f.key] || 0;
+      for (let k = 2; k <= n + 1; k++) out.push({ key: `${f.key}#${k}`, label: `${f.label} ${k}`, baseKey: f.key, extra: k });
+    }
+    return out;
+  }, [funcoes, cad.linhasExtras]);
+
+  const addLinha = (baseKey: string) =>
+    setCad((c) => ({ ...c, linhasExtras: { ...(c.linhasExtras || {}), [baseKey]: (c.linhasExtras?.[baseKey] || 0) + 1 } }));
+  const removeLinha = (baseKey: string) =>
+    setCad((c) => {
+      const n = c.linhasExtras?.[baseKey] || 0;
+      if (n <= 0) return c;
+      const rowKey = `${baseKey}#${n + 1}`; // remove sempre a ultima linha extra e limpa suas celulas
+      const q: Record<string, Record<string, string>> = { ...(c.quadroEquipes || {}) };
+      for (const t of EQUIPES_ABCD) if (q[t] && q[t][rowKey] !== undefined) { const nt = { ...q[t] }; delete nt[rowKey]; q[t] = nt; }
+      return { ...c, quadroEquipes: q, linhasExtras: { ...(c.linhasExtras || {}), [baseKey]: n - 1 } };
+    });
+
   const jaNoQuadro = useMemo(() => {
     const s = new Set<string>();
-    for (const t of EQUIPES_ABCD) for (const f of funcoes) { const id = quadro[t]?.[f.key]; if (id) s.add(id); }
+    for (const t of EQUIPES_ABCD) for (const f of rows) { const id = quadro[t]?.[f.key]; if (id) s.add(id); }
     return s;
-  }, [quadro, funcoes]);
+  }, [quadro, rows]);
   const resultados = useMemo(() => {
     const t = busca.trim().toLowerCase(); if (!t) return [];
     return efetivo.filter((m) => !jaNoQuadro.has(m.id))
@@ -493,13 +527,29 @@ function QuadroEquipes({
           </tr>
         </thead>
         <tbody>
-          {funcoes.map((f) => (
+          {rows.map((f) => {
+            const nEx = cad.linhasExtras?.[f.baseKey] || 0;
+            const isLast = f.extra === 0 ? nEx === 0 : f.extra === nEx + 1;
+            const btnSt = { marginLeft: 6, border: "none", borderRadius: 6, width: 18, height: 18, lineHeight: 1, cursor: "pointer", fontSize: 13, verticalAlign: "middle" } as const;
+            return (
             <tr key={f.key}>
-              <td className="mp-q-func">{f.label}</td>
+              <td className="mp-q-func">
+                {f.label}
+                {isLast && (
+                  <button className="no-print" title="Adicionar outra linha desta função"
+                    style={{ ...btnSt, background: "#12351f", color: "#9fe6bd" }}
+                    onClick={() => addLinha(f.baseKey)}>＋</button>
+                )}
+                {f.extra !== 0 && isLast && (
+                  <button className="no-print" title="Remover esta linha"
+                    style={{ ...btnSt, background: "#3a1d24", color: "#f0a0a0" }}
+                    onClick={() => removeLinha(f.baseKey)}>－</button>
+                )}
+              </td>
               {EQUIPES_ABCD.map((lt, i) => {
                 const id = cell(lt, f.key);
                 const af = id ? afastado(id, teamDias[i], cad.afastamentos) : false;
-                const cor = COR_SERVICO[f.key];
+                const cor = COR_SERVICO[f.baseKey];
                 return (
                   <td
                     key={lt}
@@ -557,7 +607,8 @@ function QuadroEquipes({
                 );
               })}
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
       <div className="mp-quadro-hint no-print">
