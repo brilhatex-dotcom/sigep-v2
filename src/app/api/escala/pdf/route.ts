@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { gerarEscalaPdf, type EscalaExport } from "@/lib/escalaExport";
+import { gerarEscalaPdf } from "@/lib/escalaExport";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +12,8 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const e = (body?.escala || {}) as EscalaExport;
-    const bytes = await gerarEscalaPdf(e);
-    const nome = `escala-${e.data || "servico"}.pdf`;
+    const bytes = await gerarEscalaPdf(body || {});
+    const nome = `escala-${body?.escala?.data || "servico"}.pdf`;
     return new NextResponse(bytes, {
       status: 200,
       headers: {

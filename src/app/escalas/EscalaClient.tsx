@@ -1726,7 +1726,7 @@ export default function EscalaClient() {
       const r = await fetch(`/api/escala/${fmt}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ escala: e }),
+        body: JSON.stringify({ escala: e, brasoes, chefe }),
       });
       if (!r.ok) throw new Error("HTTP " + r.status);
       const blob = await r.blob();
