@@ -112,12 +112,14 @@ type Cadastro = {
   refRodizioISO: string;
   refCpuISO: string;
   refRotemISO: string;
+  // Quadro por equipe A/B/C/D (editado no Mapa): quadroEquipes[letra][funcao] = ID.
+  quadroEquipes?: Record<string, Record<string, string>>;
 };
 
 type Brasoes = {
   pmma: string; ma: string; bpm: string; vistoCmt: string; assinaturaChefe: string;
 };
-type Chefe = { nome: string; funcao: string; assinatura?: string; assinarGov?: boolean };
+type Chefe = { nome: string; funcao: string; assinatura?: string; assinarGov?: boolean; cmtAssinatura?: string };
 
 /* Efetivo (Cadastro de Efetivo via Prisma). Os POOLS guardam o ID PMMA;
    o nome exibido/impresso e montado a partir da ficha em fmtMilitar(). */
@@ -443,8 +445,10 @@ function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
 
   const eq = equipeRotem(iso, cad.rotemEquipes, cad.refRotemISO);
   const r = cad.refRodizioISO;
-  const a = cad.afastamentos;
-  const rod = (pool: string[]) => nmList(rodizio(pool, 1, iso, a, r));
+  // O quadro A/B/C/D e a FONTE: a equipe do dia (ciclo 24/72) cobre cada funcao.
+  const team = ["A", "B", "C", "D"][(((diasEntre(r, iso) % 4) + 4) % 4)];
+  const q = cad.quadroEquipes || {};
+  const dqNome = (fk: string) => { const id = q[team]?.[fk] || ""; return id ? nm(id) : ""; };
 
   return {
     data: iso,
@@ -455,14 +459,14 @@ function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
     dataConfeccao: diaAnteriorISO(iso),
     expediente: exp,
     cpuDeDia: s(cpuNome),
-    guardaPermanente: sList(rod(cad.guardaPermanente)),
-    rpAdjunto: s(rod(cad.rpAdjunto)[0] || ""),
-    rpMotorista: s(rod(cad.rpMotorista)[0] || ""),
-    rpPatrulheiro: sList(rod(cad.rpPatrulheiro)),
-    inteligencia: sList(rod(cad.inteligencia)),
-    ftGraduado: s(rod(cad.ftGraduado)[0] || ""),
-    ftMotorista: s(rod(cad.ftMotorista)[0] || ""),
-    ftPatrulheiro: s(rod(cad.ftPatrulheiro)[0] || ""),
+    guardaPermanente: sList([dqNome("guardaPermanente")].filter(Boolean)),
+    rpAdjunto: s(dqNome("rpAdjunto")),
+    rpMotorista: s(dqNome("rpMotorista")),
+    rpPatrulheiro: sList([dqNome("rpPatrulheiro")].filter(Boolean)),
+    inteligencia: sList([dqNome("inteligencia")].filter(Boolean)),
+    ftGraduado: s(dqNome("ftGraduado")),
+    ftMotorista: s(dqNome("ftMotorista")),
+    ftPatrulheiro: s(dqNome("ftPatrulheiro")),
     rotemHorarios: eq ? eq.turnos.slice() : ["07h \u00e0s 12h", "18h \u00e0s 23h"],
     rotemMilitares: eq ? sList(nmList(eq.militares)) : [s(), s(), s()],
     extraOperacao: "",
@@ -794,15 +798,15 @@ function PoolChips({
               onDragEnd={() => setDragIdx(null)}
               title="Arraste para reordenar (ordem = rodizio)"
             >
-              <span className="chip-grip">\u22ee\u22ee</span>
+              <span className="chip-grip">⋮⋮</span>
               <span className="chip-num">{i + 1}</span>
               <span className={"chip-nome" + (af ? " riscado" : "")}>{nomeDe(id)}</span>
               {af && <BadgeAfast a={af} />}
               {fora && <span className="chip-fora" title="Nome antigo que nao bate com o Cadastro de Efetivo. Remova e selecione o militar pela busca.">fora do efetivo</span>}
               <span className="chip-btns">
-                <button title="subir" disabled={i === 0} onClick={() => move(i, -1)}>\u2191</button>
-                <button title="descer" disabled={i === valor.length - 1} onClick={() => move(i, 1)}>\u2193</button>
-                <button className="del" title="remover" onClick={() => rm(i)}>\u00d7</button>
+                <button title="subir" disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
+                <button title="descer" disabled={i === valor.length - 1} onClick={() => move(i, 1)}>↓</button>
+                <button className="del" title="remover" onClick={() => rm(i)}>×</button>
               </span>
             </div>
           );
@@ -939,7 +943,7 @@ function AfastamentosEditor({
           <div key={i} className="af-linha">
             <span className="af-c1 af-nome">
               <span className={fora ? "alerta-txt" : ""}>{nomeDe(a.militar)}</span>
-              {fora && <span className="af-alerta" title="Nao bate com o Cadastro de Efetivo. Remova e selecione de novo pela busca.">\u26a0</span>}
+              {fora && <span className="af-alerta" title="Nao bate com o Cadastro de Efetivo. Remova e selecione de novo pela busca.">⚠</span>}
             </span>
             <span className="af-c2">
               <select value={a.tipo} onChange={(e) => setAf(i, { tipo: e.target.value as TipoAfastamento })}>
@@ -948,7 +952,7 @@ function AfastamentosEditor({
             </span>
             <span className="af-c3"><input type="date" value={a.inicio} onChange={(e) => setAf(i, { inicio: e.target.value })} /></span>
             <span className="af-c3"><input type="date" value={a.fim} onChange={(e) => setAf(i, { fim: e.target.value })} /></span>
-            <span className="af-c4"><button className="btn danger" onClick={() => rmAf(i)}>\u00d7</button></span>
+            <span className="af-c4"><button className="btn danger" onClick={() => rmAf(i)}>×</button></span>
           </div>
         );
       })}
@@ -1298,7 +1302,7 @@ export default function EscalaClient() {
     assinaturaChefe: "/brasoes/assinatura-joelson.png",
   });
   // Chefe do P/1: carregado do servidor (aba "Chefe do P1"), igual em todo PC.
-  const [chefe, setChefe] = useState<Chefe>({ nome: "1\u00ba TEN QOEM JOELSON DOS REIS SILVA", funcao: "CHEFE DO P/1 DO 18\u00ba BPM", assinatura: "/brasoes/assinatura-joelson.png", assinarGov: false });
+  const [chefe, setChefe] = useState<Chefe>({ nome: "1\u00ba TEN QOEM JOELSON DOS REIS SILVA", funcao: "CHEFE DO P/1 DO 18\u00ba BPM", assinatura: "/brasoes/assinatura-joelson.png", assinarGov: false, cmtAssinatura: "/brasoes/assinatura-cmt.png" });
   const [chefeSalvando, setChefeSalvando] = useState(false);
   const [chefeMsg, setChefeMsg] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -1408,6 +1412,7 @@ export default function EscalaClient() {
             funcao: d.funcao || "",
             assinatura: d.assinatura || "",
             assinarGov: d.assinarGov === true,
+            cmtAssinatura: d.cmtAssinatura || "/brasoes/assinatura-cmt.png",
           });
         }
       })
@@ -1422,6 +1427,19 @@ export default function EscalaClient() {
       const f = inp.files && inp.files[0]; if (!f) return;
       const r = new FileReader();
       r.onload = () => setChefe((c) => ({ ...c, assinatura: String(r.result) }));
+      r.readAsDataURL(f);
+    };
+    inp.click();
+  };
+
+  // sobe a assinatura do Cmt (VISTO), guardada no servidor junto com o chefe.
+  const pickCmtAssinatura = () => {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "image/*";
+    inp.onchange = () => {
+      const f = inp.files && inp.files[0]; if (!f) return;
+      const r = new FileReader();
+      r.onload = () => setChefe((c) => ({ ...c, cmtAssinatura: String(r.result) }));
       r.readAsDataURL(f);
     };
     inp.click();
@@ -1741,6 +1759,24 @@ export default function EscalaClient() {
                 </div>
               </div>
             </div>
+
+            <div className="chefe-cmt">
+              <div className="chefe-ass-tit">Assinatura do Comandante (VISTO)</div>
+              <div className="chefe-cmt-row">
+                <div className="chefe-ass-box" style={{ maxWidth: 240 }}>
+                  {chefe.cmtAssinatura
+                    ? <img src={chefe.cmtAssinatura} alt="assinatura do Cmt" />
+                    : <span className="chefe-ass-ph">sem assinatura (em branco)</span>}
+                </div>
+                <div className="chefe-cmt-acoes">
+                  <button className="btn" onClick={pickCmtAssinatura}>📤 Trocar assinatura do Cmt</button>
+                  {chefe.cmtAssinatura && (
+                    <button className="btn danger" onClick={() => setChefe((c) => ({ ...c, cmtAssinatura: "" }))}>🗑 Remover</button>
+                  )}
+                  <span className="chefe-ass-dica">Sai no “VISTO” da escala e da escala semanal do CPU. Troque quando mudar o comando; salve para valer em todos os PCs.</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1771,7 +1807,9 @@ export default function EscalaClient() {
               <div className="titulo-wrap">
                 <div className="visto-side">
                   <div className="visto">VISTO</div>
-                  <BrasaoSlot src={brasoes.vistoCmt} alt="assinatura Cmt" onPick={() => pickBrasao("vistoCmt")} w={118} h={44} />
+                  {chefe.cmtAssinatura
+                    ? <img className="visto-img" src={chefe.cmtAssinatura} alt="assinatura Cmt" />
+                    : <div className="visto-esp" />}
                   <div className="hdr-left-cargo">Cmt. do 18º BPM</div>
                 </div>
                 <div className="titulo">{(ehExtra || ehJoe) ? "ESCALA DE SERVIÇO EXTRAORDINÁRIA" : "ESCALA DE SERVIÇO"}</div>
@@ -2076,6 +2114,9 @@ const CSS = `
 .chefe-preview-img{ max-height:46px; max-width:220px; object-fit:contain; display:block; margin:0 auto 4px; background:#fff; border-radius:4px; padding:2px; }
 .chefe-preview-nome{ font-weight:700; color:#E8EEF6; font-size:14px; }
 .chefe-preview-func{ color:#cdd9ea; font-size:13px; }
+.chefe-cmt{ margin-top:16px; border-top:1px solid #1d2c44; padding-top:14px; }
+.chefe-cmt-row{ display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+.chefe-cmt-acoes{ display:flex; flex-direction:column; gap:6px; align-items:flex-start; }
 
 /* Folha */
 .paper-wrap{ display:flex; justify-content:center; }
@@ -2086,6 +2127,8 @@ const CSS = `
 .hdr-left{ width:122px; text-align:center; font-size:11px; display:flex; flex-direction:column; align-items:center; }
 .hdr-right{ width:92px; display:flex; justify-content:center; align-items:flex-start; }
 .visto{ font-weight:700; }
+.visto-img{ max-width:118px; max-height:44px; object-fit:contain; display:block; margin:0 auto; }
+.visto-esp{ height:44px; }
 .hdr-left-cargo{ font-weight:700; margin-top:2px; }
 .titulo-wrap{ position:relative; }
 .visto-side{ position:absolute; left:0; bottom:0; width:122px; text-align:center; font-size:11px; line-height:1.15; }

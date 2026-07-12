@@ -1,17 +1,16 @@
 import { exigirAdmin } from "@/lib/guard";
 import AppShell from "@/components/AppShell";
 import EscalasNav from "@/components/EscalasNav";
-import EscalaClient from "./EscalaClient";
+import CpuSemanalClient from "./CpuSemanalClient";
 
 export const dynamic = "force-dynamic";
 
-export default async function EscalasPage() {
+export default async function CpuSemanalPage() {
   const session = await exigirAdmin();
-
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <EscalasNav />
-      <EscalaClient />
+      <CpuSemanalClient />
     </AppShell>
   );
 }
