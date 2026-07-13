@@ -10,6 +10,20 @@ import { lotacaoLimpa } from "@/lib/formatarLotacao";
 
 export const dynamic = "force-dynamic";
 
+/* Ordena as lotacoes: as da SEDE (Comando, ADM, forcas operacionais, ROTEM...)
+   vem primeiro; as Companhias (CIA) por ultimo. */
+function pesoLotacao(lot: string): number {
+  const u = (lot || "").toUpperCase();
+  if (u.includes("CIA")) return 100; // companhias por ultimo
+  const ordem = [
+    "COMANDO", "SUBCOMANDO", "ESTADO MAIOR", "ADM", "ADMINISTR", "P/1", "P1",
+    "CPU", "PERMAN", "GUARDA", "FORÇA TÁTICA", "FORCA TATICA",
+    "RÁDIO PATRULHA", "RADIO PATRULHA", "ROTEM", "ROTAM", "INTELIG",
+  ];
+  for (let i = 0; i < ordem.length; i++) if (u.includes(ordem[i])) return i;
+  return 50; // outras da sede, antes das CIAs
+}
+
 export default async function LotacaoPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
@@ -35,7 +49,7 @@ export default async function LotacaoPage() {
   const idsLicencaPremio = montarIdsEmLicencaPremio(equipesLicenca, membrosLicenca, hoje);
 
   const mapa = new Map<string, typeof militares>();
-  militares.forEach((m) => {
+  militares.forEach((m: (typeof militares)[number]) => {
     // agrupa pela lotacao JA SEM o prefixo numerico ("01. ROTEM" -> "ROTEM")
     const limpa = lotacaoLimpa(m.lotacao);
     const lot = limpa || "(sem lotação)";
@@ -63,7 +77,7 @@ export default async function LotacaoPage() {
           situacao: situacaoCalculada(m, idsFerias, hoje, idsLicencaPremio),
         })),
     }))
-    .sort((a, b) => a.lotacao.localeCompare(b.lotacao));
+    .sort((a, b) => pesoLotacao(a.lotacao) - pesoLotacao(b.lotacao) || a.lotacao.localeCompare(b.lotacao));
 
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>

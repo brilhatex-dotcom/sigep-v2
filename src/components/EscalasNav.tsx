@@ -11,12 +11,12 @@ type Item = { href?: string; ic: string; label: string; breve?: boolean };
 const ITENS: Item[] = [
   { href: "/escalas/mapa", ic: "📅", label: "Escala Mensal" },
   { href: "/escalas", ic: "📆", label: "Escala Diária" },
+  { href: "/escalas/servico/cpu", ic: "🎖️", label: "CPU de dia" },
   { href: "/escalas/servico/rp", ic: "🚔", label: "Rádio Patrulha" },
   { href: "/escalas/servico/ft", ic: "⚔️", label: "Força Tática" },
   { href: "/escalas/servico/rotem", ic: "🛡️", label: "ROTEM" },
   { href: "/escalas/servico/inteligencia", ic: "🕵️", label: "Inteligência" },
   { href: "/escalas/servico/permanencia", ic: "🏢", label: "Permanência" },
-  { href: "/escalas/servico/cpu", ic: "🎖️", label: "CPU de dia" },
   { href: "/escalas/permutas", ic: "🔄", label: "Permutas" },
   { ic: "📄", label: "Publicações", breve: true },
   { ic: "📊", label: "Estatísticas", breve: true },

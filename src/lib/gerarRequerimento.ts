@@ -148,7 +148,8 @@ export function gerarRequerimentoDocx(d: DadosReq): Buffer {
     numeropm: s(d.numeroPm),
     temposervico: s(d.tempoServico),
     estadocivil: s(d.estadoCivil),
-    opmclassificado: s(d.opmClassificado),
+    // No requerimento impresso, a OPM classificada e sempre a OPM em exercicio (este batalhao).
+    opmclassificado: "18º BPM",
     amparo: s(d.amparoLegal),
     info: s(d.infoAdicional),
     // cursos

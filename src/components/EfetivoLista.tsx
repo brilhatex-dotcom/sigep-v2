@@ -95,6 +95,12 @@ export default function EfetivoLista({
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
+        <a
+          href="/efetivo/novo"
+          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] shadow-lg shadow-[#D4AF37]/20 transition hover:brightness-110"
+        >
+          + Adicionar novo militar
+        </a>
       </div>
 
       <p className="mb-3 text-sm text-[#94A3B8]">

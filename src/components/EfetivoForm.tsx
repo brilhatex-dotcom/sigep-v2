@@ -265,6 +265,18 @@ export default function EfetivoForm({
 
   return (
     <div className="space-y-5">
+      {/* Acao rapida no topo: salvar sem rolar ate o fim da pagina */}
+      <div className="sticky top-0 z-20 -mx-1 flex items-center justify-end gap-3 rounded-b-lg bg-[#0a1220]/90 px-1 py-2 backdrop-blur">
+        <button
+          onClick={salvar}
+          disabled={salvando}
+          className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-60"
+        >
+          <Save className="h-4 w-4" />
+          {salvando ? "Salvando..." : "Salvar alterações"}
+        </button>
+      </div>
+
       {!isAdmin && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
           Você está editando a sua própria ficha. Os campos funcionais (posto,
