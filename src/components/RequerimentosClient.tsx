@@ -30,6 +30,12 @@ function dataBR(iso: string): string {
   return new Date(iso).toLocaleDateString("pt-BR");
 }
 
+const MESES_PT = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+function rotuloMes(chave: string): string {
+  const [a, m] = chave.split("-").map(Number);
+  return `${MESES_PT[(m || 1) - 1]} de ${a}`;
+}
+
 // abas: filtro -> rotulo + quais status entram
 type Aba = { id: string; rotulo: string; status: string[] };
 
@@ -102,6 +108,20 @@ export default function RequerimentosClient({
         return maisAntigos ? da - db : db - da;
       });
   }, [itens, abas, aba, busca, filtroModalidade, maisAntigos]);
+
+  // Agrupa por mes (como as JOEs): guarda cada requerimento dentro do seu mes.
+  const porMes = useMemo(() => {
+    const map = new Map<string, typeof lista>();
+    for (const r of lista) {
+      const d = new Date(r.criadoEm);
+      const chave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      if (!map.has(chave)) map.set(chave, []);
+      map.get(chave)!.push(r);
+    }
+    return Array.from(map.keys())
+      .sort((a, b) => (maisAntigos ? a.localeCompare(b) : b.localeCompare(a)))
+      .map((mes) => ({ mes, itens: map.get(mes)! }));
+  }, [lista, maisAntigos]);
 
   return (
     <div>
@@ -211,29 +231,39 @@ export default function RequerimentosClient({
           </p>
         </div>
       ) : (
-        <ul className="space-y-2">
-          {lista.map((r) => {
-            const s = selo(r.status);
-            return (
-              <li key={r.id}>
-                <button
-                  onClick={() => router.push(`/requerimentos/${r.id}`)}
-                  className="ui-card flex w-full items-center justify-between gap-3 p-4 text-left transition hover:border-[#D4AF37]/40"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-white">{r.modalidade}</p>
-                    <p className="text-[12px] text-[#94A3B8]">
-                      {ehAdmin ? `${r.requerente} · ` : ""}{dataBR(r.criadoEm)}
-                    </p>
-                  </div>
-                  <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${s.cls}`}>
-                    <s.Icone className="h-3.5 w-3.5" /> {s.txt}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="space-y-6">
+          {porMes.map((g) => (
+            <div key={g.mes}>
+              <h3 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#D4AF37]">
+                {rotuloMes(g.mes)}
+                <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-normal text-[#94A3B8]">{g.itens.length}</span>
+              </h3>
+              <ul className="space-y-2">
+                {g.itens.map((r) => {
+                  const s = selo(r.status);
+                  return (
+                    <li key={r.id}>
+                      <button
+                        onClick={() => router.push(`/requerimentos/${r.id}`)}
+                        className="ui-card flex w-full items-center justify-between gap-3 p-4 text-left transition hover:border-[#D4AF37]/40"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-white">{r.modalidade}</p>
+                          <p className="text-[12px] text-[#94A3B8]">
+                            {ehAdmin ? `${r.requerente} · ` : ""}{dataBR(r.criadoEm)}
+                          </p>
+                        </div>
+                        <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${s.cls}`}>
+                          <s.Icone className="h-3.5 w-3.5" /> {s.txt}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
       )}
 
       {/* modal de escolha de modalidade */}
