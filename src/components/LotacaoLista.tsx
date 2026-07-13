@@ -1,7 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { Building2, ChevronRight, Pencil, Printer } from "lucide-react";
+import { useState } from "react";
+import { Building2, ChevronRight, Pencil, Printer, Filter, CheckSquare } from "lucide-react";
+
+/* Um militar esta "afastado" quando a situacao nao e disponivel (pronto/apto).
+   Vale para qualquer afastamento (ferias, licenca, JMS, curso, missao...). */
+function ehAfastado(s: string | null): boolean {
+  const v = (s ?? "").toLowerCase().trim();
+  if (!v || v === "—" || v === "-") return false;
+  if (v.includes("pronto") || v.includes("apto") || v.includes("disponí") || v.includes("disponi")) return false;
+  return true;
+}
 
 export type MilLot = {
   id: string;
@@ -37,9 +47,21 @@ export default function LotacaoLista({
   totalMil: number;
   isAdmin: boolean;
 }) {
+  const [filtro, setFiltro] = useState<string>("");           // "" = mostra todas na tela
+  const [sel, setSel] = useState<Set<string>>(() => new Set(grupos.map((g) => g.lotacao)));
+  const [painel, setPainel] = useState(false);
+
+  const toggle = (lot: string) => setSel((s) => { const n = new Set(s); n.has(lot) ? n.delete(lot) : n.add(lot); return n; });
+  const marcarTodas = () => setSel(new Set(grupos.map((g) => g.lotacao)));
+  const limparTodas = () => setSel(new Set());
+
+  const visiveis = filtro ? grupos.filter((g) => g.lotacao === filtro) : grupos;
+
   function imprimir() {
     const dataStr = new Date().toLocaleDateString("pt-BR");
-    const blocos = grupos
+    const escolhidos = (() => { const u = grupos.filter((g) => sel.has(g.lotacao)); return u.length ? u : grupos; })();
+    const totalImpresso = escolhidos.reduce((n, g) => n + g.lista.length, 0);
+    const blocos = escolhidos
       .map((g) => {
         const linhas = g.lista
           .map((m, i) => {
@@ -54,7 +76,7 @@ export default function LotacaoLista({
             ]
               .map((v) => `<td>${escHtml(v)}</td>`)
               .join("");
-            return `<tr>${tds}</tr>`;
+            return `<tr class="${ehAfastado(m.situacao) ? "afast" : ""}">${tds}</tr>`;
           })
           .join("");
         return `
@@ -83,6 +105,9 @@ export default function LotacaoLista({
         th,td{border:1px solid #ccc;padding:3px 5px;text-align:left;}
         th{background:#e9edf3;}
         tr:nth-child(even) td{background:#f6f8fb;}
+        tr.afast td{background:#fff3b0 !important;}
+        .leg{font-size:9px;color:#555;margin:2px 0 10px;}
+        .leg b{background:#fff3b0;padding:1px 6px;border:1px solid #d9c65a;border-radius:3px;color:#5a4b00;}
         h2,table{break-inside:avoid;}
         @media print{ @page{ size:landscape; margin:10mm; } }
       </style></head><body>
@@ -91,7 +116,8 @@ export default function LotacaoLista({
         <p>Estado do Maranhão · SSP · PMMA · CPA I/2</p>
         <p>Presidente Dutra - MA</p>
       </div>
-      <p class="sub"><strong>Efetivo por Lotação</strong> — emitido em ${dataStr} · ${totalMil} militares em ${grupos.length} lotações</p>
+      <p class="sub"><strong>Efetivo por Lotação</strong> — emitido em ${dataStr} · ${totalImpresso} militares em ${escolhidos.length} lotações</p>
+      <p class="leg"><b>Amarelo</b> = militar afastado (férias, licença, JMS, curso, missão...)</p>
       ${blocos}
       </body></html>`;
 
@@ -120,8 +146,48 @@ export default function LotacaoLista({
         </button>
       </div>
 
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="relative">
+          <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+          <select
+            value={filtro}
+            onChange={(e) => setFiltro(e.target.value)}
+            className="rounded-lg border border-white/10 bg-[#0b1626] py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+          >
+            <option value="">Todas as lotações (na tela)</option>
+            {grupos.map((g) => (
+              <option key={g.lotacao} value={g.lotacao}>{g.lotacao} ({g.lista.length})</option>
+            ))}
+          </select>
+        </div>
+        <button
+          onClick={() => setPainel((v) => !v)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-sm text-[#94A3B8] transition hover:border-[#D4AF37]/40 hover:text-white"
+        >
+          <CheckSquare className="h-4 w-4" /> Selecionar p/ impressão ({sel.size}/{grupos.length})
+        </button>
+      </div>
+
+      {painel && (
+        <div className="mb-4 rounded-xl border border-white/10 bg-[#0F1B2D] p-4">
+          <div className="mb-2 flex items-center gap-3 text-sm">
+            <span className="font-semibold text-white">Lotações na impressão</span>
+            <button onClick={marcarTodas} className="text-[#D4AF37] hover:underline">marcar todas</button>
+            <button onClick={limparTodas} className="text-[#94A3B8] hover:underline">limpar</button>
+          </div>
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 md:grid-cols-3">
+            {grupos.map((g) => (
+              <label key={g.lotacao} className="flex items-center gap-2 text-sm text-[#cdd9ea]">
+                <input type="checkbox" checked={sel.has(g.lotacao)} onChange={() => toggle(g.lotacao)} />
+                {g.lotacao} <span className="text-xs text-[#94A3B8]">({g.lista.length})</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="space-y-4">
-        {grupos.map((g) => (
+        {visiveis.map((g) => (
           <section key={g.lotacao} className="ui-card overflow-hidden">
             <div className="flex items-center gap-2 border-b border-white/10 bg-white/5 px-5 py-3">
               <Building2 className="h-4 w-4 text-[#D4AF37]" />
@@ -132,7 +198,7 @@ export default function LotacaoLista({
             </div>
             <ul className="divide-y divide-white/5">
               {g.lista.map((m, i) => (
-                <li key={m.id} className="group flex items-center gap-3 px-5 py-2.5 transition hover:bg-white/5">
+                <li key={m.id} className={`group flex items-center gap-3 px-5 py-2.5 transition hover:bg-white/5 ${ehAfastado(m.situacao) ? "bg-amber-500/5" : ""}`}>
                   <span className="w-6 shrink-0 text-center text-xs font-semibold text-[#D4AF37]">{i + 1}</span>
                   <Link href={`/efetivo/${encodeURIComponent(m.id)}`} className="flex flex-1 items-center gap-3">
                     <span className="w-24 shrink-0 text-xs text-[#94A3B8]">{m.postoGrad ?? "—"}</span>
