@@ -200,12 +200,12 @@ export default async function DashboardPage() {
             <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Centro de Comando · P1
           </h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-            <Mini Icone={Users} cor="#D4AF37" valor={total} rotulo="Efetivo total" />
-            <Mini Icone={CheckCircle2} cor="#22C55E" valor={prontos} rotulo={`Prontos · ${pctOper}%`} />
-            <Mini Icone={HeartPulse} cor="#F59E0B" valor={jmsCount} rotulo="Em JMS" />
-            <Mini Icone={Plane} cor="#3B82F6" valor={totalMilitaresFerias} rotulo="Em férias" />
-            <Mini Icone={ShieldAlert} cor="#94A3B8" valor={licencas} rotulo="Licenças" />
-            <Mini Icone={Cake} cor="#EC4899" valor={aniversariantesHoje} rotulo="Aniv. hoje" />
+            <Mini Icone={Users} cor="#D4AF37" valor={total} rotulo="Efetivo total" href="/efetivo" />
+            <Mini Icone={CheckCircle2} cor="#22C55E" valor={prontos} rotulo={`Prontos · ${pctOper}%`} href="/efetivo" />
+            <Mini Icone={HeartPulse} cor="#F59E0B" valor={jmsCount} rotulo="Em JMS" href="/efetivo?situacao=JMS" />
+            <Mini Icone={Plane} cor="#3B82F6" valor={totalMilitaresFerias} rotulo="Em férias" href="/ferias" />
+            <Mini Icone={ShieldAlert} cor="#94A3B8" valor={licencas} rotulo="Licenças" href="/licenca-premio" />
+            <Mini Icone={Cake} cor="#EC4899" valor={aniversariantesHoje} rotulo="Aniv. hoje" href="/efetivo" />
           </div>
         </section>
 
@@ -224,7 +224,12 @@ export default async function DashboardPage() {
             </h2>
             <div className="space-y-2.5">
               {situacoes.map((s)=>(
-                <div key={s.rotulo} className="flex items-center gap-3">
+                <Link
+                  key={s.rotulo}
+                  href={`/efetivo?situacao=${encodeURIComponent(s.rotulo)}`}
+                  className="flex items-center gap-3 rounded-md px-1 py-0.5 transition hover:bg-white/5"
+                  title={`Ver militares em ${s.rotulo}`}
+                >
                   <span className="w-28 shrink-0 truncate text-xs text-[#94A3B8]">{s.rotulo}</span>
                   <div className="h-5 flex-1 overflow-hidden rounded bg-white/5">
                     <div className="h-full rounded bg-gradient-to-r from-sky-500/60 to-sky-400" style={{width:`${(s.valor/maxSit)*100}%`}} />
@@ -232,7 +237,7 @@ export default async function DashboardPage() {
                   <span className="w-16 shrink-0 text-right text-xs font-semibold text-white">
                     {s.valor} <span className="text-[#94A3B8]">{s.pct}%</span>
                   </span>
-                </div>
+                </Link>
               ))}
             </div>
             <div className="mt-4 flex gap-4 border-t border-white/10 pt-3 text-xs text-[#94A3B8]">
@@ -322,17 +327,25 @@ export default async function DashboardPage() {
   );
 }
 
-function Mini({ Icone, cor, valor, rotulo }:{
+function Mini({ Icone, cor, valor, rotulo, href }:{
   Icone: React.ComponentType<{className?:string;style?:React.CSSProperties}>;
-  cor:string; valor:number; rotulo:string;
+  cor:string; valor:number; rotulo:string; href?:string;
 }) {
-  return (
-    <div className="rounded-xl border border-white/5 bg-white/5 p-3">
+  const conteudo = (
+    <>
       <div className="mb-1.5 flex h-8 w-8 items-center justify-center rounded-lg" style={{backgroundColor:`${cor}22`}}>
         <Icone className="h-4 w-4" style={{color:cor}} />
       </div>
       <p className="text-xl font-bold text-white">{valor}</p>
       <p className="text-[11px] text-[#94A3B8]">{rotulo}</p>
-    </div>
+    </>
   );
+  if (href) {
+    return (
+      <Link href={href} className="group block rounded-xl border border-white/5 bg-white/5 p-3 transition hover:border-[#D4AF37]/50 hover:bg-white/10" title={`Ver ${rotulo}`}>
+        {conteudo}
+      </Link>
+    );
+  }
+  return <div className="rounded-xl border border-white/5 bg-white/5 p-3">{conteudo}</div>;
 }

@@ -28,13 +28,15 @@ function corSituacao(s: string | null): string {
 export default function EfetivoLista({
   militares,
   buscaInicial = "",
+  situacaoInicial = "",
 }: {
   militares: Militar[];
   buscaInicial?: string;
+  situacaoInicial?: string;
 }) {
   const router = useRouter();
   const [busca, setBusca] = useState(buscaInicial);
-  const [situacao, setSituacao] = useState("");
+  const [situacao, setSituacao] = useState(situacaoInicial);
 
   const situacoes = useMemo(() => {
     const set = new Set<string>();

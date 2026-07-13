@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function EfetivoPage({
   searchParams,
 }: {
-  searchParams: { q?: string };
+  searchParams: { q?: string; situacao?: string };
 }) {
   // >>> SEGURANCA: bloqueia policial por URL e empurra 1o acesso p/ trocar senha. <<<
   const session = await exigirAdmin();
@@ -54,7 +54,7 @@ export default async function EfetivoPage({
       <div className="mx-auto max-w-6xl">
         <h1 className="mb-1 text-2xl font-bold text-white">Cadastro de Efetivo</h1>
         <p className="mb-5 text-sm text-[#94A3B8]">{lista.length} militares cadastrados.</p>
-        <EfetivoLista militares={lista} buscaInicial={searchParams.q ?? ""} />
+        <EfetivoLista militares={lista} buscaInicial={searchParams.q ?? ""} situacaoInicial={searchParams.situacao ?? ""} />
       </div>
     </AppShell>
   );
