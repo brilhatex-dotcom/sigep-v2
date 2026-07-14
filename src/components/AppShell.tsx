@@ -77,13 +77,21 @@ const NAV: Secao[] = [
     itens: [
       { rotulo: "Plano de Férias", href: "/ferias", Icone: Palmtree, disponivel: true, adminOnly: true },
       { rotulo: "Licença-Prêmio", href: "/licenca-premio", Icone: Award, disponivel: true, adminOnly: true },
-      { rotulo: "Disciplinar", Icone: Gavel, adminOnly: true },
       { rotulo: "JOE", href: "/joe", Icone: ClipboardList, disponivel: true },
       { rotulo: "Requerimentos", href: "/requerimentos", Icone: FileText, disponivel: true },
       { rotulo: "Cursos", href: "/cursos", Icone: Award, disponivel: true },
       { rotulo: "Diárias", Icone: FileText, adminOnly: true },
       { rotulo: "Escalas de Serviço", href: "/escalas", Icone: ClipboardList, disponivel: true, adminOnly: true },
       { rotulo: "Mapa de Escala", href: "/escalas/mapa", Icone: Map, disponivel: true, adminOnly: true },
+    ],
+  },
+  {
+    titulo: "Disciplinar",
+    itens: [
+      { rotulo: "FATD", href: "/disciplinar/fatd", Icone: Gavel, disponivel: true, adminOnly: true },
+      { rotulo: "Sindicância", href: "/disciplinar/sindicancia", Icone: FileText, disponivel: true, adminOnly: true },
+      { rotulo: "IPS", href: "/disciplinar/ips", Icone: ShieldCheck, disponivel: true, adminOnly: true },
+      { rotulo: "IPM", href: "/disciplinar/ipm", Icone: ClipboardList, disponivel: true, adminOnly: true },
     ],
   },
   {
