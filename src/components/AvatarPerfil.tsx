@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ChangeEvent, PointerEvent as ReactPointerEvent } from "react";
 import { X, Upload, Trash2, Move, Loader2, Check, ImagePlus } from "lucide-react";
 
@@ -51,6 +52,8 @@ export default function AvatarPerfil({
   const [tem, setTem] = useState(temFoto);
   const [ajuste, setAjuste] = useState<Ajuste>(PADRAO);
   const [aberto, setAberto] = useState(false);
+  const [montado, setMontado] = useState(false);
+  useEffect(() => { setMontado(true); }, []);
   const [modo, setModo] = useState<"ver" | "posicionar">("ver");
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -139,7 +142,7 @@ export default function AvatarPerfil({
         <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={aoSelecionar} style={{ display: "none" }} />
       )}
 
-      {aberto && (
+      {aberto && montado && createPortal((
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" onClick={() => setAberto(false)}>
           <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0F1B2D] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between">
@@ -200,7 +203,7 @@ export default function AvatarPerfil({
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
     </>
   );
 }
