@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Save, Lock } from "lucide-react";
+import { SITUACOES_PADRAO, type SituacaoItem } from "@/lib/situacoesPadrao";
 
 type Militar = Record<string, string | null>;
 type Grupo = "pessoal" | "funcional";
@@ -31,17 +32,6 @@ const POSTOS = [
 // correspondencia de substring (ex.: "licen", "jms", "pronto", "reserva",
 // "ltip"). Nao renomear sem checar lib/situacao.ts e os componentes que usam
 // corSituacao/porSituacao.
-const SITUACOES = [
-  "Pronto",
-  "Licença",
-  "LTIP",
-  "Reserva",
-  "JMS",
-  "Férias",
-  "Licença-Prêmio",
-  "Agregação",
-];
-
 const SECOES: Secao[] = [
   {
     titulo: "Identificação e dados funcionais",
@@ -142,6 +132,94 @@ const SECOES: Secao[] = [
   },
 ];
 
+/* Modal para adicionar/editar as situacoes do efetivo (nome + afastamento).
+   Salva no servidor (/api/situacoes), valendo em todos os PCs. */
+function ModalSituacoes({ inicial, onFechar, onSalvo }: {
+  inicial: SituacaoItem[];
+  onFechar: () => void;
+  onSalvo: (lista: SituacaoItem[]) => void;
+}) {
+  const [lista, setLista] = useState<SituacaoItem[]>(inicial.map((s) => ({ ...s })));
+  const [novo, setNovo] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  const add = () => {
+    const nome = novo.trim();
+    if (!nome) return;
+    if (lista.some((s) => s.nome.toLowerCase() === nome.toLowerCase())) { setErro("Já existe uma situação com esse nome."); return; }
+    setLista((l) => [...l, { nome, afastamento: true }]);
+    setNovo(""); setErro("");
+  };
+  const editarNome = (i: number, nome: string) => setLista((l) => l.map((s, j) => (j === i ? { ...s, nome } : s)));
+  const toggleAf = (i: number) => setLista((l) => l.map((s, j) => (j === i ? { ...s, afastamento: !s.afastamento } : s)));
+  const remover = (i: number) => setLista((l) => l.filter((_, j) => j !== i));
+
+  const salvar = async () => {
+    const limpa = lista.map((s) => ({ nome: s.nome.trim(), afastamento: s.afastamento })).filter((s) => s.nome);
+    if (limpa.length === 0) { setErro("Informe ao menos uma situação."); return; }
+    setSalvando(true); setErro("");
+    try {
+      const r = await fetch("/api/situacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ situacoes: limpa }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d?.error || "Falha ao salvar");
+      onSalvo(Array.isArray(d?.situacoes) ? d.situacoes : limpa);
+    } catch (e: any) {
+      setErro(e?.message || "Não foi possível salvar."); setSalvando(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-auto bg-black/60 p-4" onClick={onFechar}>
+      <div className="ui-card mt-10 w-full max-w-xl p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-1 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-white">Situações do efetivo</h2>
+          <button onClick={onFechar} className="rounded-lg p-1.5 text-[#94A3B8] hover:bg-white/5 hover:text-white">✕</button>
+        </div>
+        <p className="mb-4 text-xs text-[#94A3B8]">
+          Marque <b>&ldquo;afastamento&rdquo;</b> quando a situação tira o militar do serviço (sai da escala/organograma e aparece destacado). Ex.: Prisão Provisória.
+        </p>
+
+        <div className="mb-4 space-y-2">
+          {lista.map((s, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                value={s.nome}
+                onChange={(e) => editarNome(i, e.target.value)}
+                className="flex-1 rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+              />
+              <label className="flex shrink-0 items-center gap-1.5 text-xs text-[#cdd9ea]">
+                <input type="checkbox" checked={s.afastamento} onChange={() => toggleAf(i)} /> afastamento
+              </label>
+              <button type="button" onClick={() => remover(i)} title="Remover" className="shrink-0 rounded-lg border border-white/10 px-2 py-2 text-xs text-[#94A3B8] hover:border-red-500/40 hover:text-red-300">🗑</button>
+            </div>
+          ))}
+        </div>
+
+        <div className="mb-4 flex items-center gap-2">
+          <input
+            value={novo}
+            onChange={(e) => setNovo(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+            placeholder="Nova situação (ex.: Prisão Provisória)"
+            className="flex-1 rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+          />
+          <button type="button" onClick={add} className="shrink-0 rounded-lg border border-[#D4AF37]/40 px-3 py-2 text-sm text-[#D4AF37] hover:bg-[#D4AF37]/10">+ Adicionar</button>
+        </div>
+
+        {erro && <p className="mb-3 text-sm text-red-300">{erro}</p>}
+
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={salvar} disabled={salvando} className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-60">
+            {salvando ? "Salvando..." : "Salvar situações"}
+          </button>
+          <button type="button" onClick={onFechar} className="rounded-lg border border-white/10 px-5 py-2.5 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-white">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function EfetivoForm({
   militar,
   isAdmin,
@@ -190,6 +268,18 @@ export default function EfetivoForm({
   // ---- autocomplete da lotacao ----
   const [lotacoes, setLotacoes] = useState<string[]>([]);
   const [lotFocado, setLotFocado] = useState(false);
+  const [situacoesLista, setSituacoesLista] = useState<SituacaoItem[]>(SITUACOES_PADRAO);
+  const [gerenciandoSit, setGerenciandoSit] = useState(false);
+
+  // carrega as situacoes configuradas (nome + afastamento) do servidor
+  useEffect(() => {
+    let vivo = true;
+    fetch("/api/situacoes")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (vivo && Array.isArray(d?.situacoes) && d.situacoes.length) setSituacoesLista(d.situacoes); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
   const lotBoxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -277,6 +367,14 @@ export default function EfetivoForm({
         </button>
       </div>
 
+      {gerenciandoSit && (
+        <ModalSituacoes
+          inicial={situacoesLista}
+          onFechar={() => setGerenciandoSit(false)}
+          onSalvo={(nova) => { setSituacoesLista(nova); setGerenciandoSit(false); }}
+        />
+      )}
+
       {!isAdmin && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
           Você está editando a sua própria ficha. Os campos funcionais (posto,
@@ -349,20 +447,32 @@ export default function EfetivoForm({
                       )}
                     </select>
                   ) : c.key === "situacao" && editavel ? (
-                    // situacao: dropdown com os valores reconhecidos pelo sistema
-                    <select
-                      value={form[c.key]}
-                      onChange={(e) => mudar(c.key, e.target.value)}
-                      className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
-                    >
-                      <option value="">Selecione...</option>
-                      {SITUACOES.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                      {form[c.key] && !SITUACOES.includes(form[c.key]) && (
-                        <option value={form[c.key]}>{form[c.key]}</option>
+                    // situacao: dropdown dinamico (configuravel) + gerenciar
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={form[c.key]}
+                        onChange={(e) => mudar(c.key, e.target.value)}
+                        className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                      >
+                        <option value="">Selecione...</option>
+                        {situacoesLista.map((s) => (
+                          <option key={s.nome} value={s.nome}>{s.nome}</option>
+                        ))}
+                        {form[c.key] && !situacoesLista.some((s) => s.nome === form[c.key]) && (
+                          <option value={form[c.key]}>{form[c.key]}</option>
+                        )}
+                      </select>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => setGerenciandoSit(true)}
+                          title="Adicionar / editar situações"
+                          className="shrink-0 whitespace-nowrap rounded-lg border border-white/10 px-2.5 py-2 text-xs text-[#94A3B8] transition hover:border-[#D4AF37]/40 hover:text-white"
+                        >
+                          ⚙ Situações
+                        </button>
                       )}
-                    </select>
+                    </div>
                   ) : c.key === "lotacao" && editavel ? (
                     // campo lotacao com autocomplete (sugestoes das lotacoes existentes)
                     <div className="relative" ref={lotBoxRef}>
