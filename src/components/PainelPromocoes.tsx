@@ -28,6 +28,8 @@ export type LinhaParticipante = {
   matricula: string | null;
   enviadas: number;
   pdfUnificado: string | null;
+  enviadoP1Em: string | null;
+  recebidoP1Em: string | null;
 };
 
 export type PeriodoResumo = {
@@ -65,6 +67,21 @@ export default function PainelPromocoes({
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("");
   const [carregando, setCarregando] = useState(false);
+  const [confirmandoP1, setConfirmandoP1] = useState<string | null>(null);
+
+  async function confirmarRecebimento(efetivoId: string) {
+    setConfirmandoP1(efetivoId);
+    try {
+      await fetch("/api/promocoes/status-p1", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acao: "receber", efetivoId, periodoId }),
+      });
+      router.refresh();
+    } finally {
+      setConfirmandoP1(null);
+    }
+  }
 
   // controles de periodo
   const [menuAberto, setMenuAberto] = useState(false);
@@ -309,6 +326,7 @@ export default function PainelPromocoes({
               <th className="px-4 py-3 font-semibold">Matrícula</th>
               <th className="px-4 py-3 font-semibold">Certidões</th>
               <th className="px-4 py-3 font-semibold">Status</th>
+              <th className="px-4 py-3 font-semibold">P/1</th>
               <th className="px-4 py-3 font-semibold">Ações</th>
             </tr>
           </thead>
@@ -338,23 +356,48 @@ export default function PainelPromocoes({
                     </span>
                   </td>
                   <td className="px-4 py-2.5">
-                    {p.pdfUnificado ? (
-                      <a
-                        href={`/api/promocoes/download?key=${encodeURIComponent(p.pdfUnificado)}`}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/30 px-2.5 py-1 text-xs font-medium text-[#D4AF37] transition hover:bg-[#D4AF37] hover:text-[#1a1205]"
-                      >
-                        <Download className="h-3.5 w-3.5" /> PDF unificado
-                      </a>
+                    {p.recebidoP1Em ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-medium text-emerald-300">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Recebido
+                      </span>
+                    ) : p.enviadoP1Em ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#D4AF37]/15 px-2.5 py-0.5 text-xs font-medium text-[#D4AF37]">
+                        <Clock className="h-3.5 w-3.5" /> Enviado
+                      </span>
                     ) : (
-                      <span className="text-xs text-[#94A3B8]">aguardando</span>
+                      <span className="text-xs text-[#94A3B8]">—</span>
                     )}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      {p.pdfUnificado ? (
+                        <a
+                          href={`/api/promocoes/download?key=${encodeURIComponent(p.pdfUnificado)}`}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/30 px-2.5 py-1 text-xs font-medium text-[#D4AF37] transition hover:bg-[#D4AF37] hover:text-[#1a1205]"
+                        >
+                          <Download className="h-3.5 w-3.5" /> PDF unificado
+                        </a>
+                      ) : (
+                        <span className="text-xs text-[#94A3B8]">aguardando</span>
+                      )}
+                      {p.enviadoP1Em && !p.recebidoP1Em && (
+                        <button
+                          onClick={() => confirmarRecebimento(p.efetivoId)}
+                          disabled={confirmandoP1 === p.efetivoId}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                        >
+                          {confirmandoP1 === p.efetivoId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ClipboardCheck className="h-3.5 w-3.5" />}
+                          Confirmar recebimento
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
             })}
             {filtrados.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-[#94A3B8]">
+                <td colSpan={7} className="px-4 py-10 text-center text-[#94A3B8]">
                   Nenhum policial no processo ainda. Use 'Adicionar todo o efetivo' ou aguarde os envios.
                 </td>
               </tr>

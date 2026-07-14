@@ -7,6 +7,7 @@ import PainelPromocoes from "@/components/PainelPromocoes";
 import CriarPeriodo from "@/components/CriarPeriodo";
 import { periodoAtivo } from "@/lib/promocoes";
 import { TOTAL_CERTIDOES } from "@/lib/certidoes";
+import { lerMapaP1 } from "@/lib/promocaoStatusP1";
 
 export const dynamic = "force-dynamic";
 
@@ -63,9 +64,11 @@ async function PainelConteudo({
     },
   });
   const mapaFicha = new Map(fichas.map((f) => [f.id, f]));
+  const mapaP1 = await lerMapaP1();
   const linhas = participantes
     .map((p) => {
       const f = mapaFicha.get(p.efetivoId);
+      const st = mapaP1[`${periodoId}:${p.efetivoId}`];
       return {
         efetivoId: p.efetivoId,
         postoGrad: f?.postoGrad ?? null,
@@ -74,9 +77,17 @@ async function PainelConteudo({
         matricula: f?.matricula ?? null,
         enviadas: p._count.certidoes,
         pdfUnificado: p.pdfUnificado,
+        enviadoP1Em: st?.enviadoEm ?? null,
+        recebidoP1Em: st?.recebidoEm ?? null,
       };
     })
-    .sort((a, b) => b.enviadas - a.enviadas);
+    // ordena: enviados ao P/1 e ainda nao recebidos primeiro, depois por certidoes
+    .sort((a, b) => {
+      const pa = a.enviadoP1Em && !a.recebidoP1Em ? 1 : 0;
+      const pb = b.enviadoP1Em && !b.recebidoP1Em ? 1 : 0;
+      if (pa !== pb) return pb - pa;
+      return b.enviadas - a.enviadas;
+    });
 
   // lista de todos os periodos (pro seletor e aba de arquivadas)
   const todos = await prisma.periodoPromocao.findMany({

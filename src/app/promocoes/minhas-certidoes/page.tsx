@@ -6,6 +6,7 @@ import AppShell from "@/components/AppShell";
 import MinhasCertidoes from "@/components/MinhasCertidoes";
 import { periodoAtivo } from "@/lib/promocoes";
 import { CERTIDOES_EXIGIDAS, TOTAL_CERTIDOES } from "@/lib/certidoes";
+import { statusP1 } from "@/lib/promocaoStatusP1";
 import { AlertTriangle } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -62,22 +63,28 @@ async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
     ordem: c.ordem,
     orgao: c.orgao,
     descricao: c.descricao,
+    link: c.link,
+    linkRotulo: c.linkRotulo,
     enviada: enviadas.has(c.ordem),
     nomeArquivo: enviadas.get(c.ordem) ?? null,
   }));
+
+  const st = await statusP1(periodo.id, efetivoId);
 
   return (
     <>
       <p className="mb-5 text-sm text-[#94A3B8]">
         Período: <span className="font-semibold text-[#D4AF37]">{periodo.nome}</span>.
         Envie cada certidão em PDF. Quando as {TOTAL_CERTIDOES} estiverem
-        enviadas, gere o PDF unificado na ordem oficial.
+        enviadas, gere o PDF unificado e envie ao P/1.
       </p>
       <MinhasCertidoes
         itens={itens}
         total={TOTAL_CERTIDOES}
         pdfUnificadoKey={participante?.pdfUnificado ?? null}
         efetivoId={efetivoId}
+        enviadoP1Em={st?.enviadoEm ?? null}
+        recebidoP1Em={st?.recebidoEm ?? null}
       />
     </>
   );
