@@ -307,9 +307,15 @@ function PoolMini({
 }) {
   const [q, setQ] = useState("");
   const [abrir, setAbrir] = useState(false);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
   const move = (i: number, dir: -1 | 1) => {
     const j = i + dir; if (j < 0 || j >= ids.length) return;
     const a = ids.slice(); [a[i], a[j]] = [a[j], a[i]]; onChange(a);
+  };
+  const soltar = (destino: number) => {
+    if (dragIdx === null || dragIdx === destino) { setDragIdx(null); return; }
+    const a = ids.slice(); const [item] = a.splice(dragIdx, 1); a.splice(destino, 0, item);
+    onChange(a); setDragIdx(null);
   };
   const rm = (i: number) => onChange(ids.filter((_, j) => j !== i));
   const add = (id: string) => { if (!id || ids.includes(id)) return; onChange([...ids, id]); setQ(""); setAbrir(false); };
@@ -327,7 +333,16 @@ function PoolMini({
       {ids.length > 0 && (
         <ol className="mp-eq-lista">
           {ids.map((id, i) => (
-            <li key={id + i} className="mp-pool-li">
+            <li key={id + i}
+              className={"mp-pool-li" + (dragIdx === i ? " arrastando" : "")}
+              draggable
+              onDragStart={() => setDragIdx(i)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => soltar(i)}
+              onDragEnd={() => setDragIdx(null)}
+              title="Arraste para reordenar (a ordem = rodízio)"
+            >
+              <span className="mp-pool-grip no-print">⋮⋮</span>
               <span className="mp-pool-nome">{nomeDe(id)}</span>
               <span className="mp-pool-btns no-print">
                 <button disabled={i === 0} title="subir" onClick={() => move(i, -1)}>↑</button>
@@ -1275,7 +1290,10 @@ const CSS = `
 .mp-eq-vazio{ font-size:11.5px; color:#6f82a0; font-style:italic; padding:1px 0; }
 .mp-eq-rotem{ margin-bottom:4px; }
 .mp-pool{ margin-bottom:2px; }
-.mp-pool-li{ display:flex; align-items:center; gap:6px; }
+.mp-pool-li{ display:flex; align-items:center; gap:6px; cursor:grab; border-radius:6px; padding:1px 2px; }
+.mp-pool-li:hover{ background:#0e1a2b; }
+.mp-pool-li.arrastando{ opacity:.45; }
+.mp-pool-grip{ color:#6b7f9c; cursor:grab; font-size:11px; user-select:none; letter-spacing:-2px; }
 .mp-pool-nome{ flex:1; }
 .mp-pool-btns{ display:inline-flex; gap:2px; }
 .mp-pool-btns button{ background:#0a1626; color:#9fb0c7; border:1px solid #28395a; border-radius:5px; width:20px; height:20px; font-size:11px; line-height:1; cursor:pointer; padding:0; }
