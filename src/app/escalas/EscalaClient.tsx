@@ -1358,10 +1358,12 @@ export default function EscalaClient() {
     ma: "/brasoes/armas-ma.png",
     bpm: "/brasoes/brasao-18bpm.png",
     vistoCmt: "/brasoes/assinatura-cmt.png",
-    assinaturaChefe: "/brasoes/assinatura-joelson.png",
+    assinaturaChefe: "",
   });
   // Chefe do P/1: carregado do servidor (aba "Chefe do P1"), igual em todo PC.
-  const [chefe, setChefe] = useState<Chefe>({ nome: "1\u00ba TEN QOEM JOELSON DOS REIS SILVA", funcao: "CHEFE DO P/1 DO 18\u00ba BPM", assinatura: "/brasoes/assinatura-joelson.png", assinarGov: false, cmtAssinatura: "/brasoes/assinatura-cmt.png" });
+  // Estes valores sao apenas o padrao inicial antes do carregamento \u2014 o valor
+  // real vem da config "escala_chefe_p1" (campo unico, editavel na aba).
+  const [chefe, setChefe] = useState<Chefe>({ nome: "1\u00ba TEN QOEM PAULO SILAS BARROS DE BRITO JUNIOR", funcao: "CHEFE DO P/1 DO 18\u00ba BPM", assinatura: "", assinarGov: false, cmtAssinatura: "/brasoes/assinatura-cmt.png" });
   const [chefeSalvando, setChefeSalvando] = useState(false);
   const [chefeMsg, setChefeMsg] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -1848,7 +1850,7 @@ export default function EscalaClient() {
                 <label>Nome (posto + nome)
                   <input
                     value={chefe.nome}
-                    placeholder="ex: 1º TEN QOEM JOELSON DOS REIS SILVA"
+                    placeholder="ex: 1º TEN QOEM PAULO SILAS BARROS DE BRITO JUNIOR"
                     onChange={(e) => setChefe((c) => ({ ...c, nome: e.target.value }))}
                   />
                 </label>

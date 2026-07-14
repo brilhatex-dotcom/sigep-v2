@@ -15,10 +15,13 @@ export const dynamic = "force-dynamic";
    ========================================================================= */
 
 const CHAVE = "escala_chefe_p1";
+// Padrao inicial (usado so quando nada foi salvo ainda). O valor real e
+// editado na aba "Chefe do P1" da escala e fica salvo na Config — este campo
+// e a fonte unica de quem assina a escala E os memorandos de ferias/LP.
 const PADRAO = {
-  nome: "1º TEN QOEM JOELSON DOS REIS SILVA",
+  nome: "1º TEN QOEM PAULO SILAS BARROS DE BRITO JUNIOR",
   funcao: "CHEFE DO P/1 DO 18º BPM",
-  assinatura: "/brasoes/assinatura-joelson.png",  // imagem da assinatura (data URL/caminho); "" = em branco
+  assinatura: "",       // imagem da assinatura (data URL/caminho); "" = em branco
   assinarGov: false,    // se true, a assinatura sai em branco (assina pelo Gov.br)
   cmtAssinatura: "/brasoes/assinatura-cmt.png",   // assinatura do Cmt (VISTO), trocavel se mudar o comando
 };

@@ -35,6 +35,9 @@ export type MemorandoDocxInput = {
   variante?: "ferias" | "licenca";
   // texto do prazo da Licenca-Premio (ex.: "3 (tres) meses").
   prazo?: string;
+  // assinatura do Chefe do P/1 (data URL ou caminho em public/); "" = sem
+  // imagem (assina pelo Gov.br ou em branco). Vem do campo da escala.
+  assinaturaChefe?: string;
 };
 
 function mmToTwip(mm: number): number {
@@ -123,6 +126,33 @@ function imagemOuNull(nomeArquivo: string, larguraMm: number, alturaMm: number):
   }
 }
 
+// Resolve uma imagem que pode vir como data URL (upload) ou como caminho em
+// public/ (ex.: "/brasoes/assinatura-x.png"). "" -> null (sem imagem).
+function imagemDeValor(valor: string | undefined, larguraMm: number, alturaMm: number): ImageRun | null {
+  const v = (valor || "").trim();
+  if (!v) return null;
+  try {
+    let dados: Buffer;
+    let tipo: "png" | "jpg" = "png";
+    if (v.startsWith("data:")) {
+      if (/^data:image\/jpe?g/i.test(v)) tipo = "jpg";
+      const b64 = v.slice(v.indexOf(",") + 1);
+      dados = Buffer.from(b64, "base64");
+    } else {
+      const rel = v.replace(/^\//, "");
+      if (/\.jpe?g$/i.test(rel)) tipo = "jpg";
+      dados = fs.readFileSync(path.join(process.cwd(), "public", rel));
+    }
+    return new ImageRun({
+      type: tipo,
+      data: dados,
+      transformation: { width: pxFromMm(larguraMm), height: pxFromMm(alturaMm) },
+    }) as unknown as ImageRun;
+  } catch {
+    return null;
+  }
+}
+
 const SEM_BORDA = {
   top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
   bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
@@ -140,7 +170,8 @@ export async function gerarMemorandoDocx(d: MemorandoDocxInput): Promise<Buffer>
   const assinaturaCmt = imagemOuNull("assinatura-cmt.png", 34, 15);
   const brasaoEstado = imagemOuNull("brasao-estado-ma.png", 22, 17);
   const brasao18bpm = imagemOuNull("brasao-18bpm.png", 22, 22);
-  const assinaturaJoelson = imagemOuNull("assinatura-joelson.png", 30, 16);
+  // Assinatura do Chefe do P/1 vem do campo da escala (nao mais fixa/Joelson).
+  const assinaturaChefe = imagemDeValor(d.assinaturaChefe, 30, 16);
 
   const colEsquerda: Paragraph[] = [
     new Paragraph({ children: brasaoPmma ? [brasaoPmma] : [], alignment: AlignmentType.LEFT, spacing: { after: 100 } }),
@@ -284,7 +315,7 @@ export async function gerarMemorandoDocx(d: MemorandoDocxInput): Promise<Buffer>
 
   // ---- assinatura do emissor (rubrica + nome + cargo) ----
   blocosDepoisDoCorpo.push(
-    new Paragraph({ alignment: AlignmentType.CENTER, children: assinaturaJoelson ? [assinaturaJoelson] : [], spacing: { after: 40 } }),
+    new Paragraph({ alignment: AlignmentType.CENTER, children: assinaturaChefe ? [assinaturaChefe] : [], spacing: { after: 40 } }),
     new Paragraph({ alignment: AlignmentType.CENTER, children: htmlParaRuns(d.nomeCmt) }),
     new Paragraph({ alignment: AlignmentType.CENTER, children: htmlParaRuns(d.cargoCmt) })
   );

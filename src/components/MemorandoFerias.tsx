@@ -175,12 +175,50 @@ function Portal({ montado, children }: { montado: boolean; children: React.React
   return createPortal(children, document.body);
 }
 
-export default function MemorandoFerias({ dados, ano, onFechar, variante = "ferias" }: {
+type ChefeP1 = { nome: string; funcao: string; assinatura: string; assinarGov: boolean };
+
+// Wrapper: busca o Chefe do P/1 ATUAL (o mesmo campo da Escala de Serviço —
+// config "escala_chefe_p1", aba "Chefe do P1"). Esse campo e a fonte unica de
+// quem assina; so depois de carregado montamos o documento, para que os useRef
+// dos campos ja nasçam com o nome/cargo/assinatura corretos.
+export default function MemorandoFerias(props: {
   dados: DadosMemorando; ano: string; onFechar: () => void;
   variante?: "ferias" | "licenca";
 }) {
+  const [chefe, setChefe] = useState<ChefeP1 | null>(null);
+  const [carregado, setCarregado] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    fetch("/api/escala-chefe")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!vivo) return;
+        setChefe({
+          nome: String(d?.nome || ""),
+          funcao: String(d?.funcao || ""),
+          assinatura: String(d?.assinatura || ""),
+          assinarGov: d?.assinarGov === true,
+        });
+        setCarregado(true);
+      })
+      .catch(() => { if (vivo) setCarregado(true); });
+    return () => { vivo = false; };
+  }, []);
+  if (!carregado) return null;
+  return <MemorandoDoc {...props} chefe={chefe} />;
+}
+
+function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe }: {
+  dados: DadosMemorando; ano: string; onFechar: () => void;
+  variante?: "ferias" | "licenca";
+  chefe: ChefeP1 | null;
+}) {
   const ehLicenca = variante === "licenca";
   const prazoLic = (dados.prazoTexto && dados.prazoTexto.trim()) || "3 (três) meses";
+  // Assinatura do emissor (Chefe do P/1): em branco quando assina pelo Gov.br
+  // ou quando nao ha imagem configurada; caso contrario usa a assinatura do
+  // chefe salva no campo da escala (data URL ou caminho em public/).
+  const assinaturaChefe = (!chefe || chefe.assinarGov || !chefe.assinatura) ? "" : chefe.assinatura;
   const [editando, setEditando] = useState(false);
   const [fontSize, setFontSize] = useState(12);
   const [montado, setMontado] = useState(false);
@@ -212,8 +250,8 @@ export default function MemorandoFerias({ dados, ano, onFechar, variante = "feri
     exercicio:     useRef(`${Number(ano) - 1}`),
     observacao:    useRef(obsInicial),
     assinaturaAo:  useRef(`${assinaturaHtml}`),
-    nomeCmt:       useRef(`1º TEN. QOEM <strong>JOELSON</strong> DOS REIS SILVA`),
-    cargoCmt:      useRef(`CHEFE DO P/1 DO 18º BPM`),
+    nomeCmt:       useRef(chefe?.nome || ""),
+    cargoCmt:      useRef(chefe?.funcao || ""),
   };
 
   function fmt(cmd: string) {
@@ -242,6 +280,7 @@ export default function MemorandoFerias({ dados, ano, onFechar, variante = "feri
         assinaturaAo: campos.assinaturaAo.current,
         nomeCmt: campos.nomeCmt.current,
         cargoCmt: campos.cargoCmt.current,
+        assinaturaChefe,
       };
       const res = await fetch("/api/ferias/memorando-docx", {
         method: "POST",
@@ -457,13 +496,17 @@ export default function MemorandoFerias({ dados, ano, onFechar, variante = "feri
           <C campo="assinaturaAo" style={{ display: "block", textAlign: "center" }} />
         </div>
 
-        {/* Assinatura do emissor (Chefe P/1) — rubrica do Joelson acima do nome */}
+        {/* Assinatura do emissor (Chefe do P/1) — vem do campo da escala.
+            A rubrica so aparece se houver imagem configurada e o chefe nao
+            estiver assinando pelo Gov.br. */}
         <div style={{ textAlign: "center" }}>
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: "1mm" }}>
-            <img src="/assinatura-joelson.png" alt=""
-              style={{ height: "16mm", objectFit: "contain" }}
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-          </div>
+          {assinaturaChefe && (
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "1mm" }}>
+              <img src={assinaturaChefe} alt=""
+                style={{ height: "16mm", objectFit: "contain" }}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+            </div>
+          )}
           <C campo="nomeCmt" style={{ display: "block", textAlign: "center" }} />
           <C campo="cargoCmt" style={{ display: "block", textAlign: "center" }} />
         </div>

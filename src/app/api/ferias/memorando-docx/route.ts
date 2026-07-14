@@ -35,6 +35,7 @@ export async function POST(req: Request) {
       cargoCmt: String(body.cargoCmt ?? ""),
       variante: body.variante === "licenca" ? "licenca" : "ferias",
       prazo: String(body.prazo ?? ""),
+      assinaturaChefe: String(body.assinaturaChefe ?? ""),
     };
 
     const buffer = await gerarMemorandoDocx(campos);
