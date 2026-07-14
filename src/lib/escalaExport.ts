@@ -83,7 +83,7 @@ const SEM = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
 const SEM_BORDAS = { top: SEM, bottom: SEM, left: SEM, right: SEM };
 
 function run(text: string, opt: { bold?: boolean; size?: number; italics?: boolean; underline?: boolean } = {}) {
-  return new TextRun({ text, bold: opt.bold, italics: opt.italics, size: opt.size ?? 18, underline: opt.underline ? {} : undefined });
+  return new TextRun({ text, bold: opt.bold, italics: opt.italics, size: opt.size ?? 15, underline: opt.underline ? {} : undefined });
 }
 function par(children: TextRun[], align = AlignmentType.CENTER) { return new Paragraph({ alignment: align, children }); }
 function linhaP(text: string, opt: { bold?: boolean; size?: number; italics?: boolean; underline?: boolean; align?: (typeof AlignmentType)[keyof typeof AlignmentType] } = {}) {
@@ -108,7 +108,7 @@ function celRotulo(txt: string, w: number) {
   });
 }
 function celFaixa(txt: string, span: number) {
-  return new TableRow({ children: [new TableCell({ columnSpan: span, shading: { fill: "DDDDDD" }, borders: BORDAS, verticalAlign: VerticalAlign.CENTER, children: [linhaP(txt, { bold: true, size: 20 })] })] });
+  return new TableRow({ children: [new TableCell({ columnSpan: span, shading: { fill: "DDDDDD" }, borders: BORDAS, verticalAlign: VerticalAlign.CENTER, children: [linhaP(txt, { bold: true, size: 16 })] })] });
 }
 
 function expedienteDocx(e: EscalaDia): Table | null {
@@ -157,10 +157,10 @@ export async function gerarEscalaDocx(input: EscalaExportInput): Promise<Buffer>
   const extra = e.tipo === "extraordinaria" || e.tipo === "joe";
 
   // cabecalho: 3 colunas sem borda
-  const orgPars = ORG.map((l, i) => linhaP(l, { size: i === 4 ? 17 : 15, bold: i === 4 }));
-  const imgPmma = imgDocx(br.pmma, 78, 62);
-  const imgMa = imgDocx(br.ma, 60, 66);
-  const imgBpm = imgDocx(br.bpm, 62, 68);
+  const orgPars = ORG.map((l, i) => linhaP(l, { size: i === 4 ? 15 : 13, bold: i === 4 }));
+  const imgPmma = imgDocx(br.pmma, 66, 54);
+  const imgMa = imgDocx(br.ma, 48, 54);
+  const imgBpm = imgDocx(br.bpm, 54, 58);
   const cabecalho = new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: { top: SEM, bottom: SEM, left: SEM, right: SEM, insideHorizontal: SEM, insideVertical: SEM },
@@ -183,18 +183,17 @@ export async function gerarEscalaDocx(input: EscalaExportInput): Promise<Buffer>
         linhaP("Cmt. do 18º BPM", { size: 15 }),
       ] }),
       new TableCell({ width: { size: 74, type: WidthType.PERCENTAGE }, borders: SEM_BORDAS, verticalAlign: VerticalAlign.CENTER, children: [
-        linhaP(extra ? "ESCALA DE SERVIÇO EXTRAORDINÁRIA" : "ESCALA DE SERVIÇO", { bold: true, size: 30, underline: true }),
+        linhaP(extra ? "ESCALA DE SERVIÇO EXTRAORDINÁRIA" : "ESCALA DE SERVIÇO", { bold: true, size: 26, underline: true }),
       ] }),
     ] })],
   });
 
   const corpo: (Paragraph | Table)[] = [
     cabecalho,
-    new Paragraph({ text: "" }),
     vistoTitulo,
-    linhaP(`PARA O DIA ${extensoUpper(e.data)} (${diaSemana(e.data)})`, { bold: true, size: 20, underline: true }),
-    linhaP(`SERVIÇO - ${limpa(e.servicoHoras) || "24 HORAS"} (APRESENTAÇÃO ÀS ${limpa(e.apresentacao) || "08H"})`, { bold: true, size: 18, underline: true }),
-    new Paragraph({ text: "" }),
+    linhaP(`PARA O DIA ${extensoUpper(e.data)} (${diaSemana(e.data)})`, { bold: true, size: 18, underline: true }),
+    linhaP(`SERVIÇO - ${limpa(e.servicoHoras) || "24 HORAS"} (APRESENTAÇÃO ÀS ${limpa(e.apresentacao) || "08H"})`, { bold: true, size: 15, underline: true }),
+    new Paragraph({ text: "", spacing: { after: 40 } }),
   ];
 
   if (extra) {
@@ -202,18 +201,16 @@ export async function gerarEscalaDocx(input: EscalaExportInput): Promise<Buffer>
     corpo.push(linhaCampo("OPERAÇÃO:", e.extraOperacao), linhaCampo("LOCAL:", e.extraLocal), linhaCampo("HORÁRIO:", e.extraHorario), linhaCampo("UNIFORME:", e.extraUniforme));
   } else {
     const exp = expedienteDocx(e);
-    if (exp) { corpo.push(exp, new Paragraph({ text: "" })); }
+    if (exp) { corpo.push(exp, new Paragraph({ text: "", spacing: { after: 30 } })); }
     corpo.push(servicosDocx(e));
-    corpo.push(new Paragraph({ text: "" }));
-    corpo.push(linhaP(`Quartel do 18º BPM, em ${CIDADE}, ${extensoLow(e.dataConfeccao || e.data)}.`, { size: 17 }));
+    corpo.push(linhaP(`Quartel do 18º BPM, em ${CIDADE}, ${extensoLow(e.dataConfeccao || e.data)}.`, { size: 14, align: AlignmentType.RIGHT }));
   }
 
   // assinatura do chefe
-  corpo.push(new Paragraph({ text: "" }));
-  const imgAss = (!ch.assinarGov && ch.assinatura) ? imgDocx(ch.assinatura, 170, 60) : null;
-  corpo.push(new Paragraph({ alignment: AlignmentType.CENTER, children: imgAss ? [imgAss] : [run(" ")] }));
-  corpo.push(linhaP(ch.nome || "", { bold: true, size: 18 }));
-  corpo.push(linhaP(ch.funcao || "", { size: 16 }));
+  const imgAss = (!ch.assinarGov && ch.assinatura) ? imgDocx(ch.assinatura, 150, 48) : null;
+  corpo.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 120 }, children: imgAss ? [imgAss] : [run(" ")] }));
+  corpo.push(linhaP(ch.nome || "", { bold: true, size: 15 }));
+  corpo.push(linhaP(ch.funcao || "", { size: 14 }));
 
   const doc = new Document({ sections: [{ properties: {}, children: corpo }] });
   return Packer.toBuffer(doc);
@@ -269,12 +266,12 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
   // ---- cabecalho: 3 brasoes + texto do orgao ----
   const [iPmma, iMa, iBpm] = await Promise.all([embed(br.pmma), embed(br.ma), embed(br.bpm)]);
   const topo = y;
-  if (iPmma) page.drawImage(iPmma, { x: MX + 6, y: topo - 58, width: 74, height: 58 });
-  if (iBpm) page.drawImage(iBpm, { x: W - MX - 68, y: topo - 62, width: 62, height: 62 });
-  if (iMa) page.drawImage(iMa, { x: (W - 54) / 2, y: topo - 60, width: 54, height: 60 });
-  y = topo - 66;
-  for (let i = 0; i < ORG.length; i++) centro(ORG[i], i === 4 ? 11 : 9, i === 4 ? bold : font, 2);
-  y -= 6;
+  if (iPmma) page.drawImage(iPmma, { x: MX + 6, y: topo - 52, width: 64, height: 52 });
+  if (iBpm) page.drawImage(iBpm, { x: W - MX - 60, y: topo - 56, width: 56, height: 56 });
+  if (iMa) page.drawImage(iMa, { x: (W - 48) / 2, y: topo - 54, width: 48, height: 54 });
+  y = topo - 58;
+  for (let i = 0; i < ORG.length; i++) centro(ORG[i], i === 4 ? 10 : 8, i === 4 ? bold : font, 1.5);
+  y -= 4;
 
   // ---- VISTO (esquerda) + titulo ----
   const tituloY = y;
@@ -283,17 +280,17 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
   if (iVisto) page.drawImage(iVisto, { x: MX + 6, y: tituloY - 44, width: 78, height: 26 });
   page.drawText("Cmt. do 18o BPM", { x: MX + 2, y: tituloY - 56, size: 8, font, color: rgb(0, 0, 0) });
   const tit = safe(extra ? "ESCALA DE SERVICO EXTRAORDINARIA" : "ESCALA DE SERVICO");
-  const titW = bold.widthOfTextAtSize(tit, 16);
-  page.drawText(tit, { x: (W - titW) / 2, y: tituloY - 34, size: 16, font: bold, color: rgb(0, 0, 0) });
-  page.drawLine({ start: { x: (W - titW) / 2, y: tituloY - 37 }, end: { x: (W + titW) / 2, y: tituloY - 37 }, thickness: 0.9, color: rgb(0, 0, 0) });
-  y = tituloY - 60;
-  centro(`PARA O DIA ${extensoUpper(e.data)} (${diaSemana(e.data)})`, 11, bold, 3, true);
-  centro(`SERVICO - ${limpa(e.servicoHoras) || "24 HORAS"} (APRESENTACAO AS ${limpa(e.apresentacao) || "08H"})`, 10, bold, 5, true);
+  const titW = bold.widthOfTextAtSize(tit, 15);
+  page.drawText(tit, { x: (W - titW) / 2, y: tituloY - 30, size: 15, font: bold, color: rgb(0, 0, 0) });
+  page.drawLine({ start: { x: (W - titW) / 2, y: tituloY - 33 }, end: { x: (W + titW) / 2, y: tituloY - 33 }, thickness: 0.9, color: rgb(0, 0, 0) });
+  y = tituloY - 52;
+  centro(`PARA O DIA ${extensoUpper(e.data)} (${diaSemana(e.data)})`, 10, bold, 2, true);
+  centro(`SERVICO - ${limpa(e.servicoHoras) || "24 HORAS"} (APRESENTACAO AS ${limpa(e.apresentacao) || "08H"})`, 9, bold, 4, true);
 
   // ---- desenho de tabela generico ----
   type Cel = { text: string; w: number; bold?: boolean; center?: boolean; fill?: boolean };
   const drawLinha = (cels: Cel[], titulo = false) => {
-    const size = 9.5, lh = 12.5, padY = 4;
+    const size = 9, lh = 11, padY = 2.5;
     const fontDe = (c: Cel) => (c.bold ? bold : c.fill ? font : italic); // valores em italico
     // calcula altura
     let maxLinhas = 1;
