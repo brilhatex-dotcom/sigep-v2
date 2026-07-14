@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import PlanoFeriasClient from "@/components/PlanoFeriasClient";
+import FeriasAvulsas from "@/components/FeriasAvulsas";
 import { classificarPatente } from "@/lib/patentes";
 import {
   paraData,
@@ -160,6 +161,8 @@ export default async function FeriasPage({
             isAdmin={isAdmin}
           />
         )}
+
+        <FeriasAvulsas ano={anoSelecionado} isAdmin={isAdmin} />
       </div>
     </AppShell>
   );

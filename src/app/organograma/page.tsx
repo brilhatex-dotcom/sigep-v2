@@ -6,6 +6,7 @@ import AppShell from "@/components/AppShell";
 import OrganogramaArvore, { Contagens } from "@/components/OrganogramaArvore";
 import { ORGANOGRAMA, NoOrg, pertenceAoNo } from "@/lib/organograma";
 import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
+import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
 import {
   calcularStatusUnidades,
   mapaMinimos,
@@ -41,6 +42,7 @@ export default async function OrganogramaPage() {
   const equipes = await prisma.equipeFerias.findMany();
   const membros = await prisma.membroFerias.findMany();
   const idsFerias = montarIdsEmFerias(equipes, membros, hoje);
+  for (const id of await idsFeriasAvulsasHoje(hoje)) idsFerias.add(id); // ferias em datas soltas
 
   // licenca-premio de hoje
   const equipesLicenca = await prisma.equipeLicencaPremio.findMany();

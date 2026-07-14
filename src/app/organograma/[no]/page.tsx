@@ -7,6 +7,7 @@ import AppShell from "@/components/AppShell";
 import { classificarPatente } from "@/lib/patentes";
 import { acharNo, pertenceAoNo } from "@/lib/organograma";
 import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
+import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
 import { ArrowLeft, ChevronRight, Users } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +45,7 @@ export default async function NoOrganogramaPage({
   const equipes = await prisma.equipeFerias.findMany();
   const membros = await prisma.membroFerias.findMany();
   const idsFerias = montarIdsEmFerias(equipes, membros, hoje);
+  for (const id of await idsFeriasAvulsasHoje(hoje)) idsFerias.add(id); // ferias em datas soltas
 
   // licenca-premio de hoje
   const equipesLicenca = await prisma.equipeLicencaPremio.findMany();
