@@ -18,8 +18,8 @@ const ITENS: Item[] = [
   { href: "/escalas/servico/inteligencia", ic: "🕵️", label: "Inteligência" },
   { href: "/escalas/servico/permanencia", ic: "🏢", label: "Permanência" },
   { href: "/escalas/permutas", ic: "🔄", label: "Permutas" },
-  { ic: "📄", label: "Publicações", breve: true },
-  { ic: "📊", label: "Estatísticas", breve: true },
+  { href: "/escalas/publicacoes", ic: "📄", label: "Publicações" },
+  { href: "/escalas/estatisticas", ic: "📊", label: "Estatísticas" },
 ];
 
 export default function EscalasNav() {

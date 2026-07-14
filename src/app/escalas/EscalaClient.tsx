@@ -1741,6 +1741,21 @@ export default function EscalaClient() {
     }
   };
 
+  const publicar = async () => {
+    if (!confirm(`Publicar a escala de ${brCurto(data)} no arquivo de Publicações?`)) return;
+    try {
+      const r = await fetch("/api/publicacoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ escala: e, brasoes, chefe }),
+      });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      alert("Escala publicada no arquivo. ✅  Veja em Escalas → Publicações.");
+    } catch {
+      alert("Não foi possível publicar a escala.");
+    }
+  };
+
   return (
     <EfetivoCtx.Provider value={efetivo}>
     <div className="app-shell">
@@ -1769,6 +1784,7 @@ export default function EscalaClient() {
           <button className="btn primary" onClick={() => window.print()}>🖨 Imprimir</button>
           <button className="btn" onClick={() => baixarEscala("docx")} title="Baixar a escala do dia em Word (.docx)">📝 Word</button>
           <button className="btn" onClick={() => baixarEscala("pdf")} title="Baixar a escala do dia em PDF">📄 PDF</button>
+          <button className="btn gen" onClick={publicar} title="Arquivar esta escala nas Publicações (histórico oficial)">📢 Publicar</button>
         </div>
         <div className="tb-row tb-sub">
           <span className="tb-status">
