@@ -276,6 +276,46 @@ export default function LicencaPremio({
     </button>
   );
 
+  function imprimir() {
+    const dataStr = new Date().toLocaleDateString("pt-BR");
+    const esc = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const blocos = equipes.map((e) => {
+      const linhas = e.membros.map((m, i) =>
+        `<tr>${[i + 1, m.postoGrad, m.numeroBarra, m.nome, m.nomeGuerra, m.matricula].map((v) => `<td>${esc(v)}</td>`).join("")}</tr>`
+      ).join("");
+      const periodo = e.inicioBR && e.fimBR ? `${e.inicioBR} a ${e.fimBR}` : "sem datas";
+      return `
+        <h2>EQUIPE ${esc(e.numeroEquipe)} <span class="per">Período (3 meses): ${esc(periodo)}${e.status?.rotulo ? " · " + esc(e.status.rotulo) : ""}</span> <span class="qtd">${e.membros.length} militar(es)</span></h2>
+        ${e.membros.length
+          ? `<table><thead><tr><th>#</th><th>Posto/Grad</th><th>Nº/Barra</th><th>Nome</th><th>Nome de Guerra</th><th>Matrícula</th></tr></thead><tbody>${linhas}</tbody></table>`
+          : `<p class="vazio">Sem militares nesta equipe.</p>`}`;
+    }).join("");
+
+    const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+      <title>Plano de Licença-Prêmio ${esc(anoSelecionado)} - 18 BPM</title>
+      <style>
+        body{font-family:Arial,Helvetica,sans-serif;color:#0b1f3a;padding:20px;}
+        .cab{text-align:center;border-bottom:2px solid #0b1f3a;padding-bottom:8px;margin-bottom:14px;}
+        .cab h1{font-size:15px;margin:0;text-transform:uppercase;} .cab p{font-size:10px;margin:1px 0;color:#333;}
+        .sub{font-size:11px;color:#555;margin:0 0 14px;}
+        h2{font-size:12px;background:#0b1f3a;color:#fff;padding:5px 8px;margin:14px 0 0;border-radius:3px 3px 0 0;}
+        h2 .per{font-weight:normal;font-size:10px;opacity:.9;} h2 .qtd{float:right;font-weight:normal;font-size:10px;opacity:.85;}
+        table{width:100%;border-collapse:collapse;font-size:9.5px;margin-bottom:8px;} th,td{border:1px solid #ccc;padding:3px 5px;text-align:left;} th{background:#e9edf3;}
+        tr:nth-child(even) td{background:#f6f8fb;} .vazio{font-size:10px;color:#888;padding:6px;}
+        h2,table{break-inside:avoid;}
+        @media print{ @page{ size:portrait; margin:12mm; } }
+      </style></head><body>
+      <div class="cab"><h1>18º Batalhão de Polícia Militar</h1><p>Estado do Maranhão · SSP · PMMA · CPA I/2</p><p>Presidente Dutra - MA</p></div>
+      <p class="sub"><strong>Plano de Licença-Prêmio ${esc(anoSelecionado)}</strong> — emitido em ${dataStr} · ${totalMilitares} militares</p>
+      ${blocos}
+      </body></html>`;
+
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(html); win.document.close(); win.focus();
+    setTimeout(() => win.print(), 300);
+  }
+
   return (
     <div className="space-y-5">
       {/* toast fixo — sempre visivel, mesmo com modal aberto por cima */}
@@ -295,6 +335,13 @@ export default function LicencaPremio({
         >
           {anos.map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
+        <button
+          onClick={imprimir}
+          title="Imprimir o plano de Licença-Prêmio (equipes, períodos e militares)"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-medium text-[#1a1205] transition hover:brightness-110"
+        >
+          🖨 Imprimir / PDF
+        </button>
         <div className="ml-auto flex flex-wrap gap-2">
           <Aba id="todos" rotulo="Todos" qtd={totalMilitares} />
           <Aba id="oficiais" rotulo="Oficiais" qtd={totalOficiais} />
