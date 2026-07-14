@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Loader2, X, Check, Clock, CheckCircle2, XCircle, Search, Send,
-  AlertTriangle, ShieldCheck, FileText, Plus, ArrowLeftRight,
+  AlertTriangle, ShieldCheck, FileText, Plus, ArrowLeftRight, ChevronDown, Folder,
 } from "lucide-react";
 import SolicitacaoPermutaDoc, { PermutaDoc } from "@/components/SolicitacaoPermutaDoc";
 
@@ -13,7 +13,7 @@ type Permuta = {
   solicitanteId: string; solicitante: Assinatura;
   solicitadoId: string; solicitadoNome: string; solicitado: Assinatura | null;
   dataPermuta: string; dataRetorno: string; motivo: string;
-  estado: string; parecerP1: string | null; p1Nome: string | null; p1Em: string | null;
+  estado: string; parecerP1: string | null; p1Nome: string | null; p1Cargo?: string | null; p1Em: string | null;
   visto: "autorizado" | "nao_autorizado" | null; criadoEm: string;
 };
 type Militar = { id: string; postoGrad: string; numeroBarra: string; nome: string; nomeGuerra: string; matricula: string };
@@ -27,6 +27,22 @@ function nomeMilitar(m: Militar): string {
   const barra = (m.numeroBarra || "").trim();
   const guerra = (m.nomeGuerra || m.nome || "").trim();
   return [posto, /\d/.test(barra) ? "nº " + barra : "", guerra].filter(Boolean).join(" ").trim();
+}
+
+const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+function mesLabel(ym: string): string {
+  const m = ym.match(/^(\d{4})-(\d{2})/);
+  return m ? `${MESES[+m[2] - 1]} / ${m[1]}` : ym;
+}
+// Agrupa as permutas em "pastas" por mes da data da permuta (recentes primeiro).
+function agruparPorMes(arr: Permuta[]): { mes: string; itens: Permuta[] }[] {
+  const map = new Map<string, Permuta[]>();
+  for (const p of arr) {
+    const k = (p.dataPermuta || "").slice(0, 7) || "0000-00";
+    if (!map.has(k)) map.set(k, []);
+    map.get(k)!.push(p);
+  }
+  return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([mes, itens]) => ({ mes, itens }));
 }
 
 const ESTADO: Record<string, { rotulo: string; cor: string }> = {
@@ -59,6 +75,10 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
   const [analisar, setAnalisar] = useState<Permuta | null>(null);
   const [visto, setVisto] = useState<"autorizado" | "nao_autorizado">("autorizado");
   const [parecer, setParecer] = useState("");
+
+  // pastas (por mes) abertas/fechadas em "Minhas permutas"
+  const [pastasAbertas, setPastasAbertas] = useState<Record<string, boolean>>({});
+  const gruposMeus = useMemo(() => agruparPorMes(meus), [meus]);
 
   async function carregar() {
     try {
@@ -211,32 +231,50 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
         {meus.length === 0 ? (
           <p className="text-sm text-[#94A3B8]">Nenhuma permuta ainda. Use &ldquo;Nova solicitação de permuta&rdquo;.</p>
         ) : (
-          <ul className="space-y-2">
-            {meus.map((p) => {
-              const est = ESTADO[p.estado] || { rotulo: p.estado, cor: "bg-white/10 text-[#94A3B8]" };
+          <div className="space-y-2">
+            {gruposMeus.map((g, i) => {
+              const aberto = pastasAbertas[g.mes] ?? i === 0; // 1ª pasta (mais recente) aberta
               return (
-                <li key={p.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-[#0b1626] p-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-white">
-                      {p.solicitante.linha} ⇄ {p.solicitado?.linha || p.solicitadoNome}
-                    </p>
-                    <p className="text-xs text-[#94A3B8]">Permuta {dBR(p.dataPermuta)} · retorno {dBR(p.dataRetorno)}</p>
-                    {p.estado === "nao_autorizada" && p.parecerP1 && <p className="text-xs text-red-300">Parecer: {p.parecerP1}</p>}
-                  </div>
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${est.cor}`}>{est.rotulo}</span>
-                  <button onClick={() => setDoc(p as PermutaDoc)} className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1 text-xs text-white hover:bg-white/5">
-                    <FileText className="h-3.5 w-3.5" /> Documento
+                <div key={g.mes} className="overflow-hidden rounded-lg border border-white/10">
+                  <button
+                    onClick={() => setPastasAbertas((s) => ({ ...s, [g.mes]: !aberto }))}
+                    className="flex w-full items-center gap-2 bg-[#0b1626] px-3 py-2 text-left text-sm font-medium text-white hover:bg-white/5"
+                  >
+                    <Folder className="h-4 w-4 text-[#D4AF37]" />
+                    {mesLabel(g.mes)}
+                    <span className="rounded-full bg-white/10 px-1.5 text-xs text-[#94A3B8]">{g.itens.length}</span>
+                    <ChevronDown className={`ml-auto h-4 w-4 text-[#94A3B8] transition ${aberto ? "rotate-180" : ""}`} />
                   </button>
-                  {p.estado === "aguardando_solicitado" && p.solicitanteId && (
-                    <button onClick={() => acao({ acao: "cancelar", id: p.id }, "cancelar-" + p.id)} disabled={ocupado === "cancelar-" + p.id}
-                      className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1 text-xs text-[#94A3B8] hover:bg-white/5 disabled:opacity-60">
-                      <X className="h-3.5 w-3.5" /> Cancelar
-                    </button>
+                  {aberto && (
+                    <ul className="space-y-2 p-2">
+                      {g.itens.map((p) => {
+                        const est = ESTADO[p.estado] || { rotulo: p.estado, cor: "bg-white/10 text-[#94A3B8]" };
+                        return (
+                          <li key={p.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-[#0b1626] p-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm text-white">{p.solicitante.linha} ⇄ {p.solicitado?.linha || p.solicitadoNome}</p>
+                              <p className="text-xs text-[#94A3B8]">Permuta {dBR(p.dataPermuta)} · retorno {dBR(p.dataRetorno)}</p>
+                              {p.estado === "nao_autorizada" && p.parecerP1 && <p className="text-xs text-red-300">Parecer: {p.parecerP1}</p>}
+                            </div>
+                            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${est.cor}`}>{est.rotulo}</span>
+                            <button onClick={() => setDoc(p as PermutaDoc)} className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1 text-xs text-white hover:bg-white/5">
+                              <FileText className="h-3.5 w-3.5" /> Documento
+                            </button>
+                            {p.estado === "aguardando_solicitado" && p.solicitanteId && (
+                              <button onClick={() => acao({ acao: "cancelar", id: p.id }, "cancelar-" + p.id)} disabled={ocupado === "cancelar-" + p.id}
+                                className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1 text-xs text-[#94A3B8] hover:bg-white/5 disabled:opacity-60">
+                                <X className="h-3.5 w-3.5" /> Cancelar
+                              </button>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
                   )}
-                </li>
+                </div>
               );
             })}
-          </ul>
+          </div>
         )}
       </section>
 

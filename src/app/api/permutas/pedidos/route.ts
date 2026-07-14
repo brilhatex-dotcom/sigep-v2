@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import {
-  lerPermutas, salvarPermutas, fichaDe, linhaMilitar, aplicarPermutasNaEscala,
+  lerPermutas, salvarPermutas, fichaDe, linhaMilitar, aplicarPermutasNaEscala, cargoP1,
   type Permuta, type Assinatura,
 } from "@/lib/permutaPedidos";
 
@@ -85,7 +85,7 @@ export async function POST(req: Request) {
         dataPermuta, dataRetorno,
         motivo,
         estado: "aguardando_solicitado",
-        parecerP1: null, p1Nome: null, p1Em: null, visto: null,
+        parecerP1: null, p1Nome: null, p1Cargo: null, p1Em: null, visto: null,
         criadoEm: new Date().toISOString(),
       };
       pedidos.push(pedido);
@@ -131,6 +131,7 @@ export async function POST(req: Request) {
       p.visto = visto;
       p.parecerP1 = parecer || null;
       p.p1Nome = (session.user.name || "").trim() || null;
+      p.p1Cargo = cargoP1(session.user.name);
       p.p1Em = new Date().toISOString();
       p.estado = visto === "autorizado" ? "autorizada" : "nao_autorizada";
       await salvarPermutas(pedidos);

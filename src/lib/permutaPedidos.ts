@@ -46,6 +46,7 @@ export type Permuta = {
   estado: EstadoPermuta;
   parecerP1: string | null;
   p1Nome: string | null;
+  p1Cargo: string | null;   // cargo de quem deu o parecer (ex.: "Aux. da Seção P/1-18º BPM")
   p1Em: string | null;
   visto: "autorizado" | "nao_autorizado" | null;
   criadoEm: string;
@@ -85,6 +86,17 @@ export function linhaMilitar(f: FichaMin): string {
   const barra = (f.numeroBarra || "").trim();
   const guerra = (f.nomeGuerra || (f.nome || "").split(/\s+/).slice(-1)[0] || "").trim();
   return [posto, "PM", barra, guerra].filter(Boolean).join(" ").trim();
+}
+
+/* Auxiliares da Seção P/1: quando um deles dá o parecer, o documento mostra
+   "Aux. da Seção P/1-18º BPM" antes do nome. Lista temporária por nome (o
+   admin definirá as atribuições formalmente depois). Edite aqui se mudar. */
+const AUX_P1_FRAGMENTOS = ["elvys", "elyana", "elyanna", "moraes"];
+
+export function cargoP1(nomeAprovador: string | null | undefined): string | null {
+  const n = (nomeAprovador || "").toLowerCase();
+  if (AUX_P1_FRAGMENTOS.some((f) => n.includes(f))) return "Aux. da Seção P/1-18º BPM";
+  return null;
 }
 
 export async function fichaDe(efetivoId: string): Promise<FichaMin | null> {

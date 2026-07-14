@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Printer, ShieldCheck } from "lucide-react";
+import { X, Printer, ShieldCheck, FileDown, Loader2 } from "lucide-react";
 
 export type PermutaDoc = {
   id: string;
@@ -15,6 +15,7 @@ export type PermutaDoc = {
   estado: string;
   parecerP1: string | null;
   p1Nome: string | null;
+  p1Cargo?: string | null;
   p1Em: string | null;
   visto: "autorizado" | "nao_autorizado" | null;
 };
@@ -56,14 +57,34 @@ function Assinado({ titulo, linha, nome, em }: { titulo: string; linha: string; 
 
 export default function SolicitacaoPermutaDoc({ doc, onFechar }: { doc: PermutaDoc; onFechar: () => void }) {
   const [montado, setMontado] = useState(false);
+  const [baixandoWord, setBaixandoWord] = useState(false);
   useEffect(() => { setMontado(true); }, []);
   if (!montado || typeof document === "undefined") return null;
+
+  async function baixarWord() {
+    setBaixandoWord(true);
+    try {
+      const res = await fetch(`/api/permutas/docx?id=${encodeURIComponent(doc.id)}`);
+      if (!res.ok) { alert("Não foi possível gerar o Word."); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Permuta_${doc.solicitante.linha.replace(/[^\w]+/g, "_")}_${doc.dataPermuta}.docx`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch { alert("Erro de conexão ao gerar o Word."); }
+    finally { setBaixandoWord(false); }
+  }
 
   const conteudo = (
     <div id="permuta-overlay" className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 print:bg-white">
       <div className="sticky top-0 z-10 flex items-center justify-end gap-2 bg-[#0b1626] px-3 py-2 shadow print:hidden">
         <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
-          <Printer className="h-4 w-4" /> Imprimir / PDF
+          <Printer className="h-4 w-4" /> Baixar PDF
+        </button>
+        <button onClick={baixarWord} disabled={baixandoWord} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-800 disabled:opacity-60">
+          {baixandoWord ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} {baixandoWord ? "Gerando..." : "Baixar Word"}
         </button>
         <button onClick={onFechar} className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700">
           <X className="h-4 w-4" /> Fechar
@@ -73,18 +94,20 @@ export default function SolicitacaoPermutaDoc({ doc, onFechar }: { doc: PermutaD
       <div id="permuta-print" className="mx-auto my-6 bg-white text-black shadow-2xl print:my-0 print:shadow-none"
         style={{ width: "210mm", minHeight: "297mm", padding: "14mm 20mm", fontFamily: "Times New Roman, Times, serif", fontSize: "12pt", lineHeight: 1.4, position: "relative" }}>
 
-        {/* Cabecalho com brasoes */}
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "4mm" }}>
-          <img src="/brasao-pmma.png" alt="" style={{ width: "20mm", height: "20mm", objectFit: "contain" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
+        {/* Cabecalho com brasoes — mesmo padrao da escala diaria:
+            esquerda: 190 anos PMMA · centro: armas da PMMA (acima do texto) ·
+            direita: 18º BPM. (Sem o brasao do Governo do Estado.) */}
+        <div style={{ display: "flex", alignItems: "center", gap: "4mm" }}>
+          <img src="/brasoes/pmma-190.jpg" alt="" style={{ width: "28mm", height: "24mm", objectFit: "contain" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
           <div style={{ flex: 1, textAlign: "center", lineHeight: 1.25 }}>
-            <img src="/brasao-estado-ma.png" alt="" style={{ height: "16mm", objectFit: "contain" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
+            <img src="/brasoes/armas-ma.png" alt="" style={{ height: "17mm", objectFit: "contain", display: "block", margin: "0 auto 1mm" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
             <p style={{ margin: 0, fontWeight: "bold" }}>ESTADO DO MARANHÃO</p>
             <p style={{ margin: 0, fontWeight: "bold" }}>SECRETARIA DE ESTADO DA SEGURANÇA PÚBLICA</p>
             <p style={{ margin: 0, fontWeight: "bold" }}>POLÍCIA MILITAR DO MARANHÃO</p>
             <p style={{ margin: 0, fontWeight: "bold" }}>COMANDO DO POLICIAMENTO DE ÁREA DO INTERIOR 2</p>
             <p style={{ margin: 0, fontWeight: "bold" }}>18º BATALHÃO DE POLÍCIA MILITAR</p>
           </div>
-          <img src="/brasao-18bpm.png" alt="" style={{ width: "20mm", height: "20mm", objectFit: "contain" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
+          <img src="/brasoes/brasao-18bpm.png" alt="" style={{ width: "22mm", height: "22mm", objectFit: "contain" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
         </div>
 
         <h1 style={{ textAlign: "center", fontSize: "13pt", fontWeight: "bold", margin: "10mm 0 8mm" }}>SOLICITAÇÃO DE PERMUTA</h1>
@@ -122,7 +145,11 @@ export default function SolicitacaoPermutaDoc({ doc, onFechar }: { doc: PermutaD
                 <div style={{ borderBottom: "1px solid #000", margin: "0 6mm" }} />
               </>
             )}
-            {doc.p1Nome && <p style={{ fontSize: "8.5pt", marginTop: 8, textAlign: "center" }}>{doc.p1Nome} · {dataHora(doc.p1Em)}</p>}
+            {doc.p1Nome && (
+              <p style={{ fontSize: "8.5pt", marginTop: 8, textAlign: "center" }}>
+                {doc.p1Cargo ? `${doc.p1Cargo} ` : ""}{doc.p1Nome} · {dataHora(doc.p1Em)}
+              </p>
+            )}
           </div>
           <div style={{ flex: 1, padding: "6px 10px" }}>
             <p style={{ textAlign: "center", margin: "0 0 10px" }}>Visto do Subcomandante do 18ºBPM</p>
