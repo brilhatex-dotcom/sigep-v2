@@ -169,6 +169,20 @@ export default function AppShell({
   const admin = ehAdmin(perfil);
   const primeiroNome = (userName || "").split(" ")[0] || "Usuário";
 
+  // Pendencias de permuta que exigem acao deste usuario (alerta do sininho).
+  const [pendPermutas, setPendPermutas] = useState(0);
+  useEffect(() => {
+    let vivo = true;
+    const buscar = () =>
+      fetch("/api/permutas/pendencias")
+        .then((r) => r.json())
+        .then((d) => { if (vivo) setPendPermutas(Number(d?.total) || 0); })
+        .catch(() => {});
+    buscar();
+    const t = setInterval(buscar, 60000);
+    return () => { vivo = false; clearInterval(t); };
+  }, [pathname]);
+
   // Busca o efetivoId e se ja tem foto, para montar o avatar (sem que as
   // paginas precisem passar isso). Roda uma vez ao carregar.
   const [meuEfetivoId, setMeuEfetivoId] = useState<string | null>(null);
@@ -355,13 +369,19 @@ export default function AppShell({
             {admin && <AcoesRapidas isAdmin={true} />}
             <Relogio />
 
-            <button
+            <Link
+              href="/permutas"
               className="relative rounded-lg p-2 text-[#94A3B8] transition hover:bg-white/5 hover:text-white"
-              aria-label="Notificações"
+              aria-label={pendPermutas > 0 ? `${pendPermutas} permuta(s) aguardando você` : "Notificações"}
+              title={pendPermutas > 0 ? `${pendPermutas} permuta(s) aguardando você` : "Permutas"}
             >
               <Bell className="h-5 w-5" />
-              <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#D4AF37]" />
-            </button>
+              {pendPermutas > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                  {pendPermutas > 9 ? "9+" : pendPermutas}
+                </span>
+              )}
+            </Link>
 
             <div className="hidden items-center gap-3 border-l border-white/10 pl-4 sm:flex">
               <div className="text-right leading-tight">

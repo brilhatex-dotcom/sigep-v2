@@ -1,173 +1,123 @@
 import { prisma } from "@/lib/prisma";
 
 /* =========================================================================
-   Pedidos de PERMUTA iniciados pelo policial.
+   SOLICITAÇÃO DE PERMUTA — documento iniciado pelo policial, ANTES da escala.
 
-   Fluxo (substituição de serviço, mão única):
-     1) policial pede a um colega para assumir um serviço DELE num dia
-        -> estado "aguardando_colega"
-     2) o colega concorda -> estado "aguardando_p1" e a vaga da escala ja
-        recebe o substituto (slot.permuta = colega, status "pendente")
-        (ou "recusada_colega" se ele recusar)
-     3) o P/1 defere -> estado "deferida" (slot.status "aprovada", amarrado)
-        ou indefere -> estado "indeferida" (limpa o substituto da vaga)
+   Fluxo (baseado no formulário oficial do 18º BPM):
+     1) solicitante preenche: colega (solicitado), data da permuta, data de
+        retorno e motivo. Ao enviar, ele "assina" pelo próprio login
+        (a senha individual = assinatura; dela saem posto/grad, nº e nome de
+        guerra).  -> estado "aguardando_solicitado"
+     2) o solicitado recebe o alerta, abre e assina o "concordo" (ou recusa).
+        -> "aguardando_p1" (ou "recusada")
+     3) o P/1 dá o parecer e o Subcomandante o visto: Autorizado / Não
+        Autorizado. -> "autorizada" / "nao_autorizada"
 
-   Guardado na tabela Config (sem alterar o schema em producao):
-     - "permuta_pedidos" -> Pedido[]
-     - a escala fica em "escala_dias" (o mesmo Config que a escala ja usa)
+   Guardado na tabela Config (chave "permuta_pedidos"), sem alterar o schema.
    ========================================================================= */
 
 const CHAVE_PEDIDOS = "permuta_pedidos";
-const CHAVE_ESCALA = "escala_dias";
 
-export type EstadoPedido =
-  | "aguardando_colega"
-  | "recusada_colega"
+export type EstadoPermuta =
+  | "aguardando_solicitado"
+  | "recusada"
   | "aguardando_p1"
-  | "deferida"
-  | "indeferida"
+  | "autorizada"
+  | "nao_autorizada"
   | "cancelada";
 
-export type Pedido = {
-  id: string;
-  data: string;        // dia da escala (aaaa-mm-dd)
-  campo: string;       // campo do slot na escala
-  idx: number;         // posicao no array (-1 quando o campo e slot unico)
-  label: string;       // rotulo legivel do servico
-  titular: string;     // nome que esta na vaga (texto da escala)
-  solicitanteId: string;
-  solicitanteNome: string;
-  colegaId: string;
-  colegaNome: string;  // nome como sera escrito na escala
-  motivo?: string;     // motivo opcional do solicitante
-  estado: EstadoPedido;
-  motivoP1?: string | null;
-  criadoEm: string;
-  colegaEm?: string | null;
-  p1Em?: string | null;
+export type Assinatura = {
+  efetivoId: string;
+  nome: string;    // nome completo
+  linha: string;   // "Sd PM 338/22 Danielle" (posto + PM + nº/barra + guerra)
+  em: string;      // ISO da assinatura
 };
 
-// Campos de um dia da escala que carregam Slot(s). lista=true => array.
-export const CAMPOS_ESCALA: { campo: string; label: string; lista: boolean }[] = [
-  { campo: "cpuDeDia", label: "CPU de dia", lista: false },
-  { campo: "rpAdjunto", label: "RP · Adjunto", lista: false },
-  { campo: "rpMotorista", label: "RP · Motorista", lista: false },
-  { campo: "rpPatrulheiro", label: "RP · Patrulheiro", lista: true },
-  { campo: "ftGraduado", label: "FT · Graduado", lista: false },
-  { campo: "ftMotorista", label: "FT · Motorista", lista: false },
-  { campo: "ftPatrulheiro", label: "FT · Armeiro/Patrulheiro", lista: false },
-  { campo: "guardaPermanente", label: "Permanência", lista: true },
-  { campo: "inteligencia", label: "Inteligência", lista: true },
-  { campo: "rotemMilitares", label: "ROTEM", lista: true },
-];
+export type Permuta = {
+  id: string;
+  solicitanteId: string;
+  solicitante: Assinatura;
+  solicitadoId: string;
+  solicitadoNome: string;         // nome de exibição do colega (linha)
+  solicitado: Assinatura | null;  // preenchida quando ele assina
+  dataPermuta: string;            // ISO aaaa-mm-dd
+  dataRetorno: string;            // ISO aaaa-mm-dd
+  motivo: string;
+  estado: EstadoPermuta;
+  parecerP1: string | null;
+  p1Nome: string | null;
+  p1Em: string | null;
+  visto: "autorizado" | "nao_autorizado" | null;
+  criadoEm: string;
+};
 
-export type Slot = { titular?: string; permuta?: string | null; status?: string | null };
-
-export function semTags(html: string): string {
-  return String(html || "").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
+// Abrevia posto/graduação no padrão dos documentos do batalhão.
+export function abrevPosto(posto: string): string {
+  const p = (posto || "").trim().toLowerCase();
+  const mapa: Record<string, string> = {
+    "coronel": "Cel", "tenente-coronel": "Ten Cel", "tenente coronel": "Ten Cel",
+    "major": "Maj", "capitão": "Cap", "capitao": "Cap",
+    "1º tenente": "1º Ten", "1° tenente": "1º Ten", "primeiro tenente": "1º Ten",
+    "2º tenente": "2º Ten", "2° tenente": "2º Ten", "segundo tenente": "2º Ten",
+    "aspirante a oficial": "Asp Of", "aspirante": "Asp Of", "subtenente": "ST",
+    "1º sargento": "1º Sgt", "2º sargento": "2º Sgt", "3º sargento": "3º Sgt",
+    "cabo": "Cb", "soldado": "Sd",
+  };
+  return mapa[p] ?? (posto || "").trim();
 }
 
-function safeParse(s: string | null | undefined): Record<string, any> {
-  try { const o = JSON.parse(s || "{}"); return o && typeof o === "object" ? o : {}; } catch { return {}; }
+export type FichaMin = {
+  id: string;
+  postoGrad: string | null;
+  numeroBarra: string | null;
+  nome: string | null;
+  nomeGuerra: string | null;
+};
+
+// Monta a "linha" de assinatura/identificação: "Sd PM 338/22 Danielle".
+export function linhaMilitar(f: FichaMin): string {
+  const posto = abrevPosto(f.postoGrad || "");
+  const barra = (f.numeroBarra || "").trim();
+  const guerra = (f.nomeGuerra || (f.nome || "").split(/\s+/).slice(-1)[0] || "").trim();
+  return [posto, "PM", barra, guerra].filter(Boolean).join(" ").trim();
 }
 
-// ---------- Pedidos ----------
-export async function lerPedidos(): Promise<Pedido[]> {
+export async function fichaDe(efetivoId: string): Promise<FichaMin | null> {
+  return prisma.efetivo.findUnique({
+    where: { id: efetivoId },
+    select: { id: true, postoGrad: true, numeroBarra: true, nome: true, nomeGuerra: true },
+  });
+}
+
+export async function lerPermutas(): Promise<Permuta[]> {
   try {
     const row = await prisma.config.findUnique({ where: { chave: CHAVE_PEDIDOS } });
     if (!row?.valor) return [];
     const v = JSON.parse(row.valor);
-    return Array.isArray(v) ? (v as Pedido[]) : [];
+    return Array.isArray(v) ? (v as Permuta[]) : [];
   } catch {
     return [];
   }
 }
 
-export async function salvarPedidos(pedidos: Pedido[]): Promise<void> {
+export async function salvarPermutas(pedidos: Permuta[]): Promise<void> {
   const valor = JSON.stringify(pedidos);
   await prisma.config.upsert({
     where: { chave: CHAVE_PEDIDOS },
     update: { valor },
-    create: { chave: CHAVE_PEDIDOS, valor, descricao: "Pedidos de permuta iniciados pelo policial" },
+    create: { chave: CHAVE_PEDIDOS, valor, descricao: "Solicitações de permuta (documento)" },
   });
 }
 
-// ---------- Escala (slots) ----------
-export async function lerEscalaDias(): Promise<Record<string, any>> {
-  const row = await prisma.config.findUnique({ where: { chave: CHAVE_ESCALA } });
-  return safeParse(row?.valor);
-}
-
-function pegarSlot(dia: any, campo: string, idx: number): Slot | undefined {
-  if (!dia) return undefined;
-  const val = dia[campo];
-  if (idx >= 0) return Array.isArray(val) ? val[idx] : undefined;
-  return val && typeof val === "object" ? val : undefined;
-}
-
-// Aplica um patch a UM slot da escala e salva. Devolve true se conseguiu.
-export async function atualizarSlot(
-  data: string, campo: string, idx: number, patch: Partial<Slot>
-): Promise<boolean> {
-  const escalas = await lerEscalaDias();
-  const dia = escalas[data];
-  const slot = pegarSlot(dia, campo, idx);
-  if (!slot) return false;
-  Object.assign(slot, patch);
-  await prisma.config.upsert({
-    where: { chave: CHAVE_ESCALA },
-    update: { valor: JSON.stringify(escalas) },
-    create: { chave: CHAVE_ESCALA, valor: JSON.stringify(escalas), descricao: "Dias gerados/editados da Escala de Servico" },
-  });
-  return true;
-}
-
-// ---------- Matching do titular com o policial logado ----------
-// Heuristica: a vaga e "minha" se o texto do titular contém meu nome de guerra,
-// meu numero/barra ou minha matricula. Cobre os formatos usados na escala
-// (ex.: "Cb PM nº 252/17- Francilea").
-export function slotEhDoMilitar(
-  titular: string,
-  militar: { nomeGuerra?: string | null; nome?: string | null; numeroBarra?: string | null; matricula?: string | null }
-): boolean {
-  const alvo = semTags(titular).toLowerCase();
-  if (!alvo) return false;
-  const cands: string[] = [];
-  if (militar.nomeGuerra) cands.push(militar.nomeGuerra);
-  if (militar.numeroBarra) cands.push(militar.numeroBarra);
-  if (militar.matricula) cands.push(militar.matricula);
-  // primeiro e ultimo nome como reforço, quando nao ha nome de guerra
-  if (!militar.nomeGuerra && militar.nome) {
-    const partes = militar.nome.trim().split(/\s+/);
-    if (partes[0]) cands.push(partes[0]);
-    if (partes.length > 1) cands.push(partes[partes.length - 1]);
+// Quantos itens exigem AÇÃO deste usuário (para o sininho).
+// policial: permutas aguardando a assinatura dele (como solicitado).
+// admin: permutas aguardando o parecer do P/1.
+export async function pendenciasDe(efetivoId: string | null, admin: boolean): Promise<number> {
+  const pedidos = await lerPermutas();
+  let n = 0;
+  for (const p of pedidos) {
+    if (efetivoId && p.solicitadoId === efetivoId && p.estado === "aguardando_solicitado") n++;
+    else if (admin && p.estado === "aguardando_p1") n++;
   }
-  return cands.some((c) => {
-    const t = String(c).trim().toLowerCase();
-    return t.length >= 3 && alvo.includes(t);
-  });
-}
-
-// Lista os slots de um dia (para a visao somente-leitura da escala da sede).
-export type SlotView = {
-  campo: string; idx: number; label: string;
-  titular: string; permuta: string | null; status: string | null;
-};
-export function slotsDoDia(dia: any): SlotView[] {
-  const out: SlotView[] = [];
-  if (!dia || typeof dia !== "object") return out;
-  for (const { campo, label, lista } of CAMPOS_ESCALA) {
-    const val = dia[campo];
-    if (lista) {
-      const arr: Slot[] = Array.isArray(val) ? val : [];
-      arr.forEach((sl, idx) => {
-        const t = semTags(sl?.titular || "");
-        if (t) out.push({ campo, idx, label, titular: t, permuta: sl?.permuta ?? null, status: sl?.status ?? null });
-      });
-    } else if (val && typeof val === "object") {
-      const t = semTags((val as Slot).titular || "");
-      if (t) out.push({ campo, idx: -1, label, titular: t, permuta: (val as Slot).permuta ?? null, status: (val as Slot).status ?? null });
-    }
-  }
-  return out;
+  return n;
 }

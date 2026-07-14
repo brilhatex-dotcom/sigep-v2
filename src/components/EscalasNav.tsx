@@ -17,7 +17,7 @@ const ITENS: Item[] = [
   { href: "/escalas/servico/rotem", ic: "🛡️", label: "ROTEM" },
   { href: "/escalas/servico/inteligencia", ic: "🕵️", label: "Inteligência" },
   { href: "/escalas/servico/permanencia", ic: "🏢", label: "Permanência" },
-  { href: "/escalas/permutas", ic: "🔄", label: "Permutas" },
+  { href: "/escalas/permutas", ic: "🔄", label: "Substituições" },
   { href: "/escalas/publicacoes", ic: "📄", label: "Publicações" },
   { href: "/escalas/estatisticas", ic: "📊", label: "Estatísticas" },
 ];
