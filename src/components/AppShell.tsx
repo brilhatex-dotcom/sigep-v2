@@ -194,7 +194,17 @@ export default function AppShell({
   const secoesVisiveis = NAV
     .map((secao) => ({
       ...secao,
-      itens: secao.itens.filter((item) => admin || !item.adminOnly),
+      itens: secao.itens
+        .filter((item) => admin || !item.adminOnly)
+        // O policial vai direto para a propria tela de certidoes. Sem isto, o
+        // link "/promocoes" faz um redirect no servidor ate
+        // "/promocoes/minhas-certidoes", e esse pulo extra causava o "flash
+        // branco" ao abrir a aba. Levar direto ao destino elimina o pulo.
+        .map((item) =>
+          !admin && item.href === "/promocoes"
+            ? { ...item, href: "/promocoes/minhas-certidoes" }
+            : item
+        ),
     }))
     .filter((secao) => secao.itens.length > 0);
 
