@@ -243,12 +243,15 @@ export default function PlanoFerias({
     return membros;
   }
 
-  // Numeracao GLOBAL e continua do memorando: percorre todas as equipes
-  // em ordem e atribui um numero sequencial a cada militar do plano inteiro,
-  // sem reiniciar a contagem quando muda de equipe.
+  // Numeracao GLOBAL e continua do memorando de FERIAS: percorre todas as
+  // equipes em ordem e atribui um numero sequencial a cada militar do plano
+  // inteiro, sem reiniciar a contagem quando muda de equipe.
+  // O ultimo memorando de ferias emitido foi o 107/2026, entao a contagem
+  // comeca em 107 e o primeiro militar da equipe vindoura recebe o 108/2026.
+  // Esta numeracao e separada da Licenca-Premio.
   const mapaNumeroGlobal = useMemo(() => {
     const mapa = new Map<string, number>();
-    let seq = 0;
+    let seq = 107;
     const equipesOrdenadas = [...equipes].sort(
       (a, b) => Number(a.numeroEquipe) - Number(b.numeroEquipe)
     );
@@ -270,6 +273,55 @@ export default function PlanoFerias({
     const equipesMes = equipes.filter((e) => e.noMes).length;
     return { comMilitares, emFeriasHoje, equipesEmFerias, equipesMes };
   }, [equipes]);
+
+  function imprimir() {
+    const dataStr = new Date().toLocaleDateString("pt-BR");
+    const esc = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const equipesOrdenadas = [...equipes].sort(
+      (a, b) => Number(a.numeroEquipe) - Number(b.numeroEquipe)
+    );
+    const blocos = equipesOrdenadas.map((e) => {
+      const linhas = e.membros.map((m, i) =>
+        `<tr>${[i + 1, m.postoGrad, m.numeroBarra, m.nome, m.nomeGuerra, m.matricula].map((v) => `<td>${esc(v)}</td>`).join("")}</tr>`
+      ).join("");
+      const periodos = e.periodos.length
+        ? e.periodos.map((p) => {
+            const rot = e.periodos.length > 1 ? `${esc(p.rotulo)}: ` : "";
+            const apres = p.apres && p.apres.trim() ? ` · Apres.: ${esc(p.apres)}` : "";
+            return `<span class="per">${rot}${esc(p.inicioBR)} a ${esc(p.fimBR)}${apres}</span>`;
+          }).join(" &nbsp; ")
+        : `<span class="per">sem datas</span>`;
+      return `
+        <h2>EQUIPE ${esc(e.numeroEquipe)} ${periodos}${e.status?.rotulo ? ` <span class="per">· ${esc(e.status.rotulo)}</span>` : ""} <span class="qtd">${e.membros.length} militar(es)</span></h2>
+        ${e.membros.length
+          ? `<table><thead><tr><th>#</th><th>Posto/Grad</th><th>Nº/Barra</th><th>Nome</th><th>Nome de Guerra</th><th>Matrícula</th></tr></thead><tbody>${linhas}</tbody></table>`
+          : `<p class="vazio">Sem militares nesta equipe.</p>`}`;
+    }).join("");
+
+    const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+      <title>Plano de Férias ${esc(anoSelecionado)} - 18 BPM</title>
+      <style>
+        body{font-family:Arial,Helvetica,sans-serif;color:#0b1f3a;padding:20px;}
+        .cab{text-align:center;border-bottom:2px solid #0b1f3a;padding-bottom:8px;margin-bottom:14px;}
+        .cab h1{font-size:15px;margin:0;text-transform:uppercase;} .cab p{font-size:10px;margin:1px 0;color:#333;}
+        .sub{font-size:11px;color:#555;margin:0 0 14px;}
+        h2{font-size:12px;background:#0b1f3a;color:#fff;padding:5px 8px;margin:14px 0 0;border-radius:3px 3px 0 0;}
+        h2 .per{font-weight:normal;font-size:10px;opacity:.9;} h2 .qtd{float:right;font-weight:normal;font-size:10px;opacity:.85;}
+        table{width:100%;border-collapse:collapse;font-size:9.5px;margin-bottom:8px;} th,td{border:1px solid #ccc;padding:3px 5px;text-align:left;} th{background:#e9edf3;}
+        tr:nth-child(even) td{background:#f6f8fb;} .vazio{font-size:10px;color:#888;padding:6px;}
+        h2,table{break-inside:avoid;}
+        @media print{ @page{ size:portrait; margin:12mm; } }
+      </style></head><body>
+      <div class="cab"><h1>18º Batalhão de Polícia Militar</h1><p>Estado do Maranhão · SSP · PMMA · CPA I/2</p><p>Presidente Dutra - MA</p></div>
+      <p class="sub"><strong>Plano de Férias ${esc(anoSelecionado)}</strong> — emitido em ${dataStr} · ${totalMilitares} militares</p>
+      ${blocos}
+      </body></html>`;
+
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(html); win.document.close(); win.focus();
+    setTimeout(() => win.print(), 300);
+  }
 
   const Aba = ({ id, rotulo, qtd }: { id: Filtro; rotulo: string; qtd: number }) => (
     <button
@@ -326,6 +378,13 @@ export default function PlanoFerias({
             + Novo plano
           </button>
         )}
+        <button
+          onClick={imprimir}
+          title="Imprimir o plano de Férias (equipes, períodos e militares)"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-medium text-[#1a1205] transition hover:brightness-110"
+        >
+          🖨 Imprimir / PDF
+        </button>
         <div className="ml-auto flex flex-wrap gap-2">
           <Aba id="todos" rotulo="Todos" qtd={totalMilitares} />
           <Aba id="oficiais" rotulo="Oficiais" qtd={totalOficiais} />
