@@ -4,15 +4,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 /* =========================================================================
    Escala de Serviço SEMANAL do CPU (paisagem) — modelo do print oficial.
-   7 dias a partir da data escolhida; para cada dia o oficial do rodizio de
-   CPU (mesmo motor) + telefone. Assinatura = chefe atual (config), sem o
-   nome antigo. Puxa do servidor (escala-config / efetivo / escala-chefe).
+   UMA SEMANA POR PÁGINA (recorte em 4 semanas, cada uma numa página).
+   Tudo editável: nome do oficial, telefone e permuta (na mesma caixa do nome).
+   Overrides salvos no servidor (/api/cpu-permutas); default vem do rodizio.
    ========================================================================= */
 
 type Afastamento = { militar: string; tipo: string; inicio: string; fim: string };
 type Cadastro = { cpu: string[]; afastamentos: Afastamento[]; refCpuISO: string };
 type Militar = { id: string; postoGrad: string; numeroBarra: string; nome: string; nomeGuerra: string; telefone?: string; quadro?: string };
 type Chefe = { nome: string; funcao: string; assinatura?: string; assinarGov?: boolean; cmtAssinatura?: string };
+type Override = { nome?: string; fone?: string; permuta?: string };
 
 const DAY = 86400000;
 const parseISO = (iso: string) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, (m || 1) - 1, d || 1); };
@@ -71,9 +72,19 @@ const ORG = [
 
 function segundaDaSemana(): string {
   const h = new Date();
-  const g = h.getDay(); // 0 dom..6 sab
-  const diff = g === 0 ? -6 : 1 - g; // volta pra segunda
+  const g = h.getDay();
+  const diff = g === 0 ? -6 : 1 - g;
   return toISO(new Date(h.getTime() + diff * DAY));
+}
+
+/* Celula editavel que imprime o proprio texto (contentEditable). */
+function Editavel({ value, onChange, className, placeholder }: { value: string; onChange: (v: string) => void; className?: string; placeholder?: string }) {
+  const ref = (el: HTMLSpanElement | null) => { if (el && el.innerText !== (value || "")) el.innerText = value || ""; };
+  return (
+    <span ref={ref} contentEditable suppressContentEditableWarning data-ph={placeholder || ""}
+      onInput={(e) => onChange(e.currentTarget.innerText)}
+      className={"cpuw-edit " + (className || "")} />
+  );
 }
 
 export default function CpuSemanalClient() {
@@ -81,7 +92,7 @@ export default function CpuSemanalClient() {
   const [efMap, setEfMap] = useState<Record<string, Militar>>({});
   const [chefe, setChefe] = useState<Chefe>({ nome: "", funcao: "", assinatura: "", assinarGov: false, cmtAssinatura: "/brasoes/assinatura-cmt.png" });
   const [inicio, setInicio] = useState<string>(segundaDaSemana());
-  const [permutas, setPermutas] = useState<Record<string, string>>({});
+  const [ov, setOv] = useState<Record<string, Override>>({});
   const salvarTimer = useRef<any>(null);
 
   useEffect(() => {
@@ -90,13 +101,15 @@ export default function CpuSemanalClient() {
       const m: Record<string, Militar> = {}; for (const x of (d?.efetivo || [])) m[x.id] = x; setEfMap(m);
     }).catch(() => {});
     fetch("/api/escala-chefe").then((r) => r.ok ? r.json() : null).then((d) => { if (d) setChefe({ nome: d.nome || "", funcao: d.funcao || "", assinatura: d.assinatura || "", assinarGov: d.assinarGov === true, cmtAssinatura: d.cmtAssinatura || "/brasoes/assinatura-cmt.png" }); }).catch(() => {});
-    fetch("/api/cpu-permutas").then((r) => r.ok ? r.json() : null).then((d) => { if (d?.permutas && typeof d.permutas === "object") setPermutas(d.permutas); }).catch(() => {});
+    fetch("/api/cpu-permutas").then((r) => r.ok ? r.json() : null).then((d) => { if (d?.permutas && typeof d.permutas === "object") setOv(d.permutas); }).catch(() => {});
   }, []);
 
-  const setPermuta = (iso: string, nome: string) => {
-    setPermutas((p) => {
-      const np = { ...p }; const v = nome.trim();
-      if (v) np[iso] = v; else delete np[iso];
+  const setOverride = (iso: string, patch: Override) => {
+    setOv((prev) => {
+      const atual = { ...(prev[iso] || {}) };
+      for (const [k, v] of Object.entries(patch)) { if (v && v.trim()) (atual as any)[k] = v; else delete (atual as any)[k]; }
+      const np = { ...prev };
+      if (Object.keys(atual).length) np[iso] = atual; else delete np[iso];
       if (salvarTimer.current) clearTimeout(salvarTimer.current);
       salvarTimer.current = setTimeout(() => {
         fetch("/api/cpu-permutas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ permutas: np }) }).catch(() => {});
@@ -105,14 +118,63 @@ export default function CpuSemanalClient() {
     });
   };
 
-  const linhaDe = (iso: string) => {
-    if (!cad) return { iso, nome: "—", fone: "" };
+  const auto = (iso: string) => {
+    if (!cad) return { nome: "", fone: "" };
     const id = rodizio(cad.cpu || [], iso, cad.afastamentos || [], cad.refCpuISO || iso);
     const m = id ? efMap[id] : null;
-    return { iso, nome: m ? nomeCpu(m) : "—", fone: m ? fone(m.telefone || "") : "" };
+    return { nome: m ? nomeCpu(m) : "", fone: m ? fone(m.telefone || "") : "" };
   };
-  // O mes recortado em 4 semanas (4 blocos de 7 dias a partir do inicio).
+  const nomeDe = (iso: string) => ov[iso]?.nome ?? auto(iso).nome;
+  const foneDe = (iso: string) => ov[iso]?.fone ?? auto(iso).fone;
+  const permDe = (iso: string) => ov[iso]?.permuta ?? "";
+
   const semanas = useMemo(() => [0, 1, 2, 3].map((w) => Array.from({ length: 7 }, (_, i) => somaDias(inicio, w * 7 + i))), [inicio]);
+
+  const Pagina = ({ dias, ultima }: { dias: string[]; ultima: boolean }) => (
+    <div className={"cpuw-paper" + (ultima ? "" : " quebra")}>
+      <div className="cpuw-hdr">
+        <div className="cpuw-visto">
+          <div className="cpuw-visto-t">VISTO</div>
+          {chefe.cmtAssinatura && <img src={chefe.cmtAssinatura} alt="" className="cpuw-visto-img" />}
+          <div className="cpuw-visto-c">Cmt. do 18º BPM</div>
+        </div>
+        <img src="/brasoes/brasao-pmma.png" alt="" className="cpuw-bpmma" />
+        <div className="cpuw-center">
+          <img src="/brasoes/armas-ma.png" alt="" className="cpuw-ma" />
+          <div className="cpuw-org">{ORG.map((l, i) => <div key={i} className={i === 4 ? "s" : ""}>{l}</div>)}</div>
+        </div>
+        <img src="/brasoes/brasao-18bpm.png" alt="" className="cpuw-bpm" />
+      </div>
+
+      <div className="cpuw-titulo">ESCALA DE SERVIÇO SEMANAL CPU (18º BPM)</div>
+
+      <table className="cpuw-tab"><tbody>
+        <tr>{dias.map((iso) => (
+          <td key={iso} className="cpuw-hd">
+            <div>{DIAS_SEMANA[parseISO(iso).getDay()]}</div>
+            <div>({brData(iso)})</div>
+          </td>
+        ))}</tr>
+        <tr>{dias.map((iso) => (
+          <td key={iso} className="cpuw-nome">
+            <Editavel value={nomeDe(iso)} onChange={(v) => setOverride(iso, { nome: v })} className="cpuw-nome-t" placeholder="oficial de dia" />
+            {permDe(iso) && <span className="cpuw-perm only-print"> (PERMUTA- {permDe(iso)})</span>}
+            <span className="cpuw-perm-edit no-print">(PERMUTA- <Editavel value={permDe(iso)} onChange={(v) => setOverride(iso, { permuta: v })} className="cpuw-perm-in" placeholder="substituto" />)</span>
+          </td>
+        ))}</tr>
+        <tr>{dias.map((iso) => (
+          <td key={iso} className="cpuw-fone"><Editavel value={foneDe(iso)} onChange={(v) => setOverride(iso, { fone: v })} placeholder="telefone" /></td>
+        ))}</tr>
+      </tbody></table>
+
+      <div className="cpuw-ass">
+        {chefe.assinarGov ? <div className="cpuw-ass-esp" />
+          : chefe.assinatura ? <img className="cpuw-ass-img" src={chefe.assinatura} alt="" /> : <div className="cpuw-ass-esp" />}
+        <div className="cpuw-ass-nome">{chefe.nome || "—"}</div>
+        <div className="cpuw-ass-func">{chefe.funcao || ""}</div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="cpuw-wrap">
@@ -124,57 +186,11 @@ export default function CpuSemanalClient() {
           <input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
         </label>
         <span className="cpuw-spacer" />
+        <span className="cpuw-hint">4 semanas · 1 por página · tudo editável (salva sozinho)</span>
         <button className="cpuw-btn primary" onClick={() => window.print()}>🖨 Imprimir / PDF</button>
       </div>
 
-      <div className="cpuw-paper">
-        <div className="cpuw-hdr">
-          <div className="cpuw-visto">
-            <div className="cpuw-visto-t">VISTO</div>
-            {chefe.cmtAssinatura && <img src={chefe.cmtAssinatura} alt="" className="cpuw-visto-img" />}
-            <div className="cpuw-visto-c">Cmt. do 18º BPM</div>
-          </div>
-          <img src="/brasoes/pmma-190.jpg" alt="" className="cpuw-b190" />
-          <div className="cpuw-center">
-            <img src="/brasoes/armas-ma.png" alt="" className="cpuw-ma" />
-            <div className="cpuw-org">{ORG.map((l, i) => <div key={i} className={i === 4 ? "s" : ""}>{l}</div>)}</div>
-          </div>
-          <img src="/brasoes/brasao-18bpm.png" alt="" className="cpuw-bpm" />
-        </div>
-
-        <div className="cpuw-titulo">ESCALA DE SERVIÇO SEMANAL CPU (18º BPM)</div>
-
-        {semanas.map((dias, wi) => (
-          <div key={wi} className="cpuw-semana">
-            <div className="cpuw-semana-t">Semana {wi + 1} · {brData(dias[0])} a {brData(dias[6])}</div>
-            <table className="cpuw-tab"><tbody>
-              <tr>{dias.map((iso) => (
-                <td key={iso} className="cpuw-hd">
-                  <div>{DIAS_SEMANA[parseISO(iso).getDay()]}</div>
-                  <div>({brData(iso)})</div>
-                </td>
-              ))}</tr>
-              <tr>{dias.map((iso) => {
-                const l = linhaDe(iso); const pm = permutas[iso];
-                return <td key={iso} className="cpuw-nome">{l.nome}{pm ? <span className="cpuw-perm"> (PERMUTA- {pm})</span> : ""}</td>;
-              })}</tr>
-              <tr>{dias.map((iso) => <td key={iso} className="cpuw-fone">{linhaDe(iso).fone || "—"}</td>)}</tr>
-              <tr className="no-print">{dias.map((iso) => (
-                <td key={iso} className="cpuw-permedit">
-                  <input value={permutas[iso] || ""} placeholder="+ permuta (substituto)" onChange={(e) => setPermuta(iso, e.target.value)} />
-                </td>
-              ))}</tr>
-            </tbody></table>
-          </div>
-        ))}
-
-        <div className="cpuw-ass">
-          {chefe.assinarGov ? <div className="cpuw-ass-esp" />
-            : chefe.assinatura ? <img className="cpuw-ass-img" src={chefe.assinatura} alt="" /> : <div className="cpuw-ass-esp" />}
-          <div className="cpuw-ass-nome">{chefe.nome || "—"}</div>
-          <div className="cpuw-ass-func">{chefe.funcao || ""}</div>
-        </div>
-      </div>
+      {semanas.map((dias, wi) => <Pagina key={wi} dias={dias} ultima={wi === semanas.length - 1} />)}
     </div>
   );
 }
@@ -188,38 +204,46 @@ const CSS = `
 .cpuw-field{ display:flex; flex-direction:column; gap:4px; font-size:11px; color:#9fb0c7; }
 .cpuw-field input{ background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:8px; padding:7px 9px; font-size:13px; }
 .cpuw-spacer{ flex:1; }
+.cpuw-hint{ font-size:11px; color:#8fa3bf; }
 
-.cpuw-paper{ background:#fff; color:#000; width:297mm; max-width:100%; margin:0 auto; padding:8mm 12mm; box-shadow:0 10px 40px rgba(0,0,0,.5); font-family:"Times New Roman", Georgia, serif; }
+.cpuw-paper{ background:#fff; color:#000; width:297mm; max-width:100%; margin:0 auto 18px; padding:8mm 12mm; box-shadow:0 10px 40px rgba(0,0,0,.5); font-family:"Times New Roman", Georgia, serif; }
 .cpuw-hdr{ display:flex; align-items:flex-start; gap:8px; position:relative; }
 .cpuw-visto{ position:absolute; left:0; top:6px; width:120px; text-align:center; font-size:11px; }
-.cpuw-visto-t{ font-weight:700; } .cpuw-visto-img{ max-width:96px; max-height:40px; object-fit:contain; } .cpuw-visto-c{ font-weight:700; }
-.cpuw-b190{ width:110px; height:78px; object-fit:contain; margin-left:120px; }
+.cpuw-visto-t{ font-weight:700; } .cpuw-visto-img{ max-width:96px; max-height:40px; object-fit:contain; } .cpuw-visto-c{ font-weight:700; border-top:1px solid #000; display:inline-block; padding-top:1px; }
+.cpuw-bpmma{ width:92px; height:80px; object-fit:contain; margin-left:120px; }
 .cpuw-center{ flex:1; display:flex; flex-direction:column; align-items:center; }
 .cpuw-ma{ width:60px; height:66px; object-fit:contain; }
 .cpuw-org{ text-align:center; font-size:13px; margin-top:2px; } .cpuw-org .s{ font-weight:700; }
 .cpuw-bpm{ width:80px; height:84px; object-fit:contain; }
 .cpuw-titulo{ text-align:center; font-weight:700; font-size:19px; text-decoration:underline; margin:12px 0 16px; }
 .cpuw-tab{ width:100%; border-collapse:collapse; table-layout:fixed; }
-.cpuw-tab td{ border:1px solid #000; text-align:center; padding:8px 4px; }
+.cpuw-tab td{ border:1px solid #000; text-align:center; padding:8px 4px; vertical-align:middle; }
 .cpuw-hd{ font-weight:700; font-size:12.5px; }
-.cpuw-nome{ font-style:italic; font-size:14px; padding:16px 4px !important; }
+.cpuw-nome{ font-style:italic; font-size:14px; padding:14px 4px !important; }
+.cpuw-nome-t{ display:block; }
 .cpuw-perm{ font-style:italic; font-weight:700; }
+.cpuw-perm-edit{ display:block; font-size:11px; color:#333; margin-top:4px; }
 .cpuw-fone{ font-size:12.5px; }
-.cpuw-semana{ margin-bottom:14px; }
-.cpuw-semana-t{ font-weight:700; font-size:12.5px; margin:10px 0 3px; }
-.cpuw-permedit{ padding:3px !important; }
-.cpuw-permedit input{ width:100%; box-sizing:border-box; border:1px dashed #9aa; border-radius:4px; padding:3px 4px; font-size:10.5px; font-family:inherit; }
+.cpuw-edit{ outline:none; min-width:20px; display:inline-block; }
+.cpuw-edit:empty:before{ content:attr(data-ph); color:#aaa; font-style:normal; }
+.cpuw-nome-t{ border-bottom:1px dashed transparent; }
 .cpuw-ass{ text-align:center; margin-top:26px; }
 .cpuw-ass-img{ max-height:52px; max-width:240px; object-fit:contain; display:block; margin:0 auto 2px; }
 .cpuw-ass-esp{ height:52px; }
 .cpuw-ass-nome{ font-weight:700; font-size:14px; } .cpuw-ass-func{ font-size:14px; }
+.only-print{ display:none; }
 
+@media screen{
+  .cpuw-edit{ background:#fbfbe8; border:1px dashed #bbb; border-radius:3px; padding:0 3px; min-height:16px; }
+}
 @media print{
   @page{ size:A4 landscape; margin:8mm; }
   body{ background:#fff !important; }
   body *{ visibility:hidden !important; }
   .cpuw-paper, .cpuw-paper *{ visibility:visible !important; }
-  .cpuw-paper{ position:absolute; left:0; top:0; width:100% !important; box-shadow:none !important; padding:0 !important; }
+  .cpuw-paper{ position:static; width:100% !important; box-shadow:none !important; padding:0 8mm !important; margin:0 !important; }
+  .cpuw-paper.quebra{ break-after:page; page-break-after:always; }
+  .only-print{ display:inline !important; }
   .no-print{ display:none !important; }
 }
 `;
