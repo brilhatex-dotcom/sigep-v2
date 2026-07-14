@@ -33,6 +33,7 @@ import {
   Shield,
   Truck,
   History,
+  ArrowLeftRight,
 } from "lucide-react";
 import Relogio from "@/components/Relogio";
 import BuscaGlobal from "@/components/BuscaGlobal";
@@ -78,6 +79,7 @@ const NAV: Secao[] = [
       { rotulo: "Plano de Férias", href: "/ferias", Icone: Palmtree, disponivel: true, adminOnly: true },
       { rotulo: "Licença-Prêmio", href: "/licenca-premio", Icone: Award, disponivel: true, adminOnly: true },
       { rotulo: "JOE", href: "/joe", Icone: ClipboardList, disponivel: true },
+      { rotulo: "Permutas", href: "/permutas", Icone: ArrowLeftRight, disponivel: true },
       { rotulo: "Requerimentos", href: "/requerimentos", Icone: FileText, disponivel: true },
       { rotulo: "Cursos", href: "/cursos", Icone: Award, disponivel: true },
       { rotulo: "Diárias", Icone: FileText, adminOnly: true },
