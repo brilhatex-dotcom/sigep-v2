@@ -243,15 +243,15 @@ export default function PlanoFerias({
     return membros;
   }
 
-  // Numeracao GLOBAL e continua do memorando de FERIAS: percorre todas as
-  // equipes em ordem e atribui um numero sequencial a cada militar do plano
-  // inteiro, sem reiniciar a contagem quando muda de equipe.
-  // O ultimo memorando de ferias emitido foi o 107/2026, entao a contagem
-  // comeca em 107 e o primeiro militar da equipe vindoura recebe o 108/2026.
-  // Esta numeracao e separada da Licenca-Premio.
+  // Numeracao GLOBAL e continua do memorando: percorre todas as equipes em
+  // ordem e atribui um numero sequencial a cada militar do plano inteiro,
+  // sem reiniciar a contagem quando muda de equipe. As FERIAS ocupam a
+  // primeira parte da sequencia (1..N, terminando em ~107/2026); a
+  // Licenca-Premio CONTINUA logo em seguida (108/2026 em diante), formando
+  // uma unica listagem corrida entre os dois memorandos.
   const mapaNumeroGlobal = useMemo(() => {
     const mapa = new Map<string, number>();
-    let seq = 107;
+    let seq = 0;
     const equipesOrdenadas = [...equipes].sort(
       (a, b) => Number(a.numeroEquipe) - Number(b.numeroEquipe)
     );

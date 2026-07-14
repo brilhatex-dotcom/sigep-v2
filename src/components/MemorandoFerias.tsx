@@ -17,6 +17,7 @@ export type DadosMemorando = {
   nomeGuerra?: string;       // opcional: trecho do nome a destacar em negrito (ex.: "CESAR SANTOS")
   horaApresentacao?: string; // opcional: ex. "07h30min" -> sai ", às 07h30min" (default "07h30min"); passe "" para sem hora
   observacao?: string;       // opcional: texto da OBS. undefined = OBS padrão; "" = sem OBS
+  prazoTexto?: string;       // Licença-Prêmio: texto do prazo (ex.: "3 (três) meses"); default "3 (três) meses"
 };
 
 const OBS_PADRAO =
@@ -174,9 +175,12 @@ function Portal({ montado, children }: { montado: boolean; children: React.React
   return createPortal(children, document.body);
 }
 
-export default function MemorandoFerias({ dados, ano, onFechar }: {
+export default function MemorandoFerias({ dados, ano, onFechar, variante = "ferias" }: {
   dados: DadosMemorando; ano: string; onFechar: () => void;
+  variante?: "ferias" | "licenca";
 }) {
+  const ehLicenca = variante === "licenca";
+  const prazoLic = (dados.prazoTexto && dados.prazoTexto.trim()) || "3 (três) meses";
   const [editando, setEditando] = useState(false);
   const [fontSize, setFontSize] = useState(12);
   const [montado, setMontado] = useState(false);
@@ -200,10 +204,11 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
     cidadeData:    useRef(`Presidente Dutra-MA, ${hojeExtenso()}.`),
     de:            useRef(`1º Ten QOEM Chefe da 1ª Seção do 18º BPM.`),
     ao:            useRef(`${aoHtml}.`),
-    assunto:       useRef(`Concessão de Férias (${dados.diasFerias} dias).`),
+    assunto:       useRef(ehLicenca ? `Concessão de Licença-Prêmio (${prazoLic}).` : `Concessão de Férias (${dados.diasFerias} dias).`),
     inicioExtenso: useRef(`<strong><u>${dataExtenso(dados.inicioBR)}</u></strong>`),
     apresExtenso:  useRef(`<strong><u>${apresTexto}</u></strong>`),
     dias:          useRef(`${dados.diasFerias}`),
+    prazo:         useRef(prazoLic),
     exercicio:     useRef(`${Number(ano) - 1}`),
     observacao:    useRef(obsInicial),
     assinaturaAo:  useRef(`${assinaturaHtml}`),
@@ -229,8 +234,10 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
         assunto: campos.assunto.current,
         inicioExtenso: campos.inicioExtenso.current,
         dias: campos.dias.current,
+        prazo: campos.prazo.current,
         exercicio: campos.exercicio.current,
         apresExtenso: campos.apresExtenso.current,
+        variante,
         observacao: campos.observacao.current,
         assinaturaAo: campos.assinaturaAo.current,
         nomeCmt: campos.nomeCmt.current,
@@ -421,13 +428,22 @@ export default function MemorandoFerias({ dados, ano, onFechar }: {
         </div>
 
         {/* Corpo */}
-        <p style={{ textAlign: "justify", textIndent: "15mm", marginBottom: temObs ? "4mm" : "22mm" }}>
-          Informo a Vossa Senhoria, para conhecimento que a partir do dia{" "}
-          <C campo="inicioExtenso" />
-          {", "}encontra-se de Férias Regulamentares (<C campo="dias" /> dias) referente ao exercício de{" "}
-          <C campo="exercicio" />, devendo apresentar-se pronto para o serviço Policial Militar, no dia{" "}
-          <C campo="apresExtenso" />.
-        </p>
+        {ehLicenca ? (
+          <p style={{ textAlign: "justify", textIndent: "15mm", marginBottom: temObs ? "4mm" : "22mm" }}>
+            Informo a Vossa Senhoria, para conhecimento que a partir do dia{" "}
+            <C campo="inicioExtenso" />
+            {", "}encontra-se de Licença-Prêmio (<C campo="prazo" />), devendo apresentar-se pronto para o serviço Policial Militar, no dia{" "}
+            <C campo="apresExtenso" />.
+          </p>
+        ) : (
+          <p style={{ textAlign: "justify", textIndent: "15mm", marginBottom: temObs ? "4mm" : "22mm" }}>
+            Informo a Vossa Senhoria, para conhecimento que a partir do dia{" "}
+            <C campo="inicioExtenso" />
+            {", "}encontra-se de Férias Regulamentares (<C campo="dias" /> dias) referente ao exercício de{" "}
+            <C campo="exercicio" />, devendo apresentar-se pronto para o serviço Policial Militar, no dia{" "}
+            <C campo="apresExtenso" />.
+          </p>
+        )}
 
         {/* OBS (opcional) */}
         {temObs && (

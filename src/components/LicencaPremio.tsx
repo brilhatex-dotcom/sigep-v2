@@ -11,7 +11,9 @@ import {
   CalendarDays,
   UserPlus,
   Trash2,
+  FileText,
 } from "lucide-react";
+import MemorandoFerias, { DadosMemorando } from "@/components/MemorandoFerias";
 
 export type MembroEquipeLicenca = {
   membroId: string;
@@ -59,6 +61,18 @@ function isoParaBR(iso: string): string {
   if (!m) return iso;
   return `${m[3]}/${m[2]}/${m[1]}`;
 }
+// Data de apresentacao = dia seguinte ao fim do periodo (em "dd/mm/aaaa").
+function calcApresBR(fimBR: string): string {
+  const iso = brParaISO(fimBR);
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00");
+  if (isNaN(d.getTime())) return "";
+  d.setDate(d.getDate() + 1);
+  const yy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${dd}/${mm}/${yy}`;
+}
 // soma meses a uma data ISO (aaaa-mm-dd) — regra oficial da Licença-Prêmio
 // e "3 (tres) meses", nao 90 dias corridos.
 function somarMesesISO(iso: string, meses: number): string {
@@ -87,6 +101,7 @@ export default function LicencaPremio({
   totalOficiais,
   totalPracas,
   idsJaAlocados,
+  baseNumeroMemorando,
   isAdmin,
   onTrocarAno,
   onAtualizar,
@@ -98,6 +113,7 @@ export default function LicencaPremio({
   totalOficiais: number;
   totalPracas: number;
   idsJaAlocados: string[];
+  baseNumeroMemorando: number;
   isAdmin: boolean;
   onTrocarAno: (ano: string) => void;
   onAtualizar: () => void;
@@ -105,6 +121,7 @@ export default function LicencaPremio({
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [aberta, setAberta] = useState<EquipeLicencaView | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [memorando, setMemorando] = useState<DadosMemorando | null>(null);
 
   // ---- edicao de datas ----
   const [editando, setEditando] = useState<EquipeLicencaView | null>(null);
@@ -275,6 +292,42 @@ export default function LicencaPremio({
       </span>
     </button>
   );
+
+  // Numeracao CONTINUA do memorando: a Licenca-Premio segue logo apos as
+  // ferias. `baseNumeroMemorando` = total de militares do plano de ferias do
+  // ano (ex.: 107); assim o 1º militar da LP recebe 108, o 2º 109, e assim por
+  // diante — uma unica listagem corrida entre os dois memorandos.
+  const mapaNumeroGlobal = useMemo(() => {
+    const mapa = new Map<string, number>();
+    let seq = baseNumeroMemorando;
+    const equipesOrdenadas = [...equipes].sort(
+      (a, b) => Number(a.numeroEquipe) - Number(b.numeroEquipe)
+    );
+    for (const eq of equipesOrdenadas) {
+      for (const m of eq.membros) {
+        seq += 1;
+        mapa.set(m.membroId, seq);
+      }
+    }
+    return mapa;
+  }, [equipes, baseNumeroMemorando]);
+
+  function abrirMemorando(m: MembroEquipeLicenca, e: EquipeLicencaView) {
+    const numeroGlobal = mapaNumeroGlobal.get(m.membroId) ?? baseNumeroMemorando + 1;
+    setMemorando({
+      numero: String(numeroGlobal),
+      postoGrad: m.postoGrad ?? "",
+      numeroBarra: m.numeroBarra ?? "",
+      nome: m.nome ?? "",
+      nomeGuerra: m.nomeGuerra ?? undefined,
+      quadro: m.quadro ?? "",
+      ehOficial: m.ehOficial,
+      inicioBR: e.inicioBR,
+      apresentacaoBR: calcApresBR(e.fimBR),
+      diasFerias: 0,
+      prazoTexto: "3 (três) meses",
+    });
+  }
 
   function imprimir() {
     const dataStr = new Date().toLocaleDateString("pt-BR");
@@ -555,12 +608,20 @@ export default function LicencaPremio({
                         <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.matricula ?? "—"}</td>
                         {isAdmin && (
                           <td className="whitespace-nowrap px-3 py-2">
-                            <button
-                              onClick={() => removerMembro(m.membroId)}
-                              className="inline-flex items-center gap-1 rounded border border-red-900/50 px-2 py-1 text-xs text-red-300 hover:bg-red-950/50"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" /> Remover
-                            </button>
+                            <div className="flex gap-1.5">
+                              <button
+                                onClick={() => abrirMemorando(m, aberta)}
+                                className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-[#94A3B8] hover:border-white/30 hover:text-white"
+                              >
+                                <FileText className="h-3.5 w-3.5" /> Memorando
+                              </button>
+                              <button
+                                onClick={() => removerMembro(m.membroId)}
+                                className="inline-flex items-center gap-1 rounded border border-red-900/50 px-2 py-1 text-xs text-red-300 hover:bg-red-950/50"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" /> Remover
+                              </button>
+                            </div>
                           </td>
                         )}
                       </tr>
@@ -639,6 +700,16 @@ export default function LicencaPremio({
             </div>
           </div>
         </div>
+      )}
+
+      {/* memorando de Licença-Prêmio (mesmo modelo das férias, texto adaptado) */}
+      {memorando && (
+        <MemorandoFerias
+          dados={memorando}
+          ano={anoSelecionado}
+          variante="licenca"
+          onFechar={() => setMemorando(null)}
+        />
       )}
     </div>
   );

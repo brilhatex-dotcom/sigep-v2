@@ -136,6 +136,14 @@ export default async function LicencaPremioPage({
   ).length;
   const totalPracas = totalMilitares - totalOficiais;
 
+  // Numeracao CONTINUA dos memorandos: as ferias ocupam 1..N (N = total de
+  // militares do plano de ferias do mesmo ano); a Licenca-Premio segue logo
+  // em seguida (N+1 em diante — ex.: ferias terminando em 107, LP comeca em
+  // 108). Contamos os militares de ferias do ano para saber onde continuar.
+  const baseNumeroMemorando = await prisma.membroFerias.count({
+    where: { anoGozo: anoSelecionado },
+  });
+
   const isAdmin = (session.user.perfil ?? "").toLowerCase() === "admin";
 
   return (
@@ -156,6 +164,7 @@ export default async function LicencaPremioPage({
           totalOficiais={totalOficiais}
           totalPracas={totalPracas}
           idsJaAlocados={ids}
+          baseNumeroMemorando={baseNumeroMemorando}
           isAdmin={isAdmin}
         />
       </div>

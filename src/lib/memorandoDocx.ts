@@ -31,6 +31,10 @@ export type MemorandoDocxInput = {
   assinaturaAo: string;
   nomeCmt: string;
   cargoCmt: string;
+  // "ferias" (padrao) ou "licenca" (Licenca-Premio) — muda apenas o corpo.
+  variante?: "ferias" | "licenca";
+  // texto do prazo da Licenca-Premio (ex.: "3 (tres) meses").
+  prazo?: string;
 };
 
 function mmToTwip(mm: number): number {
@@ -227,17 +231,27 @@ export async function gerarMemorandoDocx(d: MemorandoDocxInput): Promise<Buffer>
   });
 
   // ---- corpo ----
-  const runsCorpo: TextRun[] = [
-    new TextRun("Informo a Vossa Senhoria, para conhecimento que a partir do dia "),
-    ...htmlParaRuns(d.inicioExtenso),
-    new TextRun(", encontra-se de Férias Regulamentares ("),
-    ...htmlParaRuns(d.dias),
-    new TextRun(" dias) referente ao exercício de "),
-    ...htmlParaRuns(d.exercicio),
-    new TextRun(", devendo apresentar-se pronto para o serviço Policial Militar, no dia "),
-    ...htmlParaRuns(d.apresExtenso),
-    new TextRun("."),
-  ];
+  const runsCorpo: TextRun[] = d.variante === "licenca"
+    ? [
+        new TextRun("Informo a Vossa Senhoria, para conhecimento que a partir do dia "),
+        ...htmlParaRuns(d.inicioExtenso),
+        new TextRun(", encontra-se de Licença-Prêmio ("),
+        ...htmlParaRuns(d.prazo || ""),
+        new TextRun("), devendo apresentar-se pronto para o serviço Policial Militar, no dia "),
+        ...htmlParaRuns(d.apresExtenso),
+        new TextRun("."),
+      ]
+    : [
+        new TextRun("Informo a Vossa Senhoria, para conhecimento que a partir do dia "),
+        ...htmlParaRuns(d.inicioExtenso),
+        new TextRun(", encontra-se de Férias Regulamentares ("),
+        ...htmlParaRuns(d.dias),
+        new TextRun(" dias) referente ao exercício de "),
+        ...htmlParaRuns(d.exercicio),
+        new TextRun(", devendo apresentar-se pronto para o serviço Policial Militar, no dia "),
+        ...htmlParaRuns(d.apresExtenso),
+        new TextRun("."),
+      ];
 
   const paragrafoCorpo = new Paragraph({
     alignment: AlignmentType.JUSTIFIED,

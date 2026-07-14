@@ -11,6 +11,7 @@ export default function LicencaPremioClient(props: {
   totalOficiais: number;
   totalPracas: number;
   idsJaAlocados: string[];
+  baseNumeroMemorando: number;
   isAdmin: boolean;
 }) {
   const router = useRouter();
