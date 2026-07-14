@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 /* =========================================================================
-   Escala de Serviço SEMANAL do CPU (paisagem) — modelo do print oficial.
-   UMA SEMANA POR PÁGINA (recorte em 4 semanas, cada uma numa página).
-   Tudo editável: nome do oficial, telefone e permuta (na mesma caixa do nome).
-   Overrides salvos no servidor (/api/cpu-permutas); default vem do rodizio.
+   Escala de Serviço SEMANAL do CPU (paisagem) — no padrão da Escala Diária.
+   UMA SEMANA POR PÁGINA. Tudo editável (nome, telefone, permuta na mesma caixa).
+   Nomes arrastaveis entre os dias. Brasoes clicaveis. VISTO do Cmt ao lado do
+   titulo (canto inferior esquerdo). Overrides salvos em /api/cpu-permutas.
    ========================================================================= */
 
 type Afastamento = { militar: string; tipo: string; inicio: string; fim: string };
@@ -14,6 +14,7 @@ type Cadastro = { cpu: string[]; afastamentos: Afastamento[]; refCpuISO: string 
 type Militar = { id: string; postoGrad: string; numeroBarra: string; nome: string; nomeGuerra: string; telefone?: string; quadro?: string };
 type Chefe = { nome: string; funcao: string; assinatura?: string; assinarGov?: boolean; cmtAssinatura?: string };
 type Override = { nome?: string; fone?: string; permuta?: string };
+type Brasoes = { pmma: string; ma: string; bpm: string };
 
 const DAY = 86400000;
 const parseISO = (iso: string) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, (m || 1) - 1, d || 1); };
@@ -69,6 +70,7 @@ const ORG = [
   "Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP-65.760-000",
   "(99) 98509-5005(Permanência) – 18batalhaopmma@gmail.com",
 ];
+const BRASOES_PADRAO: Brasoes = { pmma: "/brasoes/brasao-pmma.png", ma: "/brasoes/armas-ma.png", bpm: "/brasoes/brasao-18bpm.png" };
 
 function segundaDaSemana(): string {
   const h = new Date();
@@ -93,7 +95,10 @@ export default function CpuSemanalClient() {
   const [chefe, setChefe] = useState<Chefe>({ nome: "", funcao: "", assinatura: "", assinarGov: false, cmtAssinatura: "/brasoes/assinatura-cmt.png" });
   const [inicio, setInicio] = useState<string>(segundaDaSemana());
   const [ov, setOv] = useState<Record<string, Override>>({});
+  const [brasoes, setBrasoes] = useState<Brasoes>(BRASOES_PADRAO);
+  const [drag, setDrag] = useState<string | null>(null);
   const salvarTimer = useRef<any>(null);
+  const brasoesTimer = useRef<any>(null);
 
   useEffect(() => {
     fetch("/api/escala-config").then((r) => r.ok ? r.json() : null).then((d) => { if (d?.cad) setCad(d.cad); }).catch(() => {});
@@ -102,18 +107,34 @@ export default function CpuSemanalClient() {
     }).catch(() => {});
     fetch("/api/escala-chefe").then((r) => r.ok ? r.json() : null).then((d) => { if (d) setChefe({ nome: d.nome || "", funcao: d.funcao || "", assinatura: d.assinatura || "", assinarGov: d.assinarGov === true, cmtAssinatura: d.cmtAssinatura || "/brasoes/assinatura-cmt.png" }); }).catch(() => {});
     fetch("/api/cpu-permutas").then((r) => r.ok ? r.json() : null).then((d) => { if (d?.permutas && typeof d.permutas === "object") setOv(d.permutas); }).catch(() => {});
+    fetch("/api/cpu-brasoes").then((r) => r.ok ? r.json() : null).then((d) => { if (d?.brasoes) setBrasoes((b) => ({ pmma: d.brasoes.pmma || b.pmma, ma: d.brasoes.ma || b.ma, bpm: d.brasoes.bpm || b.bpm })); }).catch(() => {});
   }, []);
 
+  const salvarOv = (np: Record<string, Override>) => {
+    if (salvarTimer.current) clearTimeout(salvarTimer.current);
+    salvarTimer.current = setTimeout(() => {
+      fetch("/api/cpu-permutas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ permutas: np }) }).catch(() => {});
+    }, 700);
+  };
   const setOverride = (iso: string, patch: Override) => {
     setOv((prev) => {
       const atual = { ...(prev[iso] || {}) };
       for (const [k, v] of Object.entries(patch)) { if (v && v.trim()) (atual as any)[k] = v; else delete (atual as any)[k]; }
       const np = { ...prev };
       if (Object.keys(atual).length) np[iso] = atual; else delete np[iso];
-      if (salvarTimer.current) clearTimeout(salvarTimer.current);
-      salvarTimer.current = setTimeout(() => {
-        fetch("/api/cpu-permutas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ permutas: np }) }).catch(() => {});
-      }, 700);
+      salvarOv(np);
+      return np;
+    });
+  };
+  const aplicar = (mapa: Record<string, Override>) => {
+    setOv((prev) => {
+      const np = { ...prev };
+      for (const [iso, patch] of Object.entries(mapa)) {
+        const atual: Override = {};
+        (["nome", "fone", "permuta"] as const).forEach((k) => { const v = patch[k]; if (v && v.trim()) atual[k] = v; });
+        if (Object.keys(atual).length) np[iso] = atual; else delete np[iso];
+      }
+      salvarOv(np);
       return np;
     });
   };
@@ -128,25 +149,53 @@ export default function CpuSemanalClient() {
   const foneDe = (iso: string) => ov[iso]?.fone ?? auto(iso).fone;
   const permDe = (iso: string) => ov[iso]?.permuta ?? "";
 
+  const soltar = (target: string) => {
+    if (!drag || drag === target) { setDrag(null); return; }
+    const src = { nome: nomeDe(drag), fone: foneDe(drag), permuta: permDe(drag) };
+    const dst = { nome: nomeDe(target), fone: foneDe(target), permuta: permDe(target) };
+    aplicar({ [target]: src, [drag]: dst }); // troca os dois dias
+    setDrag(null);
+  };
+
+  const salvarBrasoes = (novo: Brasoes) => {
+    setBrasoes(novo);
+    if (brasoesTimer.current) clearTimeout(brasoesTimer.current);
+    brasoesTimer.current = setTimeout(() => {
+      fetch("/api/cpu-brasoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brasoes: novo }) }).catch(() => {});
+    }, 500);
+  };
+  const pickBrasao = (key: keyof Brasoes) => {
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*";
+    inp.onchange = () => { const f = inp.files?.[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => salvarBrasoes({ ...brasoes, [key]: String(rd.result) }); rd.readAsDataURL(f); };
+    inp.click();
+  };
+  const BrasaoImg = ({ k, cls }: { k: keyof Brasoes; cls: string }) => (
+    <div className={"cpuw-brasao " + cls} onClick={() => pickBrasao(k)} title="Clique para trocar a logomarca">
+      {brasoes[k] ? <img src={brasoes[k]} alt="" /> : <span className="cpuw-brasao-ph no-print">logo</span>}
+    </div>
+  );
+
   const semanas = useMemo(() => [0, 1, 2, 3].map((w) => Array.from({ length: 7 }, (_, i) => somaDias(inicio, w * 7 + i))), [inicio]);
 
   const Pagina = ({ dias, ultima }: { dias: string[]; ultima: boolean }) => (
     <div className={"cpuw-paper" + (ultima ? "" : " quebra")}>
       <div className="cpuw-hdr">
-        <div className="cpuw-visto">
-          <div className="cpuw-visto-t">VISTO</div>
-          {chefe.cmtAssinatura && <img src={chefe.cmtAssinatura} alt="" className="cpuw-visto-img" />}
-          <div className="cpuw-visto-c">Cmt. do 18º BPM</div>
-        </div>
-        <img src="/brasoes/brasao-pmma.png" alt="" className="cpuw-bpmma" />
+        <BrasaoImg k="pmma" cls="cpuw-hleft" />
         <div className="cpuw-center">
-          <img src="/brasoes/armas-ma.png" alt="" className="cpuw-ma" />
+          <BrasaoImg k="ma" cls="cpuw-hma" />
           <div className="cpuw-org">{ORG.map((l, i) => <div key={i} className={i === 4 ? "s" : ""}>{l}</div>)}</div>
         </div>
-        <img src="/brasoes/brasao-18bpm.png" alt="" className="cpuw-bpm" />
+        <BrasaoImg k="bpm" cls="cpuw-hright" />
       </div>
 
-      <div className="cpuw-titulo">ESCALA DE SERVIÇO SEMANAL CPU (18º BPM)</div>
+      <div className="cpuw-titw">
+        <div className="cpuw-visto">
+          <div className="cpuw-visto-t">VISTO</div>
+          {chefe.cmtAssinatura ? <img src={chefe.cmtAssinatura} alt="" className="cpuw-visto-img" /> : <div className="cpuw-visto-esp" />}
+          <div className="cpuw-visto-c">Cmt. do 18º BPM</div>
+        </div>
+        <div className="cpuw-titulo">ESCALA DE SERVIÇO SEMANAL CPU (18º BPM)</div>
+      </div>
 
       <table className="cpuw-tab"><tbody>
         <tr>{dias.map((iso) => (
@@ -156,7 +205,8 @@ export default function CpuSemanalClient() {
           </td>
         ))}</tr>
         <tr>{dias.map((iso) => (
-          <td key={iso} className="cpuw-nome">
+          <td key={iso} className={"cpuw-nome" + (drag ? " alvo" : "")} onDragOver={(e) => e.preventDefault()} onDrop={() => soltar(iso)}>
+            <span className="cpuw-grip no-print" draggable onDragStart={() => setDrag(iso)} onDragEnd={() => setDrag(null)} title="Arraste para mover este oficial para outro dia">⠿</span>
             <Editavel value={nomeDe(iso)} onChange={(v) => setOverride(iso, { nome: v })} className="cpuw-nome-t" placeholder="oficial de dia" />
             {permDe(iso) && <span className="cpuw-perm only-print"> (PERMUTA- {permDe(iso)})</span>}
             <span className="cpuw-perm-edit no-print">(PERMUTA- <Editavel value={permDe(iso)} onChange={(v) => setOverride(iso, { permuta: v })} className="cpuw-perm-in" placeholder="substituto" />)</span>
@@ -186,7 +236,7 @@ export default function CpuSemanalClient() {
           <input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
         </label>
         <span className="cpuw-spacer" />
-        <span className="cpuw-hint">4 semanas · 1 por página · tudo editável (salva sozinho)</span>
+        <span className="cpuw-hint">Arraste o ⠿ para mover o oficial entre os dias · clique nos brasões para trocar · tudo salva sozinho</span>
         <button className="cpuw-btn primary" onClick={() => window.print()}>🖨 Imprimir / PDF</button>
       </div>
 
@@ -204,29 +254,38 @@ const CSS = `
 .cpuw-field{ display:flex; flex-direction:column; gap:4px; font-size:11px; color:#9fb0c7; }
 .cpuw-field input{ background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:8px; padding:7px 9px; font-size:13px; }
 .cpuw-spacer{ flex:1; }
-.cpuw-hint{ font-size:11px; color:#8fa3bf; }
+.cpuw-hint{ font-size:11px; color:#8fa3bf; max-width:340px; }
 
 .cpuw-paper{ background:#fff; color:#000; width:297mm; max-width:100%; margin:0 auto 18px; padding:8mm 12mm; box-shadow:0 10px 40px rgba(0,0,0,.5); font-family:"Times New Roman", Georgia, serif; }
-.cpuw-hdr{ display:flex; align-items:flex-start; gap:8px; position:relative; }
-.cpuw-visto{ position:absolute; left:0; top:6px; width:120px; text-align:center; font-size:11px; }
-.cpuw-visto-t{ font-weight:700; } .cpuw-visto-img{ max-width:96px; max-height:40px; object-fit:contain; } .cpuw-visto-c{ font-weight:700; border-top:1px solid #000; display:inline-block; padding-top:1px; }
-.cpuw-bpmma{ width:92px; height:80px; object-fit:contain; margin-left:120px; }
+.cpuw-hdr{ display:flex; gap:6px; align-items:flex-start; }
 .cpuw-center{ flex:1; display:flex; flex-direction:column; align-items:center; }
-.cpuw-ma{ width:60px; height:66px; object-fit:contain; }
 .cpuw-org{ text-align:center; font-size:13px; margin-top:2px; } .cpuw-org .s{ font-weight:700; }
-.cpuw-bpm{ width:80px; height:84px; object-fit:contain; }
-.cpuw-titulo{ text-align:center; font-weight:700; font-size:19px; text-decoration:underline; margin:12px 0 16px; }
-.cpuw-tab{ width:100%; border-collapse:collapse; table-layout:fixed; }
+.cpuw-brasao{ display:flex; align-items:center; justify-content:center; overflow:hidden; cursor:pointer; margin:0 auto; }
+.cpuw-brasao img{ max-width:100%; max-height:100%; object-fit:contain; }
+.cpuw-hleft{ width:110px; height:82px; }
+.cpuw-hma{ width:60px; height:66px; }
+.cpuw-hright{ width:84px; height:86px; }
+
+.cpuw-titw{ position:relative; min-height:58px; margin-top:6px; }
+.cpuw-visto{ position:absolute; left:0; bottom:0; width:132px; text-align:center; font-size:11px; line-height:1.15; }
+.cpuw-visto-t{ font-weight:700; }
+.cpuw-visto-img{ max-width:118px; max-height:44px; object-fit:contain; display:block; margin:0 auto; }
+.cpuw-visto-esp{ height:44px; }
+.cpuw-visto-c{ font-weight:700; border-top:1px solid #000; display:inline-block; padding-top:1px; margin-top:2px; }
+.cpuw-titulo{ text-align:center; font-weight:700; font-size:19px; text-decoration:underline; padding-top:16px; }
+
+.cpuw-tab{ width:100%; border-collapse:collapse; table-layout:fixed; margin-top:14px; }
 .cpuw-tab td{ border:1px solid #000; text-align:center; padding:8px 4px; vertical-align:middle; }
 .cpuw-hd{ font-weight:700; font-size:12.5px; }
 .cpuw-nome{ font-style:italic; font-size:14px; padding:14px 4px !important; }
+.cpuw-nome.alvo{ outline:2px dashed #3b82f6; outline-offset:-3px; }
 .cpuw-nome-t{ display:block; }
+.cpuw-grip{ cursor:grab; color:#7a8aa0; font-size:13px; margin-right:3px; user-select:none; }
 .cpuw-perm{ font-style:italic; font-weight:700; }
 .cpuw-perm-edit{ display:block; font-size:11px; color:#333; margin-top:4px; }
 .cpuw-fone{ font-size:12.5px; }
 .cpuw-edit{ outline:none; min-width:20px; display:inline-block; }
 .cpuw-edit:empty:before{ content:attr(data-ph); color:#aaa; font-style:normal; }
-.cpuw-nome-t{ border-bottom:1px dashed transparent; }
 .cpuw-ass{ text-align:center; margin-top:26px; }
 .cpuw-ass-img{ max-height:52px; max-width:240px; object-fit:contain; display:block; margin:0 auto 2px; }
 .cpuw-ass-esp{ height:52px; }
@@ -235,6 +294,9 @@ const CSS = `
 
 @media screen{
   .cpuw-edit{ background:#fbfbe8; border:1px dashed #bbb; border-radius:3px; padding:0 3px; min-height:16px; }
+  .cpuw-brasao{ border:1px dashed #b9b9b9; background:#fafafa; }
+  .cpuw-brasao:hover{ border-color:#D4AF37; }
+  .cpuw-brasao-ph{ font-size:9px; color:#9a9a9a; }
 }
 @media print{
   @page{ size:A4 landscape; margin:8mm; }
