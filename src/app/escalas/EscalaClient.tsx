@@ -1347,7 +1347,10 @@ function BarraFormatacao() {
 export default function EscalaClient() {
   const [cad, setCad] = useState<Cadastro>(SEED_CADASTRO);
   const [escalas, setEscalas] = useState<Record<string, Escala>>({});
-  const [data, setData] = useState<string>("2026-06-10");
+  const [data, setData] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
   const [aba, setAba] = useState<"dia" | "config" | "chefe">("dia");
   // Brasoes: arquivos fixos do sistema (public/brasoes) \u2014 aparecem em todos os PCs.
   const [brasoes, setBrasoes] = useState<Brasoes>({
@@ -1372,10 +1375,24 @@ export default function EscalaClient() {
   const escalasSaveTimer = useRef<any>(null);
   const ultimoEscalasSalvo = useRef<string>("{}");
 
+  // Lembra a ultima data mexida, para reabrir nela na proxima vez.
+  // Pula a 1a execucao para nao sobrescrever a data salva antes de le-la.
+  const primeiraData = useRef(true);
+  useEffect(() => {
+    if (primeiraData.current) { primeiraData.current = false; return; }
+    try { localStorage.setItem("sigep_escala_ultima_data", data); } catch {}
+  }, [data]);
+
   useEffect(() => {
     try {
       const qd = new URLSearchParams(window.location.search).get("data");
-      if (qd && /^\d{4}-\d{2}-\d{2}$/.test(qd)) setData(qd);
+      if (qd && /^\d{4}-\d{2}-\d{2}$/.test(qd)) {
+        setData(qd);
+      } else {
+        // sem data na URL: abre na ultima data que o usuario mexeu (este navegador)
+        const ld = localStorage.getItem("sigep_escala_ultima_data");
+        if (ld && /^\d{4}-\d{2}-\d{2}$/.test(ld)) setData(ld);
+      }
     } catch {}
     // Dias salvos vem do servidor (migra o localStorage antigo se preciso).
     (async () => {
