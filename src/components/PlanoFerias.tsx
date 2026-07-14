@@ -111,6 +111,28 @@ export default function PlanoFerias({
   const [salvandoDatas, setSalvandoDatas] = useState(false);
   const [erroDatas, setErroDatas] = useState<string | null>(null);
 
+  async function novoPlano() {
+    const anosNum = anos.map(Number).filter((n) => !isNaN(n));
+    const sugestao = String(Math.max(new Date().getFullYear(), ...(anosNum.length ? anosNum : [0])) + 1);
+    const ano = window.prompt(
+      "Criar plano de férias para qual ano?\n(copia as equipes e os militares do ano atual, com as datas em branco para você preencher)",
+      sugestao
+    );
+    if (!ano) return;
+    const dest = ano.trim();
+    if (!/^\d{4}$/.test(dest)) { alert("Ano inválido. Use o formato AAAA (ex: 2027)."); return; }
+    try {
+      const r = await fetch("/api/ferias/novo-plano", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ anoDestino: dest, anoOrigem: anoSelecionado }),
+      });
+      const d = await r.json();
+      if (!r.ok) { alert(d.erro || "Não foi possível criar o plano."); return; }
+      alert(`Plano de ${dest} criado! ${d.membros || 0} militares copiados do ano ${anoSelecionado}. Agora é só ajustar as datas de cada equipe.`);
+      onTrocarAno(dest);
+    } catch { alert("Falha ao criar o plano."); }
+  }
+
   function abrirEditar(e: EquipeView) {
     const p1 = e.periodos[0];
     const p2 = e.periodos[1];
@@ -287,6 +309,7 @@ export default function PlanoFerias({
       {/* topo */}
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-sm text-[#94A3B8]">Ano de gozo</label>
+        {/* seletor + novo plano abaixo */}
         <select
           value={anoSelecionado}
           onChange={(e) => onTrocarAno(e.target.value)}
@@ -294,6 +317,15 @@ export default function PlanoFerias({
         >
           {anos.map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
+        {isAdmin && (
+          <button
+            onClick={novoPlano}
+            title="Criar o plano de férias de um novo ano (copia as equipes e militares, com datas em branco)"
+            className="rounded-lg border border-[#D4AF37]/40 px-3 py-1.5 text-sm font-medium text-[#D4AF37] transition hover:bg-[#D4AF37]/10"
+          >
+            + Novo plano
+          </button>
+        )}
         <div className="ml-auto flex flex-wrap gap-2">
           <Aba id="todos" rotulo="Todos" qtd={totalMilitares} />
           <Aba id="oficiais" rotulo="Oficiais" qtd={totalOficiais} />
