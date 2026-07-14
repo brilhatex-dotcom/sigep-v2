@@ -631,14 +631,25 @@ export default function MapaClient({ servico }: { servico?: string } = {}) {
   const [soConflitos, setSoConflitos] = useState(false);
   const [selNome, setSelNome] = useState<string | null>(null);
   const [efetivo, setEfetivo] = useState<Militar[]>([]);
-  // Aviso pro escalante: quem da SEDE entra de ferias/LP nos proximos dias.
+  // Aviso pro escalante: quem da SEDE entra de ferias/LP faltando ate 5 dias.
   const [proxAusencias, setProxAusencias] = useState<{ nome: string; lotacao: string; tipo: string; inicio: string; dias: number }[]>([]);
+  const [avisoDispensado, setAvisoDispensado] = useState(false);
   useEffect(() => {
-    fetch("/api/escala/proximas-ausencias?dias=15")
+    fetch("/api/escala/proximas-ausencias?dias=5")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (Array.isArray(d?.ausencias)) setProxAusencias(d.ausencias); })
       .catch(() => {});
+    // "nao lembrar ate a proxima equipe": dispensa vale so para o dia de hoje
+    // (amanha e outra equipe no ciclo 24/72, entao o aviso volta).
+    try {
+      const hojeISO = toISO(new Date());
+      if (localStorage.getItem("sigep_aviso_ausencias") === hojeISO) setAvisoDispensado(true);
+    } catch {}
   }, []);
+  const dispensarAviso = () => {
+    try { localStorage.setItem("sigep_aviso_ausencias", toISO(new Date())); } catch {}
+    setAvisoDispensado(true);
+  };
 
   const cadSaveTimer = useRef<any>(null);
   const ultimoCadSalvo = useRef<string>(JSON.stringify(SEED_CADASTRO));
@@ -947,9 +958,12 @@ export default function MapaClient({ servico }: { servico?: string } = {}) {
         </div>
       )}
 
-      {proxAusencias.length > 0 && (
+      {!grupo && !avisoDispensado && proxAusencias.length > 0 && (
         <div className="mp-proxaus no-print">
-          <b>⚠️ Atenção, escalante — saídas da SEDE nos próximos dias:</b>
+          <div className="mp-proxaus-cab">
+            <b>⚠️ Atenção, escalante — saídas da SEDE (faltando 5 dias):</b>
+            <button className="mp-proxaus-x" onClick={dispensarAviso} title="Não lembrar até a próxima equipe (volta amanhã)">Não lembrar ✕</button>
+          </div>
           <ul>
             {proxAusencias.map((a, i) => (
               <li key={i}>
@@ -1300,7 +1314,10 @@ const CSS = `
 .mp-saidas b{ color:#ffe9a8; }
 /* Aviso de saidas da SEDE (ferias/LP) para o escalante */
 .mp-proxaus{ margin:10px 2px; font-size:12.5px; color:#ffd9b0; background:#3a2410; border:1px solid #8a5a1f; border-radius:8px; padding:10px 12px; }
-.mp-proxaus > b{ color:#ffe1b0; display:block; margin-bottom:5px; }
+.mp-proxaus-cab{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:5px; }
+.mp-proxaus-cab b{ color:#ffe1b0; }
+.mp-proxaus-x{ background:#5a3a15; color:#ffd9b0; border:1px solid #8a5a1f; border-radius:7px; padding:3px 10px; font-size:11.5px; cursor:pointer; white-space:nowrap; }
+.mp-proxaus-x:hover{ background:#6b4519; }
 .mp-proxaus ul{ margin:0; padding-left:18px; line-height:1.7; }
 .mp-proxaus b{ color:#fff2df; }
 .mp-proxaus-lot{ color:#c9a37a; font-size:11px; }

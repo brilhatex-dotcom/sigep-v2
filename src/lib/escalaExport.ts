@@ -82,9 +82,11 @@ const BORDAS = { top: BORDA, bottom: BORDA, left: BORDA, right: BORDA };
 const SEM = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
 const SEM_BORDAS = { top: SEM, bottom: SEM, left: SEM, right: SEM };
 
-function run(text: string, opt: { bold?: boolean; size?: number } = {}) { return new TextRun({ text, bold: opt.bold, size: opt.size ?? 18 }); }
+function run(text: string, opt: { bold?: boolean; size?: number; italics?: boolean; underline?: boolean } = {}) {
+  return new TextRun({ text, bold: opt.bold, italics: opt.italics, size: opt.size ?? 18, underline: opt.underline ? {} : undefined });
+}
 function par(children: TextRun[], align = AlignmentType.CENTER) { return new Paragraph({ alignment: align, children }); }
-function linhaP(text: string, opt: { bold?: boolean; size?: number; align?: (typeof AlignmentType)[keyof typeof AlignmentType] } = {}) {
+function linhaP(text: string, opt: { bold?: boolean; size?: number; italics?: boolean; underline?: boolean; align?: (typeof AlignmentType)[keyof typeof AlignmentType] } = {}) {
   return new Paragraph({ alignment: opt.align ?? AlignmentType.CENTER, children: [run(text, opt)] });
 }
 function imgDocx(valor?: string | null, w = 80, h = 80) {
@@ -96,7 +98,7 @@ function celValor(txt: string, w: number, center = false) {
   const linhas = (txt ? txt.split("\n") : [""]);
   return new TableCell({
     width: { size: w, type: WidthType.PERCENTAGE }, borders: BORDAS, verticalAlign: VerticalAlign.CENTER,
-    children: linhas.map((l) => new Paragraph({ alignment: center ? AlignmentType.CENTER : AlignmentType.LEFT, children: [run(l)] })),
+    children: linhas.map((l) => new Paragraph({ alignment: center ? AlignmentType.CENTER : AlignmentType.LEFT, children: [run(l, { italics: true })] })),
   });
 }
 function celRotulo(txt: string, w: number) {
@@ -181,7 +183,7 @@ export async function gerarEscalaDocx(input: EscalaExportInput): Promise<Buffer>
         linhaP("Cmt. do 18º BPM", { size: 15 }),
       ] }),
       new TableCell({ width: { size: 74, type: WidthType.PERCENTAGE }, borders: SEM_BORDAS, verticalAlign: VerticalAlign.CENTER, children: [
-        linhaP(extra ? "ESCALA DE SERVIÇO EXTRAORDINÁRIA" : "ESCALA DE SERVIÇO", { bold: true, size: 30 }),
+        linhaP(extra ? "ESCALA DE SERVIÇO EXTRAORDINÁRIA" : "ESCALA DE SERVIÇO", { bold: true, size: 30, underline: true }),
       ] }),
     ] })],
   });
@@ -190,7 +192,8 @@ export async function gerarEscalaDocx(input: EscalaExportInput): Promise<Buffer>
     cabecalho,
     new Paragraph({ text: "" }),
     vistoTitulo,
-    linhaP(`PARA O DIA ${extensoUpper(e.data)} (${diaSemana(e.data)})`, { bold: true, size: 20 }),
+    linhaP(`PARA O DIA ${extensoUpper(e.data)} (${diaSemana(e.data)})`, { bold: true, size: 20, underline: true }),
+    linhaP(`SERVIÇO - ${limpa(e.servicoHoras) || "24 HORAS"} (APRESENTAÇÃO ÀS ${limpa(e.apresentacao) || "08H"})`, { bold: true, size: 18, underline: true }),
     new Paragraph({ text: "" }),
   ];
 
@@ -231,6 +234,7 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const italic = await pdf.embedFont(StandardFonts.HelveticaOblique);
   const W = 595, H = 842, MX = 42;
   const usable = W - MX * 2;
   let page = pdf.addPage([W, H]);
@@ -243,9 +247,13 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
     const img = resolverImagem(valor); if (!img) return null;
     try { return img.kind === "jpg" ? await pdf.embedJpg(img.data) : await pdf.embedPng(img.data); } catch { return null; }
   };
-  const centro = (txt: string, size: number, f = bold, gap = 3) => {
+  const centro = (txt: string, size: number, f = bold, gap = 3, sublinhado = false) => {
     const t = safe(txt); const w = f.widthOfTextAtSize(t, size);
-    garante(size + gap); page.drawText(t, { x: (W - w) / 2, y: y - size, size, font: f, color: rgb(0, 0, 0) }); y -= size + gap;
+    garante(size + gap);
+    const yy = y - size;
+    page.drawText(t, { x: (W - w) / 2, y: yy, size, font: f, color: rgb(0, 0, 0) });
+    if (sublinhado) page.drawLine({ start: { x: (W - w) / 2, y: yy - 1.5 }, end: { x: (W + w) / 2, y: yy - 1.5 }, thickness: 0.8, color: rgb(0, 0, 0) });
+    y -= size + gap;
   };
   const quebra = (txt: string, size: number, f: any, maxW: number): string[] => {
     const out: string[] = [];
@@ -275,20 +283,23 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
   if (iVisto) page.drawImage(iVisto, { x: MX + 6, y: tituloY - 44, width: 78, height: 26 });
   page.drawText("Cmt. do 18o BPM", { x: MX + 2, y: tituloY - 56, size: 8, font, color: rgb(0, 0, 0) });
   const tit = safe(extra ? "ESCALA DE SERVICO EXTRAORDINARIA" : "ESCALA DE SERVICO");
-  page.drawText(tit, { x: (W - bold.widthOfTextAtSize(tit, 16)) / 2, y: tituloY - 34, size: 16, font: bold, color: rgb(0, 0, 0) });
-  y = tituloY - 62;
-  centro(`PARA O DIA ${extensoUpper(e.data)} (${diaSemana(e.data)})`, 11, bold, 4);
-  y -= 6;
+  const titW = bold.widthOfTextAtSize(tit, 16);
+  page.drawText(tit, { x: (W - titW) / 2, y: tituloY - 34, size: 16, font: bold, color: rgb(0, 0, 0) });
+  page.drawLine({ start: { x: (W - titW) / 2, y: tituloY - 37 }, end: { x: (W + titW) / 2, y: tituloY - 37 }, thickness: 0.9, color: rgb(0, 0, 0) });
+  y = tituloY - 60;
+  centro(`PARA O DIA ${extensoUpper(e.data)} (${diaSemana(e.data)})`, 11, bold, 3, true);
+  centro(`SERVICO - ${limpa(e.servicoHoras) || "24 HORAS"} (APRESENTACAO AS ${limpa(e.apresentacao) || "08H"})`, 10, bold, 5, true);
 
   // ---- desenho de tabela generico ----
   type Cel = { text: string; w: number; bold?: boolean; center?: boolean; fill?: boolean };
   const drawLinha = (cels: Cel[], titulo = false) => {
     const size = 9.5, lh = 12.5, padY = 4;
+    const fontDe = (c: Cel) => (c.bold ? bold : c.fill ? font : italic); // valores em italico
     // calcula altura
     let maxLinhas = 1;
     const conteudo = cels.map((c) => {
       const larguraTxt = usable * c.w - 10;
-      const linhas = titulo ? [c.text] : quebra(c.text, size, c.bold ? bold : font, larguraTxt);
+      const linhas = titulo ? [c.text] : quebra(c.text, size, fontDe(c), larguraTxt);
       maxLinhas = Math.max(maxLinhas, linhas.length);
       return linhas;
     });
@@ -301,7 +312,7 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
       if (c.fill) page.drawRectangle({ x, y: topoL - altura, width: cw, height: altura, color: rgb(0.86, 0.86, 0.86) });
       page.drawRectangle({ x, y: topoL - altura, width: cw, height: altura, borderColor: rgb(0, 0, 0), borderWidth: 0.7 });
       const linhas = conteudo[idx];
-      const f = c.bold ? bold : font;
+      const f = fontDe(c);
       const blocoH = linhas.length * lh;
       let ly = topoL - (altura - blocoH) / 2 - lh + 3;
       for (const l of linhas) {
