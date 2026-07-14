@@ -94,3 +94,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Falha ao salvar a foto" }, { status: 500 });
   }
 }
+
+/* DELETE (JSON: { efetivoId }) -> remove a foto de perfil (R2 + limpa fotoURL).
+   admin: qualquer um; policial: so a propria. */
+export async function DELETE(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
+  const admin = ehAdmin((session.user as any).perfil);
+  const meuEfetivo = (session.user as any).refEfetivo as string | undefined;
+
+  try {
+    const b = await req.json().catch(() => ({}));
+    const efetivoId = String(b?.efetivoId || "");
+    if (!efetivoId) return NextResponse.json({ error: "Informe o militar" }, { status: 400 });
+    if (!admin && efetivoId !== meuEfetivo) {
+      return NextResponse.json({ error: "Voce so pode alterar a sua propria foto" }, { status: 403 });
+    }
+    const ficha = await prisma.efetivo.findUnique({ where: { id: efetivoId }, select: { fotoURL: true } });
+    const antiga = ficha?.fotoURL;
+    if (antiga && antiga.startsWith("fotos/")) { try { await removerDoR2(antiga); } catch {} }
+    await prisma.efetivo.update({ where: { id: efetivoId }, data: { fotoURL: null } });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("[DELETE /api/foto]", err);
+    return NextResponse.json({ error: "Falha ao remover a foto" }, { status: 500 });
+  }
+}

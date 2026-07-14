@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
+import SinoNotificacoes from "@/components/SinoNotificacoes";
 import {
   LayoutDashboard,
   Users,
@@ -38,7 +39,7 @@ import {
 import Relogio from "@/components/Relogio";
 import BuscaGlobal from "@/components/BuscaGlobal";
 import AcoesRapidas from "@/components/AcoesRapidas";
-import AvatarUpload from "@/components/AvatarUpload";
+import AvatarPerfil from "@/components/AvatarPerfil";
 import "@/components/ui-theme.css";
 
 type Item = {
@@ -168,20 +169,6 @@ export default function AppShell({
   const pagina = tituloAtual(pathname);
   const admin = ehAdmin(perfil);
   const primeiroNome = (userName || "").split(" ")[0] || "Usuário";
-
-  // Pendencias de permuta que exigem acao deste usuario (alerta do sininho).
-  const [pendPermutas, setPendPermutas] = useState(0);
-  useEffect(() => {
-    let vivo = true;
-    const buscar = () =>
-      fetch("/api/permutas/pendencias")
-        .then((r) => r.json())
-        .then((d) => { if (vivo) setPendPermutas(Number(d?.total) || 0); })
-        .catch(() => {});
-    buscar();
-    const t = setInterval(buscar, 60000);
-    return () => { vivo = false; clearInterval(t); };
-  }, [pathname]);
 
   // Busca o efetivoId e se ja tem foto, para montar o avatar (sem que as
   // paginas precisem passar isso). Roda uma vez ao carregar.
@@ -369,19 +356,7 @@ export default function AppShell({
             {admin && <AcoesRapidas isAdmin={true} />}
             <Relogio />
 
-            <Link
-              href="/permutas"
-              className="relative rounded-lg p-2 text-[#94A3B8] transition hover:bg-white/5 hover:text-white"
-              aria-label={pendPermutas > 0 ? `${pendPermutas} permuta(s) aguardando você` : "Notificações"}
-              title={pendPermutas > 0 ? `${pendPermutas} permuta(s) aguardando você` : "Permutas"}
-            >
-              <Bell className="h-5 w-5" />
-              {pendPermutas > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                  {pendPermutas > 9 ? "9+" : pendPermutas}
-                </span>
-              )}
-            </Link>
+            <SinoNotificacoes />
 
             <div className="hidden items-center gap-3 border-l border-white/10 pl-4 sm:flex">
               <div className="text-right leading-tight">
@@ -390,11 +365,12 @@ export default function AppShell({
                   {perfil}
                 </p>
               </div>
-              <AvatarUpload
+              <AvatarPerfil
                 efetivoId={meuEfetivoId}
                 inicial={(admin ? "P" : (primeiroNome.charAt(0) || "P")).toUpperCase()}
                 temFoto={tenhoFoto}
                 podeEditar={!!meuEfetivoId}
+                tamanho={46}
               />
             </div>
 
