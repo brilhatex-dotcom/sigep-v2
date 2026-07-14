@@ -631,6 +631,14 @@ export default function MapaClient({ servico }: { servico?: string } = {}) {
   const [soConflitos, setSoConflitos] = useState(false);
   const [selNome, setSelNome] = useState<string | null>(null);
   const [efetivo, setEfetivo] = useState<Militar[]>([]);
+  // Aviso pro escalante: quem da SEDE entra de ferias/LP nos proximos dias.
+  const [proxAusencias, setProxAusencias] = useState<{ nome: string; lotacao: string; tipo: string; inicio: string; dias: number }[]>([]);
+  useEffect(() => {
+    fetch("/api/escala/proximas-ausencias?dias=15")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (Array.isArray(d?.ausencias)) setProxAusencias(d.ausencias); })
+      .catch(() => {});
+  }, []);
 
   const cadSaveTimer = useRef<any>(null);
   const ultimoCadSalvo = useRef<string>(JSON.stringify(SEED_CADASTRO));
@@ -936,6 +944,20 @@ export default function MapaClient({ servico }: { servico?: string } = {}) {
               {i < saidasPrevistas.length - 1 ? "  ·  " : ""}
             </span>
           ))}
+        </div>
+      )}
+
+      {proxAusencias.length > 0 && (
+        <div className="mp-proxaus no-print">
+          <b>⚠️ Atenção, escalante — saídas da SEDE nos próximos dias:</b>
+          <ul>
+            {proxAusencias.map((a, i) => (
+              <li key={i}>
+                <b>{a.nome}</b> <span className="mp-proxaus-lot">({a.lotacao})</span> entra de <b>{a.tipo}</b>{" "}
+                {a.dias <= 0 ? "hoje" : a.dias === 1 ? "amanhã" : `em ${a.dias} dias`} — {brCurto(a.inicio)}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -1276,6 +1298,12 @@ const CSS = `
 /* Aviso de saidas previstas (ferias etc.) */
 .mp-saidas{ margin:10px 2px; font-size:12.5px; color:#f3df9d; background:#2a2410; border:1px solid #6b5320; border-radius:8px; padding:9px 12px; line-height:1.7; }
 .mp-saidas b{ color:#ffe9a8; }
+/* Aviso de saidas da SEDE (ferias/LP) para o escalante */
+.mp-proxaus{ margin:10px 2px; font-size:12.5px; color:#ffd9b0; background:#3a2410; border:1px solid #8a5a1f; border-radius:8px; padding:10px 12px; }
+.mp-proxaus > b{ color:#ffe1b0; display:block; margin-bottom:5px; }
+.mp-proxaus ul{ margin:0; padding-left:18px; line-height:1.7; }
+.mp-proxaus b{ color:#fff2df; }
+.mp-proxaus-lot{ color:#c9a37a; font-size:11px; }
 .mp-saida-tag{ font-size:10px; background:#6b5320; color:#ffe9a8; border-radius:999px; padding:1px 7px; }
 
 /* Quadro de escala por equipes A/B/C/D (visual) */
