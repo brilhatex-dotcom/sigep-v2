@@ -49,6 +49,11 @@ export type Permuta = {
   p1Em: string | null;
   visto: "autorizado" | "nao_autorizado" | null;
   criadoEm: string;
+  // controle do "amarrar na escala": vira true quando o substituto ja foi
+  // lancado na escala daquele dia (aplicado UMA vez; depois o admin pode
+  // editar/excluir livremente sem que o sistema jogue de novo).
+  aplicadaPermuta?: boolean;   // dia da permuta (solicitado cobre o solicitante)
+  aplicadaRetorno?: boolean;   // dia do retorno (solicitante cobre o solicitado)
 };
 
 // Abrevia posto/graduação no padrão dos documentos do batalhão.
@@ -107,6 +112,115 @@ export async function salvarPermutas(pedidos: Permuta[]): Promise<void> {
     update: { valor },
     create: { chave: CHAVE_PEDIDOS, valor, descricao: "Solicitações de permuta (documento)" },
   });
+}
+
+/* -------------------------------------------------------------------------
+   Amarrar na escala: quando uma permuta e AUTORIZADA, o substituto entra na
+   vaga da escala daquele dia. Como a permuta pode ser decidida ANTES da escala
+   existir, isto tambem roda quando a escala e aberta (GET /api/escala-dias):
+   aplica as permutas autorizadas ainda nao lancadas. Aplica UMA vez por lado
+   (flags aplicadaPermuta/aplicadaRetorno), preservando a liberdade do admin de
+   editar/excluir depois sem o sistema jogar de novo.
+   ------------------------------------------------------------------------- */
+const CHAVE_ESCALA = "escala_dias";
+
+const CAMPOS_ESCALA: { campo: string; lista: boolean }[] = [
+  { campo: "cpuDeDia", lista: false },
+  { campo: "rpAdjunto", lista: false },
+  { campo: "rpMotorista", lista: false },
+  { campo: "rpPatrulheiro", lista: true },
+  { campo: "ftGraduado", lista: false },
+  { campo: "ftMotorista", lista: false },
+  { campo: "ftPatrulheiro", lista: false },
+  { campo: "guardaPermanente", lista: true },
+  { campo: "inteligencia", lista: true },
+  { campo: "rotemMilitares", lista: true },
+];
+
+type SlotEsc = { titular?: string; permuta?: string | null; status?: string | null };
+
+function semTags(html: string): string {
+  return String(html || "").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
+}
+
+// A vaga e do militar? Compara o texto do titular com nome de guerra / nº de
+// barra / matricula (cobre os formatos usados na escala).
+function titularEhDoMilitar(titular: string, f: FichaMin & { matricula?: string | null }): boolean {
+  const alvo = semTags(titular).toLowerCase();
+  if (!alvo) return false;
+  const cands: string[] = [];
+  if (f.nomeGuerra) cands.push(f.nomeGuerra);
+  if (f.numeroBarra) cands.push(f.numeroBarra);
+  if ((f as any).matricula) cands.push((f as any).matricula);
+  if (!f.nomeGuerra && f.nome) {
+    const p = f.nome.trim().split(/\s+/);
+    if (p[0]) cands.push(p[0]);
+    if (p.length > 1) cands.push(p[p.length - 1]);
+  }
+  return cands.some((c) => { const t = String(c).trim().toLowerCase(); return t.length >= 3 && alvo.includes(t); });
+}
+
+async function lerEscalaDias(): Promise<Record<string, any>> {
+  try {
+    const row = await prisma.config.findUnique({ where: { chave: CHAVE_ESCALA } });
+    const o = row?.valor ? JSON.parse(row.valor) : {};
+    return o && typeof o === "object" ? o : {};
+  } catch {
+    return {};
+  }
+}
+
+// Lanca o substituto na 1a vaga do dia cujo titular seja o militar e que ainda
+// nao tenha permuta. Devolve true se lancou.
+function lancarNoDia(dia: any, ficha: FichaMin, substituto: string): boolean {
+  if (!dia || typeof dia !== "object") return false;
+  for (const { campo, lista } of CAMPOS_ESCALA) {
+    const val = dia[campo];
+    const arr: SlotEsc[] = lista ? (Array.isArray(val) ? val : []) : (val && typeof val === "object" ? [val] : []);
+    for (const sl of arr) {
+      if (sl && titularEhDoMilitar(sl.titular || "", ficha) && !(sl.permuta && String(sl.permuta).trim())) {
+        sl.permuta = substituto;
+        sl.status = "aprovada";
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+export async function aplicarPermutasNaEscala(): Promise<void> {
+  const pedidos = await lerPermutas();
+  const pend = pedidos.filter((p) => p.estado === "autorizada" && (!p.aplicadaPermuta || !p.aplicadaRetorno));
+  if (pend.length === 0) return;
+
+  const escalas = await lerEscalaDias();
+  let mudouEscala = false, mudouPed = false;
+
+  for (const p of pend) {
+    // dia da permuta: o SOLICITADO cobre o SOLICITANTE
+    if (!p.aplicadaPermuta && escalas[p.dataPermuta]) {
+      const f = await fichaDe(p.solicitanteId);
+      if (f && lancarNoDia(escalas[p.dataPermuta], f, p.solicitado?.linha || p.solicitadoNome)) {
+        p.aplicadaPermuta = true; mudouEscala = true; mudouPed = true;
+      }
+    }
+    // dia do retorno: o SOLICITANTE cobre o SOLICITADO
+    if (!p.aplicadaRetorno && escalas[p.dataRetorno]) {
+      const f = await fichaDe(p.solicitadoId);
+      if (f && lancarNoDia(escalas[p.dataRetorno], f, p.solicitante.linha)) {
+        p.aplicadaRetorno = true; mudouEscala = true; mudouPed = true;
+      }
+    }
+  }
+
+  if (mudouEscala) {
+    await prisma.config.upsert({
+      where: { chave: CHAVE_ESCALA },
+      update: { valor: JSON.stringify(escalas) },
+      create: { chave: CHAVE_ESCALA, valor: JSON.stringify(escalas), descricao: "Dias gerados/editados da Escala de Servico" },
+    });
+  }
+  if (mudouPed) await salvarPermutas(pedidos);
 }
 
 // Quantos itens exigem AÇÃO deste usuário (para o sininho).

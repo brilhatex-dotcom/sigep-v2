@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import {
-  lerPermutas, salvarPermutas, fichaDe, linhaMilitar,
+  lerPermutas, salvarPermutas, fichaDe, linhaMilitar, aplicarPermutasNaEscala,
   type Permuta, type Assinatura,
 } from "@/lib/permutaPedidos";
 
@@ -134,6 +134,9 @@ export async function POST(req: Request) {
       p.p1Em = new Date().toISOString();
       p.estado = visto === "autorizado" ? "autorizada" : "nao_autorizada";
       await salvarPermutas(pedidos);
+      // autorizada: ja tenta lancar o substituto na escala daquele(s) dia(s)
+      // (se a escala ja existir). Se ainda nao existir, entra ao abrir a escala.
+      if (p.estado === "autorizada") { try { await aplicarPermutasNaEscala(); } catch {} }
       return NextResponse.json({ ok: true, pedido: p });
     }
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { aplicarPermutasNaEscala } from "@/lib/permutaPedidos";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,10 @@ export async function GET() {
   if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
 
   try {
+    // Antes de devolver, lanca na escala as permutas ja autorizadas que ainda
+    // nao entraram (ex.: a permuta foi decidida antes deste dia existir).
+    try { await aplicarPermutasNaEscala(); } catch { /* nao bloqueia a escala */ }
+
     const row = await prisma.config.findUnique({ where: { chave: CHAVE } });
     if (!row?.valor) return NextResponse.json({ escalas: {} });
     try {
