@@ -8,13 +8,27 @@ import RequerimentoForm from "@/components/RequerimentoForm";
 import { modeloDaModalidade, AMPARO_PADRAO } from "@/lib/requerimentos";
 import { ArrowLeft } from "lucide-react";
 
-// alguns registros antigos foram gravados como Date.toString() do JS
-// (ex: "Mon Aug 12 1991 00:00:00 GMT-0300..."); aqui normalizamos pra dd/mm/aaaa
+// Normaliza qualquer data para dd/mm/aaaa SEM deslocar o dia por fuso horario.
+// IMPORTANTE: "1991-08-12" (so data) e interpretado pelo `new Date()` como
+// meia-noite UTC; ao converter para America/Sao_Paulo (GMT-3) voltava um dia
+// (saia "11/08/1991"). Por isso tratamos ISO e dd/mm/aaaa por regex, e so
+// caimos no `new Date()` para formatos soltos (ex.: "Mon Aug 12 1991 ... GMT-0300").
 function dataBR(valor: string | null | undefined): string {
   if (!valor) return "";
-  const d = new Date(valor);
-  if (isNaN(d.getTime())) return valor; // se não for uma data válida, devolve como veio
-  return d.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  const s = String(valor).trim();
+  if (!s) return "";
+  // ja em dd/mm/aaaa
+  const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) return `${br[1]}/${br[2]}/${br[3]}`;
+  // ISO aaaa-mm-dd (com ou sem hora) -> sem passar pelo fuso
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  // outros formatos que o Date entenda (ex.: Date.toString() antigo)
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return s; // nao reconheceu: devolve como veio
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}/${d.getUTCFullYear()}`;
 }
 export const dynamic = "force-dynamic";
 
