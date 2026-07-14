@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 /* =========================================================================
    Escala de Serviço SEMANAL do CPU (paisagem) — modelo do print oficial.
@@ -81,6 +81,8 @@ export default function CpuSemanalClient() {
   const [efMap, setEfMap] = useState<Record<string, Militar>>({});
   const [chefe, setChefe] = useState<Chefe>({ nome: "", funcao: "", assinatura: "", assinarGov: false, cmtAssinatura: "/brasoes/assinatura-cmt.png" });
   const [inicio, setInicio] = useState<string>(segundaDaSemana());
+  const [permutas, setPermutas] = useState<Record<string, string>>({});
+  const salvarTimer = useRef<any>(null);
 
   useEffect(() => {
     fetch("/api/escala-config").then((r) => r.ok ? r.json() : null).then((d) => { if (d?.cad) setCad(d.cad); }).catch(() => {});
@@ -88,17 +90,29 @@ export default function CpuSemanalClient() {
       const m: Record<string, Militar> = {}; for (const x of (d?.efetivo || [])) m[x.id] = x; setEfMap(m);
     }).catch(() => {});
     fetch("/api/escala-chefe").then((r) => r.ok ? r.json() : null).then((d) => { if (d) setChefe({ nome: d.nome || "", funcao: d.funcao || "", assinatura: d.assinatura || "", assinarGov: d.assinarGov === true, cmtAssinatura: d.cmtAssinatura || "/brasoes/assinatura-cmt.png" }); }).catch(() => {});
+    fetch("/api/cpu-permutas").then((r) => r.ok ? r.json() : null).then((d) => { if (d?.permutas && typeof d.permutas === "object") setPermutas(d.permutas); }).catch(() => {});
   }, []);
 
-  const dias = useMemo(() => Array.from({ length: 7 }, (_, i) => somaDias(inicio, i)), [inicio]);
-  const linhas = useMemo(() => {
-    if (!cad) return dias.map((iso) => ({ iso, nome: "—", fone: "" }));
-    return dias.map((iso) => {
-      const id = rodizio(cad.cpu || [], iso, cad.afastamentos || [], cad.refCpuISO || iso);
-      const m = id ? efMap[id] : null;
-      return { iso, nome: m ? nomeCpu(m) : "—", fone: m ? fone(m.telefone || "") : "" };
+  const setPermuta = (iso: string, nome: string) => {
+    setPermutas((p) => {
+      const np = { ...p }; const v = nome.trim();
+      if (v) np[iso] = v; else delete np[iso];
+      if (salvarTimer.current) clearTimeout(salvarTimer.current);
+      salvarTimer.current = setTimeout(() => {
+        fetch("/api/cpu-permutas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ permutas: np }) }).catch(() => {});
+      }, 700);
+      return np;
     });
-  }, [cad, efMap, dias]);
+  };
+
+  const linhaDe = (iso: string) => {
+    if (!cad) return { iso, nome: "—", fone: "" };
+    const id = rodizio(cad.cpu || [], iso, cad.afastamentos || [], cad.refCpuISO || iso);
+    const m = id ? efMap[id] : null;
+    return { iso, nome: m ? nomeCpu(m) : "—", fone: m ? fone(m.telefone || "") : "" };
+  };
+  // O mes recortado em 4 semanas (4 blocos de 7 dias a partir do inicio).
+  const semanas = useMemo(() => [0, 1, 2, 3].map((w) => Array.from({ length: 7 }, (_, i) => somaDias(inicio, w * 7 + i))), [inicio]);
 
   return (
     <div className="cpuw-wrap">
@@ -106,7 +120,7 @@ export default function CpuSemanalClient() {
 
       <div className="cpuw-bar no-print">
         <a className="cpuw-btn" href="/escalas/servico/cpu">← Voltar</a>
-        <label className="cpuw-field">Início da semana
+        <label className="cpuw-field">Início (1ª semana)
           <input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
         </label>
         <span className="cpuw-spacer" />
@@ -130,16 +144,29 @@ export default function CpuSemanalClient() {
 
         <div className="cpuw-titulo">ESCALA DE SERVIÇO SEMANAL CPU (18º BPM)</div>
 
-        <table className="cpuw-tab"><tbody>
-          <tr>{linhas.map((l) => (
-            <td key={l.iso} className="cpuw-hd">
-              <div>{DIAS_SEMANA[parseISO(l.iso).getDay()]}</div>
-              <div>({brData(l.iso)})</div>
-            </td>
-          ))}</tr>
-          <tr>{linhas.map((l) => <td key={l.iso} className="cpuw-nome">{l.nome}</td>)}</tr>
-          <tr>{linhas.map((l) => <td key={l.iso} className="cpuw-fone">{l.fone || "—"}</td>)}</tr>
-        </tbody></table>
+        {semanas.map((dias, wi) => (
+          <div key={wi} className="cpuw-semana">
+            <div className="cpuw-semana-t">Semana {wi + 1} · {brData(dias[0])} a {brData(dias[6])}</div>
+            <table className="cpuw-tab"><tbody>
+              <tr>{dias.map((iso) => (
+                <td key={iso} className="cpuw-hd">
+                  <div>{DIAS_SEMANA[parseISO(iso).getDay()]}</div>
+                  <div>({brData(iso)})</div>
+                </td>
+              ))}</tr>
+              <tr>{dias.map((iso) => {
+                const l = linhaDe(iso); const pm = permutas[iso];
+                return <td key={iso} className="cpuw-nome">{l.nome}{pm ? <span className="cpuw-perm"> (PERMUTA- {pm})</span> : ""}</td>;
+              })}</tr>
+              <tr>{dias.map((iso) => <td key={iso} className="cpuw-fone">{linhaDe(iso).fone || "—"}</td>)}</tr>
+              <tr className="no-print">{dias.map((iso) => (
+                <td key={iso} className="cpuw-permedit">
+                  <input value={permutas[iso] || ""} placeholder="+ permuta (substituto)" onChange={(e) => setPermuta(iso, e.target.value)} />
+                </td>
+              ))}</tr>
+            </tbody></table>
+          </div>
+        ))}
 
         <div className="cpuw-ass">
           {chefe.assinarGov ? <div className="cpuw-ass-esp" />
@@ -176,7 +203,12 @@ const CSS = `
 .cpuw-tab td{ border:1px solid #000; text-align:center; padding:8px 4px; }
 .cpuw-hd{ font-weight:700; font-size:12.5px; }
 .cpuw-nome{ font-style:italic; font-size:14px; padding:16px 4px !important; }
+.cpuw-perm{ font-style:italic; font-weight:700; }
 .cpuw-fone{ font-size:12.5px; }
+.cpuw-semana{ margin-bottom:14px; }
+.cpuw-semana-t{ font-weight:700; font-size:12.5px; margin:10px 0 3px; }
+.cpuw-permedit{ padding:3px !important; }
+.cpuw-permedit input{ width:100%; box-sizing:border-box; border:1px dashed #9aa; border-radius:4px; padding:3px 4px; font-size:10.5px; font-family:inherit; }
 .cpuw-ass{ text-align:center; margin-top:26px; }
 .cpuw-ass-img{ max-height:52px; max-width:240px; object-fit:contain; display:block; margin:0 auto 2px; }
 .cpuw-ass-esp{ height:52px; }
