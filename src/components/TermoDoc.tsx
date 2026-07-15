@@ -62,7 +62,7 @@ function Assina({ papel }: { papel: string }) {
   );
 }
 
-export default function TermoDoc({ reg, modelo, onFechar }: { reg: TermoRegistro; modelo: TermoModelo; onFechar: () => void }) {
+export default function TermoDoc({ reg, modelo, comandante = "", onFechar }: { reg: TermoRegistro; modelo: TermoModelo; comandante?: string; onFechar: () => void }) {
   const [montado, setMontado] = useState(false);
   const [baixandoWord, setBaixandoWord] = useState(false);
   useEffect(() => { setMontado(true); }, []);
@@ -292,7 +292,7 @@ export default function TermoDoc({ reg, modelo, onFechar }: { reg: TermoRegistro
             </p>
             <div contentEditable={false}>
               <div style={{ textAlign: "center", width: "100mm", margin: "0 auto" }}>
-                <div style={{ borderTop: "1px solid #000", paddingTop: "1mm", fontWeight: "bold" }}>Comandante do 18º BPM</div>
+                <div style={{ borderTop: "1px solid #000", paddingTop: "1mm", fontWeight: "bold" }}>{comandante || "Comandante do 18º BPM"}</div>
                 <div style={{ fontSize: "10pt" }}>CMT DO 18º BPM</div>
               </div>
             </div>

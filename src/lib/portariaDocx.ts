@@ -48,7 +48,8 @@ function art(children: TextRun[]) {
 }
 const BR = "____________________";
 
-export async function gerarPortariaDocx(reg: PortariaReg): Promise<Buffer> {
+export async function gerarPortariaDocx(reg: PortariaReg, chefes: { comandante?: string } = {}): Promise<Buffer> {
+  const comandante = (chefes.comandante || "").trim();
   const info = INFO[reg.tipo] || INFO.sindicancia;
   const numPortaria = (reg.portaria || "").replace(/port(aria)?\.?\s*/i, "").trim() || (reg.numero || "").trim() || `______/${ANO}`;
 
@@ -104,7 +105,7 @@ export async function gerarPortariaDocx(reg: PortariaReg): Promise<Buffer> {
         new Paragraph({ text: "" }),
         new Paragraph({ text: "" }),
         pCenter("__________________________________________", { size: 24 }),
-        pCenter("Autoridade instauradora", { bold: true, size: 24 }),
+        pCenter(comandante || "Autoridade instauradora", { bold: true, size: 24 }),
         pCenter("Comandante do 18º BPM", { size: 24 }),
       ],
     }],

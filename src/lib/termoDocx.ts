@@ -71,7 +71,8 @@ function assinatura(papel: string, nome?: string) {
 }
 const BR = "____________________";
 
-export async function gerarTermoDocx(reg: TermoReg, modelo: TermoModelo): Promise<Buffer> {
+export async function gerarTermoDocx(reg: TermoReg, modelo: TermoModelo, chefes: { comandante?: string } = {}): Promise<Buffer> {
+  const comandante = (chefes.comandante || "").trim();
   const proc = NOME_PROC[reg.tipo] || "procedimento apuratório";
   const numRef = (reg.portaria || "").replace(/port(aria)?\.?\s*/i, "").trim() || (reg.numero || "").trim() || `______/${ANO}`;
   const dataExt = `Aos ______ dias do mês de ____________________ do ano de ${ANO}, nesta cidade de Presidente Dutra, Estado do Maranhão, na sede do 18º Batalhão de Polícia Militar,`;
@@ -177,7 +178,7 @@ export async function gerarTermoDocx(reg: TermoReg, modelo: TermoModelo): Promis
       item("e) Arquivar cópia integral dos autos na 1ª Seção do 18º BPM, para fins de controle e registro administrativo."),
       new Paragraph({ text: "" }),
       pCenter(`Quartel do 18º BPM, em Presidente Dutra, ______ de ____________________ de ${ANO}.`, { size: 24 }),
-      ...assinatura("CMT DO 18º BPM", "Comandante do 18º BPM"),
+      ...assinatura("CMT DO 18º BPM", comandante || "Comandante do 18º BPM"),
     ];
   } else {
     corpo = [

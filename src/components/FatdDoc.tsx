@@ -30,7 +30,7 @@ function ul(w: string): React.CSSProperties {
   return { display: "inline-block", minWidth: w, borderBottom: "1px solid #000" };
 }
 
-export default function FatdDoc({ reg, onFechar }: { reg: FatdRegistro; onFechar: () => void }) {
+export default function FatdDoc({ reg, chefeP1 = "", comandante = "", onFechar }: { reg: FatdRegistro; chefeP1?: string; comandante?: string; onFechar: () => void }) {
   const [montado, setMontado] = useState(false);
   const [baixandoWord, setBaixandoWord] = useState(false);
   useEffect(() => { setMontado(true); }, []);
@@ -56,7 +56,9 @@ export default function FatdDoc({ reg, onFechar }: { reg: FatdRegistro; onFechar
   const dataTopo = (reg.dataInstauracao || "").match(/^(\d{4})-(\d{2})-(\d{2})/)
     ? `${reg.dataInstauracao.slice(8, 10)}/${reg.dataInstauracao.slice(5, 7)}/${reg.dataInstauracao.slice(0, 4)}`
     : "____/____/______";
-  const enc = (reg.encarregado || "").trim();
+  // Participante do FATD = Chefe do P/1. Usa o campo do registro se preenchido;
+  // senão, o Chefe do P/1 configurado na Escala (fonte única).
+  const enc = (reg.encarregado || "").trim() || (chefeP1 || "").trim();
   const mil = (reg.envolvido || "").trim();
 
   const conteudo = (
@@ -179,7 +181,10 @@ export default function FatdDoc({ reg, onFechar }: { reg: FatdRegistro; onFechar
           <div style={{ borderBottom: "1px solid #000", height: "8mm" }} />
           <p style={{ textAlign: "center", margin: "6mm 0 12mm" }}>Presidente Dutra - MA, _______/ __________/ {ANO}.</p>
           <div contentEditable={false} style={{ textAlign: "center" }}>
-            <div style={{ borderTop: "1px solid #000", width: "70mm", margin: "0 auto", paddingTop: "1mm" }}>Autoridade Competente</div>
+            <div style={{ borderTop: "1px solid #000", width: "90mm", margin: "0 auto", paddingTop: "1mm", fontWeight: "bold" }}>
+              {comandante ? comandante : "________________________"}
+            </div>
+            <div>Autoridade Competente — CMT DO 18º BPM</div>
           </div>
         </div>
       </div>

@@ -49,7 +49,7 @@ function ul(w: string): React.CSSProperties {
   return { display: "inline-block", minWidth: w, borderBottom: "1px solid #000" };
 }
 
-export default function PortariaDoc({ reg, onFechar }: { reg: PortariaRegistro; onFechar: () => void }) {
+export default function PortariaDoc({ reg, comandante = "", onFechar }: { reg: PortariaRegistro; comandante?: string; onFechar: () => void }) {
   const [montado, setMontado] = useState(false);
   const [baixandoWord, setBaixandoWord] = useState(false);
   useEffect(() => { setMontado(true); }, []);
@@ -159,8 +159,8 @@ export default function PortariaDoc({ reg, onFechar }: { reg: PortariaRegistro; 
         </p>
 
         <div style={{ display: "flex", justifyContent: "center" }} contentEditable={false}>
-          <div style={{ textAlign: "center", width: "95mm" }}>
-            <div style={{ borderTop: "1px solid #000", paddingTop: "1mm", fontWeight: "bold" }}>Autoridade instauradora</div>
+          <div style={{ textAlign: "center", width: "100mm" }}>
+            <div style={{ borderTop: "1px solid #000", paddingTop: "1mm", fontWeight: "bold" }}>{comandante || "Autoridade instauradora"}</div>
             <div>Comandante do 18º BPM</div>
           </div>
         </div>

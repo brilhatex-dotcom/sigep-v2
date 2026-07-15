@@ -71,9 +71,10 @@ function assinaturaCentral(linha1: string, linha2?: string): Paragraph[] {
 }
 function esp() { return new Paragraph({ spacing: { after: 120 }, children: [] }); }
 
-export async function gerarFatdDocx(reg: FatdReg): Promise<Buffer> {
+export async function gerarFatdDocx(reg: FatdReg, chefes: { chefeP1?: string; comandante?: string } = {}): Promise<Buffer> {
   const numero = (reg.numero || "").trim() || `______/${ANO}`;
-  const enc = (reg.encarregado || "").trim();
+  const enc = (reg.encarregado || "").trim() || (chefes.chefeP1 || "").trim();
+  const comandante = (chefes.comandante || "").trim();
   const mil = (reg.envolvido || "").trim();
 
   const imgPmma = imagem("brasoes/pmma-190.jpg", 24, 20);
@@ -158,7 +159,8 @@ export async function gerarFatdDocx(reg: FatdReg): Promise<Buffer> {
           pC(`Presidente Dutra - MA, _______/ __________/ ${ANO}.`, { size: 22 }),
           new Paragraph({ text: "" }),
           new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "____________________________________", size: 22 })] }),
-          pC("Autoridade Competente", { size: 22 }),
+          pC(comandante || "________________________", { bold: true, size: 22 }),
+          pC("Autoridade Competente — CMT DO 18º BPM", { size: 20 }),
         ]),
       ],
     }],

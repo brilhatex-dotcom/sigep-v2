@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { gerarPortariaDocx } from "@/lib/portariaDocx";
+import { lerChefes } from "@/lib/disciplinarChefes";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ export async function GET(req: Request) {
     const reg = Array.isArray(lista) ? lista.find((r: any) => r.id === id) : null;
     if (!reg) return NextResponse.json({ error: "Procedimento nao encontrado" }, { status: 404 });
 
-    const buffer = await gerarPortariaDocx(reg);
+    const buffer = await gerarPortariaDocx(reg, await lerChefes());
     const nome = `Portaria_${String(reg.tipo || "proc").toUpperCase()}_${String(reg.portaria || reg.numero || "sn").replace(/[^\w]+/g, "_")}.docx`;
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,

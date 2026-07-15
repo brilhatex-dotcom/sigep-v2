@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import FatdDoc, { type FatdRegistro } from "@/components/FatdDoc";
 import PortariaDoc, { type PortariaRegistro } from "@/components/PortariaDoc";
 import TermoDoc, { type TermoRegistro, type TermoModelo, TERMO_LABEL } from "@/components/TermoDoc";
+import SeletorEfetivo, { type MilitarLite } from "@/components/SeletorEfetivo";
 
 /* Modulo Disciplinar (FATD / Sindicancia / IPS / IPM). Para cada tipo:
    uma AREA DE CONTROLE no topo (criar novo + ver os passados) com os campos de
@@ -39,6 +40,15 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
   const [portaria, setPortaria] = useState<PortariaRegistro | null>(null);
   const [termoDoc, setTermoDoc] = useState<{ reg: TermoRegistro; modelo: TermoModelo } | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
+
+  // Efetivo p/ o buscador + Chefe do P/1 e Comandante (mesma fonte da Escala).
+  const [efetivo, setEfetivo] = useState<MilitarLite[]>([]);
+  const [chefeP1, setChefeP1] = useState("");
+  const [comandante, setComandante] = useState("");
+  useEffect(() => {
+    fetch("/api/efetivo").then((r) => (r.ok ? r.json() : null)).then((d) => setEfetivo(Array.isArray(d?.efetivo) ? d.efetivo : [])).catch(() => {});
+    fetch("/api/escala-chefe").then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) { setChefeP1(d.nome || ""); setComandante(d.comandante || ""); } }).catch(() => {});
+  }, []);
 
   // Fecha o menu de peças ao clicar fora.
   useEffect(() => {
@@ -114,7 +124,10 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
           <div className="dsc-form-tit">{form.id ? "Editar" : "Novo"} procedimento — {tipoLabel}</div>
           <div className="dsc-grid">
             <label>Número<input value={form.numero} onChange={(e) => set("numero", e.target.value)} placeholder="ex: 001/2026" /></label>
-            <label>Encarregado / Sindicante<input value={form.encarregado} onChange={(e) => set("encarregado", e.target.value)} placeholder="posto e nome" /></label>
+            <label>{tipo === "fatd" ? "Chefe do P/1 (participante)" : "Encarregado / Sindicante"}
+              <SeletorEfetivo value={form.encarregado} onChange={(v) => set("encarregado", v)} efetivo={efetivo}
+                placeholder={tipo === "fatd" ? "vazio = usa o Chefe do P/1 da escala" : "busque o posto/nome…"} />
+            </label>
             <label>Portaria (nº / data)<input value={form.portaria} onChange={(e) => set("portaria", e.target.value)} placeholder="ex: Port. 12/2026" /></label>
             <label>Data de instauração<input type="date" value={form.dataInstauracao} onChange={(e) => set("dataInstauracao", e.target.value)} /></label>
             <label>Prazo / conclusão<input type="date" value={form.prazo} onChange={(e) => set("prazo", e.target.value)} /></label>
@@ -123,7 +136,9 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
                 {STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </label>
-            <label className="dsc-col2">Envolvido(s)<input value={form.envolvido} onChange={(e) => set("envolvido", e.target.value)} placeholder="militar(es) envolvido(s)" /></label>
+            <label className="dsc-col2">Envolvido(s)
+              <SeletorEfetivo value={form.envolvido} onChange={(v) => set("envolvido", v)} efetivo={efetivo} placeholder="busque o militar envolvido…" />
+            </label>
             <label className="dsc-col2">Objeto / resumo<textarea rows={2} value={form.objeto} onChange={(e) => set("objeto", e.target.value)} placeholder="fato apurado" /></label>
             <label className="dsc-col2">Observações<textarea rows={2} value={form.obs} onChange={(e) => set("obs", e.target.value)} /></label>
           </div>
@@ -182,9 +197,9 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
         </div>
       )}
 
-      {peca && <FatdDoc reg={peca} onFechar={() => setPeca(null)} />}
-      {portaria && <PortariaDoc reg={portaria} onFechar={() => setPortaria(null)} />}
-      {termoDoc && <TermoDoc reg={termoDoc.reg} modelo={termoDoc.modelo} onFechar={() => setTermoDoc(null)} />}
+      {peca && <FatdDoc reg={peca} chefeP1={chefeP1} comandante={comandante} onFechar={() => setPeca(null)} />}
+      {portaria && <PortariaDoc reg={portaria} comandante={comandante} onFechar={() => setPortaria(null)} />}
+      {termoDoc && <TermoDoc reg={termoDoc.reg} modelo={termoDoc.modelo} comandante={comandante} onFechar={() => setTermoDoc(null)} />}
     </div>
   );
 }
