@@ -652,7 +652,16 @@ export default function MapaClient({ servico }: { servico?: string } = {}) {
   const grupo = servico ? SERVICO_GRUPOS[servico] : null;
   const [cad, setCad] = useState<Cadastro>(SEED_CADASTRO);
   const [escalas, setEscalas] = useState<Record<string, any>>({});
-  const [mes, setMes] = useState("2026-06");
+  // Abre no mes da ULTIMA data mexida na escala diaria (salva no localStorage);
+  // se nao houver, usa o mes atual. Antes ficava fixo em junho/2026.
+  const [mes, setMes] = useState(() => {
+    if (typeof window !== "undefined") {
+      const d = localStorage.getItem("sigep_escala_ultima_data");
+      if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d.slice(0, 7);
+    }
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
+  });
   const [vista, setVista] = useState<"servico" | "militar">("servico");
   const [hoje, setHoje] = useState("");
   const [busca, setBusca] = useState("");
