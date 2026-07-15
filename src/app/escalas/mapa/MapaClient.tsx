@@ -35,6 +35,9 @@ type Cadastro = {
   // Linhas extras por funcao no quadro (ex.: um 2o patrulheiro). linhasExtras[funcaoKey] = qtde extra.
   // As vagas extras usam chave sintetica "<funcaoKey>#2", "#3"...
   linhasExtras?: Record<string, number>;
+  // Excecao do CPU por dia (editado direto na linha do mapa). cpuOverrides[iso]
+  // = ID do militar ou "__FOLGA__" (folga). Ausente = automatico (rodizio).
+  cpuOverrides?: Record<string, string>;
 };
 
 type Militar = {
@@ -659,6 +662,14 @@ export default function MapaClient({ servico }: { servico?: string } = {}) {
   // Aviso pro escalante: quem da SEDE entra de ferias/LP faltando ate 5 dias.
   const [proxAusencias, setProxAusencias] = useState<{ nome: string; lotacao: string; tipo: string; inicio: string; dias: number }[]>([]);
   const [avisoDispensado, setAvisoDispensado] = useState(false);
+  // Edicao do CPU direto na linha (excecao por dia).
+  const [editCpu, setEditCpu] = useState<string | null>(null);
+  const [buscaCpu, setBuscaCpu] = useState("");
+  const setCpuOverride = (iso: string, val: string | null) => setCad((c) => {
+    const o = { ...(c.cpuOverrides || {}) };
+    if (val === null) delete o[iso]; else o[iso] = val;
+    return { ...c, cpuOverrides: o };
+  });
   useEffect(() => {
     fetch("/api/escala/proximas-ausencias?dias=5")
       .then((r) => (r.ok ? r.json() : null))
@@ -780,7 +791,12 @@ export default function MapaClient({ servico }: { servico?: string } = {}) {
 
   const assign = useMemo(() => {
     const out: Record<string, Assign> = {};
-    for (const iso of dias) out[iso] = assignDia(iso, cad, escalas, idDe);
+    for (const iso of dias) {
+      out[iso] = assignDia(iso, cad, escalas, idDe);
+      // Excecao do CPU editada direto na linha tem prioridade sobre o rodizio.
+      const ovr = cad.cpuOverrides?.[iso];
+      if (ovr !== undefined) out[iso] = { ...out[iso], cpu: ovr ? [ovr] : [] };
+    }
     return out;
   }, [dias, cad, escalas, idDe]);
 
@@ -1026,8 +1042,16 @@ export default function MapaClient({ servico }: { servico?: string } = {}) {
                   <td className="mp-rot">{srv.label}</td>
                   {dias.map((iso) => {
                     const nomes = assign[iso][srv.key] || [];
+                    const ehCpu = srv.key === "cpu";
+                    const temOvr = ehCpu && cad.cpuOverrides?.[iso] !== undefined;
                     return (
-                      <td key={iso} className={`mp-cel${fimDeSemana(iso) ? " fds" : ""}${iso === hoje ? " hoje" : ""}`}>
+                      <td
+                        key={iso}
+                        className={`mp-cel${fimDeSemana(iso) ? " fds" : ""}${iso === hoje ? " hoje" : ""}${ehCpu ? " editavel" : ""}${temOvr ? " ovr" : ""}`}
+                        onClick={ehCpu ? () => { setBuscaCpu(""); setEditCpu(iso); } : undefined}
+                        title={ehCpu ? "Clique para editar o CPU deste dia" : undefined}
+                      >
+                        {nomes.length === 0 && ehCpu && <div className="mp-cel-vazio no-print">+</div>}
                         {nomes.map((n, i) => {
                           const conf = afastado(n, iso, cad.afastamentos);
                           let cls = "mp-nome";
@@ -1039,8 +1063,8 @@ export default function MapaClient({ servico }: { servico?: string } = {}) {
                               key={i}
                               className={cls}
                               style={conf ? undefined : (cor ? { background: cor, color: "#0a1020" } : undefined)}
-                              title={nomeDe(n) + (selNome === n ? "" : " \u00b7 clique para destacar no mes")}
-                              onClick={(ev) => { ev.stopPropagation(); clickNome(n); }}
+                              title={ehCpu ? "Clique para editar o CPU deste dia" : (nomeDe(n) + (selNome === n ? "" : " \u00b7 clique para destacar no mes"))}
+                              onClick={ehCpu ? undefined : (ev) => { ev.stopPropagation(); clickNome(n); }}
                             >
                               {sobrenome(nomeDe(n))}
                             </div>
@@ -1201,6 +1225,47 @@ export default function MapaClient({ servico }: { servico?: string } = {}) {
       <div className="mp-rodape no-print">
         Gerado pelo motor (24/72 + ROTEM por equipes). Dias já salvos na escala diária aparecem como estão; os demais vêm do rodízio automático.
       </div>
+
+      {/* Editor do CPU do dia (excecao na linha) */}
+      {editCpu && (
+        <div className="no-print" onClick={() => setEditCpu(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 380, background: "#0F1B2D", border: "1px solid rgba(255,255,255,.1)", borderRadius: 14, boxShadow: "0 20px 60px rgba(0,0,0,.5)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,.1)" }}>
+              <b style={{ color: "#fff" }}>CPU de dia · {brCurto(editCpu)}</b>
+              <button onClick={() => setEditCpu(null)} style={{ background: "none", border: "none", color: "#94A3B8", cursor: "pointer", fontSize: 18 }}>×</button>
+            </div>
+            <div style={{ padding: 14 }}>
+              <div style={{ fontSize: 12, color: "#94A3B8", marginBottom: 8 }}>
+                Atual: <b style={{ color: "#E8EEF6" }}>{(() => { const c = assign[editCpu]?.cpu?.[0]; return c ? nomeDe(c) : "—"; })()}</b>
+                {cad.cpuOverrides?.[editCpu] !== undefined && <span style={{ color: "#e8c877" }}> · (editado manualmente)</span>}
+              </div>
+              <input autoFocus value={buscaCpu} onChange={(e) => setBuscaCpu(e.target.value)} placeholder="Buscar militar para colocar como CPU..."
+                style={{ width: "100%", background: "#0b1626", border: "1px solid rgba(255,255,255,.12)", borderRadius: 8, padding: "8px 10px", color: "#fff", outline: "none", fontSize: 13 }} />
+              {buscaCpu.trim().length >= 1 && (
+                <div style={{ marginTop: 6, maxHeight: 220, overflowY: "auto", border: "1px solid rgba(255,255,255,.1)", borderRadius: 8 }}>
+                  {efetivo.filter((m) => (fmtMilitar(m) + " " + (m.matricula || "")).toLowerCase().includes(buscaCpu.trim().toLowerCase())).slice(0, 12).map((m) => (
+                    <button key={m.id} onClick={() => { setCpuOverride(editCpu, m.id); setEditCpu(null); }}
+                      style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", background: "none", border: "none", borderBottom: "1px solid rgba(255,255,255,.05)", color: "#fff", cursor: "pointer", fontSize: 13 }}>
+                      {fmtMilitar(m)}{m.matricula ? <span style={{ color: "#94A3B8", fontSize: 11 }}> · {m.matricula}</span> : null}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                <button onClick={() => { setCpuOverride(editCpu, "__FOLGA__"); setEditCpu(null); }}
+                  style={{ flex: 1, minWidth: 100, padding: "8px 10px", background: "#241a08", border: "1px solid #6b5320", borderRadius: 8, color: "#e8c877", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Folga</button>
+                <button onClick={() => { setCpuOverride(editCpu, null); setEditCpu(null); }}
+                  style={{ flex: 1, minWidth: 100, padding: "8px 10px", background: "#0b1626", border: "1px solid rgba(255,255,255,.15)", borderRadius: 8, color: "#cdd9ea", cursor: "pointer", fontSize: 13 }}>Automático (rodízio)</button>
+              </div>
+              <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 10 }}>
+                A escolha vale só para <b>{brCurto(editCpu)}</b> e reflete na escala do dia. &ldquo;Automático&rdquo; volta ao rodízio.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1267,6 +1332,10 @@ const CSS = `
 .mp-cel{ background:#0a1424; vertical-align:top; padding:2px 3px; text-align:center; min-width:30px; }
 .mp-cel.fds{ background:#0d1830; }
 .mp-cel.hoje{ background:#1d1a0a; }
+.mp-cel.editavel{ cursor:pointer; }
+.mp-cel.editavel:hover{ box-shadow:inset 0 0 0 1px #D4AF37; }
+.mp-cel.ovr{ box-shadow:inset 0 0 0 1px #6b5320; }
+.mp-cel-vazio{ color:#4a5a72; font-weight:700; }
 .mp-nome{ white-space:nowrap; cursor:pointer; border-radius:4px; padding:1px 5px; font-weight:600; }
 .mp-nome:hover{ background:#1a2a45; }
 .mp-leg-tit{ color:#D4AF37; }

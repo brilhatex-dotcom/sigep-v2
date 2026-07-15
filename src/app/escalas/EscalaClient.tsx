@@ -116,6 +116,8 @@ type Cadastro = {
   quadroEquipes?: Record<string, Record<string, string>>;
   // Linhas extras por funcao no quadro (ex.: 2o patrulheiro); vagas usam chave "<funcao>#2"...
   linhasExtras?: Record<string, number>;
+  // Excecao do CPU por dia (editada na linha do Mapa): cpuOverrides[iso] = ID ou "__FOLGA__".
+  cpuOverrides?: Record<string, string>;
 };
 
 type Brasoes = {
@@ -435,10 +437,12 @@ type NomeDe = (token: string) => string;
 function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
   // O motor trabalha com IDs; aqui convertemos para o nome formatado, pois
   // a folha e texto livre (editavel/imprimivel). nm() resolve ID -> nome.
-  const nm = (id: string) => (id ? nomeDe(id) : "");
+  const nm = (id: string) => (id ? (id.startsWith("__FOLGA") ? "Folga" : nomeDe(id)) : "");
   const nmList = (ids: string[]) => (ids.length ? ids.map(nm) : []);
 
-  const cpuId = rodizio(cad.cpu, 1, iso, cad.afastamentos, cad.refCpuISO)[0] || "";
+  // Excecao do CPU do dia (editada na linha do Mapa) tem prioridade sobre o rodizio.
+  const ovrCpu = cad.cpuOverrides?.[iso];
+  const cpuId = ovrCpu !== undefined ? ovrCpu : (rodizio(cad.cpu, 1, iso, cad.afastamentos, cad.refCpuISO)[0] || "");
   const cpuNome = nm(cpuId);
   const exp = expedientePadrao();
   // O oficial de CPU folga o expediente.
@@ -1674,7 +1678,13 @@ export default function EscalaClient() {
     return m;
   }, [efetivo]);
 
-  const e: Escala = escalas[data] ?? novaEscala(data, cad, nomeDe);
+  const eBase: Escala = escalas[data] ?? novaEscala(data, cad, nomeDe);
+  // Excecao do CPU editada na linha do Mapa vale tambem para dias ja salvos,
+  // mantendo Mapa e escala diaria consistentes.
+  const ovrCpuDia = cad.cpuOverrides?.[data];
+  const e: Escala = ovrCpuDia === undefined
+    ? eBase
+    : { ...eBase, cpuDeDia: { ...eBase.cpuDeDia, titular: ovrCpuDia ? (ovrCpuDia.startsWith("__FOLGA") ? "Folga" : nomeDe(ovrCpuDia)) : "" } };
 
   const editE = (fn: (d: Escala) => void) => {
     setEscalas((prev) => {
