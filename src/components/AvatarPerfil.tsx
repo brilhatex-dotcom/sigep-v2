@@ -50,6 +50,13 @@ export default function AvatarPerfil({
   const inputRef = useRef<HTMLInputElement>(null);
   const [versao, setVersao] = useState(0);
   const [tem, setTem] = useState(temFoto);
+  // O AppShell descobre se há foto de forma assíncrona (via /api/eu), então
+  // `temFoto` chega FALSE no primeiro render e vira TRUE logo depois. Sem este
+  // efeito, o useState acima congelaria o valor inicial (false) e a foto nunca
+  // apareceria ao recarregar a página — só aparecia logo após o upload, porque
+  // ali chamamos setTem(true) na mão. Sincronizar com a prop resolve o "some ao
+  // recarregar".
+  useEffect(() => { setTem(temFoto); }, [temFoto]);
   const [ajuste, setAjuste] = useState<Ajuste>(PADRAO);
   const [aberto, setAberto] = useState(false);
   const [montado, setMontado] = useState(false);
