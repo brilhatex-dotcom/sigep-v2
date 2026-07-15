@@ -630,11 +630,20 @@ function SlotInline({ slot, onChange, semPermuta }: { slot: Slot; onChange: (s: 
 }
 
 function SlotList({
-  slots, onChange, center, centro, semPermuta,
-}: { slots: Slot[]; onChange: (s: Slot[]) => void; center?: boolean; centro?: boolean; semPermuta?: boolean }) {
+  slots, onChange, center, centro, semPermuta, efetivo,
+}: { slots: Slot[]; onChange: (s: Slot[]) => void; center?: boolean; centro?: boolean; semPermuta?: boolean; efetivo?: Militar[] }) {
   const upd = (i: number, ns: Slot) => { const a = slots.slice(); a[i] = ns; onChange(a); };
   const rm = (i: number) => onChange(slots.filter((_, j) => j !== i));
   const add = () => onChange([...slots, s()]);
+  // Busca no efetivo: preenche a 1ª linha vazia ou adiciona uma nova ja com o
+  // nome formatado — evita digitar tudo do zero.
+  const addMilitar = (id: string) => {
+    const m = efetivo?.find((x) => x.id === id); if (!m) return;
+    const nome = fmtMilitar(m);
+    const iVazia = slots.findIndex((sl) => !semTags(sl.titular || "").trim());
+    if (iVazia >= 0) upd(iVazia, { ...slots[iVazia], titular: nome });
+    else onChange([...slots, { ...s(), titular: nome }]);
+  };
   return (
     <div className={centro ? "lista centro" : center ? "lista center" : "lista"}>
       {slots.map((sl, i) => (
@@ -643,7 +652,12 @@ function SlotList({
           {slots.length > 1 && <button className="no-print mini" title="remover" onClick={() => rm(i)}>×</button>}
         </div>
       ))}
-      <button className="no-print mini add" onClick={add}>+ adicionar</button>
+      {efetivo && efetivo.length > 0 && (
+        <div className="no-print slotlist-busca">
+          <SeletorMilitar efetivo={efetivo} exclude={[]} onPick={addMilitar} placeholder="🔎 buscar militar..." />
+        </div>
+      )}
+      <button className="no-print mini add" onClick={add}>+ linha em branco</button>
     </div>
   );
 }
@@ -2094,19 +2108,19 @@ export default function EscalaClient() {
                         <td className="lbl">CMT FT</td>
                         <td className="val val-c"><SlotInline semPermuta slot={s2(e.expediente.cmtFt)} onChange={(ns) => editE((d) => { d.expediente.cmtFt = ns.titular; })} /></td>
                         <td className="lbl">P4</td>
-                        <td className="val"><SlotList semPermuta center slots={e.expediente.p4} onChange={(arr) => editE((d) => { d.expediente.p4 = arr; })} /></td>
+                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.p4} onChange={(arr) => editE((d) => { d.expediente.p4 = arr; })} /></td>
                       </tr>
                       <tr>
                         <td className="lbl">P1</td>
-                        <td className="val"><SlotList semPermuta center slots={e.expediente.p1} onChange={(arr) => editE((d) => { d.expediente.p1 = arr; })} /></td>
+                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.p1} onChange={(arr) => editE((d) => { d.expediente.p1 = arr; })} /></td>
                         <td className="lbl">RONDA ESCOLAR</td>
-                        <td className="val"><SlotList semPermuta center slots={e.expediente.rondaEscolar} onChange={(arr) => editE((d) => { d.expediente.rondaEscolar = arr; })} /></td>
+                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.rondaEscolar} onChange={(arr) => editE((d) => { d.expediente.rondaEscolar = arr; })} /></td>
                       </tr>
                       <tr>
                         <td className="lbl">P3</td>
-                        <td className="val"><SlotList semPermuta center slots={e.expediente.p3} onChange={(arr) => editE((d) => { d.expediente.p3 = arr; })} /></td>
+                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.p3} onChange={(arr) => editE((d) => { d.expediente.p3 = arr; })} /></td>
                         <td className="lbl">PATRULHA MARIA DA PENHA</td>
-                        <td className="val"><SlotList semPermuta center slots={e.expediente.patrulha} onChange={(arr) => editE((d) => { d.expediente.patrulha = arr; })} /></td>
+                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.patrulha} onChange={(arr) => editE((d) => { d.expediente.patrulha = arr; })} /></td>
                       </tr>
                     </>
                   )}
@@ -2119,15 +2133,15 @@ export default function EscalaClient() {
                 <tr><td className="lbl w-cpu">CPU DE DIA</td><td className="val"><SlotInline slot={e.cpuDeDia} onChange={(ns) => editE((d) => { d.cpuDeDia = ns; })} /></td></tr>
 
                 <tr><td className="hd" colSpan={2}>GUARDA DO QUARTEL</td></tr>
-                <tr><td className="lbl w-cpu">PERMANENTE</td><td className="val"><SlotList slots={e.guardaPermanente} onChange={(arr) => editE((d) => { d.guardaPermanente = arr; })} /></td></tr>
+                <tr><td className="lbl w-cpu">PERMANENTE</td><td className="val"><SlotList efetivo={efetivo} slots={e.guardaPermanente} onChange={(arr) => editE((d) => { d.guardaPermanente = arr; })} /></td></tr>
 
                 <tr><td className="hd" colSpan={2}>RÁDIO PATRULHA</td></tr>
                 <tr><td className="lbl w-cpu">ADJUNTO DE DIA</td><td className="val"><SlotInline slot={e.rpAdjunto} onChange={(ns) => editE((d) => { d.rpAdjunto = ns; })} /></td></tr>
                 <tr><td className="lbl w-cpu">MOTORISTA</td><td className="val"><SlotInline slot={e.rpMotorista} onChange={(ns) => editE((d) => { d.rpMotorista = ns; })} /></td></tr>
-                <tr><td className="lbl w-cpu">PATRULHEIRO</td><td className="val"><SlotList slots={e.rpPatrulheiro} onChange={(arr) => editE((d) => { d.rpPatrulheiro = arr; })} /></td></tr>
+                <tr><td className="lbl w-cpu">PATRULHEIRO</td><td className="val"><SlotList efetivo={efetivo} slots={e.rpPatrulheiro} onChange={(arr) => editE((d) => { d.rpPatrulheiro = arr; })} /></td></tr>
 
                 <tr><td className="hd" colSpan={2}>SERVIÇO DE INTELIGÊNCIA 24 HRS</td></tr>
-                <tr><td className="val" colSpan={2}><SlotList centro slots={e.inteligencia} onChange={(arr) => editE((d) => { d.inteligencia = arr; })} /></td></tr>
+                <tr><td className="val" colSpan={2}><SlotList efetivo={efetivo} centro slots={e.inteligencia} onChange={(arr) => editE((d) => { d.inteligencia = arr; })} /></td></tr>
 
                 <tr><td className="hd" colSpan={2}>FORÇA TÁTICA</td></tr>
                 <tr><td className="lbl w-cpu">GRADUADO</td><td className="val"><SlotInline slot={e.ftGraduado} onChange={(ns) => editE((d) => { d.ftGraduado = ns; })} /></td></tr>
@@ -2137,7 +2151,7 @@ export default function EscalaClient() {
                 <tr><td className="hd" colSpan={2}>ROTEM</td></tr>
                 <tr>
                   <td className="lbl w-cpu rotem-h"><HorarioList horarios={e.rotemHorarios} onChange={(arr) => editE((d) => { d.rotemHorarios = arr; })} /></td>
-                  <td className="val"><SlotList slots={e.rotemMilitares} onChange={(arr) => editE((d) => { d.rotemMilitares = arr; })} /></td>
+                  <td className="val"><SlotList efetivo={efetivo} slots={e.rotemMilitares} onChange={(arr) => editE((d) => { d.rotemMilitares = arr; })} /></td>
                 </tr>
               </tbody></table>
 
