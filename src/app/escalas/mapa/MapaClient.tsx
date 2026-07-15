@@ -298,12 +298,13 @@ const EQUIPES_ABCD = ["A", "B", "C", "D"];
    rodizio) com subir/descer/remover e uma busca para adicionar. Controles
    somem na impressao. */
 function PoolMini({
-  ids, onChange, efetivo, nomeDe,
+  ids, onChange, efetivo, nomeDe, permiteFolga,
 }: {
   ids: string[];
   onChange: (ids: string[]) => void;
   efetivo: Militar[];
   nomeDe: (t: string) => string;
+  permiteFolga?: boolean;
 }) {
   const [q, setQ] = useState("");
   const [abrir, setAbrir] = useState(false);
@@ -319,6 +320,7 @@ function PoolMini({
   };
   const rm = (i: number) => onChange(ids.filter((_, j) => j !== i));
   const add = (id: string) => { if (!id || ids.includes(id)) return; onChange([...ids, id]); setQ(""); setAbrir(false); };
+  const addFolga = () => onChange([...ids, `__FOLGA__${Date.now()}`]);
   const res = useMemo(() => {
     const t = q.trim().toLowerCase(); if (!t) return [];
     const ex = new Set(ids);
@@ -334,7 +336,7 @@ function PoolMini({
         <ol className="mp-pool-lista">
           {ids.map((id, i) => (
             <li key={id + i}
-              className={"mp-pool-li" + (dragIdx === i ? " arrastando" : "")}
+              className={"mp-pool-li" + (dragIdx === i ? " arrastando" : "") + (id.startsWith("__FOLGA") ? " folga" : "")}
               draggable
               onDragStart={() => setDragIdx(i)}
               onDragOver={(e) => e.preventDefault()}
@@ -377,7 +379,12 @@ function PoolMini({
             )}
           </div>
         ) : (
-          <button className="mp-pool-mais" onClick={() => setAbrir(true)}>+ adicionar</button>
+          <div className="mp-pool-acoes">
+            <button className="mp-pool-mais" onClick={() => setAbrir(true)}>+ adicionar</button>
+            {permiteFolga && (
+              <button className="mp-pool-mais folga" title="Insere uma folga na sequência (dia de descanso do CPU)" onClick={addFolga}>+ folga</button>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -754,6 +761,7 @@ export default function MapaClient({ servico }: { servico?: string } = {}) {
   }, [efetivo]);
   const nomeDe = useMemo(() => (token: string) => {
     if (!token) return "";
+    if (token.startsWith("__FOLGA")) return "Folga"; // marcador de folga do rodizio
     const mm = efMap[token];
     return mm ? fmtMilitar(mm) : token;
   }, [efMap]);
@@ -1127,7 +1135,7 @@ export default function MapaClient({ servico }: { servico?: string } = {}) {
           {mostraCard("cpu") && (
           <div className="mp-eq-grupo">
             <div className="mp-eq-h">CPU de dia (oficiais)</div>
-            <PoolMini ids={cad.cpu} onChange={(v) => setPool({ cpu: v })} efetivo={efetivo} nomeDe={nomeDe} />
+            <PoolMini ids={cad.cpu} onChange={(v) => setPool({ cpu: v })} efetivo={efetivo} nomeDe={nomeDe} permiteFolga />
           </div>
           )}
 
@@ -1310,6 +1318,11 @@ const CSS = `
 .mp-pool-btns button:disabled{ opacity:.3; cursor:default; }
 .mp-pool-btns button.del:hover{ border-color:#e06464; color:#ffb3b3; }
 .mp-pool-add{ margin-top:4px; }
+.mp-pool-acoes{ display:flex; gap:6px; flex-wrap:wrap; }
+.mp-pool-lista .mp-pool-li.folga{ background:#241a08; border-color:#6b5320; }
+.mp-pool-lista .mp-pool-li.folga .mp-pool-nome{ color:#e8c877; font-style:italic; }
+.mp-pool-mais.folga{ border-color:#6b5320; color:#e8c877; }
+.mp-pool-mais.folga:hover{ border-color:#D4AF37; color:#ffe6a3; }
 .mp-pool-mais{ background:none; border:1px dashed #2b3f63; color:#9fb0c7; border-radius:6px; padding:3px 8px; font-size:11px; cursor:pointer; }
 .mp-pool-mais:hover{ border-color:#D4AF37; color:#E8EEF6; }
 .mp-pool-search{ position:relative; }
