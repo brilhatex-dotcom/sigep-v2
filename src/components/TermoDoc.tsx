@@ -12,7 +12,7 @@ import { X, Printer, FileDown, Loader2, Info } from "lucide-react";
    Peça editável na tela; PDF pelo print; Word por /api/disciplinar/termo-docx.
    ========================================================================= */
 
-export type TermoModelo = "autuacao" | "declaracoes" | "relatorio";
+export type TermoModelo = "autuacao" | "juntada" | "notificacao" | "declaracoes" | "relatorio" | "solucao";
 export type TermoRegistro = {
   id: string; tipo: string; numero: string; encarregado: string; portaria: string;
   dataInstauracao: string; envolvido: string; objeto: string; prazo: string;
@@ -20,8 +20,11 @@ export type TermoRegistro = {
 
 export const TERMO_LABEL: Record<TermoModelo, string> = {
   autuacao: "Termo de Autuação",
+  juntada: "Termo de Juntada",
+  notificacao: "Notificação / Intimação",
   declaracoes: "Termo de Declarações",
   relatorio: "Relatório Final",
+  solucao: "Despacho / Solução",
 };
 
 const NOME_PROC: Record<string, string> = {
@@ -132,6 +135,62 @@ export default function TermoDoc({ reg, modelo, onFechar }: { reg: TermoRegistro
           </>
         )}
 
+        {modelo === "juntada" && (
+          <>
+            <h1 style={sTit}>TERMO DE JUNTADA</h1>
+            <p style={{ textAlign: "justify", textIndent: "12mm", margin: "0 0 4mm" }}>
+              {dataExt} eu, {reg.encarregado?.trim() ? <strong>{reg.encarregado}</strong> : <span style={ul("60mm")}>&nbsp;</span>},
+              Encarregado(a) do procedimento em epígrafe, procedo à <strong>JUNTADA</strong> aos presentes autos do(s)
+              seguinte(s) documento(s):
+            </p>
+            <Linhas n={8} />
+            <p style={{ textAlign: "justify", margin: "4mm 0 0" }}>
+              Do que, para constar, lavrei o presente termo, que vai por mim assinado.
+            </p>
+            <div style={{ marginTop: "22mm" }} contentEditable={false}>
+              <Assina papel="Encarregado(a) do procedimento" />
+            </div>
+          </>
+        )}
+
+        {modelo === "notificacao" && (
+          <>
+            <h1 style={sTit}>NOTIFICAÇÃO / INTIMAÇÃO</h1>
+            <p style={{ textAlign: "justify", textIndent: "12mm", margin: "0 0 5mm" }}>
+              Pelo presente, fica <strong>{reg.envolvido?.trim() || <span style={ul("80mm")}>&nbsp;</span>}</strong>{" "}
+              <strong>NOTIFICADO(A)</strong> a comparecer perante o(a) Encarregado(a) do(a) {proc}, instaurado(a) pela
+              Portaria nº <strong>{numRef}</strong>, no dia <span style={ul("28mm")}>&nbsp;</span> às{" "}
+              <span style={ul("16mm")}>&nbsp;</span> horas, na sede do 18º Batalhão de Polícia Militar, a fim de:
+            </p>
+            <p style={{ margin: "0 0 4mm" }}>
+              [ &nbsp; ] ser ouvido(a) &nbsp;&nbsp; [ &nbsp; ] apresentar defesa &nbsp;&nbsp;
+              [ &nbsp; ] acompanhar os trabalhos &nbsp;&nbsp; [ &nbsp; ] tomar ciência
+            </p>
+            <p style={{ margin: "0 0 5mm" }}>
+              na condição de <span style={ul("70mm")}>&nbsp;</span>.
+            </p>
+            <p style={{ textAlign: "justify", margin: "0 0 5mm" }}>
+              Fica o(a) notificado(a) ciente de que lhe são assegurados o contraditório e a ampla defesa, podendo
+              fazer-se acompanhar de advogado e indicar testemunhas, na forma da lei.
+            </p>
+            <p style={{ textAlign: "center", margin: "6mm 0 12mm" }} contentEditable={false}>
+              São Luís/MA, ______ de ____________________ de {ANO}.
+            </p>
+            <div style={{ marginBottom: "10mm" }} contentEditable={false}>
+              <Assina papel="Encarregado(a) do procedimento" />
+            </div>
+            <div style={{ borderTop: "1px dashed #000", paddingTop: "3mm", fontSize: "10.5pt" }}>
+              <p style={{ fontWeight: "bold", margin: "0 0 2mm" }}>CIÊNCIA DO(A) NOTIFICADO(A)</p>
+              <p style={{ margin: 0 }}>
+                Recebi a presente notificação em <span style={ul("30mm")}>&nbsp;</span>, ciente do dia e hora acima.
+              </p>
+              <div style={{ marginTop: "16mm" }} contentEditable={false}>
+                <Assina papel="Assinatura do(a) notificado(a)" />
+              </div>
+            </div>
+          </>
+        )}
+
         {modelo === "declaracoes" && (
           <>
             <h1 style={sTit}>TERMO DE DECLARAÇÕES</h1>
@@ -184,6 +243,43 @@ export default function TermoDoc({ reg, modelo, onFechar }: { reg: TermoRegistro
                   {reg.encarregado?.trim() || "Encarregado(a) do procedimento"}
                 </div>
                 <div>Encarregado(a) do procedimento</div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {modelo === "solucao" && (
+          <>
+            <h1 style={sTit}>DESPACHO / SOLUÇÃO</h1>
+            <p style={{ textAlign: "justify", textIndent: "12mm", margin: "0 0 5mm" }}>
+              Vistos e examinados os presentes autos de {proc} nº <strong>{numRef}</strong>, instaurado(a) para apurar{" "}
+              {reg.objeto?.trim() ? <strong>{reg.objeto}</strong> : <span style={ul("90mm")}>&nbsp;</span>}, e
+              considerando o relatório final apresentado pelo(a) Encarregado(a),
+            </p>
+            <p style={{ fontWeight: "bold", margin: "0 0 4mm" }}>DECIDO:</p>
+            <p style={{ margin: "0 0 3mm" }}>
+              [ &nbsp; ] Acolher o relatório e determinar o <strong>ARQUIVAMENTO</strong> do procedimento, por não
+              restar comprovada transgressão/infração.
+            </p>
+            <p style={{ margin: "0 0 3mm" }}>
+              [ &nbsp; ] Acolher o relatório e determinar as seguintes providências (instauração de FATD,
+              representação, medidas administrativas):
+            </p>
+            <Linhas n={3} />
+            <p style={{ margin: "3mm 0 3mm" }}>
+              [ &nbsp; ] <strong>Não acolher</strong> o relatório, determinando:
+            </p>
+            <Linhas n={2} />
+            <p style={{ margin: "4mm 0 2mm" }}><strong>Fundamentação:</strong></p>
+            <Linhas n={3} />
+            <p style={{ margin: "6mm 0 10mm" }}>Publique-se, registre-se e cumpra-se.</p>
+            <p style={{ textAlign: "center", margin: "0 0 16mm" }} contentEditable={false}>
+              São Luís/MA, ______ de ____________________ de {ANO}.
+            </p>
+            <div contentEditable={false}>
+              <div style={{ textAlign: "center", width: "95mm", margin: "0 auto" }}>
+                <div style={{ borderTop: "1px solid #000", paddingTop: "1mm", fontWeight: "bold" }}>Autoridade competente</div>
+                <div>Comandante do 18º BPM</div>
               </div>
             </div>
           </>

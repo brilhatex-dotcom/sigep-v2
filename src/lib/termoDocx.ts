@@ -8,7 +8,7 @@ import {
 /* Termos do procedimento apuratório em .docx: autuacao / declaracoes / relatorio.
    Mesmo cabeçalho e conteúdo da tela, preenchidos pelo registro. */
 
-export type TermoModelo = "autuacao" | "declaracoes" | "relatorio";
+export type TermoModelo = "autuacao" | "juntada" | "notificacao" | "declaracoes" | "relatorio" | "solucao";
 export type TermoReg = {
   tipo: string; numero: string; encarregado: string; portaria: string;
   dataInstauracao: string; envolvido: string; objeto: string; prazo: string;
@@ -18,7 +18,8 @@ const NOME_PROC: Record<string, string> = {
   sindicancia: "Sindicância", ips: "Investigação Preliminar Sumária (IPS)", ipm: "Inquérito Policial Militar (IPM)",
 };
 export const TERMO_LABEL: Record<TermoModelo, string> = {
-  autuacao: "Termo de Autuação", declaracoes: "Termo de Declarações", relatorio: "Relatório Final",
+  autuacao: "Termo de Autuação", juntada: "Termo de Juntada", notificacao: "Notificação-Intimação",
+  declaracoes: "Termo de Declarações", relatorio: "Relatório Final", solucao: "Despacho-Solução",
 };
 
 const ANO = new Date().getFullYear();
@@ -94,6 +95,36 @@ export async function gerarTermoDocx(reg: TermoReg, modelo: TermoModelo): Promis
       ], true),
       ...assinatura("Encarregado(a) do procedimento"),
     ];
+  } else if (modelo === "juntada") {
+    corpo = [
+      pCenter("TERMO DE JUNTADA", { bold: true, size: 26, underline: true }),
+      new Paragraph({ text: "" }),
+      just([
+        t(dataExt + " eu, "), (reg.encarregado?.trim() ? b(reg.encarregado) : t(BR)),
+        t(", Encarregado(a) do procedimento em epígrafe, procedo à JUNTADA aos presentes autos do(s) seguinte(s) documento(s):"),
+      ], true),
+      ...linhas(8),
+      just([t("Do que, para constar, lavrei o presente termo, que vai por mim assinado.")]),
+      ...assinatura("Encarregado(a) do procedimento"),
+    ];
+  } else if (modelo === "notificacao") {
+    corpo = [
+      pCenter("NOTIFICAÇÃO / INTIMAÇÃO", { bold: true, size: 26, underline: true }),
+      new Paragraph({ text: "" }),
+      just([
+        t("Pelo presente, fica "), (reg.envolvido?.trim() ? b(reg.envolvido) : t(BR)),
+        t(" NOTIFICADO(A) a comparecer perante o(a) Encarregado(a) do(a) " + proc + ", instaurado(a) pela Portaria nº "),
+        b(numRef), t(", no dia " + BR + " às ______ horas, na sede do 18º Batalhão de Polícia Militar, a fim de:"),
+      ], true),
+      new Paragraph({ spacing: { after: 120 }, children: [t("[  ] ser ouvido(a)   [  ] apresentar defesa   [  ] acompanhar os trabalhos   [  ] tomar ciência")] }),
+      new Paragraph({ spacing: { after: 160 }, children: [t("na condição de " + BR + ".")] }),
+      just([t("Fica o(a) notificado(a) ciente de que lhe são assegurados o contraditório e a ampla defesa, podendo fazer-se acompanhar de advogado e indicar testemunhas, na forma da lei.")]),
+      pCenter(`São Luís/MA, ______ de ____________________ de ${ANO}.`, { size: 24 }),
+      ...assinatura("Encarregado(a) do procedimento"),
+      new Paragraph({ spacing: { before: 240 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: "000000" } }, children: [b("CIÊNCIA DO(A) NOTIFICADO(A)")] }),
+      new Paragraph({ spacing: { after: 120 }, children: [t("Recebi a presente notificação em " + BR + ", ciente do dia e hora acima.")] }),
+      ...assinatura("Assinatura do(a) notificado(a)"),
+    ];
   } else if (modelo === "declaracoes") {
     corpo = [
       pCenter("TERMO DE DECLARAÇÕES", { bold: true, size: 26, underline: true }),
@@ -111,6 +142,26 @@ export async function gerarTermoDocx(reg: TermoReg, modelo: TermoModelo): Promis
       just([t("Nada mais havendo, encerra-se o presente termo que, lido e achado conforme, vai devidamente assinado.")]),
       ...assinatura("Declarante"),
       ...assinatura("Encarregado(a)"),
+    ];
+  } else if (modelo === "solucao") {
+    corpo = [
+      pCenter("DESPACHO / SOLUÇÃO", { bold: true, size: 26, underline: true }),
+      new Paragraph({ text: "" }),
+      just([
+        t("Vistos e examinados os presentes autos de " + proc + " nº "), b(numRef),
+        t(", instaurado(a) para apurar "), (reg.objeto?.trim() ? b(reg.objeto) : t(BR + BR)),
+        t(", e considerando o relatório final apresentado pelo(a) Encarregado(a),"),
+      ], true),
+      new Paragraph({ spacing: { after: 120 }, children: [b("DECIDO:")] }),
+      new Paragraph({ spacing: { after: 100 }, children: [t("[  ] Acolher o relatório e determinar o ARQUIVAMENTO do procedimento, por não restar comprovada transgressão/infração.")] }),
+      new Paragraph({ spacing: { after: 60 }, children: [t("[  ] Acolher o relatório e determinar as seguintes providências (instauração de FATD, representação, medidas administrativas):")] }),
+      ...linhas(3),
+      new Paragraph({ spacing: { before: 80, after: 60 }, children: [t("[  ] Não acolher o relatório, determinando:")] }),
+      ...linhas(2),
+      sub("Fundamentação:"), ...linhas(3),
+      new Paragraph({ spacing: { before: 120, after: 300 }, children: [t("Publique-se, registre-se e cumpra-se.")] }),
+      pCenter(`São Luís/MA, ______ de ____________________ de ${ANO}.`, { size: 24 }),
+      ...assinatura("Comandante do 18º BPM", "Autoridade competente"),
     ];
   } else {
     corpo = [

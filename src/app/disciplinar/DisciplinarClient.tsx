@@ -155,8 +155,11 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
                         <div className="dsc-menu">
                           <button onClick={() => { setPortaria({ ...r, tipo }); setMenuId(null); }}>Portaria de instauração</button>
                           <button onClick={() => { setTermoDoc({ reg: { ...r, tipo }, modelo: "autuacao" }); setMenuId(null); }}>{TERMO_LABEL.autuacao}</button>
+                          <button onClick={() => { setTermoDoc({ reg: { ...r, tipo }, modelo: "juntada" }); setMenuId(null); }}>{TERMO_LABEL.juntada}</button>
+                          <button onClick={() => { setTermoDoc({ reg: { ...r, tipo }, modelo: "notificacao" }); setMenuId(null); }}>{TERMO_LABEL.notificacao}</button>
                           <button onClick={() => { setTermoDoc({ reg: { ...r, tipo }, modelo: "declaracoes" }); setMenuId(null); }}>{TERMO_LABEL.declaracoes}</button>
                           <button onClick={() => { setTermoDoc({ reg: { ...r, tipo }, modelo: "relatorio" }); setMenuId(null); }}>{TERMO_LABEL.relatorio}</button>
+                          <button onClick={() => { setTermoDoc({ reg: { ...r, tipo }, modelo: "solucao" }); setMenuId(null); }}>{TERMO_LABEL.solucao}</button>
                         </div>
                       )}
                     </span>

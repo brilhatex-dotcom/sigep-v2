@@ -7,7 +7,7 @@ import { gerarTermoDocx, TERMO_LABEL, type TermoModelo } from "@/lib/termoDocx";
 export const dynamic = "force-dynamic";
 
 const CHAVE = "disciplinar";
-const MODELOS: TermoModelo[] = ["autuacao", "declaracoes", "relatorio"];
+const MODELOS: TermoModelo[] = ["autuacao", "juntada", "notificacao", "declaracoes", "relatorio", "solucao"];
 
 function ehAdmin(perfil?: string | null): boolean {
   const p = (perfil || "").toLowerCase();
