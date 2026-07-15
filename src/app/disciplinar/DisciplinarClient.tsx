@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import FatdDoc, { type FatdRegistro } from "@/components/FatdDoc";
 
 /* Modulo Disciplinar (FATD / Sindicancia / IPS / IPM). Para cada tipo:
    uma AREA DE CONTROLE no topo (criar novo + ver os passados) com os campos de
@@ -32,6 +33,7 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
   const [form, setForm] = useState<Registro | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [filtro, setFiltro] = useState("");
+  const [peca, setPeca] = useState<FatdRegistro | null>(null);
 
   const carregar = useCallback(() => {
     setCarregando(true);
@@ -130,12 +132,13 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
               <div className="dsc-card-h">
                 <span className="dsc-num">{r.numero || "(sem número)"}</span>
                 <span className="dsc-badge" style={cor(r.status)}>{r.status}</span>
-                {isAdmin && (
-                  <span className="dsc-acoes">
-                    <button onClick={() => setForm(r)} title="Editar">✏️</button>
-                    <button className="del" onClick={() => remover(r.id)} title="Remover">🗑</button>
-                  </span>
-                )}
+                <span className="dsc-acoes">
+                  {tipo === "fatd" && (
+                    <button className="peca" onClick={() => setPeca(r)} title="Gerar FATD (PDF/Word)">📄 FATD</button>
+                  )}
+                  {isAdmin && <button onClick={() => setForm(r)} title="Editar">✏️</button>}
+                  {isAdmin && <button className="del" onClick={() => remover(r.id)} title="Remover">🗑</button>}
+                </span>
               </div>
               <div className="dsc-linhas">
                 {r.encarregado && <div><b>Encarregado:</b> {r.encarregado}</div>}
@@ -150,6 +153,8 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
           ))}
         </div>
       )}
+
+      {peca && <FatdDoc reg={peca} onFechar={() => setPeca(null)} />}
     </div>
   );
 }
@@ -184,9 +189,11 @@ const CSS = `
 .dsc-card-h{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
 .dsc-num{ font-weight:800; color:#fff; font-size:15px; }
 .dsc-badge{ font-size:11px; font-weight:700; border-radius:999px; padding:2px 10px; }
-.dsc-acoes{ margin-left:auto; display:flex; gap:4px; }
-.dsc-acoes button{ background:none; border:1px solid #2b3f63; border-radius:7px; padding:3px 7px; cursor:pointer; font-size:12px; }
+.dsc-acoes{ margin-left:auto; display:flex; gap:4px; align-items:center; }
+.dsc-acoes button{ background:none; border:1px solid #2b3f63; border-radius:7px; padding:3px 7px; cursor:pointer; font-size:12px; color:#cdd9ea; }
 .dsc-acoes .del:hover{ border-color:#e06464; }
+.dsc-acoes .peca{ border-color:#3f6bd4; color:#bcd2ff; font-weight:600; white-space:nowrap; }
+.dsc-acoes .peca:hover{ background:#16233f; border-color:#D4AF37; color:#fff; }
 .dsc-linhas{ font-size:12.5px; color:#cdd9ea; line-height:1.7; }
 .dsc-linhas b{ color:#9fb4d4; font-weight:600; }
 .dsc-obj{ margin-top:4px; }
