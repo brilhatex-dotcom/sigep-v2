@@ -3,6 +3,7 @@ import { exigirAdmin } from "@/lib/guard";
 import AppShell from "@/components/AppShell";
 import EscalasNav from "@/components/EscalasNav";
 import MapaClient from "../../mapa/MapaClient";
+import CpuCalendarioClient from "../cpu/CpuCalendarioClient";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,8 @@ export default async function ServicoEscalaPage({ params }: { params: { servico:
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <EscalasNav />
-      <MapaClient servico={params.servico} />
+      {/* CPU de dia = calendário mensal (colunas por semana); demais serviços = mapa */}
+      {params.servico === "cpu" ? <CpuCalendarioClient /> : <MapaClient servico={params.servico} />}
     </AppShell>
   );
 }

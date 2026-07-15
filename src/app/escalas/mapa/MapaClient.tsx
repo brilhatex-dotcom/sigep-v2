@@ -937,7 +937,6 @@ export default function MapaClient({ servico }: { servico?: string } = {}) {
             <button className={vista === "servico" ? "on" : ""} onClick={() => setVista("servico")}>Por serviço</button>
             <button className={vista === "militar" ? "on" : ""} onClick={() => setVista("militar")}>Por militar</button>
           </div>
-          {servico === "cpu" && <a className="mp-btn print" href="/escalas/cpu-semanal">🖨 Semanal CPU</a>}
           <button className="mp-btn print" onClick={() => window.print()}>🖨 Imprimir</button>
           <a className="mp-btn" href="/escalas">Escala diária →</a>
         </div>
