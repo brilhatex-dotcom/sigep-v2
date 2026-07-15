@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import FatdDoc, { type FatdRegistro } from "@/components/FatdDoc";
+import PortariaDoc, { type PortariaRegistro } from "@/components/PortariaDoc";
 
 /* Modulo Disciplinar (FATD / Sindicancia / IPS / IPM). Para cada tipo:
    uma AREA DE CONTROLE no topo (criar novo + ver os passados) com os campos de
@@ -34,6 +35,7 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
   const [salvando, setSalvando] = useState(false);
   const [filtro, setFiltro] = useState("");
   const [peca, setPeca] = useState<FatdRegistro | null>(null);
+  const [portaria, setPortaria] = useState<PortariaRegistro | null>(null);
 
   const carregar = useCallback(() => {
     setCarregando(true);
@@ -136,6 +138,9 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
                   {tipo === "fatd" && (
                     <button className="peca" onClick={() => setPeca(r)} title="Gerar FATD (PDF/Word)">📄 FATD</button>
                   )}
+                  {tipo !== "fatd" && (
+                    <button className="peca" onClick={() => setPortaria({ ...r, tipo })} title="Gerar Portaria de instauração (PDF/Word)">📄 Portaria</button>
+                  )}
                   {isAdmin && <button onClick={() => setForm(r)} title="Editar">✏️</button>}
                   {isAdmin && <button className="del" onClick={() => remover(r.id)} title="Remover">🗑</button>}
                 </span>
@@ -155,6 +160,7 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
       )}
 
       {peca && <FatdDoc reg={peca} onFechar={() => setPeca(null)} />}
+      {portaria && <PortariaDoc reg={portaria} onFechar={() => setPortaria(null)} />}
     </div>
   );
 }
