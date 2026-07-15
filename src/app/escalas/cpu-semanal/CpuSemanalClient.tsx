@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
    ========================================================================= */
 
 type Afastamento = { militar: string; tipo: string; inicio: string; fim: string };
-type Cadastro = { cpu: string[]; afastamentos: Afastamento[]; refCpuISO: string };
+type Cadastro = { cpu: string[]; afastamentos: Afastamento[]; refCpuISO: string; cpuOverrides?: Record<string, string> };
 type Militar = { id: string; postoGrad: string; numeroBarra: string; nome: string; nomeGuerra: string; telefone?: string; quadro?: string };
 type Chefe = { nome: string; funcao: string; assinatura?: string; assinarGov?: boolean; cmtAssinatura?: string };
 type Override = { nome?: string; fone?: string; permuta?: string };
@@ -127,8 +127,11 @@ export default function CpuSemanalClient() {
   const [ov, setOv] = useState<Record<string, Override>>({});
   const [brasoes, setBrasoes] = useState<Brasoes>(BRASOES_PADRAO);
   const [drag, setDrag] = useState<string | null>(null);
+  const [editCpu, setEditCpu] = useState<string | null>(null);
+  const [buscaCpu, setBuscaCpu] = useState("");
   const salvarTimer = useRef<any>(null);
   const brasoesTimer = useRef<any>(null);
+  const cadTimer = useRef<any>(null);
 
   useEffect(() => {
     fetch("/api/escala-config").then((r) => r.ok ? r.json() : null).then((d) => { if (d?.cad) setCad(d.cad); }).catch(() => {});
@@ -175,15 +178,59 @@ export default function CpuSemanalClient() {
     const m = id ? efMap[id] : null;
     return { nome: m ? nomeCpu(m) : "", fone: m ? fone(m.telefone || "") : "" };
   };
-  const nomeDe = (iso: string) => ov[iso]?.nome ?? auto(iso).nome;
-  const foneDe = (iso: string) => ov[iso]?.fone ?? auto(iso).fone;
+  // ID efetivo do CPU no dia: excecao da escala (cad.cpuOverrides) > rodizio.
+  // "" = ninguem; "__FOLGA__" = folga. Fonte UNICA, igual escala diaria/mapa.
+  const effIdCpu = (iso: string): string => {
+    const v = cad?.cpuOverrides?.[iso];
+    if (v !== undefined) return v;
+    if (!cad) return "";
+    return rodizio(cad.cpu || [], iso, cad.afastamentos || [], cad.refCpuISO || iso) || "";
+  };
+  const nomeDe = (iso: string) => {
+    const v = cad?.cpuOverrides?.[iso];
+    if (v !== undefined) return v === "" ? "" : (v.startsWith("__FOLGA") ? "Folga" : (efMap[v] ? nomeCpu(efMap[v]) : v));
+    return ov[iso]?.nome ?? auto(iso).nome;
+  };
+  const foneDe = (iso: string) => {
+    const v = cad?.cpuOverrides?.[iso];
+    if (v !== undefined) {
+      if (v && !v.startsWith("__FOLGA") && efMap[v]) return ov[iso]?.fone ?? fone(efMap[v].telefone || "");
+      return ov[iso]?.fone ?? "";
+    }
+    return ov[iso]?.fone ?? auto(iso).fone;
+  };
   const permDe = (iso: string) => ov[iso]?.permuta ?? "";
+
+  // Grava a excecao do CPU no MESMO lugar da escala/mapa (cad.cpuOverrides),
+  // entao reflete na escala diaria, no mapa e na impressao (fonte unica).
+  const salvarCad = (nc: Cadastro) => {
+    if (cadTimer.current) clearTimeout(cadTimer.current);
+    cadTimer.current = setTimeout(() => {
+      fetch("/api/escala-config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cad: nc }) }).catch(() => {});
+    }, 600);
+  };
+  const setCpuEscala = (iso: string, val: string | null) => setCad((c) => {
+    if (!c) return c;
+    const o = { ...(c.cpuOverrides || {}) };
+    if (val === null) delete o[iso]; else o[iso] = val;
+    const nc = { ...c, cpuOverrides: o };
+    salvarCad(nc);
+    return nc;
+  });
 
   const soltar = (target: string) => {
     if (!drag || drag === target) { setDrag(null); return; }
-    const src = { nome: nomeDe(drag), fone: foneDe(drag), permuta: permDe(drag) };
-    const dst = { nome: nomeDe(target), fone: foneDe(target), permuta: permDe(target) };
-    aplicar({ [target]: src, [drag]: dst }); // troca os dois dias
+    const a = effIdCpu(drag), b = effIdCpu(target);
+    setCad((c) => {
+      if (!c) return c;
+      const o = { ...(c.cpuOverrides || {}) };
+      o[target] = a; o[drag] = b; // troca os oficiais entre os dois dias
+      const nc = { ...c, cpuOverrides: o };
+      salvarCad(nc);
+      return nc;
+    });
+    // troca tambem fone/permuta manuais (ov) entre os dias
+    aplicar({ [target]: { fone: ov[drag]?.fone || "", permuta: ov[drag]?.permuta || "" }, [drag]: { fone: ov[target]?.fone || "", permuta: ov[target]?.permuta || "" } });
     setDrag(null);
   };
 
@@ -237,7 +284,9 @@ export default function CpuSemanalClient() {
         <tr>{dias.map((iso) => (
           <td key={iso} className={"cpuw-nome" + (drag ? " alvo" : "")} onDragOver={(e) => e.preventDefault()} onDrop={() => soltar(iso)}>
             <span className="cpuw-grip no-print" draggable onDragStart={() => setDrag(iso)} onDragEnd={() => setDrag(null)} title="Arraste para mover este oficial para outro dia">⠿</span>
-            <Editavel value={nomeDe(iso)} onChange={(v) => setOverride(iso, { nome: v })} className="cpuw-nome-t" placeholder="oficial de dia" />
+            <span className="cpuw-nome-t cpuw-pick" onClick={() => { setBuscaCpu(""); setEditCpu(iso); }} title="Clique para escolher o oficial de dia">
+              {nomeDe(iso) || <span className="cpuw-ph no-print">escolher oficial</span>}
+            </span>
             {permDe(iso) && <span className="cpuw-perm only-print"> (PERMUTA- {permDe(iso)})</span>}
             <span className="cpuw-perm-edit no-print">(PERMUTA- <Editavel value={permDe(iso)} onChange={(v) => setOverride(iso, { permuta: v })} className="cpuw-perm-in" placeholder="substituto" />)</span>
           </td>
@@ -279,6 +328,44 @@ export default function CpuSemanalClient() {
       </div>
 
       {semanas.map((dias, wi) => <Pagina key={wi} dias={dias} ultima={wi === semanas.length - 1} />)}
+
+      {/* Seletor do oficial de dia (autocomplete) — grava na fonte unica */}
+      {editCpu && (
+        <div className="no-print" onClick={() => setEditCpu(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 380, background: "#0F1B2D", border: "1px solid rgba(255,255,255,.1)", borderRadius: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,.1)" }}>
+              <b style={{ color: "#fff" }}>CPU de dia · {brData(editCpu)}</b>
+              <button onClick={() => setEditCpu(null)} style={{ background: "none", border: "none", color: "#94A3B8", cursor: "pointer", fontSize: 18 }}>×</button>
+            </div>
+            <div style={{ padding: 14 }}>
+              <div style={{ fontSize: 12, color: "#94A3B8", marginBottom: 8 }}>Atual: <b style={{ color: "#E8EEF6" }}>{nomeDe(editCpu) || "—"}</b></div>
+              <input autoFocus value={buscaCpu} onChange={(e) => setBuscaCpu(e.target.value)} placeholder="Buscar oficial..."
+                style={{ width: "100%", background: "#0a1626", border: "1px solid rgba(255,255,255,.12)", borderRadius: 8, padding: "8px 10px", color: "#fff", outline: "none", fontSize: 13 }} />
+              {buscaCpu.trim().length >= 1 && (
+                <div style={{ marginTop: 6, maxHeight: 220, overflowY: "auto", border: "1px solid rgba(255,255,255,.1)", borderRadius: 8 }}>
+                  {Object.values(efMap).filter((m) => (nomeCpu(m) + " " + (m.nomeGuerra || "") + " " + (m.nome || "")).toLowerCase().includes(buscaCpu.trim().toLowerCase())).slice(0, 14).map((m) => (
+                    <button key={m.id} onClick={() => { setCpuEscala(editCpu, m.id); setEditCpu(null); }}
+                      style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", background: "none", border: "none", borderBottom: "1px solid rgba(255,255,255,.05)", color: "#fff", cursor: "pointer", fontSize: 13 }}>
+                      {nomeCpu(m)}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                <button onClick={() => { setCpuEscala(editCpu, "__FOLGA__"); setEditCpu(null); }}
+                  style={{ flex: 1, minWidth: 92, padding: "8px 10px", background: "#241a08", border: "1px solid #6b5320", borderRadius: 8, color: "#e8c877", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Folga</button>
+                <button onClick={() => { setCpuEscala(editCpu, ""); setEditCpu(null); }}
+                  style={{ flex: 1, minWidth: 92, padding: "8px 10px", background: "#2a1414", border: "1px solid #7a1f1f", borderRadius: 8, color: "#ffb3b3", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Excluir</button>
+                <button onClick={() => { setCpuEscala(editCpu, null); setEditCpu(null); }}
+                  style={{ flex: 1, minWidth: 92, padding: "8px 10px", background: "#0b1626", border: "1px solid rgba(255,255,255,.15)", borderRadius: 8, color: "#cdd9ea", cursor: "pointer", fontSize: 13 }}>Automático</button>
+              </div>
+              <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 10 }}>Vale para todas as telas (escala diária, mapa e impressão).</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -323,6 +410,9 @@ const CSS = `
 .cpuw-nome{ font-style:italic; font-size:14px; padding:14px 4px !important; }
 .cpuw-nome.alvo{ outline:2px dashed #3b82f6; outline-offset:-3px; }
 .cpuw-nome-t{ display:block; }
+.cpuw-pick{ cursor:pointer; border-radius:4px; }
+.cpuw-pick:hover{ background:rgba(212,175,55,.12); box-shadow:inset 0 0 0 1px rgba(212,175,55,.5); }
+.cpuw-ph{ color:#aaa; font-style:normal; }
 .cpuw-grip{ cursor:grab; color:#7a8aa0; font-size:13px; margin-right:3px; user-select:none; }
 .cpuw-perm{ font-style:italic; font-weight:700; }
 .cpuw-perm-edit{ display:block; font-size:11px; color:#333; margin-top:4px; }
