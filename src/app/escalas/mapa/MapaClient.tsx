@@ -23,7 +23,7 @@ type TipoAfastamento =
   | "ferias" | "missao" | "curso" | "licenca_premio"
   | "licenca_paternidade" | "jms" | "rotam" | "outro";
 type Afastamento = { militar: string; tipo: TipoAfastamento; inicio: string; fim: string };
-type EquipeRotem = { nome: string; turnos: string[]; militares: string[] };
+type EquipeRotem = { nome: string; turnos: string[]; militares: string[]; diasSemana?: number[] };
 type Cadastro = {
   cpu: string[]; ftGraduado: string[]; ftMotorista: string[]; ftPatrulheiro: string[];
   rpAdjunto: string[]; rpMotorista: string[]; rpPatrulheiro: string[];
@@ -144,6 +144,11 @@ function rodizio(pool: string[], qtd: number, dataAlvo: string, afast: Afastamen
 }
 function equipeRotem(data: string, equipes: EquipeRotem[], ref: string): EquipeRotem | null {
   if (equipes.length === 0) return null;
+  const comDias = equipes.filter((e) => e.diasSemana && e.diasSemana.length);
+  if (comDias.length) {
+    const dow = parseISO(data).getDay();
+    return comDias.find((e) => e.diasSemana!.includes(dow)) || null;
+  }
   const bloco = Math.floor(diasEntre(ref, data) / 3);
   return equipes[(((bloco % equipes.length) + equipes.length) % equipes.length)];
 }

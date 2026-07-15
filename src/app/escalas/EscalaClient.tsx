@@ -90,7 +90,7 @@ type Afastamento = {
   fim: string;
 };
 
-type EquipeRotem = { nome: string; turnos: string[]; militares: string[] };
+type EquipeRotem = { nome: string; turnos: string[]; militares: string[]; diasSemana?: number[] };
 
 type PoolKey =
   | "cpu" | "ftGraduado" | "ftMotorista" | "ftPatrulheiro"
@@ -397,6 +397,13 @@ function rodizio(
 // ROTEM: equipes fixas em blocos de 3 dias.
 function equipeRotem(data: string, equipes: EquipeRotem[], ref: string): EquipeRotem | null {
   if (equipes.length === 0) return null;
+  // Se as equipes definem dias da semana (o Cmt da ROTEM configura), o dia é
+  // coberto pela equipe daquele dia da semana. Senão, cai no rodízio 3/3 dias.
+  const comDias = equipes.filter((e) => e.diasSemana && e.diasSemana.length);
+  if (comDias.length) {
+    const dow = parseISO(data).getDay();
+    return comDias.find((e) => e.diasSemana!.includes(dow)) || null;
+  }
   const bloco = Math.floor(diasEntre(ref, data) / 3);
   const i = ((bloco % equipes.length) + equipes.length) % equipes.length;
   return equipes[i];
@@ -983,6 +990,19 @@ function EquipeRotemCard({
             </div>
           ))}
           <button className="btn" onClick={addTurno}>+ turno</button>
+          <label style={{ marginTop: 8 }}>Dias da semana</label>
+          <div className="eq-dias">
+            {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d, idx) => {
+              const on = (eq.diasSemana || []).includes(idx);
+              return (
+                <button key={idx} type="button" className={"eq-dia" + (on ? " on" : "")} title={d}
+                  onClick={() => { const cur = new Set(eq.diasSemana || []); if (on) cur.delete(idx); else cur.add(idx); onChange({ diasSemana: [...cur].sort((a, b) => a - b) }); }}>
+                  {d}
+                </button>
+              );
+            })}
+          </div>
+          <span className="eq-dias-hint">Marque os dias que esta equipe cobre (o Cmt pode ajustar). Se nenhuma equipe marcar dias, volta ao rodízio de 3 em 3 dias.</span>
         </div>
         <div className="eq-col grow">
           <label>Militares da equipe</label>
@@ -1104,13 +1124,19 @@ function ConfigMotor({
           {efetivo.length} militares carregados do Cadastro de Efetivo. Busque pelo nome ou matricula \u2014 nao precisa digitar.
         </div>
       )}
-      {/* ---- Pools por bloco de servico (igual a folha) ---- */}
+      {/* ---- Pools por bloco de servico (MOTOR ANTIGO — recolhido) ----
+           Hoje o RP/FT/etc. vem do quadro A/B/C/D (abas de servico) e o CPU do
+           calendario. Estes pools sao o motor antigo do rodizio; ficam aqui só
+           como configuracao avancada, recolhidos, para nao confundir. */}
       <div className="cfg-sec">
-        <div className="cfg-sec-titulo">Quem entra no rodízio</div>
+        <button className="cfg-sec-titulo" style={{ cursor: "pointer", background: "none", border: "none", color: "inherit", font: "inherit", padding: 0 }}
+          onClick={() => setAvancadoAberto((v) => !v)}>
+          {avancadoAberto ? "▾" : "▸"} Configuração avançada · motor antigo do rodízio
+        </button>
         <div className="cfg-sec-sub">
-          Organizado igual à folha da escala. Cada cartão mostra o tamanho da lista, quantos estão afastados na data e quem é o próximo da vez. Clique para abrir e reordenar.
+          Normalmente não é preciso mexer aqui. O RP, FT e demais forças vêm das abas de serviço (quadro A/B/C/D) e o CPU do calendário. Estes cartões são a fila antiga do rodízio.
         </div>
-        {GRUPOS_ORDEM.map((g) => {
+        {avancadoAberto && GRUPOS_ORDEM.map((g) => {
           const metas = POOLS_META.filter((p) => p.grupo === g);
           const editorAqui = !!poolAberto && !!metaAberta && metaAberta.grupo === g;
           return (
@@ -2312,6 +2338,11 @@ const CSS = `
 .eq-col{ display:flex; flex-direction:column; gap:6px; min-width:200px; }
 .eq-col.grow{ flex:1; min-width:280px; }
 .eq-col label{ font-size:11px; color:#9fb0c7; }
+.eq-dias{ display:flex; flex-wrap:wrap; gap:4px; }
+.eq-dia{ background:#0a1626; color:#9fb0c7; border:1px solid #28395a; border-radius:7px; padding:5px 7px; font-size:11px; cursor:pointer; }
+.eq-dia.on{ background:#D4AF37; color:#1a1205; border-color:#D4AF37; font-weight:700; }
+.eq-dia:hover:not(.on){ border-color:#D4AF37; }
+.eq-dias-hint{ font-size:10px; color:#6b7f9c; }
 .eq-turno{ display:flex; gap:6px; }
 .eq-turno input{ flex:1; background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:8px; padding:7px 9px; font-size:12.5px; }
 
