@@ -511,6 +511,25 @@ function proximoDoPool(key: PoolKey, dataISO: string, cad: Cadastro): string {
   return rodizio(cad[key], 1, dataISO, cad.afastamentos, refDoPool(key, cad))[0] || "";
 }
 
+// Extrai o titular de cada funcao a partir da Escala JA MONTADA (mesma fonte da
+// folha: quadro A/B/C/D + excecoes). Assim a previa mostra o que a folha mostra.
+function tituloDaEscala(e: any, key: PoolKey): string {
+  const one = (sl: any) => semTags(sl?.titular || "");
+  const first = (arr: any) => semTags(arr?.[0]?.titular || "");
+  switch (key) {
+    case "cpu": return one(e?.cpuDeDia);
+    case "guardaPermanente": return first(e?.guardaPermanente);
+    case "rpAdjunto": return one(e?.rpAdjunto);
+    case "rpMotorista": return one(e?.rpMotorista);
+    case "rpPatrulheiro": return first(e?.rpPatrulheiro);
+    case "inteligencia": return first(e?.inteligencia);
+    case "ftGraduado": return one(e?.ftGraduado);
+    case "ftMotorista": return one(e?.ftMotorista);
+    case "ftPatrulheiro": return one(e?.ftPatrulheiro);
+    default: return "";
+  }
+}
+
 /* ============================== EDICAO EM LINHA (folha) ============================== */
 
 // Remove tags HTML, devolvendo so o texto (para comparacoes e para o Mapa).
@@ -1192,6 +1211,10 @@ function ConfigMotor({
 function PreviaRodizio({ cad, data, nomeDe }: { cad: Cadastro; data: string; nomeDe: NomeDe }) {
   const [aberta, setAberta] = useState(true);
   const dias = [data, somaDias(data, 1), somaDias(data, 2)];
+  // Monta a escala de cada dia com a MESMA fonte da folha (quadro A/B/C/D +
+  // excecoes), para a previa mostrar TODAS as forcas — nao mais os pools vazios.
+  const escDia: Record<string, any> = {};
+  for (const iso of dias) escDia[iso] = novaEscala(iso, cad, nomeDe);
 
   return (
     <div className="previa no-print">
@@ -1217,7 +1240,7 @@ function PreviaRodizio({ cad, data, nomeDe }: { cad: Cadastro; data: string; nom
                 <tr key={meta.key}>
                   <td className="pv-srv">{meta.label}</td>
                   {dias.map((iso, i) => {
-                    const nome = nomeDe(proximoDoPool(meta.key, iso, cad));
+                    const nome = tituloDaEscala(escDia[iso], meta.key);
                     return (
                       <td key={iso} className={i === 0 ? "pv-hoje" : ""} title={nome}>
                         {nome ? sobrenome(nome) : "-"}
