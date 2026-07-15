@@ -1355,7 +1355,7 @@ export default function EscalaClient() {
   // Brasoes: arquivos fixos do sistema (public/brasoes) \u2014 aparecem em todos os PCs.
   const [brasoes, setBrasoes] = useState<Brasoes>({
     pmma: "/brasoes/pmma-190.jpg",
-    ma: "/brasoes/armas-ma.png",
+    ma: "/brasao-estado-ma.png", // centro = Governo do Estado (armas do MA)
     bpm: "/brasoes/brasao-18bpm.png",
     vistoCmt: "/brasoes/assinatura-cmt.png",
     assinaturaChefe: "",
@@ -1527,6 +1527,19 @@ export default function EscalaClient() {
             assinarGov: d.assinarGov === true,
             cmtAssinatura: d.cmtAssinatura || "/brasoes/assinatura-cmt.png",
           });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Brasoes da escala: vem do servidor (igual em todos os PCs). Se alguem
+  // trocar um brasao, e salvo no banco e reflete em todos os computadores.
+  useEffect(() => {
+    fetch("/api/escala-brasoes")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.brasoes) {
+          setBrasoes((b) => ({ ...b, pmma: d.brasoes.pmma || b.pmma, ma: d.brasoes.ma || b.ma, bpm: d.brasoes.bpm || b.bpm }));
         }
       })
       .catch(() => {});
@@ -1706,7 +1719,23 @@ export default function EscalaClient() {
     inp.type = "file"; inp.accept = "image/*";
     inp.onchange = () => {
       const f = inp.files && inp.files[0]; if (!f) return;
-      const r = new FileReader(); r.onload = () => setBrasoes((b) => ({ ...b, [key]: String(r.result) })); r.readAsDataURL(f);
+      const r = new FileReader();
+      r.onload = () => {
+        const valor = String(r.result);
+        setBrasoes((b) => {
+          const novo = { ...b, [key]: valor };
+          // pmma/ma/bpm sao os brasoes do cabecalho: salva no banco para
+          // refletir em todos os computadores.
+          if (key === "pmma" || key === "ma" || key === "bpm") {
+            fetch("/api/escala-brasoes", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ brasoes: { pmma: novo.pmma, ma: novo.ma, bpm: novo.bpm } }),
+            }).catch(() => {});
+          }
+          return novo;
+        });
+      };
+      r.readAsDataURL(f);
     };
     inp.click();
   };

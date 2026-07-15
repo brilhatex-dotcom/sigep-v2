@@ -70,7 +70,9 @@ const ORG = [
   "Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP-65.760-000",
   "(99) 98509-5005(Permanência) – 18batalhaopmma@gmail.com",
 ];
-const BRASOES_PADRAO: Brasoes = { pmma: "/brasoes/brasao-pmma.png", ma: "/brasoes/armas-ma.png", bpm: "/brasoes/brasao-18bpm.png" };
+// Padrao do 18º BPM: esquerda 190 anos PMMA · centro Governo do Estado (armas
+// do MA) · direita 18º BPM. Mesmo padrao da Escala Diaria.
+const BRASOES_PADRAO: Brasoes = { pmma: "/brasoes/pmma-190.jpg", ma: "/brasao-estado-ma.png", bpm: "/brasoes/brasao-18bpm.png" };
 
 function segundaDaSemana(): string {
   const h = new Date();
