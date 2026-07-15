@@ -120,16 +120,23 @@ export default function CpuSemanalClient() {
   const [efMap, setEfMap] = useState<Record<string, Militar>>({});
   const [chefe, setChefe] = useState<Chefe>({ nome: "", funcao: "", assinatura: "", assinarGov: false, cmtAssinatura: "/brasoes/assinatura-cmt.png" });
   // Garante que o início caia sempre numa TERÇA (semana terça→segunda).
-  const snapTerca = (iso: string) => { const d = parseISO(iso); return toISO(new Date(d.getTime() + difAteTerca(d.getDay()) * DAY)); };
+  // Ajusta para a terça da semana; rejeita valores inválidos/corrompidos
+  // (ex.: data vazia ou "1899") voltando para a semana atual — auto-recupera.
+  const snapTerca = (iso: string) => {
+    const d = parseISO(iso);
+    const y = d.getFullYear();
+    if (isNaN(d.getTime()) || y < 2000 || y > 2100) return tercaDaSemana();
+    return toISO(new Date(d.getTime() + difAteTerca(d.getDay()) * DAY));
+  };
   const [inicio, setInicioRaw] = useState<string>(() => {
     // lembra a ultima semana em que o usuario mexeu (nao volta sempre para hoje)
     if (typeof window !== "undefined") {
       const s = localStorage.getItem("sigep_cpu_ultima_semana");
-      if (s && /^\d{4}-\d{2}-\d{2}$/.test(s)) { const d = parseISO(s); return toISO(new Date(d.getTime() + difAteTerca(d.getDay()) * DAY)); }
+      if (s) return snapTerca(s); // snapTerca ja rejeita valor invalido/corrompido
     }
     return tercaDaSemana();
   });
-  const setInicio = (iso: string) => setInicioRaw(snapTerca(iso));
+  const setInicio = (iso: string) => { if (iso) setInicioRaw(snapTerca(iso)); };
   useEffect(() => { try { localStorage.setItem("sigep_cpu_ultima_semana", inicio); } catch { /* ignore */ } }, [inicio]);
   const [ov, setOv] = useState<Record<string, Override>>({});
   const [brasoes, setBrasoes] = useState<Brasoes>(BRASOES_PADRAO);
