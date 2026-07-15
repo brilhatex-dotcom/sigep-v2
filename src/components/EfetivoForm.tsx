@@ -127,7 +127,9 @@ const SECOES: Secao[] = [
     grupo: "funcional",
     campos: [
       { key: "observacoes", label: "Observações", tipo: "area" },
-      { key: "fotoURL", label: "Foto (URL)" },
+      // A foto de perfil e gerida pelo avatar (topo da pagina), gravada em
+      // /api/foto. Nao expor como campo de texto aqui: o formulario carrega um
+      // retrato antigo do registro e, ao salvar, apagaria a foto recem-enviada.
     ],
   },
 ];

@@ -30,11 +30,16 @@ const CAMPOS_PESSOAIS = [
   "emergenciaGrau", "cnh", "cnhCategoria", "cnhVencimento",
 ];
 
+// ATENCAO: "fotoURL" NAO entra aqui de proposito. A foto de perfil e gerida
+// exclusivamente por /api/foto (guardada na tabela Config). Se ela entrasse na
+// lista de campos editaveis, a edicao da ficha — que carrega um retrato antigo
+// do registro com fotoURL vazio — sobrescreveria a foto com null ao salvar
+// ("subi a foto, fui mexer em outra coisa e a foto sumiu").
 const CAMPOS_FUNCIONAIS = [
   "nome", "nomeGuerra", "postoGrad", "numeroBarra", "matricula", "quadro",
   "funcao", "lotacao", "situacao", "status", "dataIncorp", "dataPromocao",
   "equipeFerias", "jmsDataInicio", "jmsDataRetorno", "jmsMotivo",
-  "observacoes", "fotoURL",
+  "observacoes",
 ];
 
 function ehAdmin(perfil: string | null | undefined): boolean {

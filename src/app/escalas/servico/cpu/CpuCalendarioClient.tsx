@@ -56,10 +56,14 @@ function abrevPosto(p: string): string {
   };
   return map[(p || "").trim().toLowerCase()] ?? (p || "").trim();
 }
-// Nome no padrão do modelo: posto abreviado + QUADRO (QOEM/PM) + nome de guerra.
+// Nome no padrão do modelo: posto abreviado + QUADRO + nome de guerra.
+// Regra do Cmt: Subtenente e Aspirante a Oficial NÃO exibem o quadro da ficha —
+// saem sempre como "PM" (ex.: "Sub Ten PM Martins", "Asp. Of. PM Macêdo").
 function nomeCpu(m: Militar): string {
   const posto = abrevPosto(m.postoGrad);
-  const q = (m.quadro || "").trim();
+  const bruto = (m.postoGrad || "").trim().toLowerCase();
+  const semQuadro = bruto === "subtenente" || bruto === "aspirante a oficial" || bruto === "aspirante";
+  const q = semQuadro ? "PM" : (m.quadro || "").trim();
   const guerra = (m.nomeGuerra || m.nome || "").trim();
   return [posto, q, guerra].filter(Boolean).join(" ").trim();
 }
@@ -239,7 +243,7 @@ export default function CpuCalendarioClient() {
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <div style={{ width: "26mm", height: "24mm", display: "flex", alignItems: "center", justifyContent: "center" }}>{brasoes.pmma ? <img src={brasoes.pmma} alt="" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : null}</div>
               <div style={{ flex: 1, textAlign: "center" }}>
-                {brasoes.ma ? <img src={brasoes.ma} alt="" style={{ height: "17mm", objectFit: "contain" }} /> : null}
+                {brasoes.ma ? <img src={brasoes.ma} alt="" style={{ height: "17mm", objectFit: "contain", display: "block", margin: "0 auto" }} /> : null}
                 {ORG.map((l, i) => <div key={i} style={{ fontSize: i >= 5 ? 9 : 11, fontWeight: i >= 5 ? 400 : 700 }}>{l}</div>)}
               </div>
               <div style={{ width: "26mm", height: "24mm", display: "flex", alignItems: "center", justifyContent: "center" }}>{brasoes.bpm ? <img src={brasoes.bpm} alt="" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : null}</div>
