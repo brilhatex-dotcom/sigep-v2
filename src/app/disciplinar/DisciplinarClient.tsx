@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import FatdDoc, { type FatdRegistro } from "@/components/FatdDoc";
 import PortariaDoc, { type PortariaRegistro } from "@/components/PortariaDoc";
+import TermoDoc, { type TermoRegistro, type TermoModelo, TERMO_LABEL } from "@/components/TermoDoc";
 
 /* Modulo Disciplinar (FATD / Sindicancia / IPS / IPM). Para cada tipo:
    uma AREA DE CONTROLE no topo (criar novo + ver os passados) com os campos de
@@ -36,6 +37,16 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
   const [filtro, setFiltro] = useState("");
   const [peca, setPeca] = useState<FatdRegistro | null>(null);
   const [portaria, setPortaria] = useState<PortariaRegistro | null>(null);
+  const [termoDoc, setTermoDoc] = useState<{ reg: TermoRegistro; modelo: TermoModelo } | null>(null);
+  const [menuId, setMenuId] = useState<string | null>(null);
+
+  // Fecha o menu de peças ao clicar fora.
+  useEffect(() => {
+    if (!menuId) return;
+    const fechar = () => setMenuId(null);
+    window.addEventListener("click", fechar);
+    return () => window.removeEventListener("click", fechar);
+  }, [menuId]);
 
   const carregar = useCallback(() => {
     setCarregando(true);
@@ -135,11 +146,20 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
                 <span className="dsc-num">{r.numero || "(sem número)"}</span>
                 <span className="dsc-badge" style={cor(r.status)}>{r.status}</span>
                 <span className="dsc-acoes">
-                  {tipo === "fatd" && (
+                  {tipo === "fatd" ? (
                     <button className="peca" onClick={() => setPeca(r)} title="Gerar FATD (PDF/Word)">📄 FATD</button>
-                  )}
-                  {tipo !== "fatd" && (
-                    <button className="peca" onClick={() => setPortaria({ ...r, tipo })} title="Gerar Portaria de instauração (PDF/Word)">📄 Portaria</button>
+                  ) : (
+                    <span className="dsc-menu-wrap" onClick={(e) => e.stopPropagation()}>
+                      <button className="peca" onClick={() => setMenuId((m) => (m === r.id ? null : r.id))} title="Gerar peças (PDF/Word)">📄 Peças ▾</button>
+                      {menuId === r.id && (
+                        <div className="dsc-menu">
+                          <button onClick={() => { setPortaria({ ...r, tipo }); setMenuId(null); }}>Portaria de instauração</button>
+                          <button onClick={() => { setTermoDoc({ reg: { ...r, tipo }, modelo: "autuacao" }); setMenuId(null); }}>{TERMO_LABEL.autuacao}</button>
+                          <button onClick={() => { setTermoDoc({ reg: { ...r, tipo }, modelo: "declaracoes" }); setMenuId(null); }}>{TERMO_LABEL.declaracoes}</button>
+                          <button onClick={() => { setTermoDoc({ reg: { ...r, tipo }, modelo: "relatorio" }); setMenuId(null); }}>{TERMO_LABEL.relatorio}</button>
+                        </div>
+                      )}
+                    </span>
                   )}
                   {isAdmin && <button onClick={() => setForm(r)} title="Editar">✏️</button>}
                   {isAdmin && <button className="del" onClick={() => remover(r.id)} title="Remover">🗑</button>}
@@ -161,6 +181,7 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
 
       {peca && <FatdDoc reg={peca} onFechar={() => setPeca(null)} />}
       {portaria && <PortariaDoc reg={portaria} onFechar={() => setPortaria(null)} />}
+      {termoDoc && <TermoDoc reg={termoDoc.reg} modelo={termoDoc.modelo} onFechar={() => setTermoDoc(null)} />}
     </div>
   );
 }
@@ -200,6 +221,10 @@ const CSS = `
 .dsc-acoes .del:hover{ border-color:#e06464; }
 .dsc-acoes .peca{ border-color:#3f6bd4; color:#bcd2ff; font-weight:600; white-space:nowrap; }
 .dsc-acoes .peca:hover{ background:#16233f; border-color:#D4AF37; color:#fff; }
+.dsc-menu-wrap{ position:relative; display:inline-block; }
+.dsc-menu{ position:absolute; right:0; top:calc(100% + 4px); z-index:20; min-width:190px; background:#0F1B2D; border:1px solid #2b3f63; border-radius:9px; padding:4px; box-shadow:0 10px 30px rgba(0,0,0,.5); display:flex; flex-direction:column; }
+.dsc-menu button{ text-align:left; background:none; border:none; color:#cdd9ea; padding:8px 10px; border-radius:6px; cursor:pointer; font-size:12.5px; white-space:nowrap; }
+.dsc-menu button:hover{ background:#16233f; color:#fff; }
 .dsc-linhas{ font-size:12.5px; color:#cdd9ea; line-height:1.7; }
 .dsc-linhas b{ color:#9fb4d4; font-weight:600; }
 .dsc-obj{ margin-top:4px; }
