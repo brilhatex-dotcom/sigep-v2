@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 /* =========================================================================
    CPU de dia — calendário mensal (colunas por semana, terça→segunda).
@@ -37,17 +38,30 @@ function semanasDoMes(mes: string): string[] {
   return out;
 }
 
-type Militar = { id: string; postoGrad: string; numeroBarra: string; nome: string; nomeGuerra: string; telefone?: string };
+type Militar = { id: string; postoGrad: string; numeroBarra: string; nome: string; nomeGuerra: string; telefone?: string; quadro?: string };
 type Afastamento = { militar: string; tipo: string; inicio: string; fim: string };
 type Cadastro = { cpu: string[]; afastamentos: Afastamento[]; refCpuISO: string; cpuOverrides?: Record<string, string> };
 type Chefe = { nome: string; funcao: string; assinatura: string; assinarGov: boolean; cmtAssinatura: string };
 type Brasoes = { pmma: string; ma: string; bpm: string };
 const BRASOES_PADRAO: Brasoes = { pmma: "/brasoes/pmma-190.jpg", ma: "/brasao-estado-ma.png", bpm: "/brasoes/brasao-18bpm.png" };
 
-function fmtPosto(p: string) { return (p || "").trim(); }
+// Abrevia o posto no padrão da folha (Cap, Asp. Of., Sub Ten, 1º Ten...).
+function abrevPosto(p: string): string {
+  const map: Record<string, string> = {
+    "coronel": "Cel", "tenente-coronel": "Ten Cel", "tenente coronel": "Ten Cel", "major": "Maj",
+    "capitão": "Cap", "capitao": "Cap", "1º tenente": "1º Ten", "1° tenente": "1º Ten", "primeiro tenente": "1º Ten",
+    "2º tenente": "2º Ten", "2° tenente": "2º Ten", "segundo tenente": "2º Ten",
+    "aspirante a oficial": "Asp. Of.", "aspirante": "Asp. Of.", "subtenente": "Sub Ten",
+    "1º sargento": "1º Sgt", "2º sargento": "2º Sgt", "3º sargento": "3º Sgt", "cabo": "Cb", "soldado": "Sd",
+  };
+  return map[(p || "").trim().toLowerCase()] ?? (p || "").trim();
+}
+// Nome no padrão do modelo: posto abreviado + QUADRO (QOEM/PM) + nome de guerra.
 function nomeCpu(m: Militar): string {
-  const posto = fmtPosto(m.postoGrad); const guerra = (m.nomeGuerra || m.nome || "").trim();
-  return [posto, guerra].filter(Boolean).join(" ").trim();
+  const posto = abrevPosto(m.postoGrad);
+  const q = (m.quadro || "").trim();
+  const guerra = (m.nomeGuerra || m.nome || "").trim();
+  return [posto, q, guerra].filter(Boolean).join(" ").trim();
 }
 function foneFmt(t: string) { const s = (t || "").replace(/\D/g, ""); if (s.length === 11) return `(${s.slice(0, 2)}) ${s.slice(2, 7)}-${s.slice(7)}`; if (s.length === 10) return `(${s.slice(0, 2)}) ${s.slice(2, 6)}-${s.slice(6)}`; return (t || "").trim(); }
 function afastado(id: string, data: string, lista: Afastamento[]) { return lista.some((a) => a.militar === id && data >= a.inicio && data <= a.fim); }
@@ -70,7 +84,13 @@ function rodizio(pool: string[], dataAlvo: string, afast: Afastamento[], ref: st
   return alvo;
 }
 
-function esc(v: unknown) { return String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+// Célula editável (contentEditable) para a prévia — inicia uma vez e mantém a
+// edição; imprime o próprio texto.
+function EdCell({ init, style }: { init: string; style?: React.CSSProperties }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (ref.current) ref.current.innerText = init; }, []);
+  return <div ref={ref} contentEditable suppressContentEditableWarning style={{ outline: "none", minHeight: "1em", ...style }} />;
+}
 
 export default function CpuCalendarioClient() {
   const [cad, setCad] = useState<Cadastro | null>(null);
@@ -86,6 +106,9 @@ export default function CpuCalendarioClient() {
   });
   const [editCpu, setEditCpu] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
+  const [previewSem, setPreviewSem] = useState<string | null>(null); // terça da semana a imprimir
+  const [montado, setMontado] = useState(false);
+  useEffect(() => { setMontado(true); }, []);
   const cadTimer = useRef<any>(null);
 
   useEffect(() => {
@@ -140,41 +163,6 @@ export default function CpuCalendarioClient() {
     setMes(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   }
 
-  function imgTag(src: string, alt: string) {
-    return src ? `<img src="${esc(src)}" alt="${esc(alt)}" style="max-width:100%;max-height:100%;object-fit:contain;">` : "";
-  }
-  function imprimirSemana(terISO: string) {
-    const dias = Array.from({ length: 7 }, (_, i) => somaDias(terISO, i));
-    const th = dias.map((iso) => `<th><div>${DSEM_FULL[parseISO(iso).getDay()]}</div><div>(${brData(iso)})</div></th>`).join("");
-    const nomes = dias.map((iso) => `<td class="nm">${esc(nomeDe(iso).nome || "")}</td>`).join("");
-    const fones = dias.map((iso) => `<td class="fn">${esc(foneDe(iso))}</td>`).join("");
-    const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Escala Semanal CPU - ${brData(terISO)}</title>
-      <style>
-        *{box-sizing:border-box;} body{font-family:"Times New Roman",Times,serif;color:#000;margin:0;padding:12mm;}
-        .hdr{display:flex;align-items:center;gap:6px;} .hdr .side{width:26mm;height:24mm;display:flex;align-items:center;justify-content:center;}
-        .center{flex:1;text-align:center;} .center .ma{height:17mm;object-fit:contain;} .org div{font-size:11px;font-weight:bold;} .org div.s{font-size:9px;font-weight:normal;}
-        .titw{display:flex;align-items:flex-end;gap:10px;margin:8px 0;} .visto{text-align:center;font-size:11px;} .visto img{height:14mm;object-fit:contain;} .titulo{flex:1;text-align:center;font-weight:bold;text-decoration:underline;font-size:14px;}
-        table{width:100%;border-collapse:collapse;margin-top:4px;} th,td{border:1px solid #000;padding:6px 4px;text-align:center;font-size:12px;}
-        th{font-size:11px;} td.nm{height:52px;font-size:13px;} td.fn{font-size:11px;}
-        .ass{text-align:center;margin-top:26px;} .ass img{height:16mm;object-fit:contain;display:block;margin:0 auto;} .ass .n{font-weight:bold;font-size:12px;} .ass .f{font-size:11px;}
-        @media print{@page{size:A4 landscape;margin:8mm;}}
-      </style></head><body>
-      <div class="hdr">
-        <div class="side">${imgTag(brasoes.pmma, "")}</div>
-        <div class="center">${brasoes.ma ? `<img class="ma" src="${esc(brasoes.ma)}">` : ""}<div class="org">${ORG.map((l, i) => `<div class="${i >= 5 ? "s" : ""}">${esc(l)}</div>`).join("")}</div></div>
-        <div class="side">${imgTag(brasoes.bpm, "")}</div>
-      </div>
-      <div class="titw">
-        <div class="visto"><div><b>VISTO</b></div>${chefe.cmtAssinatura ? `<img src="${esc(chefe.cmtAssinatura)}">` : ""}<div>Cmt. do 18º BPM</div></div>
-        <div class="titulo">ESCALA DE SERVIÇO SEMANAL CPU (18º BPM)</div>
-      </div>
-      <table><thead><tr>${th}</tr></thead><tbody><tr>${nomes}</tr><tr>${fones}</tr></tbody></table>
-      <div class="ass">${!chefe.assinarGov && chefe.assinatura ? `<img src="${esc(chefe.assinatura)}">` : ""}<div class="n">${esc(chefe.nome || "—")}</div><div class="f">${esc(chefe.funcao || "")}</div></div>
-      </body></html>`;
-    const w = window.open("", "_blank"); if (!w) return;
-    w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 350);
-  }
-
   return (
     <div className="cpuc-wrap">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
@@ -194,7 +182,7 @@ export default function CpuCalendarioClient() {
             <div className="cpuc-col" key={ter}>
               <div className="cpuc-colh">
                 <span>Semana {wi + 1}</span>
-                <button className="cpuc-print" title="Imprimir a folha desta semana" onClick={() => imprimirSemana(ter)}>🖨 Imprimir semana</button>
+                <button className="cpuc-print" title="Abrir a prévia editável desta semana para imprimir" onClick={() => setPreviewSem(ter)}>🖨 Imprimir semana</button>
               </div>
               {dias.map((iso) => {
                 const d = parseISO(iso); const foraMes = (d.getMonth() + 1) !== mesNum;
@@ -238,6 +226,70 @@ export default function CpuCalendarioClient() {
           </div>
         </div>
       )}
+
+      {/* Prévia EDITÁVEL da folha semanal (com telefones) para imprimir */}
+      {previewSem && montado && createPortal((
+        <div id="cpuprev-overlay" style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(0,0,0,.6)", overflow: "auto" }}>
+          <div className="no-print" style={{ position: "sticky", top: 0, display: "flex", gap: 8, alignItems: "center", background: "#0b1626", padding: "8px 12px" }}>
+            <button onClick={() => window.print()} style={{ background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", fontWeight: 600 }}>🖨 Imprimir / PDF</button>
+            <button onClick={() => setPreviewSem(null)} style={{ background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer" }}>Fechar</button>
+            <span style={{ color: "#94A3B8", fontSize: 12, marginLeft: 6 }}>Você pode editar os nomes e telefones antes de imprimir (clique nas células).</span>
+          </div>
+          <div id="cpuprev-sheet" style={{ background: "#fff", color: "#000", width: "277mm", maxWidth: "100%", margin: "16px auto", padding: "12mm", fontFamily: '"Times New Roman", Times, serif', boxShadow: "0 10px 40px rgba(0,0,0,.4)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ width: "26mm", height: "24mm", display: "flex", alignItems: "center", justifyContent: "center" }}>{brasoes.pmma ? <img src={brasoes.pmma} alt="" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : null}</div>
+              <div style={{ flex: 1, textAlign: "center" }}>
+                {brasoes.ma ? <img src={brasoes.ma} alt="" style={{ height: "17mm", objectFit: "contain" }} /> : null}
+                {ORG.map((l, i) => <div key={i} style={{ fontSize: i >= 5 ? 9 : 11, fontWeight: i >= 5 ? 400 : 700 }}>{l}</div>)}
+              </div>
+              <div style={{ width: "26mm", height: "24mm", display: "flex", alignItems: "center", justifyContent: "center" }}>{brasoes.bpm ? <img src={brasoes.bpm} alt="" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : null}</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 10, margin: "8px 0" }}>
+              <div style={{ textAlign: "center", fontSize: 11 }}>
+                <div style={{ fontWeight: 700 }}>VISTO</div>
+                {chefe.cmtAssinatura ? <img src={chefe.cmtAssinatura} alt="" style={{ height: "14mm", objectFit: "contain" }} /> : <div style={{ height: "14mm" }} />}
+                <div>Cmt. do 18º BPM</div>
+              </div>
+              <div style={{ flex: 1, textAlign: "center", fontWeight: 700, textDecoration: "underline", fontSize: 14 }}>ESCALA DE SERVIÇO SEMANAL CPU (18º BPM)</div>
+            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8 }}>
+              <thead>
+                <tr>{Array.from({ length: 7 }, (_, i) => somaDias(previewSem, i)).map((iso) => (
+                  <th key={iso} style={{ border: "1px solid #000", padding: "6px 4px", fontSize: 11, textAlign: "center" }}>
+                    <div>{DSEM_FULL[parseISO(iso).getDay()].replace("-FEIRA", "")}</div><div>({brData(iso)})</div>
+                  </th>
+                ))}</tr>
+              </thead>
+              <tbody>
+                <tr>{Array.from({ length: 7 }, (_, i) => somaDias(previewSem, i)).map((iso) => (
+                  <td key={iso} style={{ border: "1px solid #000", padding: "6px 4px", textAlign: "center", fontStyle: "italic", fontSize: 13, height: "48px", verticalAlign: "middle" }}>
+                    <EdCell init={nomeDe(iso).nome || ""} />
+                  </td>
+                ))}</tr>
+                <tr>{Array.from({ length: 7 }, (_, i) => somaDias(previewSem, i)).map((iso) => (
+                  <td key={iso} style={{ border: "1px solid #000", padding: "6px 4px", textAlign: "center", fontSize: 11 }}>
+                    <EdCell init={foneDe(iso)} />
+                  </td>
+                ))}</tr>
+              </tbody>
+            </table>
+            {/* Assinatura do chefe — bem mais abaixo, com espaço para assinar */}
+            <div style={{ textAlign: "center", marginTop: "42mm" }}>
+              {!chefe.assinarGov && chefe.assinatura ? <img src={chefe.assinatura} alt="" style={{ height: "16mm", objectFit: "contain", display: "block", margin: "0 auto" }} /> : null}
+              <div style={{ fontWeight: 700, fontSize: 12 }}>{chefe.nome || "—"}</div>
+              <div style={{ fontSize: 11 }}>{chefe.funcao || ""}</div>
+            </div>
+          </div>
+          <style>{`
+            @media print {
+              body > *:not(#cpuprev-overlay){ display:none !important; }
+              #cpuprev-overlay{ position:static !important; overflow:visible !important; background:#fff !important; }
+              #cpuprev-sheet{ box-shadow:none !important; margin:0 !important; width:100% !important; padding:8mm !important; }
+              @page{ size:A4 landscape; margin:8mm; }
+            }
+          `}</style>
+        </div>
+      ), document.body)}
     </div>
   );
 }
