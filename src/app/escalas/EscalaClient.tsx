@@ -501,6 +501,13 @@ function refDoPool(key: PoolKey, cad: Cadastro): string {
   return key === "cpu" ? cad.refCpuISO : cad.refRodizioISO;
 }
 function proximoDoPool(key: PoolKey, dataISO: string, cad: Cadastro): string {
+  // O CPU tem excecao por dia (cad.cpuOverrides), preenchida no "CPU de dia".
+  // Aqui ela tem prioridade sobre o rodizio, para a previa e o cabecalho da
+  // escala falarem a mesma coisa que a tela de CPU.
+  if (key === "cpu") {
+    const ovr = cad.cpuOverrides?.[dataISO];
+    if (ovr !== undefined) return ovr; // ID | "__FOLGA__" | "" (vazio)
+  }
   return rodizio(cad[key], 1, dataISO, cad.afastamentos, refDoPool(key, cad))[0] || "";
 }
 
@@ -1625,6 +1632,7 @@ export default function EscalaClient() {
   const nomeDe = useMemo<NomeDe>(() => {
     return (token: string) => {
       if (!token) return "";
+      if (token.startsWith("__FOLGA")) return "Folga";
       const m = efMap[token];
       return m ? fmtMilitar(m) : token;
     };
@@ -1850,7 +1858,7 @@ export default function EscalaClient() {
               ? <span className="st-chip ok" title="Esta data já foi gerada/editada e está salva">● Escala salva para {brCurto(data)}</span>
               : <span className="st-chip auto" title="Mostrando o resultado automático do motor; clique em Gerar escala para fixar">○ Prévia automática (não salva)</span>}
           </span>
-          <span className="tb-cpu">CPU do dia: <b>{nomeDe(rodizio(cad.cpu, 1, data, cad.afastamentos, cad.refCpuISO)[0] || "") || "-"}</b></span>
+          <span className="tb-cpu">CPU do dia: <b>{nomeDe(proximoDoPool("cpu", data, cad)) || "-"}</b></span>
           {fimDeSemana && <span className="tb-hint">Fim de semana · expediente não entra</span>}
           {conflitosDoDia.length > 0 && (
             <span className="st-chip conf" title={"Escalado durante afastamento: " + conflitosDoDia.join(", ")}>

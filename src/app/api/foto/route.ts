@@ -66,12 +66,14 @@ export async function POST(req: Request) {
     });
     if (!ficha) return NextResponse.json({ error: "Militar nao encontrado" }, { status: 404 });
 
-    // Guarda a foto DENTRO do banco (Neon/Postgres), como data URL base64 em
-    // Efetivo.fotoURL. Assim persiste em qualquer computador, sem depender do
-    // R2/armazenamento externo. A imagem ja chega pequena (<=512px) do navegador.
+    // Guarda a foto DENTRO do banco, na tabela Config (coluna 'valor' = TEXT,
+    // que ja guarda blobs grandes como assinaturas/escala). Em Efetivo.fotoURL
+    // fica só um marcador curto "config:foto_<id>" — assim funciona mesmo que a
+    // coluna FotoURL seja um VARCHAR curto (era o que impedia salvar a imagem).
     const bytes = Buffer.from(await file.arrayBuffer());
     const mime = file.type || "image/jpeg";
     const dataUrl = `data:${mime};base64,${bytes.toString("base64")}`;
+    const chaveFoto = `foto_${efetivoId}`;
 
     // se a foto antiga era do R2 (legado), remove de la para nao deixar lixo
     const antiga = ficha.fotoURL;
@@ -79,7 +81,12 @@ export async function POST(req: Request) {
       try { await removerDoR2(antiga); } catch {}
     }
 
-    await prisma.efetivo.update({ where: { id: efetivoId }, data: { fotoURL: dataUrl } });
+    await prisma.config.upsert({
+      where: { chave: chaveFoto },
+      update: { valor: dataUrl },
+      create: { chave: chaveFoto, valor: dataUrl, descricao: "Foto de perfil (efetivo)" },
+    });
+    await prisma.efetivo.update({ where: { id: efetivoId }, data: { fotoURL: `config:${chaveFoto}` } });
 
     const nomeAlvo = [ficha.postoGrad || "", (ficha.nomeGuerra || ficha.nome || "")].filter(Boolean).join(" ").trim();
     await registrar({
@@ -114,6 +121,8 @@ export async function DELETE(req: Request) {
     const ficha = await prisma.efetivo.findUnique({ where: { id: efetivoId }, select: { fotoURL: true } });
     const antiga = ficha?.fotoURL;
     if (antiga && antiga.startsWith("fotos/")) { try { await removerDoR2(antiga); } catch {} }
+    // remove tambem a foto guardada na Config, se houver
+    try { await prisma.config.deleteMany({ where: { chave: `foto_${efetivoId}` } }); } catch {}
     await prisma.efetivo.update({ where: { id: efetivoId }, data: { fotoURL: null } });
     return NextResponse.json({ ok: true });
   } catch (err) {

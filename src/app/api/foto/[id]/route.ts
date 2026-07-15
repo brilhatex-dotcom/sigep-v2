@@ -43,7 +43,20 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     const key = ficha?.fotoURL || "";
     if (!key) return NextResponse.json({ error: "Sem foto" }, { status: 404 });
 
-    // Foto guardada no banco (data URL base64) — caminho atual.
+    // Foto guardada na tabela Config (caminho atual): fotoURL = "config:foto_<id>".
+    if (key.startsWith("config:")) {
+      const row = await prisma.config.findUnique({ where: { chave: key.slice("config:".length) } });
+      const dataUrl = row?.valor || "";
+      const m = dataUrl.match(/^data:([^;]+);base64,(.*)$/s);
+      if (!m) return NextResponse.json({ error: "Sem foto" }, { status: 404 });
+      const buffer = Buffer.from(m[2], "base64");
+      return new NextResponse(new Uint8Array(buffer), {
+        status: 200,
+        headers: { "Content-Type": m[1] || "image/jpeg", "Cache-Control": "private, max-age=60" },
+      });
+    }
+
+    // Foto guardada como data URL direto no fotoURL (compat).
     if (key.startsWith("data:")) {
       const m = key.match(/^data:([^;]+);base64,(.*)$/s);
       if (!m) return NextResponse.json({ error: "Sem foto" }, { status: 404 });
