@@ -1255,12 +1255,16 @@ export default function MapaClient({ servico }: { servico?: string } = {}) {
               )}
               <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
                 <button onClick={() => { setCpuOverride(editCpu, "__FOLGA__"); setEditCpu(null); }}
-                  style={{ flex: 1, minWidth: 100, padding: "8px 10px", background: "#241a08", border: "1px solid #6b5320", borderRadius: 8, color: "#e8c877", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Folga</button>
+                  style={{ flex: 1, minWidth: 92, padding: "8px 10px", background: "#241a08", border: "1px solid #6b5320", borderRadius: 8, color: "#e8c877", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Folga</button>
+                <button onClick={() => { setCpuOverride(editCpu, ""); setEditCpu(null); }}
+                  title="Deixa o dia sem CPU (célula em branco)"
+                  style={{ flex: 1, minWidth: 92, padding: "8px 10px", background: "#2a1414", border: "1px solid #7a1f1f", borderRadius: 8, color: "#ffb3b3", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Excluir</button>
                 <button onClick={() => { setCpuOverride(editCpu, null); setEditCpu(null); }}
-                  style={{ flex: 1, minWidth: 100, padding: "8px 10px", background: "#0b1626", border: "1px solid rgba(255,255,255,.15)", borderRadius: 8, color: "#cdd9ea", cursor: "pointer", fontSize: 13 }}>Automático (rodízio)</button>
+                  style={{ flex: 1, minWidth: 92, padding: "8px 10px", background: "#0b1626", border: "1px solid rgba(255,255,255,.15)", borderRadius: 8, color: "#cdd9ea", cursor: "pointer", fontSize: 13 }}>Automático (rodízio)</button>
               </div>
               <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 10 }}>
-                A escolha vale só para <b>{brCurto(editCpu)}</b> e reflete na escala do dia. &ldquo;Automático&rdquo; volta ao rodízio.
+                Vale só para <b>{brCurto(editCpu)}</b> e reflete na escala do dia.
+                <b> Folga</b> escreve &ldquo;Folga&rdquo;; <b>Excluir</b> deixa em branco; <b>Automático</b> volta ao rodízio.
               </p>
             </div>
           </div>
