@@ -331,7 +331,7 @@ function PoolMini({
     <div className="mp-pool">
       {ids.length === 0 && <div className="mp-eq-vazio">(vazio)</div>}
       {ids.length > 0 && (
-        <ol className="mp-eq-lista">
+        <ol className="mp-pool-lista">
           {ids.map((id, i) => (
             <li key={id + i}
               className={"mp-pool-li" + (dragIdx === i ? " arrastando" : "")}
@@ -342,11 +342,14 @@ function PoolMini({
               onDragEnd={() => setDragIdx(null)}
               title="Arraste para reordenar (a ordem = rodízio)"
             >
-              <span className="mp-pool-grip no-print">⋮⋮</span>
-              <span className="mp-pool-nome">{nomeDe(id)}</span>
+              <span className="mp-pool-top">
+                <span className="mp-pool-grip no-print">⋮⋮</span>
+                <span className="mp-pool-ord no-print">{i + 1}º</span>
+                <span className="mp-pool-nome">{nomeDe(id)}</span>
+              </span>
               <span className="mp-pool-btns no-print">
-                <button disabled={i === 0} title="subir" onClick={() => move(i, -1)}>↑</button>
-                <button disabled={i === ids.length - 1} title="descer" onClick={() => move(i, 1)}>↓</button>
+                <button disabled={i === 0} title="mover para a esquerda" onClick={() => move(i, -1)}>‹</button>
+                <button disabled={i === ids.length - 1} title="mover para a direita" onClick={() => move(i, 1)}>›</button>
                 <button className="del" title="remover" onClick={() => rm(i)}>×</button>
               </span>
             </li>
@@ -1290,9 +1293,15 @@ const CSS = `
 .mp-eq-vazio{ font-size:11.5px; color:#6f82a0; font-style:italic; padding:1px 0; }
 .mp-eq-rotem{ margin-bottom:4px; }
 .mp-pool{ margin-bottom:2px; }
+/* rodizio em lista HORIZONTAL (fica melhor para mudar a ordem) */
+.mp-pool-lista{ list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:6px; }
+.mp-pool-lista .mp-pool-li{ flex-direction:column; align-items:stretch; gap:3px; background:#0e1a2b; border:1px solid #28395a; border-radius:8px; padding:5px 7px; min-width:104px; }
+.mp-pool-top{ display:flex; align-items:center; gap:5px; }
+.mp-pool-ord{ color:#D4AF37; font-size:10px; font-weight:700; }
 .mp-pool-li{ display:flex; align-items:center; gap:6px; cursor:grab; border-radius:6px; padding:1px 2px; }
 .mp-pool-li:hover{ background:#0e1a2b; }
 .mp-pool-li.arrastando{ opacity:.45; }
+.mp-pool-lista .mp-pool-btns{ justify-content:center; }
 .mp-pool-grip{ color:#6b7f9c; cursor:grab; font-size:11px; user-select:none; letter-spacing:-2px; }
 .mp-pool-nome{ flex:1; }
 .mp-pool-btns{ display:inline-flex; gap:2px; }
