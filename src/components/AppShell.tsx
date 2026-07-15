@@ -35,6 +35,7 @@ import {
   Truck,
   History,
   ArrowLeftRight,
+  DoorOpen,
 } from "lucide-react";
 import Relogio from "@/components/Relogio";
 import BuscaGlobal from "@/components/BuscaGlobal";
@@ -95,6 +96,12 @@ const NAV: Secao[] = [
       { rotulo: "Sindicância", href: "/disciplinar/sindicancia", Icone: FileText, disponivel: true, adminOnly: true },
       { rotulo: "IPS", href: "/disciplinar/ips", Icone: ShieldCheck, disponivel: true, adminOnly: true },
       { rotulo: "IPM", href: "/disciplinar/ipm", Icone: ClipboardList, disponivel: true, adminOnly: true },
+    ],
+  },
+  {
+    titulo: "Centro de Comando",
+    itens: [
+      { rotulo: "Controle de Entrada e Saída", href: "/centro-comando", Icone: DoorOpen, disponivel: true, adminOnly: true },
     ],
   },
   {
