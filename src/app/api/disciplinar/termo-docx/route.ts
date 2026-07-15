@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { gerarTermoDocx, TERMO_LABEL, type TermoModelo } from "@/lib/termoDocx";
 import { lerChefes } from "@/lib/disciplinarChefes";
+import { obter } from "@/lib/disciplinarDb";
 
 export const dynamic = "force-dynamic";
 
-const CHAVE = "disciplinar";
 const MODELOS: TermoModelo[] = ["autuacao", "juntada", "notificacao", "declaracoes", "relatorio", "solucao"];
 
 function ehAdmin(perfil?: string | null): boolean {
@@ -28,9 +27,7 @@ export async function GET(req: Request) {
   if (!MODELOS.includes(modelo)) return NextResponse.json({ error: "modelo invalido" }, { status: 400 });
 
   try {
-    const row = await prisma.config.findUnique({ where: { chave: CHAVE } });
-    const lista = row?.valor ? JSON.parse(row.valor) : [];
-    const reg = Array.isArray(lista) ? lista.find((r: any) => r.id === id) : null;
+    const reg = await obter(id);
     if (!reg) return NextResponse.json({ error: "Procedimento nao encontrado" }, { status: 404 });
 
     const buffer = await gerarTermoDocx(reg, modelo, await lerChefes());

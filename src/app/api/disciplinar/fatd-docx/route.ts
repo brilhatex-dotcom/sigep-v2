@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { gerarFatdDocx } from "@/lib/fatdDocx";
 import { lerChefes } from "@/lib/disciplinarChefes";
+import { obter } from "@/lib/disciplinarDb";
 
 export const dynamic = "force-dynamic";
-
-const CHAVE = "disciplinar";
 
 function ehAdmin(perfil?: string | null): boolean {
   const p = (perfil || "").toLowerCase();
@@ -24,9 +22,7 @@ export async function GET(req: Request) {
   if (!id) return NextResponse.json({ error: "id obrigatorio" }, { status: 400 });
 
   try {
-    const row = await prisma.config.findUnique({ where: { chave: CHAVE } });
-    const lista = row?.valor ? JSON.parse(row.valor) : [];
-    const reg = Array.isArray(lista) ? lista.find((r: any) => r.id === id) : null;
+    const reg = await obter(id);
     if (!reg) return NextResponse.json({ error: "FATD nao encontrado" }, { status: 404 });
 
     const buffer = await gerarFatdDocx(reg, await lerChefes());
