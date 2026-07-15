@@ -123,7 +123,7 @@ type Cadastro = {
 type Brasoes = {
   pmma: string; ma: string; bpm: string; vistoCmt: string; assinaturaChefe: string;
 };
-type Chefe = { nome: string; funcao: string; assinatura?: string; assinarGov?: boolean; cmtAssinatura?: string };
+type Chefe = { nome: string; funcao: string; assinatura?: string; assinarGov?: boolean; cmtAssinatura?: string; comandante?: string };
 
 /* Efetivo (Cadastro de Efetivo via Prisma). Os POOLS guardam o ID PMMA;
    o nome exibido/impresso e montado a partir da ficha em fmtMilitar(). */
@@ -1437,7 +1437,7 @@ export default function EscalaClient() {
   // Chefe do P/1: carregado do servidor (aba "Chefe do P1"), igual em todo PC.
   // Estes valores sao apenas o padrao inicial antes do carregamento \u2014 o valor
   // real vem da config "escala_chefe_p1" (campo unico, editavel na aba).
-  const [chefe, setChefe] = useState<Chefe>({ nome: "1\u00ba TEN QOEM PAULO SILAS BARROS DE BRITO JUNIOR", funcao: "CHEFE DO P/1 DO 18\u00ba BPM", assinatura: "", assinarGov: false, cmtAssinatura: "/brasoes/assinatura-cmt.png" });
+  const [chefe, setChefe] = useState<Chefe>({ nome: "1\u00ba TEN QOEM PAULO SILAS BARROS DE BRITO JUNIOR", funcao: "CHEFE DO P/1 DO 18\u00ba BPM", assinatura: "", assinarGov: false, cmtAssinatura: "/brasoes/assinatura-cmt.png", comandante: "TEN CEL QOEM FL\u00c1VIO DE CARVALHO RAMOS" });
   const [chefeSalvando, setChefeSalvando] = useState(false);
   const [chefeMsg, setChefeMsg] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -1600,6 +1600,7 @@ export default function EscalaClient() {
             assinatura: d.assinatura || "",
             assinarGov: d.assinarGov === true,
             cmtAssinatura: d.cmtAssinatura || "/brasoes/assinatura-cmt.png",
+            comandante: d.comandante || "TEN CEL QOEM FLÁVIO DE CARVALHO RAMOS",
           });
         }
       })
@@ -1971,6 +1972,16 @@ export default function EscalaClient() {
                     onChange={(e) => setChefe((c) => ({ ...c, funcao: e.target.value }))}
                   />
                 </label>
+                <label>Comandante do 18º BPM (assina o disciplinar)
+                  <input
+                    value={chefe.comandante || ""}
+                    placeholder="ex: TEN CEL QOEM FLÁVIO DE CARVALHO RAMOS"
+                    onChange={(e) => setChefe((c) => ({ ...c, comandante: e.target.value }))}
+                  />
+                </label>
+                <div className="cfg-sec-sub" style={{ marginTop: 0 }}>
+                  O Comandante entra como autoridade nas peças disciplinares (FATD, Portaria e Solução) e o Chefe do P/1 acima é o participante do FATD.
+                </div>
                 <div className="chefe-acoes">
                   <button className="btn primary" disabled={chefeSalvando} onClick={salvarChefe}>
                     {chefeSalvando ? "Salvando..." : "💾 Salvar chefe"}
