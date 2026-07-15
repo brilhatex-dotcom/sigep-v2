@@ -81,6 +81,26 @@ function segundaDaSemana(): string {
   return toISO(new Date(h.getTime() + diff * DAY));
 }
 
+const MESES_PT = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+
+// Segundas-feiras de cada semana do mês de referência (1ª, 2ª, ... até 5ª/6ª).
+function semanasDoMes(refISO: string): { rotulo: string; iso: string }[] {
+  const d = parseISO(refISO);
+  const ano = d.getFullYear(), mes = d.getMonth();
+  const primeiro = new Date(ano, mes, 1);
+  const g = primeiro.getDay(); const diff = g === 0 ? -6 : 1 - g;
+  let seg = new Date(primeiro.getTime() + diff * DAY); // segunda da semana que contém o dia 1
+  const ultimo = new Date(ano, mes + 1, 0);
+  const out: { rotulo: string; iso: string }[] = [];
+  let n = 1;
+  while (seg <= ultimo && n <= 6) {
+    out.push({ rotulo: `${n}ª`, iso: toISO(seg) });
+    seg = new Date(seg.getTime() + 7 * DAY);
+    n++;
+  }
+  return out;
+}
+
 /* Celula editavel que imprime o proprio texto (contentEditable). */
 function Editavel({ value, onChange, className, placeholder }: { value: string; onChange: (v: string) => void; className?: string; placeholder?: string }) {
   const ref = (el: HTMLSpanElement | null) => { if (el && el.innerText !== (value || "")) el.innerText = value || ""; };
@@ -95,7 +115,15 @@ export default function CpuSemanalClient() {
   const [cad, setCad] = useState<Cadastro | null>(null);
   const [efMap, setEfMap] = useState<Record<string, Militar>>({});
   const [chefe, setChefe] = useState<Chefe>({ nome: "", funcao: "", assinatura: "", assinarGov: false, cmtAssinatura: "/brasoes/assinatura-cmt.png" });
-  const [inicio, setInicio] = useState<string>(segundaDaSemana());
+  const [inicio, setInicio] = useState<string>(() => {
+    // lembra a ultima semana em que o usuario mexeu (nao volta sempre para hoje)
+    if (typeof window !== "undefined") {
+      const s = localStorage.getItem("sigep_cpu_ultima_semana");
+      if (s && /^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    }
+    return segundaDaSemana();
+  });
+  useEffect(() => { try { localStorage.setItem("sigep_cpu_ultima_semana", inicio); } catch { /* ignore */ } }, [inicio]);
   const [ov, setOv] = useState<Record<string, Override>>({});
   const [brasoes, setBrasoes] = useState<Brasoes>(BRASOES_PADRAO);
   const [drag, setDrag] = useState<string | null>(null);
@@ -234,11 +262,19 @@ export default function CpuSemanalClient() {
 
       <div className="cpuw-bar no-print">
         <a className="cpuw-btn" href="/escalas/servico/cpu">← Voltar</a>
-        <label className="cpuw-field">Início (1ª semana)
+        <button className="cpuw-btn" title="Mês anterior" onClick={() => { const d = parseISO(inicio); setInicio(semanasDoMes(toISO(new Date(d.getFullYear(), d.getMonth() - 1, 1)))[0].iso); }}>◀</button>
+        <span className="cpuw-mes">{MESES_PT[parseISO(inicio).getMonth()]} / {parseISO(inicio).getFullYear()}</span>
+        <button className="cpuw-btn" title="Próximo mês" onClick={() => { const d = parseISO(inicio); setInicio(semanasDoMes(toISO(new Date(d.getFullYear(), d.getMonth() + 1, 1)))[0].iso); }}>▶</button>
+        <span className="cpuw-semweeks">Semana:
+          {semanasDoMes(inicio).map((s) => (
+            <button key={s.iso} className={"cpuw-wk" + (s.iso === inicio ? " on" : "")} onClick={() => setInicio(s.iso)}>{s.rotulo}</button>
+          ))}
+        </span>
+        <label className="cpuw-field">Início
           <input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
         </label>
         <span className="cpuw-spacer" />
-        <span className="cpuw-hint">Arraste o ⠿ para mover o oficial entre os dias · clique nos brasões para trocar · tudo salva sozinho</span>
+        <span className="cpuw-hint">Arraste o ⠿ para mover o oficial entre os dias · tudo salva sozinho</span>
         <button className="cpuw-btn primary" onClick={() => window.print()}>🖨 Imprimir / PDF</button>
       </div>
 
@@ -249,8 +285,13 @@ export default function CpuSemanalClient() {
 
 const CSS = `
 .cpuw-wrap{ color:#E8EEF6; font-family: ui-sans-serif, system-ui, Segoe UI, Roboto, Arial, sans-serif; }
-.cpuw-bar{ display:flex; align-items:flex-end; gap:12px; background:#0F1B2D; border:1px solid #1d2c44; border-radius:12px; padding:12px 14px; margin-bottom:14px; }
+.cpuw-bar{ display:flex; align-items:center; flex-wrap:wrap; gap:10px; background:#0F1B2D; border:1px solid #1d2c44; border-radius:12px; padding:12px 14px; margin-bottom:14px; }
 .cpuw-btn{ background:#16243a; color:#E8EEF6; border:1px solid #2b3f63; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; text-decoration:none; }
+.cpuw-mes{ font-weight:700; color:#E8EEF6; text-transform:capitalize; min-width:120px; text-align:center; }
+.cpuw-semweeks{ display:inline-flex; align-items:center; gap:4px; font-size:11px; color:#9fb0c7; }
+.cpuw-wk{ background:#0a1626; color:#cdd9ea; border:1px solid #28395a; border-radius:7px; width:26px; height:26px; font-size:12px; cursor:pointer; }
+.cpuw-wk.on{ background:#D4AF37; color:#1a1205; border-color:#D4AF37; font-weight:700; }
+.cpuw-wk:hover:not(.on){ border-color:#D4AF37; }
 .cpuw-btn:hover{ border-color:#D4AF37; }
 .cpuw-btn.primary{ background:#D4AF37; color:#0a1020; border-color:#D4AF37; font-weight:700; }
 .cpuw-field{ display:flex; flex-direction:column; gap:4px; font-size:11px; color:#9fb0c7; }
