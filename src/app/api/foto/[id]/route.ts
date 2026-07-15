@@ -41,18 +41,29 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       select: { fotoURL: true },
     });
     const key = ficha?.fotoURL || "";
-    if (!key || !key.startsWith("fotos/")) {
-      return NextResponse.json({ error: "Sem foto" }, { status: 404 });
+    if (!key) return NextResponse.json({ error: "Sem foto" }, { status: 404 });
+
+    // Foto guardada no banco (data URL base64) — caminho atual.
+    if (key.startsWith("data:")) {
+      const m = key.match(/^data:([^;]+);base64,(.*)$/s);
+      if (!m) return NextResponse.json({ error: "Sem foto" }, { status: 404 });
+      const buffer = Buffer.from(m[2], "base64");
+      return new NextResponse(new Uint8Array(buffer), {
+        status: 200,
+        headers: { "Content-Type": m[1] || "image/jpeg", "Cache-Control": "private, max-age=60" },
+      });
     }
 
-    const buffer = await baixarDoR2(key);
-    return new NextResponse(new Uint8Array(buffer), {
-      status: 200,
-      headers: {
-        "Content-Type": contentTypePorChave(key),
-        "Cache-Control": "private, max-age=300",
-      },
-    });
+    // Legado: foto ainda no R2.
+    if (key.startsWith("fotos/")) {
+      const buffer = await baixarDoR2(key);
+      return new NextResponse(new Uint8Array(buffer), {
+        status: 200,
+        headers: { "Content-Type": contentTypePorChave(key), "Cache-Control": "private, max-age=300" },
+      });
+    }
+
+    return NextResponse.json({ error: "Sem foto" }, { status: 404 });
   } catch (err) {
     console.error("[GET /api/foto/[id]]", err);
     return NextResponse.json({ error: "Falha ao carregar foto" }, { status: 500 });

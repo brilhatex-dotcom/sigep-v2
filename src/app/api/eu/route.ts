@@ -39,7 +39,7 @@ export async function GET() {
       where: { id: efetivoId },
       select: { fotoURL: true, postoGrad: true, nome: true, nomeGuerra: true },
     });
-    const temFoto = !!(ficha?.fotoURL && ficha.fotoURL.startsWith("fotos/"));
+    const temFoto = !!(ficha?.fotoURL && (ficha.fotoURL.startsWith("data:") || ficha.fotoURL.startsWith("fotos/")));
 
     // monta "Posto Nome de guerra" (ex: "Major Frans"); nome de guerra capitalizado
     let nomeExibicao = "";

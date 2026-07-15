@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { enviarParaR2, removerDoR2 } from "@/lib/r2";
+import { removerDoR2 } from "@/lib/r2";
 import { registrar } from "@/lib/auditoria";
 
 export const dynamic = "force-dynamic";
@@ -66,19 +66,20 @@ export async function POST(req: Request) {
     });
     if (!ficha) return NextResponse.json({ error: "Militar nao encontrado" }, { status: 404 });
 
+    // Guarda a foto DENTRO do banco (Neon/Postgres), como data URL base64 em
+    // Efetivo.fotoURL. Assim persiste em qualquer computador, sem depender do
+    // R2/armazenamento externo. A imagem ja chega pequena (<=512px) do navegador.
     const bytes = Buffer.from(await file.arrayBuffer());
-    const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-    const key = `fotos/${efetivoId}_${Date.now()}.${ext}`;
+    const mime = file.type || "image/jpeg";
+    const dataUrl = `data:${mime};base64,${bytes.toString("base64")}`;
 
-    await enviarParaR2(key, bytes, file.type);
-
-    // remove a foto antiga do R2 (se existia e era uma chave de foto)
+    // se a foto antiga era do R2 (legado), remove de la para nao deixar lixo
     const antiga = ficha.fotoURL;
     if (antiga && antiga.startsWith("fotos/")) {
       try { await removerDoR2(antiga); } catch {}
     }
 
-    await prisma.efetivo.update({ where: { id: efetivoId }, data: { fotoURL: key } });
+    await prisma.efetivo.update({ where: { id: efetivoId }, data: { fotoURL: dataUrl } });
 
     const nomeAlvo = [ficha.postoGrad || "", (ficha.nomeGuerra || ficha.nome || "")].filter(Boolean).join(" ").trim();
     await registrar({
@@ -88,7 +89,7 @@ export async function POST(req: Request) {
       detalhe: "Atualizou a foto de perfil",
     });
 
-    return NextResponse.json({ ok: true, key });
+    return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[POST /api/foto]", err);
     return NextResponse.json({ error: "Falha ao salvar a foto" }, { status: 500 });
