@@ -74,28 +74,32 @@ const ORG = [
 // do MA) · direita 18º BPM. Mesmo padrao da Escala Diaria.
 const BRASOES_PADRAO: Brasoes = { pmma: "/brasoes/pmma-190.jpg", ma: "/brasao-estado-ma.png", bpm: "/brasoes/brasao-18bpm.png" };
 
-function segundaDaSemana(): string {
+// A semana do CPU vai de TERÇA a SEGUNDA (começa na terça-feira).
+// Deslocamento até a terça da semana que contém a data (getDay: dom=0..sáb=6).
+function difAteTerca(g: number): number {
+  let diff = 2 - g; // terça=2
+  if (diff > 0) diff -= 7; // se cair no futuro (dom/seg), volta para a terça anterior
+  return diff;
+}
+function tercaDaSemana(): string {
   const h = new Date();
-  const g = h.getDay();
-  const diff = g === 0 ? -6 : 1 - g;
-  return toISO(new Date(h.getTime() + diff * DAY));
+  return toISO(new Date(h.getTime() + difAteTerca(h.getDay()) * DAY));
 }
 
 const MESES_PT = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
-// Segundas-feiras de cada semana do mês de referência (1ª, 2ª, ... até 5ª/6ª).
+// Terças-feiras de cada semana do mês de referência (1ª, 2ª, ... até 5ª/6ª).
 function semanasDoMes(refISO: string): { rotulo: string; iso: string }[] {
   const d = parseISO(refISO);
   const ano = d.getFullYear(), mes = d.getMonth();
   const primeiro = new Date(ano, mes, 1);
-  const g = primeiro.getDay(); const diff = g === 0 ? -6 : 1 - g;
-  let seg = new Date(primeiro.getTime() + diff * DAY); // segunda da semana que contém o dia 1
+  let ter = new Date(primeiro.getTime() + difAteTerca(primeiro.getDay()) * DAY); // terça da semana do dia 1
   const ultimo = new Date(ano, mes + 1, 0);
   const out: { rotulo: string; iso: string }[] = [];
   let n = 1;
-  while (seg <= ultimo && n <= 6) {
-    out.push({ rotulo: `${n}ª`, iso: toISO(seg) });
-    seg = new Date(seg.getTime() + 7 * DAY);
+  while (ter <= ultimo && n <= 6) {
+    out.push({ rotulo: `${n}ª`, iso: toISO(ter) });
+    ter = new Date(ter.getTime() + 7 * DAY);
     n++;
   }
   return out;
@@ -115,14 +119,17 @@ export default function CpuSemanalClient() {
   const [cad, setCad] = useState<Cadastro | null>(null);
   const [efMap, setEfMap] = useState<Record<string, Militar>>({});
   const [chefe, setChefe] = useState<Chefe>({ nome: "", funcao: "", assinatura: "", assinarGov: false, cmtAssinatura: "/brasoes/assinatura-cmt.png" });
-  const [inicio, setInicio] = useState<string>(() => {
+  // Garante que o início caia sempre numa TERÇA (semana terça→segunda).
+  const snapTerca = (iso: string) => { const d = parseISO(iso); return toISO(new Date(d.getTime() + difAteTerca(d.getDay()) * DAY)); };
+  const [inicio, setInicioRaw] = useState<string>(() => {
     // lembra a ultima semana em que o usuario mexeu (nao volta sempre para hoje)
     if (typeof window !== "undefined") {
       const s = localStorage.getItem("sigep_cpu_ultima_semana");
-      if (s && /^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      if (s && /^\d{4}-\d{2}-\d{2}$/.test(s)) { const d = parseISO(s); return toISO(new Date(d.getTime() + difAteTerca(d.getDay()) * DAY)); }
     }
-    return segundaDaSemana();
+    return tercaDaSemana();
   });
+  const setInicio = (iso: string) => setInicioRaw(snapTerca(iso));
   useEffect(() => { try { localStorage.setItem("sigep_cpu_ultima_semana", inicio); } catch { /* ignore */ } }, [inicio]);
   const [ov, setOv] = useState<Record<string, Override>>({});
   const [brasoes, setBrasoes] = useState<Brasoes>(BRASOES_PADRAO);
