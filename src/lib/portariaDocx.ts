@@ -57,7 +57,7 @@ export async function gerarPortariaDocx(reg: PortariaReg): Promise<Buffer> {
   const imgBpm = imagem("brasoes/brasao-18bpm.png", 22, 22);
   const org = [
     "ESTADO DO MARANHÃO", "SECRETARIA DE ESTADO DA SEGURANÇA PÚBLICA",
-    "POLÍCIA MILITAR DO MARANHÃO", "COMANDO DO POLICIAMENTO DE ÁREA DO INTERIOR 2",
+    "POLÍCIA MILITAR DO MARANHÃO", "COMANDO DO POLICIAMENTO DE ÁREA I/2",
     "18º BATALHÃO DE POLÍCIA MILITAR",
   ].map((x) => pCenter(x, { bold: true, size: 22 }));
 
@@ -76,6 +76,8 @@ export async function gerarPortariaDocx(reg: PortariaReg): Promise<Buffer> {
       properties: { page: { margin: { top: 850, bottom: 850, left: 1130, right: 1130 } } },
       children: [
         cabecalho,
+        pCenter("Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP-65.760-000", { size: 16 }),
+        pCenter("TELEFAX: (99) 98497-1918 (Permanência) — 18batalhaopmma@gmail.com", { size: 16 }),
         new Paragraph({ text: "" }),
         pCenter(`PORTARIA Nº ${numPortaria}`, { bold: true, size: 26 }),
         pCenter(`Instauração de ${info.titulo}`, { bold: true, size: 22 }),
@@ -97,7 +99,7 @@ export async function gerarPortariaDocx(reg: PortariaReg): Promise<Buffer> {
           ...(reg.prazo?.trim() ? [t(" (previsão de conclusão em "), b(dBR(reg.prazo)), t(")")] : []), t(".")]),
         art([b("Art. 4º"), t(" — Esta Portaria entra em vigor na data de sua publicação.")]),
         new Paragraph({ spacing: { after: 300 }, children: [t("Publique-se, registre-se e cumpra-se.")] }),
-        pCenter(reg.dataInstauracao?.trim() ? `São Luís/MA, ${dBR(reg.dataInstauracao)}.` : `São Luís/MA, ______ de ____________________ de ${ANO}.`, { size: 24 }),
+        pCenter(reg.dataInstauracao?.trim() ? `Presidente Dutra-MA, ${dBR(reg.dataInstauracao)}.` : `Presidente Dutra-MA, ______ de ____________________ de ${ANO}.`, { size: 24 }),
         new Paragraph({ text: "" }),
         new Paragraph({ text: "" }),
         new Paragraph({ text: "" }),

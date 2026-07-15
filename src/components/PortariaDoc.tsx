@@ -108,13 +108,17 @@ export default function PortariaDoc({ reg, onFechar }: { reg: PortariaRegistro; 
             <p style={{ margin: 0, fontWeight: "bold" }}>ESTADO DO MARANHÃO</p>
             <p style={{ margin: 0, fontWeight: "bold" }}>SECRETARIA DE ESTADO DA SEGURANÇA PÚBLICA</p>
             <p style={{ margin: 0, fontWeight: "bold" }}>POLÍCIA MILITAR DO MARANHÃO</p>
-            <p style={{ margin: 0, fontWeight: "bold" }}>COMANDO DO POLICIAMENTO DE ÁREA DO INTERIOR 2</p>
+            <p style={{ margin: 0, fontWeight: "bold" }}>COMANDO DO POLICIAMENTO DE ÁREA I/2</p>
             <p style={{ margin: 0, fontWeight: "bold" }}>18º BATALHÃO DE POLÍCIA MILITAR</p>
           </div>
           <img src="/brasoes/brasao-18bpm.png" alt="" style={{ width: "22mm", height: "22mm", objectFit: "contain" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
         </div>
+        <p style={{ textAlign: "center", fontSize: "8.5pt", margin: "1mm 0 0", lineHeight: 1.2 }} contentEditable={false}>
+          Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP-65.760-000<br />
+          TELEFAX: (99) 98497-1918 (Permanência) — 18batalhaopmma@gmail.com
+        </p>
 
-        <h1 style={{ textAlign: "center", fontSize: "13pt", fontWeight: "bold", margin: "10mm 0 1mm" }}>
+        <h1 style={{ textAlign: "center", fontSize: "13pt", fontWeight: "bold", margin: "8mm 0 1mm" }}>
           PORTARIA Nº {numPortaria}
         </h1>
         <p style={{ textAlign: "center", fontWeight: "bold", margin: "0 0 8mm" }}>
@@ -151,7 +155,7 @@ export default function PortariaDoc({ reg, onFechar }: { reg: PortariaRegistro; 
         <p style={{ margin: "0 0 10mm" }}>Publique-se, registre-se e cumpra-se.</p>
 
         <p style={{ textAlign: "center", margin: "0 0 16mm" }} contentEditable={false}>
-          São Luís/MA, {reg.dataInstauracao?.trim() ? dBR(reg.dataInstauracao) : "______ de ____________________ de " + ANO}.
+          Presidente Dutra-MA, {reg.dataInstauracao?.trim() ? dBR(reg.dataInstauracao) : "______ de ____________________ de " + ANO}.
         </p>
 
         <div style={{ display: "flex", justifyContent: "center" }} contentEditable={false}>

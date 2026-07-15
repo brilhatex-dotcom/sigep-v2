@@ -23,11 +23,23 @@ export const TERMO_LABEL: Record<TermoModelo, string> = {
 };
 
 const ANO = new Date().getFullYear();
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const SOL: Record<string, { titulo: string; agente: string; procNome: string; presente: string; sindicado: string }> = {
+  sindicancia: { titulo: "SOLUÇÃO DE SINDICÂNCIA", agente: "sindicante", procNome: "Sindicância", presente: "Solução de Sindicância", sindicado: "Sindicado" },
+  ips: { titulo: "SOLUÇÃO DA INVESTIGAÇÃO PRELIMINAR SUMÁRIA", agente: "encarregado", procNome: "Investigação Preliminar Sumária", presente: "Solução da Investigação Preliminar Sumária", sindicado: "envolvido" },
+  ipm: { titulo: "SOLUÇÃO DO INQUÉRITO POLICIAL MILITAR", agente: "encarregado", procNome: "Inquérito Policial Militar", presente: "Solução do Inquérito Policial Militar", sindicado: "envolvido" },
+};
 function pxFromMm(mm: number): number { return Math.round((mm / 25.4) * 96); }
 function dBR(iso: string): string {
   const m = (iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
   return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
 }
+function dataExtenso(iso: string): string {
+  const m = (iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return "______ de ____________________ de " + ANO;
+  return `${m[3]} de ${MESES[Number(m[2]) - 1] || "____"} de ${m[1]}`;
+}
+function item(text: string) { return new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { after: 60 }, indent: { left: 400 }, children: [new TextRun({ text, size: 24 })] }); }
 function imagem(nome: string, wMm: number, hMm: number): ImageRun | null {
   try {
     const dados = fs.readFileSync(path.join(process.cwd(), "public", nome));
@@ -62,14 +74,14 @@ const BR = "____________________";
 export async function gerarTermoDocx(reg: TermoReg, modelo: TermoModelo): Promise<Buffer> {
   const proc = NOME_PROC[reg.tipo] || "procedimento apuratório";
   const numRef = (reg.portaria || "").replace(/port(aria)?\.?\s*/i, "").trim() || (reg.numero || "").trim() || `______/${ANO}`;
-  const dataExt = `Aos ______ dias do mês de ____________________ do ano de ${ANO}, nesta cidade de São Luís, Estado do Maranhão, na sede do 18º Batalhão de Polícia Militar,`;
+  const dataExt = `Aos ______ dias do mês de ____________________ do ano de ${ANO}, nesta cidade de Presidente Dutra, Estado do Maranhão, na sede do 18º Batalhão de Polícia Militar,`;
 
   const imgPmma = imagem("brasoes/pmma-190.jpg", 26, 22);
   const imgMa = imagem("brasoes/armas-ma.png", 16, 16);
   const imgBpm = imagem("brasoes/brasao-18bpm.png", 22, 22);
   const org = [
     "ESTADO DO MARANHÃO", "SECRETARIA DE ESTADO DA SEGURANÇA PÚBLICA",
-    "POLÍCIA MILITAR DO MARANHÃO", "COMANDO DO POLICIAMENTO DE ÁREA DO INTERIOR 2",
+    "POLÍCIA MILITAR DO MARANHÃO", "COMANDO DO POLICIAMENTO DE ÁREA I/2",
     "18º BATALHÃO DE POLÍCIA MILITAR",
   ].map((x) => pCenter(x, { bold: true, size: 22 }));
   const cabecalho = new Table({
@@ -119,7 +131,7 @@ export async function gerarTermoDocx(reg: TermoReg, modelo: TermoModelo): Promis
       new Paragraph({ spacing: { after: 120 }, children: [t("[  ] ser ouvido(a)   [  ] apresentar defesa   [  ] acompanhar os trabalhos   [  ] tomar ciência")] }),
       new Paragraph({ spacing: { after: 160 }, children: [t("na condição de " + BR + ".")] }),
       just([t("Fica o(a) notificado(a) ciente de que lhe são assegurados o contraditório e a ampla defesa, podendo fazer-se acompanhar de advogado e indicar testemunhas, na forma da lei.")]),
-      pCenter(`São Luís/MA, ______ de ____________________ de ${ANO}.`, { size: 24 }),
+      pCenter(`Presidente Dutra-MA, ______ de ____________________ de ${ANO}.`, { size: 24 }),
       ...assinatura("Encarregado(a) do procedimento"),
       new Paragraph({ spacing: { before: 240 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: "000000" } }, children: [b("CIÊNCIA DO(A) NOTIFICADO(A)")] }),
       new Paragraph({ spacing: { after: 120 }, children: [t("Recebi a presente notificação em " + BR + ", ciente do dia e hora acima.")] }),
@@ -144,24 +156,28 @@ export async function gerarTermoDocx(reg: TermoReg, modelo: TermoModelo): Promis
       ...assinatura("Encarregado(a)"),
     ];
   } else if (modelo === "solucao") {
+    const c = SOL[reg.tipo] || SOL.sindicancia;
     corpo = [
-      pCenter("DESPACHO / SOLUÇÃO", { bold: true, size: 26, underline: true }),
+      pCenter(c.titulo, { bold: true, size: 26, underline: true }),
       new Paragraph({ text: "" }),
       just([
-        t("Vistos e examinados os presentes autos de " + proc + " nº "), b(numRef),
-        t(", instaurado(a) para apurar "), (reg.objeto?.trim() ? b(reg.objeto) : t(BR + BR)),
-        t(", e considerando o relatório final apresentado pelo(a) Encarregado(a),"),
+        t("Pelas conclusões das averiguações Policiais Militares a que chegou o "),
+        (reg.encarregado?.trim() ? b(reg.encarregado) : t(BR)),
+        t(`, ${c.agente} ${c.agente === "sindicante" ? "desta" : "deste"} ${c.procNome}, mandada proceder por este Comando, mediante `),
+        b("Portaria nº " + numRef), t(", datada de "), b(dataExtenso(reg.dataInstauracao)),
+        t(", com vistas a apurar "), (reg.objeto?.trim() ? b(reg.objeto) : t(BR + BR)), t("."),
       ], true),
-      new Paragraph({ spacing: { after: 120 }, children: [b("DECIDO:")] }),
-      new Paragraph({ spacing: { after: 100 }, children: [t("[  ] Acolher o relatório e determinar o ARQUIVAMENTO do procedimento, por não restar comprovada transgressão/infração.")] }),
-      new Paragraph({ spacing: { after: 60 }, children: [t("[  ] Acolher o relatório e determinar as seguintes providências (instauração de FATD, representação, medidas administrativas):")] }),
-      ...linhas(3),
-      new Paragraph({ spacing: { before: 80, after: 60 }, children: [t("[  ] Não acolher o relatório, determinando:")] }),
-      ...linhas(2),
-      sub("Fundamentação:"), ...linhas(3),
-      new Paragraph({ spacing: { before: 120, after: 300 }, children: [t("Publique-se, registre-se e cumpra-se.")] }),
-      pCenter(`São Luís/MA, ______ de ____________________ de ${ANO}.`, { size: 24 }),
-      ...assinatura("Comandante do 18º BPM", "Autoridade competente"),
+      just([t(`À detida análise dos autos, concordo com o parecer conclusivo do ${c.agente}, pelos fundamentos a seguir expostos.`)], true),
+      ...linhas(6),
+      just([t("Face ao acima exposto e ao que dos autos consta, "), b("RESOLVO"), t(":")]),
+      item(`a) Concordar com o Relatório do ${c.agente === "sindicante" ? "Sindicante" : "Encarregado"}, por entender que o conjunto probatório não revela a prática de transgressão disciplinar;`),
+      item(`b) Publicar em Boletim Interno o Relatório e a presente ${c.presente};`),
+      item(`c) Dar ciência da presente decisão ao ${c.sindicado};`),
+      item("d) Remeter, via digital, cópia do relatório e da solução à Diretoria de Pessoal, para fins de controle;"),
+      item("e) Arquivar cópia integral dos autos na 1ª Seção do 18º BPM, para fins de controle e registro administrativo."),
+      new Paragraph({ text: "" }),
+      pCenter(`Quartel do 18º BPM, em Presidente Dutra, ______ de ____________________ de ${ANO}.`, { size: 24 }),
+      ...assinatura("CMT DO 18º BPM", "Comandante do 18º BPM"),
     ];
   } else {
     corpo = [
@@ -179,7 +195,7 @@ export async function gerarTermoDocx(reg: TermoReg, modelo: TermoModelo): Promis
       sub("IV — DA CONCLUSÃO"), ...linhas(3),
       just([t("É o relatório, que submeto à apreciação e deliberação de Vossa Senhoria.")]),
       new Paragraph({ text: "" }),
-      pCenter(`São Luís/MA, ______ de ____________________ de ${ANO}.`, { size: 24 }),
+      pCenter(`Presidente Dutra-MA, ______ de ____________________ de ${ANO}.`, { size: 24 }),
       ...assinatura("Encarregado(a) do procedimento", reg.encarregado?.trim() || undefined),
     ];
   }
@@ -188,7 +204,12 @@ export async function gerarTermoDocx(reg: TermoReg, modelo: TermoModelo): Promis
     styles: { default: { document: { run: { font: "Times New Roman", size: 24 } } } },
     sections: [{
       properties: { page: { margin: { top: 850, bottom: 850, left: 1130, right: 1130 } } },
-      children: [cabecalho, epigrafe, new Paragraph({ text: "" }), ...corpo],
+      children: [
+        cabecalho,
+        pCenter("Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP-65.760-000", { size: 16 }),
+        pCenter("TELEFAX: (99) 98497-1918 (Permanência) — 18batalhaopmma@gmail.com", { size: 16 }),
+        epigrafe, new Paragraph({ text: "" }), ...corpo,
+      ],
     }],
   });
 

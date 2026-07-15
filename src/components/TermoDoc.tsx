@@ -24,7 +24,7 @@ export const TERMO_LABEL: Record<TermoModelo, string> = {
   notificacao: "Notificação / Intimação",
   declaracoes: "Termo de Declarações",
   relatorio: "Relatório Final",
-  solucao: "Despacho / Solução",
+  solucao: "Solução",
 };
 
 const NOME_PROC: Record<string, string> = {
@@ -32,10 +32,22 @@ const NOME_PROC: Record<string, string> = {
 };
 
 const ANO = new Date().getFullYear();
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 function dBR(iso: string): string {
   const m = (iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
   return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
 }
+function dataExtenso(iso: string): string {
+  const m = (iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return "______ de ____________________ de " + ANO;
+  return `${m[3]} de ${MESES[Number(m[2]) - 1] || "____"} de ${m[1]}`;
+}
+// Termos por tipo para a Solução (o modelo-base é o da Sindicância).
+const SOL: Record<string, { titulo: string; agente: string; procNome: string; presente: string }> = {
+  sindicancia: { titulo: "SOLUÇÃO DE SINDICÂNCIA", agente: "sindicante", procNome: "Sindicância", presente: "Solução de Sindicância" },
+  ips: { titulo: "SOLUÇÃO DA INVESTIGAÇÃO PRELIMINAR SUMÁRIA", agente: "encarregado", procNome: "Investigação Preliminar Sumária", presente: "Solução da Investigação Preliminar Sumária" },
+  ipm: { titulo: "SOLUÇÃO DO INQUÉRITO POLICIAL MILITAR", agente: "encarregado", procNome: "Inquérito Policial Militar", presente: "Solução do Inquérito Policial Militar" },
+};
 function ul(w: string): React.CSSProperties {
   return { display: "inline-block", minWidth: w, borderBottom: "1px solid #000" };
 }
@@ -58,7 +70,7 @@ export default function TermoDoc({ reg, modelo, onFechar }: { reg: TermoRegistro
 
   const proc = NOME_PROC[reg.tipo] || "procedimento apuratório";
   const numRef = (reg.portaria || "").replace(/port(aria)?\.?\s*/i, "").trim() || (reg.numero || "").trim() || `______/${ANO}`;
-  const dataExt = "Aos ______ dias do mês de ____________________ do ano de " + ANO + ", nesta cidade de São Luís, Estado do Maranhão, na sede do 18º Batalhão de Polícia Militar,";
+  const dataExt = "Aos ______ dias do mês de ____________________ do ano de " + ANO + ", nesta cidade de Presidente Dutra, Estado do Maranhão, na sede do 18º Batalhão de Polícia Militar,";
 
   async function baixarWord() {
     setBaixandoWord(true);
@@ -109,11 +121,15 @@ export default function TermoDoc({ reg, modelo, onFechar }: { reg: TermoRegistro
             <p style={{ margin: 0, fontWeight: "bold" }}>ESTADO DO MARANHÃO</p>
             <p style={{ margin: 0, fontWeight: "bold" }}>SECRETARIA DE ESTADO DA SEGURANÇA PÚBLICA</p>
             <p style={{ margin: 0, fontWeight: "bold" }}>POLÍCIA MILITAR DO MARANHÃO</p>
-            <p style={{ margin: 0, fontWeight: "bold" }}>COMANDO DO POLICIAMENTO DE ÁREA DO INTERIOR 2</p>
+            <p style={{ margin: 0, fontWeight: "bold" }}>COMANDO DO POLICIAMENTO DE ÁREA I/2</p>
             <p style={{ margin: 0, fontWeight: "bold" }}>18º BATALHÃO DE POLÍCIA MILITAR</p>
           </div>
           <img src="/brasoes/brasao-18bpm.png" alt="" style={{ width: "22mm", height: "22mm", objectFit: "contain" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
         </div>
+        <p style={{ textAlign: "center", fontSize: "8.5pt", margin: "1mm 0 0", lineHeight: 1.2 }} contentEditable={false}>
+          Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP-65.760-000<br />
+          TELEFAX: (99) 98497-1918 (Permanência) — 18batalhaopmma@gmail.com
+        </p>
 
         <p style={{ textAlign: "center", fontSize: "10pt", margin: "6mm 0 1mm" }}>
           {proc} · Portaria nº {numRef}{reg.objeto?.trim() ? ` — apuração de: ${reg.objeto}` : ""}
@@ -174,7 +190,7 @@ export default function TermoDoc({ reg, modelo, onFechar }: { reg: TermoRegistro
               fazer-se acompanhar de advogado e indicar testemunhas, na forma da lei.
             </p>
             <p style={{ textAlign: "center", margin: "6mm 0 12mm" }} contentEditable={false}>
-              São Luís/MA, ______ de ____________________ de {ANO}.
+              Presidente Dutra-MA, ______ de ____________________ de {ANO}.
             </p>
             <div style={{ marginBottom: "10mm" }} contentEditable={false}>
               <Assina papel="Encarregado(a) do procedimento" />
@@ -235,7 +251,7 @@ export default function TermoDoc({ reg, modelo, onFechar }: { reg: TermoRegistro
               É o relatório, que submeto à apreciação e deliberação de Vossa Senhoria.
             </p>
             <p style={{ textAlign: "center", margin: "10mm 0 16mm" }} contentEditable={false}>
-              São Luís/MA, ______ de ____________________ de {ANO}.
+              Presidente Dutra-MA, ______ de ____________________ de {ANO}.
             </p>
             <div contentEditable={false}>
               <div style={{ textAlign: "center", width: "90mm", margin: "0 auto" }}>
@@ -248,42 +264,41 @@ export default function TermoDoc({ reg, modelo, onFechar }: { reg: TermoRegistro
           </>
         )}
 
-        {modelo === "solucao" && (
+        {modelo === "solucao" && (() => {
+          const c = SOL[reg.tipo] || SOL.sindicancia;
+          return (
           <>
-            <h1 style={sTit}>DESPACHO / SOLUÇÃO</h1>
-            <p style={{ textAlign: "justify", textIndent: "12mm", margin: "0 0 5mm" }}>
-              Vistos e examinados os presentes autos de {proc} nº <strong>{numRef}</strong>, instaurado(a) para apurar{" "}
-              {reg.objeto?.trim() ? <strong>{reg.objeto}</strong> : <span style={ul("90mm")}>&nbsp;</span>}, e
-              considerando o relatório final apresentado pelo(a) Encarregado(a),
+            <h1 style={sTit}>{c.titulo}</h1>
+            <p style={{ textAlign: "justify", textIndent: "12mm", margin: "0 0 4mm" }}>
+              Pelas conclusões das averiguações Policiais Militares a que chegou o {reg.encarregado?.trim() ? <strong>{reg.encarregado}</strong> : <span style={ul("70mm")}>&nbsp;</span>},
+              {" "}{c.agente} {c.agente === "sindicante" ? "desta" : "deste"} {c.procNome}, mandada proceder por este Comando,
+              mediante <strong>Portaria nº {numRef}</strong>, datada de <strong>{dataExtenso(reg.dataInstauracao)}</strong>,
+              com vistas a apurar {reg.objeto?.trim() ? <strong>{reg.objeto}</strong> : <span style={ul("90mm")}>&nbsp;</span>}.
             </p>
-            <p style={{ fontWeight: "bold", margin: "0 0 4mm" }}>DECIDO:</p>
-            <p style={{ margin: "0 0 3mm" }}>
-              [ &nbsp; ] Acolher o relatório e determinar o <strong>ARQUIVAMENTO</strong> do procedimento, por não
-              restar comprovada transgressão/infração.
+            <p style={{ textAlign: "justify", textIndent: "12mm", margin: "0 0 3mm" }}>
+              À detida análise dos autos, concordo com o parecer conclusivo do {c.agente}, pelos fundamentos a seguir expostos.
             </p>
-            <p style={{ margin: "0 0 3mm" }}>
-              [ &nbsp; ] Acolher o relatório e determinar as seguintes providências (instauração de FATD,
-              representação, medidas administrativas):
+            <Linhas n={6} />
+            <p style={{ textAlign: "justify", margin: "5mm 0 3mm" }}>
+              Face ao acima exposto e ao que dos autos consta, <strong>RESOLVO</strong>:
             </p>
-            <Linhas n={3} />
-            <p style={{ margin: "3mm 0 3mm" }}>
-              [ &nbsp; ] <strong>Não acolher</strong> o relatório, determinando:
-            </p>
-            <Linhas n={2} />
-            <p style={{ margin: "4mm 0 2mm" }}><strong>Fundamentação:</strong></p>
-            <Linhas n={3} />
-            <p style={{ margin: "6mm 0 10mm" }}>Publique-se, registre-se e cumpra-se.</p>
-            <p style={{ textAlign: "center", margin: "0 0 16mm" }} contentEditable={false}>
-              São Luís/MA, ______ de ____________________ de {ANO}.
+            <p style={pItem}>a) Concordar com o Relatório do {c.agente === "sindicante" ? "Sindicante" : "Encarregado"}, por entender que o conjunto probatório não revela a prática de transgressão disciplinar;</p>
+            <p style={pItem}>b) Publicar em Boletim Interno o Relatório e a presente {c.presente};</p>
+            <p style={pItem}>c) Dar ciência da presente decisão ao {c.agente === "sindicante" ? "Sindicado" : "envolvido"};</p>
+            <p style={pItem}>d) Remeter, via digital, cópia do relatório e da solução à Diretoria de Pessoal, para fins de controle;</p>
+            <p style={pItem}>e) Arquivar cópia integral dos autos na 1ª Seção do 18º BPM, para fins de controle e registro administrativo.</p>
+            <p style={{ textAlign: "center", margin: "10mm 0 16mm" }} contentEditable={false}>
+              Quartel do 18º BPM, em Presidente Dutra, ______ de ____________________ de {ANO}.
             </p>
             <div contentEditable={false}>
-              <div style={{ textAlign: "center", width: "95mm", margin: "0 auto" }}>
-                <div style={{ borderTop: "1px solid #000", paddingTop: "1mm", fontWeight: "bold" }}>Autoridade competente</div>
-                <div>Comandante do 18º BPM</div>
+              <div style={{ textAlign: "center", width: "100mm", margin: "0 auto" }}>
+                <div style={{ borderTop: "1px solid #000", paddingTop: "1mm", fontWeight: "bold" }}>Comandante do 18º BPM</div>
+                <div style={{ fontSize: "10pt" }}>CMT DO 18º BPM</div>
               </div>
             </div>
           </>
-        )}
+          );
+        })()}
       </div>
 
       <style>{`
@@ -303,3 +318,4 @@ export default function TermoDoc({ reg, modelo, onFechar }: { reg: TermoRegistro
 
 const sTit: React.CSSProperties = { textAlign: "center", fontSize: "13pt", fontWeight: "bold", margin: "5mm 0 6mm", textDecoration: "underline" };
 const sSub: React.CSSProperties = { fontWeight: "bold", margin: "4mm 0 1mm" };
+const pItem: React.CSSProperties = { textAlign: "justify", margin: "0 0 2mm", paddingLeft: "8mm" };
