@@ -144,3 +144,25 @@ export async function remover(id: string): Promise<void> {
   await garantir();
   await prisma.$executeRawUnsafe(`DELETE FROM disciplinar_procedimento WHERE id = $1`, id);
 }
+
+/* Importa em lote (histórico). Pula os que já existem com o MESMO tipo+número,
+   para poder colar de novo sem duplicar. Devolve quantos entraram/pularam. */
+export async function importar(tipo: string, itens: any[], criadoPor: string): Promise<{ criados: number; pulados: number }> {
+  await garantir();
+  const TIPOS = ["fatd", "sindicancia", "ips", "ipm"];
+  const t = TIPOS.includes(tipo) ? tipo : "fatd";
+  const existentes: any[] = await prisma.$queryRawUnsafe(`SELECT numero FROM disciplinar_procedimento WHERE tipo = $1`, t);
+  const vistos = new Set(existentes.map((r) => (r.numero || "").trim().toLowerCase()).filter(Boolean));
+  let criados = 0, pulados = 0;
+  for (const it of Array.isArray(itens) ? itens : []) {
+    const reg = normaliza({ ...it, tipo: t });
+    reg.criadoPor = criadoPor || "importação";
+    const chave = reg.numero.trim().toLowerCase();
+    if (!reg.numero && !reg.envolvido && !reg.objeto) continue; // linha vazia
+    if (chave && vistos.has(chave)) { pulados++; continue; }
+    await inserir(reg);
+    if (chave) vistos.add(chave);
+    criados++;
+  }
+  return { criados, pulados };
+}

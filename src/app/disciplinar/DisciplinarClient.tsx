@@ -26,6 +26,27 @@ const vazio = (tipo: string): Registro => ({
   envolvido: "", objeto: "", prazo: "", status: "Em andamento", obs: "", criadoEm: "", criadoPor: "",
 });
 function brData(iso: string) { return iso && iso.length >= 10 ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : iso || "—"; }
+
+// Converte "DD/MM/AAAA" (ou "AAAA-MM-DD") para ISO. Vazio -> "".
+function dataParaISO(v: string): string {
+  const s = (v || "").trim();
+  const br = s.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})$/);
+  if (br) { const a = br[3].length === 2 ? "20" + br[3] : br[3]; return `${a}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}`; }
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return iso ? `${iso[1]}-${iso[2]}-${iso[3]}` : "";
+}
+// Parseia o texto colado (Excel = TAB; aceita ; também). Colunas por posição:
+// Número | Envolvido | Objeto | Encarregado | Portaria | Data | Status
+function parseImport(texto: string, statusPadrao: string) {
+  return texto.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((linha) => {
+    const c = linha.includes("\t") ? linha.split("\t") : linha.split(";");
+    const g = (i: number) => (c[i] || "").trim();
+    return {
+      numero: g(0), envolvido: g(1), objeto: g(2), encarregado: g(3),
+      portaria: g(4), dataInstauracao: dataParaISO(g(5)), status: g(6) || statusPadrao,
+    };
+  });
+}
 function brDataHora(iso: string) { const d = new Date(iso); return isNaN(d.getTime()) ? "" : d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
 
 export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin }: {
@@ -40,6 +61,13 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
   const [portaria, setPortaria] = useState<PortariaRegistro | null>(null);
   const [termoDoc, setTermoDoc] = useState<{ reg: TermoRegistro; modelo: TermoModelo } | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
+
+  // importação em massa (colar do Excel)
+  const [impAberto, setImpAberto] = useState(false);
+  const [impTexto, setImpTexto] = useState("");
+  const [impStatus, setImpStatus] = useState("Concluído");
+  const [importando, setImportando] = useState(false);
+  const [impMsg, setImpMsg] = useState<string | null>(null);
 
   // Efetivo p/ o buscador + Chefe do P/1 e Comandante (mesma fonte da Escala).
   const [efetivo, setEfetivo] = useState<MilitarLite[]>([]);
@@ -92,6 +120,23 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
     } catch { alert("Não foi possível remover."); }
   };
 
+  const previaImport = parseImport(impTexto, impStatus);
+  const importar = async () => {
+    if (previaImport.length === 0) { setImpMsg("Cole ao menos uma linha."); return; }
+    setImportando(true); setImpMsg(null);
+    try {
+      const r = await fetch("/api/disciplinar/importar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo, itens: previaImport }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setImpMsg(d.error || "Falha ao importar."); return; }
+      setImpMsg(`✓ ${d.criados} importado(s)${d.pulados ? `, ${d.pulados} já existiam (pulados)` : ""}.`);
+      setImpTexto(""); carregar();
+    } catch { setImpMsg("Erro de conexão."); }
+    finally { setImportando(false); }
+  };
+
   const termo = filtro.trim().toLowerCase();
   const visiveis = termo
     ? itens.filter((r) => `${r.numero} ${r.encarregado} ${r.envolvido} ${r.objeto} ${r.status}`.toLowerCase().includes(termo))
@@ -109,7 +154,12 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
           <h1 className="dsc-tit">⚖️ {tipoLabel}</h1>
           <p className="dsc-sub">{descricao}</p>
         </div>
-        {isAdmin && <button className="dsc-novo" onClick={() => setForm(vazio(tipo))}>+ Novo {tipoLabel}</button>}
+        {isAdmin && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className="dsc-import" onClick={() => { setImpAberto(true); setImpMsg(null); }}>⬆ Importar histórico</button>
+            <button className="dsc-novo" onClick={() => setForm(vazio(tipo))}>+ Novo {tipoLabel}</button>
+          </div>
+        )}
       </div>
 
       <div className="dsc-controle">
@@ -197,6 +247,41 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
         </div>
       )}
 
+      {impAberto && (
+        <div className="dsc-modal-bg" onClick={() => setImpAberto(false)}>
+          <div className="dsc-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="dsc-modal-h">
+              <b>Importar histórico de {tipoLabel}</b>
+              <button onClick={() => setImpAberto(false)}>✕</button>
+            </div>
+            <p className="dsc-imp-ajuda">
+              Cole direto do Excel/planilha (uma linha por procedimento). As colunas, <b>nesta ordem</b>, separadas por TAB (Excel) ou ponto-e-vírgula:
+            </p>
+            <div className="dsc-imp-cols">Número&nbsp;•&nbsp;Envolvido&nbsp;•&nbsp;Objeto&nbsp;•&nbsp;Encarregado&nbsp;•&nbsp;Portaria&nbsp;•&nbsp;Data(DD/MM/AAAA)&nbsp;•&nbsp;Status</div>
+            <textarea
+              className="dsc-imp-txt" rows={9} value={impTexto}
+              onChange={(e) => setImpTexto(e.target.value)}
+              placeholder={"001/2024;SD PM 200/20 Fulano;Abandono de posto;ASP OF PM Macêdo;Port. 05/2024;12/03/2024;Concluído\n002/2024;CB PM 150/15 Beltrano;Atraso;;Port. 06/2024;20/04/2024;Arquivado"}
+            />
+            <div className="dsc-imp-linha">
+              <label>Status padrão (p/ linhas sem status)
+                <select value={impStatus} onChange={(e) => setImpStatus(e.target.value)}>
+                  {STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </label>
+              <span className="dsc-imp-conta">{previaImport.length} linha(s) detectada(s)</span>
+            </div>
+            {impMsg && <div className="dsc-imp-msg">{impMsg}</div>}
+            <div className="dsc-form-btns">
+              <button className="ok" onClick={importar} disabled={importando || previaImport.length === 0}>
+                {importando ? "Importando…" : `Importar ${previaImport.length || ""}`}
+              </button>
+              <button onClick={() => setImpAberto(false)}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {peca && <FatdDoc reg={peca} chefeP1={chefeP1} comandante={comandante} onFechar={() => setPeca(null)} />}
       {portaria && <PortariaDoc reg={portaria} comandante={comandante} onFechar={() => setPortaria(null)} />}
       {termoDoc && <TermoDoc reg={termoDoc.reg} modelo={termoDoc.modelo} comandante={comandante} onFechar={() => setTermoDoc(null)} />}
@@ -211,6 +296,20 @@ const CSS = `
 .dsc-sub{ font-size:13px; color:#8fa3bf; margin:2px 0 0; max-width:640px; }
 .dsc-novo{ background:#D4AF37; color:#1a1205; border:none; border-radius:9px; padding:9px 16px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; }
 .dsc-novo:hover{ filter:brightness(1.1); }
+.dsc-import{ background:#16243a; color:#bcd2ff; border:1px solid #3f6bd4; border-radius:9px; padding:9px 14px; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; }
+.dsc-import:hover{ border-color:#D4AF37; color:#fff; }
+.dsc-modal-bg{ position:fixed; inset:0; z-index:80; background:rgba(0,0,0,.65); display:flex; align-items:center; justify-content:center; padding:16px; }
+.dsc-modal{ width:100%; max-width:620px; background:#0F1B2D; border:1px solid #2b3f63; border-radius:14px; padding:18px; box-shadow:0 20px 60px rgba(0,0,0,.6); }
+.dsc-modal-h{ display:flex; align-items:center; justify-content:space-between; color:#fff; font-size:15px; margin-bottom:10px; }
+.dsc-modal-h button{ background:none; border:none; color:#94a3b8; font-size:16px; cursor:pointer; }
+.dsc-imp-ajuda{ font-size:12.5px; color:#9fb4d4; margin:0 0 8px; }
+.dsc-imp-cols{ font-size:12px; color:#f3df9d; background:#0a1626; border:1px solid #28395a; border-radius:8px; padding:7px 10px; margin-bottom:10px; }
+.dsc-imp-txt{ width:100%; box-sizing:border-box; background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:8px; padding:9px 11px; font-size:12.5px; font-family:ui-monospace,Menlo,Consolas,monospace; resize:vertical; }
+.dsc-imp-linha{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin:10px 0; flex-wrap:wrap; }
+.dsc-imp-linha label{ font-size:12px; color:#94a3b8; display:flex; align-items:center; gap:6px; }
+.dsc-imp-linha select{ background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:8px; padding:6px 8px; font-size:13px; }
+.dsc-imp-conta{ font-size:12px; color:#9fb4d4; }
+.dsc-imp-msg{ font-size:12.5px; color:#cfe6d6; background:#12351f; border:1px solid #1f5a34; border-radius:8px; padding:8px 10px; margin-bottom:10px; }
 .dsc-controle{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px; padding:10px 12px; background:#0F1B2D; border:1px solid #1d2c44; border-radius:10px; }
 .dsc-stat{ font-size:13px; color:#9fb4d4; } .dsc-stat b{ color:#fff; }
 .dsc-busca{ flex:1; min-width:200px; background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:8px; padding:7px 10px; font-size:13px; }

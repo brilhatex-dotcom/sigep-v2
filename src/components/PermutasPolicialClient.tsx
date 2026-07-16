@@ -101,7 +101,7 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
   }
 
   async function criar() {
-    if (!colega || !dataPermuta || !dataRetorno) { setErro("Escolha o colega e as duas datas."); return; }
+    if (!colega || !dataPermuta) { setErro("Escolha o colega e a data da permuta."); return; }
     setOcupado("criar"); setErro("");
     try {
       const r = await fetch("/api/permutas/pedidos", {
@@ -322,7 +322,7 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
                     className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-[#94A3B8]">Data de retorno</label>
+                  <label className="mb-1 block text-xs font-medium text-[#94A3B8]">Data de retorno <span className="text-[#6f88a8]">(opcional)</span></label>
                   <input type="date" value={dataRetorno} onChange={(e) => setDataRetorno(e.target.value)}
                     className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
                 </div>
@@ -337,7 +337,7 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
               </p>
               <div className="flex justify-end gap-2 pt-1">
                 <button onClick={() => setNovo(false)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-white">Cancelar</button>
-                <button onClick={criar} disabled={!colega || !dataPermuta || !dataRetorno || ocupado === "criar"}
+                <button onClick={criar} disabled={!colega || !dataPermuta || ocupado === "criar"}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] hover:brightness-110 disabled:opacity-60">
                   {ocupado === "criar" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Enviar e assinar
                 </button>
