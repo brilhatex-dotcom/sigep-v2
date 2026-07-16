@@ -44,6 +44,14 @@ export async function GET() {
             : `Permuta ${p.solicitante.linha} ⇄ ${p.solicitado?.linha || p.solicitadoNome} para acompanhamento do P/1 (o parecer é do Chefe).`,
           em: p.criadoEm,
         });
+      } else if (meuId && (p.solicitanteId === meuId || p.solicitadoId === meuId) && (p.estado === "autorizada" || p.estado === "nao_autorizada")
+                 && !(p.solicitanteId === meuId ? p.cienciaSolicitante : p.cienciaSolicitado)) {
+        // decisão saiu: avisa o policial e pede a ciência (some ao dar ciência)
+        nots.push({
+          id: "ciencia:" + p.id,
+          texto: `Sua permuta (${p.protocolo || ""}) foi ${p.estado === "autorizada" ? "AUTORIZADA" : "NÃO autorizada"}. Toque para dar ciência da decisão.`,
+          em: p.p1Em || p.criadoEm,
+        });
       } else if (podeSub && p.estado === "aguardando_subcmt") {
         nots.push({
           id: "subcmt:" + p.id,

@@ -254,6 +254,9 @@ export async function pendenciasDe(efetivoId: string | null, admin: boolean): Pr
   let n = 0;
   for (const p of pedidos) {
     if (efetivoId && p.solicitadoId === efetivoId && p.estado === "aguardando_solicitado") n++;
+    else if (efetivoId && (p.solicitanteId === efetivoId || p.solicitadoId === efetivoId)
+             && (p.estado === "autorizada" || p.estado === "nao_autorizada")
+             && !(p.solicitanteId === efetivoId ? p.cienciaSolicitante : p.cienciaSolicitado)) n++;
     else if (veP1 && p.estado === "aguardando_p1") n++;
     else if (podeSub && p.estado === "aguardando_subcmt") n++;
   }

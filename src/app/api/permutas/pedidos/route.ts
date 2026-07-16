@@ -5,10 +5,33 @@ import {
   lerPermutas, salvarPermutas, fichaDe, linhaMilitar, aplicarPermutasNaEscala, cargoP1,
   type Permuta, type Assinatura,
 } from "@/lib/permutaPedidos";
-import { podeComoEncargo, podeVerP1, encargoDe, cargoDocDe } from "@/lib/encargos";
+import { podeComoEncargo, podeVerP1, encargoDe, cargoDocDe, lerEncargos } from "@/lib/encargos";
 import { registrar } from "@/lib/auditoria";
 import { prisma } from "@/lib/prisma";
 import { conferirSenha } from "@/lib/senha";
+import { enviarParaLogin, enviarParaVarios } from "@/lib/push";
+
+async function loginDeEfetivo(efetivoId: string): Promise<string | null> {
+  const u = await prisma.usuario.findFirst({ where: { refEfetivo: efetivoId }, select: { login: true } });
+  return u?.login ?? null;
+}
+async function loginsPorEncargo(...encargos: string[]): Promise<string[]> {
+  const mapa = await lerEncargos();
+  const ids = Object.entries(mapa).filter(([, v]) => encargos.includes(v as string)).map(([k]) => k);
+  if (!ids.length) return [];
+  const us = await prisma.usuario.findMany({ where: { refEfetivo: { in: ids } }, select: { login: true } });
+  return us.map((u) => u.login).filter(Boolean) as string[];
+}
+// Push para os DOIS policiais avisando o resultado da permuta.
+async function pushDecisao(p: Permuta) {
+  const logins = (await Promise.all([loginDeEfetivo(p.solicitanteId), loginDeEfetivo(p.solicitadoId)])).filter(Boolean) as string[];
+  const res = p.estado === "autorizada" ? "AUTORIZADA" : "NÃO autorizada";
+  void enviarParaVarios(logins, {
+    title: `Permuta ${res}`,
+    body: `${p.protocolo || "Permuta"}: ${p.solicitante.linha} ⇄ ${p.solicitado?.linha || p.solicitadoNome} — dê ciência da decisão.`,
+    url: "/permutas", tag: "permuta-" + p.id,
+  }).catch(() => {});
+}
 import { proximoNumero } from "@/lib/disciplinarDb";
 import { headers } from "next/headers";
 
@@ -146,6 +169,9 @@ export async function POST(req: Request) {
       pedidos.push(pedido);
       await salvarPermutas(pedidos);
       await registrar({ acao: "permuta_criar", alvo: pedido.id, alvoNome: alvoPermuta(pedido), detalhe: `Solicitou e assinou a permuta para ${dataPermuta}${dataRetorno ? ` (retorno ${dataRetorno})` : ""}.` });
+      // avisa o colega (push) para assinar o "concordo"
+      const loginColega = await loginDeEfetivo(solicitadoId);
+      if (loginColega) void enviarParaLogin(loginColega, { title: "Nova permuta para você", body: `${meuAss.linha} pediu permuta — assine o "concordo".`, url: "/permutas", tag: "permuta-" + pedido.id }).catch(() => {});
       return NextResponse.json({ ok: true, pedido });
     }
 
@@ -177,6 +203,11 @@ export async function POST(req: Request) {
         alvo: p.id, alvoNome: alvoPermuta(p),
         detalhe: resposta === "aceitar" ? "Assinou o \"concordo\" (colega solicitado)." : "Recusou a permuta (colega solicitado).",
       });
+      if (resposta === "aceitar") {
+        // segue para o P/1: avisa a Seção P/1 (Chefe + Auxiliares) por push
+        const logsP1 = await loginsPorEncargo("chefe_p1", "aux_p1");
+        if (logsP1.length) void enviarParaVarios(logsP1, { title: "Permuta para parecer do P/1", body: `${p.solicitante.linha} ⇄ ${p.solicitado?.linha || p.solicitadoNome} aguardando parecer.`, url: "/permutas", tag: "permuta-" + p.id }).catch(() => {});
+      }
       return NextResponse.json({ ok: true, pedido: p });
     }
 
@@ -206,10 +237,13 @@ export async function POST(req: Request) {
         p.estado = "autorizada";
         await salvarPermutas(pedidos);
         try { await aplicarPermutasNaEscala(); } catch {}
+        await pushDecisao(p); // avisa os dois policiais (push)
       } else {
         // Parecer não favorável: sobe para o Subcmt decidir.
         p.estado = "aguardando_subcmt";
         await salvarPermutas(pedidos);
+        const logsSub = await loginsPorEncargo("subcmt");
+        if (logsSub.length) void enviarParaVarios(logsSub, { title: "Permuta para visto do Subcmt", body: `${p.solicitante.linha} ⇄ ${p.solicitado?.linha || p.solicitadoNome} aguardando seu visto.`, url: "/permutas", tag: "permuta-" + p.id }).catch(() => {});
       }
       await registrar({
         acao: "permuta_parecer", alvo: p.id, alvoNome: alvoPermuta(p),
@@ -245,6 +279,7 @@ export async function POST(req: Request) {
         detalhe: `Visto do Subcomandante: ${visto === "autorizado" ? "FAVORÁVEL (autorizado)" : "NÃO AUTORIZADO"}.`,
       });
       if (p.estado === "autorizada") { try { await aplicarPermutasNaEscala(); } catch {} }
+      await pushDecisao(p); // avisa os dois policiais (push)
       return NextResponse.json({ ok: true, pedido: p });
     }
 
