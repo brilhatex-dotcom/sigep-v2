@@ -46,7 +46,11 @@ export async function GET() {
   const paraMim = pedidos.filter((p) => meuId && p.solicitadoId === meuId && p.estado === "aguardando_solicitado");
   // parecer é do Chefe do P/1 (Silas); visto é do Subcmt (Frans).
   const paraP1 = podeP1 ? pedidos.filter((p) => p.estado === "aguardando_p1") : [];
-  const paraSubcmt = podeSub ? pedidos.filter((p) => p.estado === "aguardando_subcmt") : [];
+  // Subcmt: as que ele PRECISA decidir (parecer não favorável) + as já autorizadas
+  // pelo parecer favorável que ele ainda pode "vistar" (opcional, caixinha em branco).
+  const paraSubcmt = podeSub
+    ? pedidos.filter((p) => !p.visto && (p.estado === "aguardando_subcmt" || p.estado === "autorizada"))
+    : [];
 
   const ord = (a: Permuta, b: Permuta) => (b.criadoEm || "").localeCompare(a.criadoEm || "");
   return NextResponse.json({
@@ -95,7 +99,7 @@ export async function POST(req: Request) {
         dataPermuta, dataRetorno,
         motivo,
         estado: "aguardando_solicitado",
-        parecerP1: null, p1Nome: null, p1Cargo: null, p1Em: null, visto: null,
+        parecerP1: null, p1Favoravel: null, p1Nome: null, p1Cargo: null, p1Em: null, visto: null,
         subcmtNome: null, subcmtEm: null,
         criadoEm: new Date().toISOString(),
       };
@@ -137,13 +141,25 @@ export async function POST(req: Request) {
       const p = pedidos.find((x) => x.id === id);
       if (!p) return NextResponse.json({ error: "Permuta não encontrada." }, { status: 404 });
       if (p.estado !== "aguardando_p1") return NextResponse.json({ error: "Esta permuta não está aguardando o parecer do P/1." }, { status: 409 });
+      const favoravel = b?.favoravel !== false; // padrão favorável
       p.parecerP1 = parecer || null;
+      p.p1Favoravel = favoravel;
       p.p1Nome = (session.user.name || "").trim() || null;
       const enc = await encargoDe(meuId);
       p.p1Cargo = (enc && cargoDocDe(enc)) || cargoP1(session.user.name);
       p.p1Em = new Date().toISOString();
-      p.estado = "aguardando_subcmt"; // agora vai para o VISTO do Subcmt
-      await salvarPermutas(pedidos);
+      if (favoravel) {
+        // Parecer FAVORÁVEL do P/1 já dá o resultado: a permuta vale e entra na
+        // escala mesmo sem o visto do Subcmt (a caixinha dele fica em branco; ele
+        // pode assinar depois, mas não é impeditivo).
+        p.estado = "autorizada";
+        await salvarPermutas(pedidos);
+        try { await aplicarPermutasNaEscala(); } catch {}
+      } else {
+        // Parecer não favorável: sobe para o Subcmt decidir.
+        p.estado = "aguardando_subcmt";
+        await salvarPermutas(pedidos);
+      }
       return NextResponse.json({ ok: true, pedido: p });
     }
 
@@ -156,7 +172,10 @@ export async function POST(req: Request) {
       const visto = String(b?.visto || "");
       const p = pedidos.find((x) => x.id === id);
       if (!p) return NextResponse.json({ error: "Permuta não encontrada." }, { status: 404 });
-      if (p.estado !== "aguardando_subcmt") return NextResponse.json({ error: "Esta permuta ainda não tem o parecer do P/1." }, { status: 409 });
+      // O Subcmt pode dar o visto quando: (a) o parecer foi NÃO favorável (aguarda ele
+      // decidir) OU (b) já está autorizada pelo parecer favorável mas sem o visto dele.
+      const podeVistar = p.estado === "aguardando_subcmt" || (p.estado === "autorizada" && !p.visto);
+      if (!podeVistar) return NextResponse.json({ error: "Esta permuta não está aguardando o visto do Subcmt." }, { status: 409 });
       if (visto !== "autorizado" && visto !== "nao_autorizado") {
         return NextResponse.json({ error: "Informe o visto (favorável ou não)." }, { status: 400 });
       }

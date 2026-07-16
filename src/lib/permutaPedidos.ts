@@ -47,6 +47,7 @@ export type Permuta = {
   motivo: string;
   estado: EstadoPermuta;
   parecerP1: string | null;
+  p1Favoravel: boolean | null;  // sentido do parecer do Chefe do P/1 (favorável/não)
   p1Nome: string | null;
   p1Cargo: string | null;   // cargo de quem deu o parecer (ex.: "Aux. da Seção P/1-18º BPM")
   p1Em: string | null;
