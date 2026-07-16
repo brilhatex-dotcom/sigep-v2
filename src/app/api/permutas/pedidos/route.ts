@@ -86,8 +86,11 @@ export async function POST(req: Request) {
       const dataPermuta = String(b?.dataPermuta || "");
       const dataRetorno = String(b?.dataRetorno || "");
       const motivo = String(b?.motivo || "").trim();
-      if (!solicitadoId || !/^\d{4}-\d{2}-\d{2}$/.test(dataPermuta) || !/^\d{4}-\d{2}-\d{2}$/.test(dataRetorno)) {
-        return NextResponse.json({ error: "Preencha o colega e as duas datas." }, { status: 400 });
+      if (!solicitadoId || !/^\d{4}-\d{2}-\d{2}$/.test(dataPermuta)) {
+        return NextResponse.json({ error: "Escolha o colega e a data da permuta." }, { status: 400 });
+      }
+      if (dataRetorno && !/^\d{4}-\d{2}-\d{2}$/.test(dataRetorno)) {
+        return NextResponse.json({ error: "Data de retorno inválida." }, { status: 400 });
       }
       if (solicitadoId === meuId) {
         return NextResponse.json({ error: "Escolha um colega diferente de você." }, { status: 400 });
