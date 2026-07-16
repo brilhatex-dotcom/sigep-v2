@@ -42,12 +42,12 @@ const ITENS: Item[] = [
   {
     titulo: "Backup e trilha de auditoria",
     status: "parcial",
-    texto: "Trilha de auditoria completa (acima). Backup: o banco (Neon) tem backup gerenciado próprio; um backup externo periódico ainda pode ser adicionado.",
+    texto: "Trilha de auditoria completa e lacrada (acima). Backup: o banco (Neon) faz backup gerenciado próprio; falta um backup externo periódico (fora do provedor) para redundância total — por isso 'parcial'.",
   },
   {
     titulo: "Proteção de dados pessoais (LGPD)",
     status: "parcial",
-    texto: "Cada policial só vê os próprios dados; senhas em bcrypt; sessão expira por inatividade (30 min); cabeçalhos de segurança ativos. Criptografar CPF/dados bancários em repouso está em implantação.",
+    texto: "Cada policial só vê os próprios dados; senhas em bcrypt; sessão expira por inatividade (30 min); cabeçalhos de segurança; CPF e dados bancários JÁ criptografados em repouso. Falta o lado documental da LGPD (aviso de privacidade, base legal, política de retenção/descarte e encarregado/DPO) para ficar 100% — por isso 'parcial'.",
   },
 ];
 
@@ -59,6 +59,7 @@ const COR: Record<Status, { bg: string; fg: string; rot: string }> = {
 
 export default async function GovernancaPage() {
   const session = await exigirAdmin();
+  const pushConfigurado = !!(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-4xl text-[#cdd9ea]">
@@ -66,6 +67,12 @@ export default async function GovernancaPage() {
         <p className="mb-5 text-sm text-[#94A3B8]">
           Painel de conformidade do SIGEP-18º BPM: rastreabilidade, controle de acesso, assinatura eletrônica e proteção de dados.
         </p>
+
+        <div className={`mb-4 rounded-lg border px-4 py-2.5 text-sm ${pushConfigurado ? "border-emerald-800/50 bg-emerald-950/30 text-emerald-300" : "border-amber-700/50 bg-amber-950/20 text-amber-300"}`}>
+          {pushConfigurado
+            ? "🔔 Notificações push (celular): CONFIGURADO. Cada usuário precisa ativar as notificações no aparelho para receber."
+            : "🔕 Notificações push (celular): NÃO configurado. O sininho na tela funciona; para avisar no celular, defina as chaves VAPID nas variáveis de ambiente."}
+        </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
           {ITENS.map((it) => {
