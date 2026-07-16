@@ -154,6 +154,35 @@ export async function remover(id: string): Promise<void> {
   await prisma.$executeRawUnsafe(`DELETE FROM disciplinar_procedimento WHERE id = $1`, id);
 }
 
+/* Numeração automática, à prova de concorrência: o contador é incrementado de
+   forma ATÔMICA no banco (INSERT ... ON CONFLICT DO UPDATE RETURNING), então dois
+   admins nunca pegam o mesmo número. */
+export async function proximoNumero(chave: string): Promise<number> {
+  await garantir();
+  const rows: any[] = await prisma.$queryRawUnsafe(
+    `INSERT INTO disciplinar_contador (chave, valor) VALUES ($1, 1)
+     ON CONFLICT (chave) DO UPDATE SET valor = disciplinar_contador.valor + 1
+     RETURNING valor`, chave);
+  return Number(rows[0]?.valor ?? 1);
+}
+
+/* Devolve o número da peça deste procedimento; se ainda não tem, ATRIBUI o
+   próximo da sequência daquela peça no ano corrente e guarda (fica fixo). */
+export async function obterOuAtribuirNumero(id: string, peca: string): Promise<string> {
+  await garantir();
+  const rows: any[] = await prisma.$queryRawUnsafe(`SELECT numeros FROM disciplinar_procedimento WHERE id = $1 LIMIT 1`, id);
+  if (!rows[0]) return "";
+  let mapa: Record<string, string> = {};
+  try { mapa = JSON.parse(rows[0].numeros || "{}") || {}; } catch {}
+  if (mapa[peca]) return mapa[peca];
+  const ano = String(new Date().getFullYear());
+  const n = await proximoNumero(`${peca}_${ano}`);
+  const numero = `${String(n).padStart(3, "0")}/${ano}`;
+  mapa[peca] = numero;
+  await prisma.$executeRawUnsafe(`UPDATE disciplinar_procedimento SET numeros = $2 WHERE id = $1`, id, JSON.stringify(mapa));
+  return numero;
+}
+
 /* Importa em lote (histórico). Pula os que já existem com o MESMO tipo+número,
    para poder colar de novo sem duplicar. Devolve quantos entraram/pularam. */
 export async function importar(tipo: string, itens: any[], criadoPor: string): Promise<{ criados: number; pulados: number }> {

@@ -16,59 +16,74 @@ export type PortariaRegistro = {
   dataInstauracao: string; envolvido: string; objeto: string; prazo: string;
 };
 
-export const PORTARIA_INFO: Record<string, { titulo: string; instaurar: string; enc: string; base: string; prazoPadrao: string }> = {
+export type PortariaModelo = "instauracao" | "prorrogacao" | "escrivao";
+
+type Info = { titulo: string; sigla: string; instaurar: string; procNome: string; enc: string; base: string; fundProrrog: string; prazoPadrao: string };
+export const PORTARIA_INFO: Record<string, Info> = {
   sindicancia: {
-    titulo: "SINDICÂNCIA",
-    instaurar: "Sindicância",
+    titulo: "SINDICÂNCIA", sigla: "SINDICÂNCIA",
+    instaurar: "Sindicância", procNome: "Sindicância",
     enc: "Encarregado(a) da Sindicância",
     base: "no Regulamento Disciplinar da PMMA e na Lei de Organização Básica da Corporação",
+    fundProrrog: "nas normas administrativas que regem a Sindicância no âmbito da Corporação",
     prazoPadrao: "30 (trinta)",
   },
   ips: {
-    titulo: "INVESTIGAÇÃO PRELIMINAR SUMÁRIA — IPS",
-    instaurar: "Investigação Preliminar Sumária (IPS)",
+    titulo: "INVESTIGAÇÃO PRELIMINAR SUMÁRIA — IPS", sigla: "IPS",
+    instaurar: "Investigação Preliminar Sumária (IPS)", procNome: "Investigação Preliminar Sumária (IPS)",
     enc: "Encarregado(a) da IPS",
     base: "nas normas administrativas disciplinares em vigor na Corporação",
+    fundProrrog: "nas normas administrativas disciplinares em vigor na Corporação",
     prazoPadrao: "15 (quinze)",
   },
   ipm: {
-    titulo: "INQUÉRITO POLICIAL MILITAR — IPM",
-    instaurar: "Inquérito Policial Militar (IPM)",
+    titulo: "INQUÉRITO POLICIAL MILITAR — IPM", sigla: "IPM",
+    instaurar: "Inquérito Policial Militar (IPM)", procNome: "Inquérito Policial Militar (IPM)",
     enc: "Encarregado(a) do IPM",
     base: "no Código de Processo Penal Militar (art. 9º e seguintes)",
+    fundProrrog: "no art. 20, § 1º do Código de Processo Penal Militar",
     prazoPadrao: "40 (quarenta)",
   },
 };
 
 const ANO = new Date().getFullYear();
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 function dBR(iso: string): string {
   const m = (iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
   return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
+}
+function dataExtenso(iso: string): string {
+  const m = (iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]} de ${MESES[Number(m[2]) - 1] || "____"} de ${m[1]}` : "";
 }
 function ul(w: string): React.CSSProperties {
   return { display: "inline-block", minWidth: w, borderBottom: "1px solid #000" };
 }
 
-export default function PortariaDoc({ reg, comandante = "", onFechar }: { reg: PortariaRegistro; comandante?: string; onFechar: () => void }) {
+export default function PortariaDoc({ reg, comandante = "", modelo = "instauracao", numeroAuto = "", onFechar }: { reg: PortariaRegistro; comandante?: string; modelo?: PortariaModelo; numeroAuto?: string; onFechar: () => void }) {
   const [montado, setMontado] = useState(false);
   const [baixandoWord, setBaixandoWord] = useState(false);
   useEffect(() => { setMontado(true); }, []);
   if (!montado || typeof document === "undefined") return null;
 
   const info = PORTARIA_INFO[reg.tipo] || PORTARIA_INFO.sindicancia;
-  // Nº da portaria: usa o campo "portaria" (limpo do prefixo) ou cai no número do procedimento.
-  const numPortaria = (reg.portaria || "").replace(/port(aria)?\.?\s*/i, "").trim() || (reg.numero || "").trim() || `______/${ANO}`;
+  const encTxt = (reg.encarregado || "").trim();
+  // Nº da portaria: prorrogação/escrivão usam o número AUTOMÁTICO; instauração usa
+  // o campo "portaria" (limpo do prefixo) ou o número do procedimento.
+  const numInstauracao = (reg.portaria || "").replace(/port(aria)?\.?\s*/i, "").trim() || (reg.numero || "").trim() || `______/${ANO}`;
+  const numExib = (numeroAuto || "").trim() || (modelo === "instauracao" ? numInstauracao : `______/${ANO}`);
+  const rotulo = modelo === "prorrogacao" ? "Prorrogacao" : modelo === "escrivao" ? "Escrivao" : "Instauracao";
 
   async function baixarWord() {
     setBaixandoWord(true);
     try {
-      const res = await fetch(`/api/disciplinar/portaria-docx?id=${encodeURIComponent(reg.id)}`);
+      const res = await fetch(`/api/disciplinar/portaria-docx?id=${encodeURIComponent(reg.id)}&modelo=${modelo}`);
       if (!res.ok) { alert("Não foi possível gerar o Word."); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Portaria_${info.titulo.split(" ")[0]}_${numPortaria.replace(/[^\w]+/g, "_")}.docx`;
+      a.download = `Portaria_${rotulo}_${info.sigla}_${numExib.replace(/[^\w]+/g, "_")}.docx`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch { alert("Erro de conexão ao gerar o Word."); }
@@ -115,55 +130,96 @@ export default function PortariaDoc({ reg, comandante = "", onFechar }: { reg: P
         </div>
         <p style={{ textAlign: "center", fontSize: "8.5pt", margin: "1mm 0 0", lineHeight: 1.2 }} contentEditable={false}>
           Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP-65.760-000<br />
-          TELEFAX: (99) 98497-1918 (Permanência) — 18batalhaopmma@gmail.com
+          TELEFONE: (99) 98509-5005 (Permanência) — 18batalhaopmma@gmail.com
         </p>
 
-        <h1 style={{ textAlign: "center", fontSize: "13pt", fontWeight: "bold", margin: "8mm 0 1mm" }}>
-          PORTARIA Nº {numPortaria}
-        </h1>
-        <p style={{ textAlign: "center", fontWeight: "bold", margin: "0 0 8mm" }}>
-          Instauração de {info.titulo}
-        </p>
+        {/* ===================== INSTAURAÇÃO ===================== */}
+        {modelo === "instauracao" && (<>
+          <h1 style={hTit}>PORTARIA Nº {numExib}</h1>
+          <p style={{ textAlign: "center", fontWeight: "bold", margin: "0 0 8mm" }}>Instauração de {info.titulo}</p>
+          <p style={{ textAlign: "justify", textIndent: "12mm", margin: "0 0 6mm" }}>
+            O <strong>Comandante do 18º Batalhão de Polícia Militar</strong>, no uso das atribuições legais que lhe
+            são conferidas e com fundamento {info.base}, e <strong>considerando</strong> os fatos que ensejam
+            apuração no âmbito desta Unidade,
+          </p>
+          <p style={{ fontWeight: "bold", margin: "0 0 5mm" }}>RESOLVE:</p>
+          <p style={{ textAlign: "justify", margin: "0 0 4mm" }}>
+            <strong>Art. 1º</strong> — Instaurar <strong>{info.instaurar}</strong> destinada a apurar{" "}
+            {reg.objeto?.trim() ? reg.objeto : <span style={ul("120mm")}>&nbsp;</span>}
+            {reg.envolvido?.trim() ? <>, tendo como envolvido(a) <strong>{reg.envolvido}</strong></> : null}.
+          </p>
+          <p style={{ textAlign: "justify", margin: "0 0 4mm" }}>
+            <strong>Art. 2º</strong> — Designar {encTxt ? <strong>{encTxt}</strong> : <span style={ul("80mm")}>&nbsp;</span>}{" "}
+            para, na condição de <strong>{info.enc}</strong>, presidir e conduzir os respectivos trabalhos, ficando
+            autorizado a praticar todos os atos necessários à elucidação dos fatos.
+          </p>
+          <p style={{ textAlign: "justify", margin: "0 0 4mm" }}>
+            <strong>Art. 3º</strong> — Fixar o prazo de <strong>{info.prazoPadrao}</strong> dias para a conclusão dos
+            trabalhos, a contar do recebimento desta Portaria, admitida prorrogação na forma regulamentar
+            {reg.prazo?.trim() ? <> (previsão de conclusão em <strong>{dBR(reg.prazo)}</strong>)</> : null}.
+          </p>
+          <p style={{ textAlign: "justify", margin: "0 0 6mm" }}>
+            <strong>Art. 4º</strong> — Esta Portaria entra em vigor na data de sua publicação.
+          </p>
+          <p style={{ margin: "0 0 10mm" }}>Publique-se, registre-se e cumpra-se.</p>
+          <p style={dataCentro} contentEditable={false}>Presidente Dutra-MA, {reg.dataInstauracao?.trim() ? dBR(reg.dataInstauracao) : "______ de ____________________ de " + ANO}.</p>
+          <AssinaturaCmt comandante={comandante} />
+        </>)}
 
-        <p style={{ textAlign: "justify", textIndent: "12mm", margin: "0 0 6mm" }}>
-          O <strong>Comandante do 18º Batalhão de Polícia Militar</strong>, no uso das atribuições legais que lhe
-          são conferidas e com fundamento {info.base}, e <strong>considerando</strong> os fatos que ensejam
-          apuração no âmbito desta Unidade,
-        </p>
+        {/* ===================== PRORROGAÇÃO DE PRAZO ===================== */}
+        {modelo === "prorrogacao" && (<>
+          <h1 style={hTit}>PORTARIA DE PRORROGAÇÃO DE {info.sigla} Nº {numExib} - 18º BPM</h1>
+          <p style={{ textAlign: "justify", textIndent: "12mm", margin: "6mm 0 5mm" }}>
+            O <strong>Comandante do 18º Batalhão de Polícia Militar</strong>, no uso das atribuições legais, com
+            fulcro {info.fundProrrog}.
+          </p>
+          <p style={{ textAlign: "justify", textIndent: "12mm", margin: "0 0 5mm" }}>
+            <strong>CONSIDERANDO</strong> o teor do Ofício nº <span style={ul("24mm")}>&nbsp;</span>/{ANO} – {info.sigla},
+            datado de <span style={ul("40mm")}>&nbsp;</span>.
+          </p>
+          <p style={{ fontWeight: "bold", margin: "0 0 5mm" }}>RESOLVE:</p>
+          <p style={{ textAlign: "justify", textIndent: "12mm", margin: "0 0 4mm" }}>
+            <strong>Art. 1º</strong> Conceder ao {encTxt ? <strong>{encTxt}</strong> : <span style={ul("70mm")}>&nbsp;</span>},{" "}
+            <span style={ul("16mm")}>&nbsp;</span> (<span style={ul("28mm")}>&nbsp;</span>) dias de prorrogação de prazo, a
+            contar de <span style={ul("34mm")}>&nbsp;</span>, para conclusão do {info.procNome} pelo qual é encarregado,
+            conforme Portaria de Delegação de {info.procNome} nº{" "}
+            {reg.portaria?.trim() ? <strong>{reg.portaria}</strong> : <span style={ul("30mm")}>&nbsp;</span>}, datada do dia{" "}
+            {reg.dataInstauracao?.trim() ? <strong>{dataExtenso(reg.dataInstauracao)}</strong> : <span style={ul("55mm")}>&nbsp;</span>}.
+          </p>
+          <p style={{ textAlign: "justify", textIndent: "12mm", margin: "0 0 6mm" }}>
+            <strong>Art. 2º</strong> Essa portaria entrará em vigor a contar da data do início da prorrogação de prazo.
+          </p>
+          <p style={{ margin: "0 0 10mm" }}>PUBLIQUE-SE E CUMPRA-SE.</p>
+          <p style={dataCentro} contentEditable={false}>Quartel do 18º BPM, em Presidente Dutra - MA, ______ de ____________________ de {ANO}.</p>
+          <AssinaturaCmt comandante={comandante} />
+        </>)}
 
-        <p style={{ fontWeight: "bold", margin: "0 0 5mm" }}>RESOLVE:</p>
-
-        <p style={{ textAlign: "justify", margin: "0 0 4mm" }}>
-          <strong>Art. 1º</strong> — Instaurar <strong>{info.instaurar}</strong> destinada a apurar{" "}
-          {reg.objeto?.trim() ? reg.objeto : <span style={ul("120mm")}>&nbsp;</span>}
-          {reg.envolvido?.trim() ? <>, tendo como envolvido(a) <strong>{reg.envolvido}</strong></> : null}.
-        </p>
-        <p style={{ textAlign: "justify", margin: "0 0 4mm" }}>
-          <strong>Art. 2º</strong> — Designar {reg.encarregado?.trim() ? <strong>{reg.encarregado}</strong> : <span style={ul("80mm")}>&nbsp;</span>}{" "}
-          para, na condição de <strong>{info.enc}</strong>, presidir e conduzir os respectivos trabalhos, ficando
-          autorizado a praticar todos os atos necessários à elucidação dos fatos.
-        </p>
-        <p style={{ textAlign: "justify", margin: "0 0 4mm" }}>
-          <strong>Art. 3º</strong> — Fixar o prazo de <strong>{info.prazoPadrao}</strong> dias para a conclusão dos
-          trabalhos, a contar do recebimento desta Portaria, admitida prorrogação na forma regulamentar
-          {reg.prazo?.trim() ? <> (previsão de conclusão em <strong>{dBR(reg.prazo)}</strong>)</> : null}.
-        </p>
-        <p style={{ textAlign: "justify", margin: "0 0 6mm" }}>
-          <strong>Art. 4º</strong> — Esta Portaria entra em vigor na data de sua publicação.
-        </p>
-
-        <p style={{ margin: "0 0 10mm" }}>Publique-se, registre-se e cumpra-se.</p>
-
-        <p style={{ textAlign: "center", margin: "0 0 16mm" }} contentEditable={false}>
-          Presidente Dutra-MA, {reg.dataInstauracao?.trim() ? dBR(reg.dataInstauracao) : "______ de ____________________ de " + ANO}.
-        </p>
-
-        <div style={{ display: "flex", justifyContent: "center" }} contentEditable={false}>
-          <div style={{ textAlign: "center", width: "100mm" }}>
-            <div style={{ borderTop: "1px solid #000", paddingTop: "1mm", fontWeight: "bold" }}>{comandante || "Autoridade instauradora"}</div>
-            <div>Comandante do 18º BPM</div>
+        {/* ===================== DESIGNAÇÃO DE ESCRIVÃO ===================== */}
+        {modelo === "escrivao" && (<>
+          <h1 style={hTit}>PORTARIA DE DESIGNAÇÃO DE ESCRIVÃO Nº {numExib} - 18º BPM</h1>
+          <p style={{ textAlign: "justify", textIndent: "12mm", margin: "6mm 0 5mm" }}>
+            O {encTxt ? <strong>{encTxt}</strong> : <span style={ul("70mm")}>&nbsp;</span>}, Encarregado do {info.procNome}{" "}
+            instaurado pela Portaria nº {reg.portaria?.trim() ? <strong>{reg.portaria}</strong> : <span style={ul("30mm")}>&nbsp;</span>},
+            no uso de suas atribuições e com fulcro no <strong>art. 11 do Código de Processo Penal Militar</strong>,
+          </p>
+          <p style={{ fontWeight: "bold", margin: "0 0 5mm" }}>RESOLVE:</p>
+          <p style={{ textAlign: "justify", textIndent: "12mm", margin: "0 0 4mm" }}>
+            <strong>Art. 1º</strong> Designar o(a) <span style={ul("90mm")}>&nbsp;</span> para funcionar como{" "}
+            <strong>ESCRIVÃO(Ã)</strong> no presente {info.procNome}, que, sob compromisso legal, desempenhará as
+            funções do cargo.
+          </p>
+          <p style={{ textAlign: "justify", textIndent: "12mm", margin: "0 0 6mm" }}>
+            <strong>Art. 2º</strong> Esta portaria entra em vigor na data de sua publicação.
+          </p>
+          <p style={{ margin: "0 0 10mm" }}>PUBLIQUE-SE, REGISTRE-SE E CUMPRA-SE.</p>
+          <p style={dataCentro} contentEditable={false}>Quartel do 18º BPM, em Presidente Dutra - MA, ______ de ____________________ de {ANO}.</p>
+          <div style={{ display: "flex", justifyContent: "center" }} contentEditable={false}>
+            <div style={{ textAlign: "center", width: "110mm" }}>
+              <div style={{ borderTop: "1px solid #000", paddingTop: "1mm", fontWeight: "bold" }}>{encTxt || "Encarregado(a) do procedimento"}</div>
+              <div>Encarregado do {info.procNome}</div>
+            </div>
           </div>
-        </div>
+        </>)}
       </div>
 
       <style>{`
@@ -179,4 +235,18 @@ export default function PortariaDoc({ reg, comandante = "", onFechar }: { reg: P
   );
 
   return createPortal(conteudo, document.body);
+}
+
+const hTit: React.CSSProperties = { textAlign: "center", fontSize: "13pt", fontWeight: "bold", margin: "8mm 0 1mm", textDecoration: "underline" };
+const dataCentro: React.CSSProperties = { textAlign: "center", margin: "0 0 16mm" };
+
+function AssinaturaCmt({ comandante }: { comandante: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "center" }} contentEditable={false}>
+      <div style={{ textAlign: "center", width: "110mm" }}>
+        <div style={{ borderTop: "1px solid #000", paddingTop: "1mm", fontWeight: "bold" }}>{comandante || "________________________"}</div>
+        <div>CMT DO 18º BPM</div>
+      </div>
+    </div>
+  );
 }

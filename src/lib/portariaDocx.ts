@@ -14,17 +14,24 @@ export type PortariaReg = {
   dataInstauracao: string; envolvido: string; objeto: string; prazo: string;
 };
 
-const INFO: Record<string, { titulo: string; instaurar: string; enc: string; base: string; prazoPadrao: string }> = {
-  sindicancia: { titulo: "SINDICÂNCIA", instaurar: "Sindicância", enc: "Encarregado(a) da Sindicância", base: "no Regulamento Disciplinar da PMMA e na Lei de Organização Básica da Corporação", prazoPadrao: "30 (trinta)" },
-  ips: { titulo: "INVESTIGAÇÃO PRELIMINAR SUMÁRIA — IPS", instaurar: "Investigação Preliminar Sumária (IPS)", enc: "Encarregado(a) da IPS", base: "nas normas administrativas disciplinares em vigor na Corporação", prazoPadrao: "15 (quinze)" },
-  ipm: { titulo: "INQUÉRITO POLICIAL MILITAR — IPM", instaurar: "Inquérito Policial Militar (IPM)", enc: "Encarregado(a) do IPM", base: "no Código de Processo Penal Militar (art. 9º e seguintes)", prazoPadrao: "40 (quarenta)" },
+export type PortariaModelo = "instauracao" | "prorrogacao" | "escrivao";
+type InfoP = { titulo: string; sigla: string; instaurar: string; procNome: string; enc: string; base: string; fundProrrog: string; prazoPadrao: string };
+const INFO: Record<string, InfoP> = {
+  sindicancia: { titulo: "SINDICÂNCIA", sigla: "SINDICÂNCIA", instaurar: "Sindicância", procNome: "Sindicância", enc: "Encarregado(a) da Sindicância", base: "no Regulamento Disciplinar da PMMA e na Lei de Organização Básica da Corporação", fundProrrog: "nas normas administrativas que regem a Sindicância no âmbito da Corporação", prazoPadrao: "30 (trinta)" },
+  ips: { titulo: "INVESTIGAÇÃO PRELIMINAR SUMÁRIA — IPS", sigla: "IPS", instaurar: "Investigação Preliminar Sumária (IPS)", procNome: "Investigação Preliminar Sumária (IPS)", enc: "Encarregado(a) da IPS", base: "nas normas administrativas disciplinares em vigor na Corporação", fundProrrog: "nas normas administrativas disciplinares em vigor na Corporação", prazoPadrao: "15 (quinze)" },
+  ipm: { titulo: "INQUÉRITO POLICIAL MILITAR — IPM", sigla: "IPM", instaurar: "Inquérito Policial Militar (IPM)", procNome: "Inquérito Policial Militar (IPM)", enc: "Encarregado(a) do IPM", base: "no Código de Processo Penal Militar (art. 9º e seguintes)", fundProrrog: "no art. 20, § 1º do Código de Processo Penal Militar", prazoPadrao: "40 (quarenta)" },
 };
 
 const ANO = new Date().getFullYear();
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 function pxFromMm(mm: number): number { return Math.round((mm / 25.4) * 96); }
 function dBR(iso: string): string {
   const m = (iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
   return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
+}
+function dataExtenso(iso: string): string {
+  const m = (iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]} de ${MESES[Number(m[2]) - 1] || "____"} de ${m[1]}` : "";
 }
 function imagem(nome: string, wMm: number, hMm: number): ImageRun | null {
   try {
@@ -48,10 +55,12 @@ function art(children: TextRun[]) {
 }
 const BR = "____________________";
 
-export async function gerarPortariaDocx(reg: PortariaReg, chefes: { comandante?: string } = {}): Promise<Buffer> {
+export async function gerarPortariaDocx(reg: PortariaReg, chefes: { comandante?: string } = {}, modelo: PortariaModelo = "instauracao", numeroAuto = ""): Promise<Buffer> {
   const comandante = (chefes.comandante || "").trim();
   const info = INFO[reg.tipo] || INFO.sindicancia;
-  const numPortaria = (reg.portaria || "").replace(/port(aria)?\.?\s*/i, "").trim() || (reg.numero || "").trim() || `______/${ANO}`;
+  const encTxt = (reg.encarregado || "").trim();
+  const numInstauracao = (reg.portaria || "").replace(/port(aria)?\.?\s*/i, "").trim() || (reg.numero || "").trim() || `______/${ANO}`;
+  const numExib = (numeroAuto || "").trim() || (modelo === "instauracao" ? numInstauracao : `______/${ANO}`);
 
   const imgPmma = imagem("brasoes/pmma-190.jpg", 26, 22);
   const imgMa = imagem("brasoes/armas-ma.png", 16, 16);
@@ -71,6 +80,66 @@ export async function gerarPortariaDocx(reg: PortariaReg, chefes: { comandante?:
     ] })],
   });
 
+  const assCmt = [
+    new Paragraph({ text: "" }), new Paragraph({ text: "" }), new Paragraph({ text: "" }),
+    pCenter("__________________________________________", { size: 24 }),
+    pCenter(comandante || "________________________", { bold: true, size: 24 }),
+    pCenter("CMT DO 18º BPM", { size: 24 }),
+  ];
+
+  let corpo: Paragraph[] = [];
+  if (modelo === "prorrogacao") {
+    corpo = [
+      pCenter(`PORTARIA DE PRORROGAÇÃO DE ${info.sigla} Nº ${numExib} - 18º BPM`, { bold: true, size: 24 }),
+      new Paragraph({ text: "" }),
+      new Paragraph({ alignment: AlignmentType.JUSTIFIED, indent: { firstLine: 700 }, spacing: { after: 200 },
+        children: [t("O "), b("Comandante do 18º Batalhão de Polícia Militar"), t(", no uso das atribuições legais, com fulcro "), t(info.fundProrrog), t(".")] }),
+      new Paragraph({ alignment: AlignmentType.JUSTIFIED, indent: { firstLine: 700 }, spacing: { after: 200 },
+        children: [b("CONSIDERANDO"), t(` o teor do Ofício nº ______/${ANO} – ${info.sigla}, datado de ${BR}.`)] }),
+      new Paragraph({ spacing: { after: 160 }, children: [b("RESOLVE:")] }),
+      art([b("Art. 1º"), t(" Conceder ao "), (encTxt ? b(encTxt) : t(BR)), t(", ______ (________) dias de prorrogação de prazo, a contar de ______, para conclusão do " + info.procNome + " pelo qual é encarregado, conforme Portaria de Delegação de " + info.procNome + " nº "), (reg.portaria?.trim() ? b(reg.portaria) : t(BR)), t(", datada do dia "), (reg.dataInstauracao?.trim() ? b(dataExtenso(reg.dataInstauracao)) : t(BR)), t(".")]),
+      art([b("Art. 2º"), t(" Essa portaria entrará em vigor a contar da data do início da prorrogação de prazo.")]),
+      new Paragraph({ spacing: { after: 300 }, children: [t("PUBLIQUE-SE E CUMPRA-SE.")] }),
+      pCenter(`Quartel do 18º BPM, em Presidente Dutra - MA, ______ de ____________________ de ${ANO}.`, { size: 24 }),
+      ...assCmt,
+    ];
+  } else if (modelo === "escrivao") {
+    corpo = [
+      pCenter(`PORTARIA DE DESIGNAÇÃO DE ESCRIVÃO Nº ${numExib} - 18º BPM`, { bold: true, size: 24 }),
+      new Paragraph({ text: "" }),
+      new Paragraph({ alignment: AlignmentType.JUSTIFIED, indent: { firstLine: 700 }, spacing: { after: 200 },
+        children: [t("O "), (encTxt ? b(encTxt) : t(BR)), t(", Encarregado do " + info.procNome + " instaurado pela Portaria nº "), (reg.portaria?.trim() ? b(reg.portaria) : t(BR)), t(", no uso de suas atribuições e com fulcro no "), b("art. 11 do Código de Processo Penal Militar"), t(",")] }),
+      new Paragraph({ spacing: { after: 160 }, children: [b("RESOLVE:")] }),
+      art([b("Art. 1º"), t(" Designar o(a) " + BR + BR + " para funcionar como ESCRIVÃO(Ã) no presente " + info.procNome + ", que, sob compromisso legal, desempenhará as funções do cargo.")]),
+      art([b("Art. 2º"), t(" Esta portaria entra em vigor na data de sua publicação.")]),
+      new Paragraph({ spacing: { after: 300 }, children: [t("PUBLIQUE-SE, REGISTRE-SE E CUMPRA-SE.")] }),
+      pCenter(`Quartel do 18º BPM, em Presidente Dutra - MA, ______ de ____________________ de ${ANO}.`, { size: 24 }),
+      new Paragraph({ text: "" }), new Paragraph({ text: "" }), new Paragraph({ text: "" }),
+      pCenter("__________________________________________", { size: 24 }),
+      pCenter(encTxt || "Encarregado(a) do procedimento", { bold: true, size: 24 }),
+      pCenter(`Encarregado do ${info.procNome}`, { size: 24 }),
+    ];
+  } else {
+    corpo = [
+      pCenter(`PORTARIA Nº ${numExib}`, { bold: true, size: 26 }),
+      pCenter(`Instauração de ${info.titulo}`, { bold: true, size: 22 }),
+      new Paragraph({ text: "" }),
+      new Paragraph({ alignment: AlignmentType.JUSTIFIED, indent: { firstLine: 700 }, spacing: { after: 200 },
+        children: [t("O "), b("Comandante do 18º Batalhão de Polícia Militar"), t(", no uso das atribuições legais que lhe são conferidas e com fundamento "), t(info.base), t(", e "), b("considerando"), t(" os fatos que ensejam apuração no âmbito desta Unidade,")] }),
+      new Paragraph({ spacing: { after: 160 }, children: [b("RESOLVE:")] }),
+      art([b("Art. 1º"), t(" — Instaurar "), b(info.instaurar), t(" destinada a apurar "), t(reg.objeto?.trim() || BR + BR),
+        ...(reg.envolvido?.trim() ? [t(", tendo como envolvido(a) "), b(reg.envolvido)] : []), t(".")]),
+      art([b("Art. 2º"), t(" — Designar "), (encTxt ? b(encTxt) : t(BR + BR)),
+        t(" para, na condição de "), b(info.enc), t(", presidir e conduzir os respectivos trabalhos, ficando autorizado a praticar todos os atos necessários à elucidação dos fatos.")]),
+      art([b("Art. 3º"), t(" — Fixar o prazo de "), b(info.prazoPadrao), t(" dias para a conclusão dos trabalhos, a contar do recebimento desta Portaria, admitida prorrogação na forma regulamentar"),
+        ...(reg.prazo?.trim() ? [t(" (previsão de conclusão em "), b(dBR(reg.prazo)), t(")")] : []), t(".")]),
+      art([b("Art. 4º"), t(" — Esta Portaria entra em vigor na data de sua publicação.")]),
+      new Paragraph({ spacing: { after: 300 }, children: [t("Publique-se, registre-se e cumpra-se.")] }),
+      pCenter(reg.dataInstauracao?.trim() ? `Presidente Dutra-MA, ${dBR(reg.dataInstauracao)}.` : `Presidente Dutra-MA, ______ de ____________________ de ${ANO}.`, { size: 24 }),
+      ...assCmt,
+    ];
+  }
+
   const doc = new Document({
     styles: { default: { document: { run: { font: "Times New Roman", size: 24 } } } },
     sections: [{
@@ -78,35 +147,9 @@ export async function gerarPortariaDocx(reg: PortariaReg, chefes: { comandante?:
       children: [
         cabecalho,
         pCenter("Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP-65.760-000", { size: 16 }),
-        pCenter("TELEFAX: (99) 98497-1918 (Permanência) — 18batalhaopmma@gmail.com", { size: 16 }),
+        pCenter("TELEFONE: (99) 98509-5005 (Permanência) — 18batalhaopmma@gmail.com", { size: 16 }),
         new Paragraph({ text: "" }),
-        pCenter(`PORTARIA Nº ${numPortaria}`, { bold: true, size: 26 }),
-        pCenter(`Instauração de ${info.titulo}`, { bold: true, size: 22 }),
-        new Paragraph({ text: "" }),
-        new Paragraph({
-          alignment: AlignmentType.JUSTIFIED, indent: { firstLine: 700 }, spacing: { after: 200 },
-          children: [
-            t("O "), b("Comandante do 18º Batalhão de Polícia Militar"),
-            t(", no uso das atribuições legais que lhe são conferidas e com fundamento "), t(info.base),
-            t(", e "), b("considerando"), t(" os fatos que ensejam apuração no âmbito desta Unidade,"),
-          ],
-        }),
-        new Paragraph({ spacing: { after: 160 }, children: [b("RESOLVE:")] }),
-        art([b("Art. 1º"), t(" — Instaurar "), b(info.instaurar), t(" destinada a apurar "), t(reg.objeto?.trim() || BR + BR),
-          ...(reg.envolvido?.trim() ? [t(", tendo como envolvido(a) "), b(reg.envolvido)] : []), t(".")]),
-        art([b("Art. 2º"), t(" — Designar "), (reg.encarregado?.trim() ? b(reg.encarregado) : t(BR + BR)),
-          t(" para, na condição de "), b(info.enc), t(", presidir e conduzir os respectivos trabalhos, ficando autorizado a praticar todos os atos necessários à elucidação dos fatos.")]),
-        art([b("Art. 3º"), t(" — Fixar o prazo de "), b(info.prazoPadrao), t(" dias para a conclusão dos trabalhos, a contar do recebimento desta Portaria, admitida prorrogação na forma regulamentar"),
-          ...(reg.prazo?.trim() ? [t(" (previsão de conclusão em "), b(dBR(reg.prazo)), t(")")] : []), t(".")]),
-        art([b("Art. 4º"), t(" — Esta Portaria entra em vigor na data de sua publicação.")]),
-        new Paragraph({ spacing: { after: 300 }, children: [t("Publique-se, registre-se e cumpra-se.")] }),
-        pCenter(reg.dataInstauracao?.trim() ? `Presidente Dutra-MA, ${dBR(reg.dataInstauracao)}.` : `Presidente Dutra-MA, ______ de ____________________ de ${ANO}.`, { size: 24 }),
-        new Paragraph({ text: "" }),
-        new Paragraph({ text: "" }),
-        new Paragraph({ text: "" }),
-        pCenter("__________________________________________", { size: 24 }),
-        pCenter(comandante || "Autoridade instauradora", { bold: true, size: 24 }),
-        pCenter("Comandante do 18º BPM", { size: 24 }),
+        ...corpo,
       ],
     }],
   });

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import FatdDoc, { type FatdRegistro } from "@/components/FatdDoc";
-import PortariaDoc, { type PortariaRegistro } from "@/components/PortariaDoc";
+import PortariaDoc, { type PortariaRegistro, type PortariaModelo } from "@/components/PortariaDoc";
 import TermoDoc, { type TermoRegistro, type TermoModelo, TERMO_LABEL } from "@/components/TermoDoc";
 import SeletorEfetivo, { type MilitarLite } from "@/components/SeletorEfetivo";
 
@@ -58,7 +58,7 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
   const [salvando, setSalvando] = useState(false);
   const [filtro, setFiltro] = useState("");
   const [peca, setPeca] = useState<FatdRegistro | null>(null);
-  const [portaria, setPortaria] = useState<PortariaRegistro | null>(null);
+  const [portaria, setPortaria] = useState<{ reg: PortariaRegistro; modelo: PortariaModelo; numeroAuto: string } | null>(null);
   const [termoDoc, setTermoDoc] = useState<{ reg: TermoRegistro; modelo: TermoModelo } | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
 
@@ -118,6 +118,19 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
       if (!r.ok) throw new Error();
       setItens((l) => l.filter((x) => x.id !== id));
     } catch { alert("Não foi possível remover."); }
+  };
+
+  // Abre uma portaria. Prorrogação/escrivão recebem número AUTOMÁTICO (sequência
+  // própria por ano); instauração usa o número que você já digita.
+  const abrirPortaria = async (r: Registro, modelo: PortariaModelo) => {
+    setMenuId(null);
+    if (modelo === "instauracao") { setPortaria({ reg: { ...r, tipo }, modelo, numeroAuto: "" }); return; }
+    const peca = modelo === "prorrogacao" ? "prorrogacao" : "escrivao";
+    try {
+      const resp = await fetch("/api/disciplinar/numero", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: r.id, peca }) });
+      const d = await resp.json().catch(() => ({}));
+      setPortaria({ reg: { ...r, tipo }, modelo, numeroAuto: d.numero || "" });
+    } catch { setPortaria({ reg: { ...r, tipo }, modelo, numeroAuto: "" }); }
   };
 
   const previaImport = parseImport(impTexto, impStatus);
@@ -218,7 +231,11 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
                       <button className="peca" onClick={() => setMenuId((m) => (m === r.id ? null : r.id))} title="Gerar peças (PDF/Word)">📄 Peças ▾</button>
                       {menuId === r.id && (
                         <div className="dsc-menu">
-                          <button onClick={() => { setPortaria({ ...r, tipo }); setMenuId(null); }}>Portaria de instauração</button>
+                          <button onClick={() => abrirPortaria(r, "instauracao")}>Portaria de instauração</button>
+                          <button onClick={() => abrirPortaria(r, "prorrogacao")}>Portaria de prorrogação de prazo</button>
+                          {(tipo === "ipm" || tipo === "sindicancia") && (
+                            <button onClick={() => abrirPortaria(r, "escrivao")}>Portaria de designação de escrivão</button>
+                          )}
                           <button onClick={() => { setTermoDoc({ reg: { ...r, tipo }, modelo: "autuacao" }); setMenuId(null); }}>{TERMO_LABEL.autuacao}</button>
                           <button onClick={() => { setTermoDoc({ reg: { ...r, tipo }, modelo: "juntada" }); setMenuId(null); }}>{TERMO_LABEL.juntada}</button>
                           <button onClick={() => { setTermoDoc({ reg: { ...r, tipo }, modelo: "notificacao" }); setMenuId(null); }}>{TERMO_LABEL.notificacao}</button>
@@ -283,7 +300,7 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
       )}
 
       {peca && <FatdDoc reg={peca} chefeP1={chefeP1} comandante={comandante} onFechar={() => setPeca(null)} />}
-      {portaria && <PortariaDoc reg={portaria} comandante={comandante} onFechar={() => setPortaria(null)} />}
+      {portaria && <PortariaDoc reg={portaria.reg} comandante={comandante} modelo={portaria.modelo} numeroAuto={portaria.numeroAuto} onFechar={() => setPortaria(null)} />}
       {termoDoc && <TermoDoc reg={termoDoc.reg} modelo={termoDoc.modelo} comandante={comandante} onFechar={() => setTermoDoc(null)} />}
     </div>
   );
