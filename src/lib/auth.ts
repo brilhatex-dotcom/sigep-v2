@@ -3,14 +3,17 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import crypto from "crypto";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { conferirSenha, gerarHash, hashLegado } from "@/lib/senha";
 
 // ==========================================================
 //  Hash IDENTICO ao Auth.gs original:
 //    SHA-256( salt + senha + salt ), hex minusculo.
 //  Mantido para nao invalidar nenhuma senha ja existente.
 // ==========================================================
+// LEGADO: mantido apenas por compatibilidade de imports. Senhas novas usam
+// bcrypt (lib senha.ts). Delegado ao hashLegado para nao duplicar a regra.
 export function hashSenha(senha: string, salt: string): string {
-  return crypto.createHash("sha256").update(salt + senha + salt, "utf8").digest("hex");
+  return hashLegado(senha, salt);
 }
 
 // Le o IP injetado pelo middleware no header x-sigep-ip.
@@ -65,7 +68,8 @@ export const authOptions: NextAuthOptions = {
         const usuario = await prisma.usuario.findFirst({
           where: { login: { equals: credentials.login.trim(), mode: "insensitive" } },
         });
-        if (!usuario || !usuario.senhaHash || !usuario.salt) return null;
+        // bcrypt embute o sal, entao "salt" so e exigido para hash legado
+        if (!usuario || !usuario.senhaHash) return null;
 
         // precisa estar ativo (Ativo == "SIM")
         if ((usuario.ativo ?? "").toUpperCase() !== "SIM") return null;
@@ -91,9 +95,8 @@ export const authOptions: NextAuthOptions = {
           throw new Error(`BLOQUEADO:${restante}`);
         }
 
-        // ---- confere a senha ----
-        const hash = hashSenha(credentials.senha, usuario.salt);
-        const ok = hash === usuario.senhaHash;
+        // ---- confere a senha (bcrypt ou legado SHA-256) ----
+        const { ok, precisaUpgrade } = await conferirSenha(credentials.senha, usuario.senhaHash, usuario.salt);
 
         if (!ok) {
           // incrementa tentativas; bloqueia se atingir o limite
@@ -125,11 +128,15 @@ export const authOptions: NextAuthOptions = {
         }
 
         // ---- sucesso: zera tentativas e registra ultimo login ----
+        // Se a senha ainda estava no esquema antigo (SHA-256), re-grava agora em
+        // bcrypt — migracao transparente, sem o usuario precisar trocar a senha.
         try {
-          await prisma.usuario.update({
-            where: { id: usuario.id },
-            data: { tentativas: 0, bloqueadoAte: null, ultimoLogin: new Date().toISOString() },
-          });
+          const data: any = { tentativas: 0, bloqueadoAte: null, ultimoLogin: new Date().toISOString() };
+          if (precisaUpgrade) {
+            data.senhaHash = await gerarHash(credentials.senha);
+            data.salt = ""; // bcrypt embute o sal; o campo antigo fica sem uso
+          }
+          await prisma.usuario.update({ where: { id: usuario.id }, data });
         } catch {}
 
         // ---- auditoria: registra a entrada no sistema (com IP) ----

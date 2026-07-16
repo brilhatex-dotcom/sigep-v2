@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import crypto from 'crypto';
-import { authOptions, hashSenha } from '@/lib/auth';
+import { authOptions } from '@/lib/auth';
+import { conferirSenha, gerarHash } from '@/lib/senha';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
@@ -12,10 +12,6 @@ function obterIp(req: NextRequest): string {
   const real = req.headers.get('x-real-ip');
   if (real) return real;
   return 'desconhecido';
-}
-
-function gerarSalt(): string {
-  return crypto.randomBytes(16).toString('hex');
 }
 
 export async function POST(req: NextRequest) {
@@ -49,7 +45,7 @@ export async function POST(req: NextRequest) {
     where: { login: { equals: login, mode: 'insensitive' } },
   });
 
-  if (!usuario || !usuario.salt || !usuario.senhaHash) {
+  if (!usuario || !usuario.senhaHash) {
     return NextResponse.json({ erro: 'Usuario nao encontrado.' }, { status: 404 });
   }
 
@@ -64,27 +60,26 @@ export async function POST(req: NextRequest) {
     if (typeof senhaAtual !== 'string' || senhaAtual.length < 4) {
       return NextResponse.json({ erro: 'Senha atual obrigatoria.' }, { status: 400 });
     }
-    const hashAtual = hashSenha(senhaAtual, usuario.salt);
-    if (hashAtual !== usuario.senhaHash) {
+    const conf = await conferirSenha(senhaAtual, usuario.senhaHash, usuario.salt);
+    if (!conf.ok) {
       return NextResponse.json({ erro: 'Senha atual incorreta.' }, { status: 400 });
     }
     // nova nao pode ser igual a atual
-    const hashNovaComSaltAntigo = hashSenha(novaSenha, usuario.salt);
-    if (hashNovaComSaltAntigo === usuario.senhaHash) {
+    const confNova = await conferirSenha(novaSenha, usuario.senhaHash, usuario.salt);
+    if (confNova.ok) {
       return NextResponse.json({ erro: 'A nova senha deve ser diferente da atual.' }, { status: 400 });
     }
   }
 
-  // Gera salt novo + hash novo (boa pratica: trocar o salt em toda mudanca)
-  const novoSalt = gerarSalt();
-  const novoHash = hashSenha(novaSenha, novoSalt);
+  // Grava a nova senha em bcrypt (o hash ja embute o sal).
+  const novoHash = await gerarHash(novaSenha);
   const ip = obterIp(req);
 
   await prisma.usuario.update({
     where: { id: usuario.id },
     data: {
       senhaHash: novoHash,
-      salt: novoSalt,
+      salt: "",
       precisaTrocar: false,
       tentativas: 0,
       bloqueadoAte: null,

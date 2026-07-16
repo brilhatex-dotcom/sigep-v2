@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions, hashSenha } from "@/lib/auth";
+import { authOptions } from "@/lib/auth";
+import { conferirSenha, gerarHash } from "@/lib/senha";
 import { prisma } from "@/lib/prisma";
-import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -40,23 +40,23 @@ export async function POST(req: Request) {
         where: { login: { equals: String((session.user as any).login || ""), mode: "insensitive" } },
       });
     }
-    if (!usuario || !usuario.salt || !usuario.senhaHash) {
+    if (!usuario || !usuario.senhaHash) {
       return NextResponse.json({ error: "Usuario invalido" }, { status: 400 });
     }
 
-    // confere a senha atual
-    if (hashSenha(senhaAtual, usuario.salt) !== usuario.senhaHash) {
+    // confere a senha atual (bcrypt ou legado)
+    const conf = await conferirSenha(senhaAtual, usuario.senhaHash, usuario.salt);
+    if (!conf.ok) {
       return NextResponse.json({ error: "Senha atual incorreta." }, { status: 400 });
     }
 
-    // grava a nova com salt novo
-    const novoSalt = crypto.randomBytes(16).toString("hex");
-    const novoHash = hashSenha(novaSenha, novoSalt);
+    // grava a nova em bcrypt (o hash embute o sal)
+    const novoHash = await gerarHash(novaSenha);
 
     await prisma.usuario.update({
       where: { id: usuario.id },
       data: {
-        salt: novoSalt,
+        salt: "",
         senhaHash: novoHash,
         precisaTrocar: false,
         tentativas: 0,

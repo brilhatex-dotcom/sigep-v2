@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions, hashSenha } from "@/lib/auth";
+import { authOptions } from "@/lib/auth";
+import { gerarHash } from "@/lib/senha";
 import { prisma } from "@/lib/prisma";
 import { registrar } from "@/lib/auditoria";
-import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -93,14 +93,13 @@ export async function POST(req: Request) {
     const idSimples = soDigitos(efetivoId);
     if (!idSimples) return NextResponse.json({ error: "ID do militar invalido para senha" }, { status: 400 });
 
-    const salt = crypto.randomBytes(16).toString("hex");
-    const senhaHash = hashSenha(idSimples, salt);
+    const senhaHash = await gerarHash(idSimples);
 
     await prisma.usuario.update({
       where: { id: usuario.id },
       data: {
         senhaHash,
-        salt,
+        salt: "",
         precisaTrocar: true,
         tentativas: 0,
         bloqueadoAte: null,

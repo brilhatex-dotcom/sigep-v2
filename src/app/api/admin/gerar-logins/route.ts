@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions, hashSenha } from "@/lib/auth";
+import { authOptions } from "@/lib/auth";
+import { gerarHash } from "@/lib/senha";
 import { prisma } from "@/lib/prisma";
-import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -102,15 +102,14 @@ export async function POST() {
     const erros: string[] = [];
 
     for (const c of p.corrigir) {
-      const salt = crypto.randomBytes(16).toString("hex");
-      const senhaHash = hashSenha(c.senha, salt);
+      const senhaHash = await gerarHash(c.senha);
       try {
         await prisma.usuario.update({
           where: { id: c.usuarioId },
           data: {
             login: c.login,
             senhaHash,
-            salt,
+            salt: "",
             perfil: "policial",
             ativo: "SIM",
             precisaTrocar: true,
@@ -125,15 +124,14 @@ export async function POST() {
     }
 
     for (const c of p.criar) {
-      const salt = crypto.randomBytes(16).toString("hex");
-      const senhaHash = hashSenha(c.senha, salt);
+      const senhaHash = await gerarHash(c.senha);
       try {
         await prisma.usuario.create({
           data: {
             id: "u_" + c.efetivoId,
             login: c.login,
             senhaHash,
-            salt,
+            salt: "",
             ativo: "SIM",
             perfil: "policial",
             refEfetivo: c.efetivoId,
