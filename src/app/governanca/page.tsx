@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { exigirAdmin } from "@/lib/guard";
 import AppShell from "@/components/AppShell";
+import PortariaSistemaDoc from "@/components/PortariaSistemaDoc";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +85,7 @@ export default async function GovernancaPage() {
         <div className="mt-5 flex flex-wrap gap-2">
           <Link href="/auditoria" className="rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] hover:brightness-110">Abrir a Auditoria (log + lacre)</Link>
           <Link href="/admin/gerar-logins" className="rounded-lg border border-white/15 px-4 py-2 text-sm text-white hover:bg-white/5">Encargos / Funções</Link>
+          <PortariaSistemaDoc />
         </div>
 
         <p className="mt-5 rounded-lg border border-[#1d2c44] bg-[#0a1626] p-3 text-xs text-[#8fa3bf]">
