@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { headers } from "next/headers";
+import crypto from "crypto";
 
 /* =========================================================================
    src/lib/auditoria.ts  — registro central de auditoria.
@@ -67,6 +68,48 @@ function capturarIp(): string | null {
   }
 }
 
+// "Celular · Android · Chrome" a partir do user-agent (celular ou computador).
+export function dispositivoDe(ua: string | null | undefined): string {
+  const s = (ua || "").toLowerCase();
+  if (!s) return "";
+  const tipo = /ipad|tablet/.test(s) ? "Tablet"
+    : /mobi|android|iphone|ipod/.test(s) ? "Celular" : "Computador";
+  const so = /android/.test(s) ? "Android"
+    : /iphone|ipad|ipod|ios/.test(s) ? "iOS"
+    : /windows/.test(s) ? "Windows"
+    : /mac os|macintosh/.test(s) ? "macOS"
+    : /linux/.test(s) ? "Linux" : "";
+  const nav = /edg\//.test(s) ? "Edge"
+    : /opr\/|opera/.test(s) ? "Opera"
+    : /chrome|crios/.test(s) ? "Chrome"
+    : /firefox|fxios/.test(s) ? "Firefox"
+    : /safari/.test(s) ? "Safari" : "";
+  return [tipo, so, nav].filter(Boolean).join(" · ");
+}
+function capturarDispositivo(): string | null {
+  try { return dispositivoDe(headers().get("user-agent")) || null; } catch { return null; }
+}
+
+// Garante as colunas novas mesmo sem "prisma db push" (idempotente, roda 1x).
+let colsPronto: Promise<void> | null = null;
+function garantirColunas(): Promise<void> {
+  if (!colsPronto) colsPronto = (async () => {
+    await prisma.$executeRawUnsafe(`ALTER TABLE auditoria ADD COLUMN IF NOT EXISTS "Dispositivo" text`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE auditoria ADD COLUMN IF NOT EXISTS "Hash" text`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE auditoria ADD COLUMN IF NOT EXISTS "HashAnterior" text`);
+  })().catch((e) => { colsPronto = null; throw e; });
+  return colsPronto;
+}
+
+// Conteúdo canônico de um registro para o lacre (hash).
+function conteudoLacre(r: { quandoIso: string; autorLogin?: string | null; autorNome?: string | null; acao: string; alvo?: string | null; alvoNome?: string | null; detalhe?: string | null; antes?: string | null; depois?: string | null; ip?: string | null; dispositivo?: string | null }): string {
+  return [r.quandoIso, r.autorLogin, r.autorNome, r.acao, r.alvo, r.alvoNome, r.detalhe, r.antes, r.depois, r.ip, r.dispositivo]
+    .map((x) => (x ?? "")).join("");
+}
+function calcularHash(hashAnterior: string, conteudo: string): string {
+  return crypto.createHash("sha256").update((hashAnterior || "GENESIS") + "" + conteudo, "utf8").digest("hex");
+}
+
 export async function registrar(e: RegistroEntrada): Promise<void> {
   try {
     let autorLogin = e.autorLogin ?? null;
@@ -80,20 +123,50 @@ export async function registrar(e: RegistroEntrada): Promise<void> {
       }
     }
 
-    // IP: usa o passado manualmente; senao captura dos headers da requisicao.
+    // IP e dispositivo: usa o passado manualmente; senao captura dos headers.
     const ip = e.ip ?? capturarIp();
+    const dispositivo = capturarDispositivo();
+
+    await garantirColunas();
+
+    const quando = new Date();
+    const antes = comoJson(e.antes);
+    const depois = comoJson(e.depois);
+
+    // ---- lacre (hash encadeado) ----
+    // pega o hash do ultimo registro lacrado para encadear (tamper-evidence).
+    let hashAnterior = "GENESIS";
+    try {
+      const ultimo: any = await prisma.auditoria.findFirst({
+        where: { hash: { not: null } } as any,
+        orderBy: { quando: "desc" },
+        select: { hash: true } as any,
+      });
+      if (ultimo?.hash) hashAnterior = ultimo.hash;
+    } catch {}
+
+    const conteudo = conteudoLacre({
+      quandoIso: quando.toISOString(), autorLogin, autorNome, acao: e.acao,
+      alvo: e.alvo ?? null, alvoNome: e.alvoNome ?? null, detalhe: e.detalhe ?? null,
+      antes, depois, ip, dispositivo,
+    });
+    const hash = calcularHash(hashAnterior, conteudo);
 
     await prisma.auditoria.create({
       data: {
+        quando,
         acao: e.acao,
         alvo: e.alvo ?? null,
         alvoNome: e.alvoNome ?? null,
         detalhe: e.detalhe ?? null,
-        antes: comoJson(e.antes),
-        depois: comoJson(e.depois),
+        antes,
+        depois,
         autorLogin,
         autorNome,
         ip,
+        dispositivo,
+        hash,
+        hashAnterior,
       } as any,
     });
   } catch (err) {
@@ -104,6 +177,37 @@ export async function registrar(e: RegistroEntrada): Promise<void> {
 
 /* Compara dois objetos e devolve so os campos que mudaram (antes/depois),
    util para registrar edicoes de ficha sem gravar o objeto inteiro. */
+/* Verifica o LACRE (cadeia de hash): detecta se algum registro foi alterado
+   (o hash não bate com o conteúdo) ou removido (um hashAnterior aponta para um
+   registro que não existe mais). Só considera os registros já lacrados. */
+export async function verificarCadeia(): Promise<{ total: number; verificados: number; ok: boolean; problemas: { id: string; quando: string; motivo: string }[] }> {
+  const problemas: { id: string; quando: string; motivo: string }[] = [];
+  let verificados = 0, total = 0;
+  try {
+    const regs: any[] = await prisma.auditoria.findMany({ orderBy: { quando: "asc" } });
+    total = regs.length;
+    const lacrados = regs.filter((r) => r.hash);
+    const hashesExistentes = new Set<string>(lacrados.map((r) => r.hash));
+    for (const r of lacrados) {
+      verificados++;
+      const conteudo = conteudoLacre({
+        quandoIso: new Date(r.quando).toISOString(), autorLogin: r.autorLogin, autorNome: r.autorNome,
+        acao: r.acao, alvo: r.alvo, alvoNome: r.alvoNome, detalhe: r.detalhe, antes: r.antes, depois: r.depois,
+        ip: r.ip, dispositivo: r.dispositivo,
+      });
+      const esperado = calcularHash(r.hashAnterior || "GENESIS", conteudo);
+      if (esperado !== r.hash) {
+        problemas.push({ id: r.id, quando: new Date(r.quando).toISOString(), motivo: "Conteúdo alterado após o registro (lacre não confere)." });
+      } else if (r.hashAnterior && r.hashAnterior !== "GENESIS" && !hashesExistentes.has(r.hashAnterior)) {
+        problemas.push({ id: r.id, quando: new Date(r.quando).toISOString(), motivo: "Registro anterior removido (elo da corrente faltando)." });
+      }
+    }
+  } catch (err) {
+    console.error("[auditoria] verificarCadeia", err);
+  }
+  return { total, verificados, ok: problemas.length === 0, problemas };
+}
+
 export function diferenca(
   antigo: Record<string, any>,
   novo: Record<string, any>

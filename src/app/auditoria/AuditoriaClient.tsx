@@ -13,7 +13,11 @@ type Linha = {
   detalhe: string | null;
   antes: string | null;
   depois: string | null;
+  ip: string | null;
+  dispositivo: string | null;
+  lacrado: boolean;
 };
+type Integridade = { total: number; verificados: number; ok: boolean; problemas: { id: string; quando: string; motivo: string }[] };
 
 // rotulos amigaveis para as acoes
 const ACAO_LABEL: Record<string, string> = {
@@ -30,6 +34,14 @@ const ACAO_LABEL: Record<string, string> = {
   promover_admin: "Tornou admin",
   rebaixar_admin: "Removeu admin",
   gerar_logins: "Padronizou logins",
+  login_falha: "Senha incorreta",
+  login_bloqueado: "Acesso bloqueado",
+  permuta_criar: "Permuta solicitada",
+  permuta_assinar: "Permuta assinada (concordo)",
+  permuta_recusar: "Permuta recusada",
+  permuta_parecer: "Permuta — parecer do P/1",
+  permuta_visto: "Permuta — visto do Subcmt",
+  permuta_cancelar: "Permuta cancelada",
 };
 
 function rotuloAcao(a: string): string {
@@ -37,7 +49,7 @@ function rotuloAcao(a: string): string {
 }
 
 function corAcao(a: string): string {
-  if (a.startsWith("excluir") || a === "rebaixar_admin") return "#e06464";
+  if (a.startsWith("excluir") || a === "rebaixar_admin" || a === "login_falha" || a === "login_bloqueado" || a === "permuta_recusar") return "#e06464";
   if (a.startsWith("criar") || a === "promover_admin" || a.startsWith("aprovar")) return "#46c47e";
   if (a === "login") return "#9fb0c7";
   return "#D4AF37";
@@ -58,7 +70,7 @@ function parseObj(s: string | null): Record<string, any> | null {
   try { return JSON.parse(s); } catch { return null; }
 }
 
-export default function AuditoriaClient({ linhas }: { linhas: Linha[] }) {
+export default function AuditoriaClient({ linhas, integridade }: { linhas: Linha[]; integridade?: Integridade }) {
   const [busca, setBusca] = useState("");
   const [aberto, setAberto] = useState<string | null>(null);
 
@@ -70,16 +82,32 @@ export default function AuditoriaClient({ linhas }: { linhas: Linha[] }) {
       (l.autorLogin || "").toLowerCase().includes(b) ||
       rotuloAcao(l.acao).toLowerCase().includes(b) ||
       (l.alvoNome || "").toLowerCase().includes(b) ||
-      (l.detalhe || "").toLowerCase().includes(b)
+      (l.detalhe || "").toLowerCase().includes(b) ||
+      (l.ip || "").toLowerCase().includes(b) ||
+      (l.dispositivo || "").toLowerCase().includes(b)
     );
   }, [busca, linhas]);
 
   return (
     <div>
+      {integridade && (
+        integridade.ok ? (
+          <div className="mb-3 rounded-lg border border-emerald-800/50 bg-emerald-950/30 px-4 py-2.5 text-sm text-emerald-300">
+            🔒 <b>Lacre íntegro</b> — {integridade.verificados} registro(s) verificado(s), nenhum sinal de alteração ou remoção.
+          </div>
+        ) : (
+          <div className="mb-3 rounded-lg border border-red-800 bg-red-950/40 px-4 py-2.5 text-sm text-red-300">
+            ⚠️ <b>ALERTA de integridade</b> — {integridade.problemas.length} registro(s) com o lacre quebrado (possível alteração/remoção):
+            <ul className="mt-1 list-disc pl-5 text-xs">
+              {integridade.problemas.slice(0, 8).map((p) => <li key={p.id}>{dataHora(p.quando)} — {p.motivo}</li>)}
+            </ul>
+          </div>
+        )
+      )}
       <input
         value={busca}
         onChange={(e) => setBusca(e.target.value)}
-        placeholder="Filtrar por pessoa, ação, militar..."
+        placeholder="Filtrar por pessoa, ação, militar, IP..."
         className="mb-4 w-full rounded-lg border border-[#28395a] bg-[#0a1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]"
       />
 
@@ -92,7 +120,7 @@ export default function AuditoriaClient({ linhas }: { linhas: Linha[] }) {
           {filtradas.map((l) => {
             const antes = parseObj(l.antes);
             const depois = parseObj(l.depois);
-            const temDetalhe = !!(antes || depois || l.detalhe);
+            const temDetalhe = !!(antes || depois || l.detalhe || l.ip || l.dispositivo);
             const expandido = aberto === l.id;
             return (
               <div key={l.id} className="rounded-lg border border-[#1d2c44] bg-[#0F1B2D]">
@@ -113,18 +141,27 @@ export default function AuditoriaClient({ linhas }: { linhas: Linha[] }) {
                   {temDetalhe && <span className="shrink-0 text-[#6f82a0]">{expandido ? "▲" : "▼"}</span>}
                 </button>
 
-                {expandido && (antes || depois) && (
+                {expandido && (
                   <div className="border-t border-[#1d2c44] px-4 py-3">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <p className="mb-1 text-[11px] font-semibold uppercase text-[#e0a3a3]">Antes</p>
-                        <CamposObj obj={antes} />
-                      </div>
-                      <div>
-                        <p className="mb-1 text-[11px] font-semibold uppercase text-[#9fe6bd]">Depois</p>
-                        <CamposObj obj={depois} />
-                      </div>
+                    <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#94A3B8]">
+                      <span>📱 <b className="text-[#cdd9ea]">Dispositivo:</b> {l.dispositivo || "—"}</span>
+                      <span>🌐 <b className="text-[#cdd9ea]">IP:</b> {l.ip
+                        ? <a href={`https://ipinfo.io/${encodeURIComponent(l.ip)}`} target="_blank" rel="noreferrer" className="text-sky-300 underline hover:text-sky-200">{l.ip}</a>
+                        : "—"}{l.ip && <span className="text-[#6f82a0]"> (clique p/ localização aproximada)</span>}</span>
+                      <span>{l.lacrado ? "🔒 lacrado" : "○ sem lacre (anterior a este recurso)"}</span>
                     </div>
+                    {(antes || depois) && (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <p className="mb-1 text-[11px] font-semibold uppercase text-[#e0a3a3]">Antes</p>
+                          <CamposObj obj={antes} />
+                        </div>
+                        <div>
+                          <p className="mb-1 text-[11px] font-semibold uppercase text-[#9fe6bd]">Depois</p>
+                          <CamposObj obj={depois} />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -6,6 +6,12 @@ import {
   type Permuta, type Assinatura,
 } from "@/lib/permutaPedidos";
 import { podeComoEncargo, podeVerP1, encargoDe, cargoDocDe } from "@/lib/encargos";
+import { registrar } from "@/lib/auditoria";
+
+// alvoNome padrão de uma permuta para a auditoria
+function alvoPermuta(p: Permuta): string {
+  return `${p.solicitante.linha} ⇄ ${p.solicitado?.linha || p.solicitadoNome}`;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -106,6 +112,7 @@ export async function POST(req: Request) {
       };
       pedidos.push(pedido);
       await salvarPermutas(pedidos);
+      await registrar({ acao: "permuta_criar", alvo: pedido.id, alvoNome: alvoPermuta(pedido), detalhe: `Solicitou e assinou a permuta para ${dataPermuta}${dataRetorno ? ` (retorno ${dataRetorno})` : ""}.` });
       return NextResponse.json({ ok: true, pedido });
     }
 
@@ -129,6 +136,11 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Resposta inválida." }, { status: 400 });
       }
       await salvarPermutas(pedidos);
+      await registrar({
+        acao: resposta === "aceitar" ? "permuta_assinar" : "permuta_recusar",
+        alvo: p.id, alvoNome: alvoPermuta(p),
+        detalhe: resposta === "aceitar" ? "Assinou o \"concordo\" (colega solicitado)." : "Recusou a permuta (colega solicitado).",
+      });
       return NextResponse.json({ ok: true, pedido: p });
     }
 
@@ -161,6 +173,10 @@ export async function POST(req: Request) {
         p.estado = "aguardando_subcmt";
         await salvarPermutas(pedidos);
       }
+      await registrar({
+        acao: "permuta_parecer", alvo: p.id, alvoNome: alvoPermuta(p),
+        detalhe: `Parecer do P/1: ${favoravel ? "FAVORÁVEL (autoriza a permuta)" : "NÃO FAVORÁVEL (segue para o Subcmt)"}${parecer ? ` — ${parecer}` : ""}.`,
+      });
       return NextResponse.json({ ok: true, pedido: p });
     }
 
@@ -185,6 +201,10 @@ export async function POST(req: Request) {
       p.subcmtEm = new Date().toISOString();
       p.estado = visto === "autorizado" ? "autorizada" : "nao_autorizada";
       await salvarPermutas(pedidos);
+      await registrar({
+        acao: "permuta_visto", alvo: p.id, alvoNome: alvoPermuta(p),
+        detalhe: `Visto do Subcomandante: ${visto === "autorizado" ? "FAVORÁVEL (autorizado)" : "NÃO AUTORIZADO"}.`,
+      });
       if (p.estado === "autorizada") { try { await aplicarPermutasNaEscala(); } catch {} }
       return NextResponse.json({ ok: true, pedido: p });
     }
@@ -198,6 +218,7 @@ export async function POST(req: Request) {
       if (p.estado !== "aguardando_solicitado") return NextResponse.json({ error: "Só dá para cancelar enquanto o colega não assinou." }, { status: 409 });
       p.estado = "cancelada";
       await salvarPermutas(pedidos);
+      await registrar({ acao: "permuta_cancelar", alvo: p.id, alvoNome: alvoPermuta(p), detalhe: "Cancelou a solicitação de permuta." });
       return NextResponse.json({ ok: true, pedido: p });
     }
 

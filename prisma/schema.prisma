@@ -406,6 +406,9 @@ model Auditoria {
   antes      String?  @map("Antes")
   depois     String?  @map("Depois")
   ip         String?  @map("Ip")
+  dispositivo   String? @map("Dispositivo")    // celular/computador + SO + navegador
+  hash          String? @map("Hash")           // lacre: sha256(hashAnterior + conteudo)
+  hashAnterior  String? @map("HashAnterior")   // encadeia com o registro anterior
 
   @@index([quando])
   @@index([autorLogin])
