@@ -92,6 +92,7 @@ function capturarDispositivo(): string | null {
 
 // Garante as colunas novas mesmo sem "prisma db push" (idempotente, roda 1x).
 let colsPronto: Promise<void> | null = null;
+export function garantirColunasAuditoria(): Promise<void> { return garantirColunas(); }
 function garantirColunas(): Promise<void> {
   if (!colsPronto) colsPronto = (async () => {
     await prisma.$executeRawUnsafe(`ALTER TABLE auditoria ADD COLUMN IF NOT EXISTS "Dispositivo" text`);
@@ -184,6 +185,7 @@ export async function verificarCadeia(): Promise<{ total: number; verificados: n
   const problemas: { id: string; quando: string; motivo: string }[] = [];
   let verificados = 0, total = 0;
   try {
+    await garantirColunas();
     const regs: any[] = await prisma.auditoria.findMany({ orderBy: { quando: "asc" } });
     total = regs.length;
     const lacrados = regs.filter((r) => r.hash);

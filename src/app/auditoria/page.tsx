@@ -1,6 +1,6 @@
 import { exigirAdmin } from "@/lib/guard";
 import { prisma } from "@/lib/prisma";
-import { verificarCadeia } from "@/lib/auditoria";
+import { verificarCadeia, garantirColunasAuditoria } from "@/lib/auditoria";
 import AppShell from "@/components/AppShell";
 import AuditoriaClient from "./AuditoriaClient";
 
@@ -8,6 +8,10 @@ export const dynamic = "force-dynamic";
 
 export default async function AuditoriaPage() {
   const session = await exigirAdmin();
+
+  // Garante as colunas novas (Dispositivo/Hash) ANTES de ler — senão o findMany
+  // quebra a pagina enquanto nenhuma acao tiver criado as colunas.
+  await garantirColunasAuditoria();
 
   // ultimos 300 registros (suficiente para 8 usuarios; com paginacao simples)
   const registros = await prisma.auditoria.findMany({
