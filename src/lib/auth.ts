@@ -51,7 +51,10 @@ function minutosRestantes(iso: string | null): number {
 }
 
 export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt" },
+  // Logout automatico por INATIVIDADE: a sessao vale 30 min e e renovada a cada
+  // requisicao (updateAge 0 = deslizante). Ficou 30 min parado -> cai sozinho.
+  // Protege o PC compartilhado deixado aberto, sem atrapalhar quem esta usando.
+  session: { strategy: "jwt", maxAge: 30 * 60, updateAge: 0 },
   pages: { signIn: "/login" },
   providers: [
     CredentialsProvider({

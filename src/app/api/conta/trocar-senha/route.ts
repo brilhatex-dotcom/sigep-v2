@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { conferirSenha, gerarHash } from "@/lib/senha";
+import { conferirSenha, gerarHash, validarSenhaForte } from "@/lib/senha";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -25,9 +25,9 @@ export async function POST(req: Request) {
   const senhaAtual = String(body.senhaAtual || "");
   const novaSenha = String(body.novaSenha || "");
 
-  if (novaSenha.length < 6) {
-    return NextResponse.json({ error: "A nova senha deve ter ao menos 6 caracteres." }, { status: 400 });
-  }
+  const login = String((session.user as any).login || "");
+  const fraca = validarSenhaForte(novaSenha, [login]);
+  if (fraca) return NextResponse.json({ error: fraca }, { status: 400 });
   if (novaSenha === senhaAtual) {
     return NextResponse.json({ error: "A nova senha deve ser diferente da atual." }, { status: 400 });
   }

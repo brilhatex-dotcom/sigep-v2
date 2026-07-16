@@ -7,6 +7,18 @@ import {
 } from "@/lib/permutaPedidos";
 import { podeComoEncargo, podeVerP1, encargoDe, cargoDocDe } from "@/lib/encargos";
 import { registrar } from "@/lib/auditoria";
+import { prisma } from "@/lib/prisma";
+import { conferirSenha } from "@/lib/senha";
+
+// Reautenticação: confirma a senha do usuário logado no ATO de assinar.
+async function senhaConfere(session: any, senha: string): Promise<boolean> {
+  const login = String(session?.user?.login || "");
+  if (!login || !senha) return false;
+  const u = await prisma.usuario.findFirst({ where: { login: { equals: login, mode: "insensitive" } } });
+  if (!u?.senhaHash) return false;
+  const { ok } = await conferirSenha(senha, u.senhaHash, u.salt);
+  return ok;
+}
 
 // alvoNome padrão de uma permuta para a auditoria
 function alvoPermuta(p: Permuta): string {
@@ -82,6 +94,7 @@ export async function POST(req: Request) {
     // ---------- criar (solicitante assina pelo login) ----------
     if (acao === "criar") {
       if (!meuId) return NextResponse.json({ error: "Seu usuário não está vinculado a uma ficha." }, { status: 400 });
+      if (!(await senhaConfere(session, String(b?.senha || "")))) return NextResponse.json({ error: "Senha incorreta — confirme sua senha para assinar." }, { status: 401 });
       const solicitadoId = String(b?.solicitadoId || "");
       const dataPermuta = String(b?.dataPermuta || "");
       const dataRetorno = String(b?.dataRetorno || "");
@@ -127,6 +140,9 @@ export async function POST(req: Request) {
       if (!p) return NextResponse.json({ error: "Permuta não encontrada." }, { status: 404 });
       if (p.solicitadoId !== meuId) return NextResponse.json({ error: "Esta permuta não é para você assinar." }, { status: 403 });
       if (p.estado !== "aguardando_solicitado") return NextResponse.json({ error: "Esta permuta não está mais aguardando sua assinatura." }, { status: 409 });
+      if (resposta === "aceitar" && !(await senhaConfere(session, String(b?.senha || "")))) {
+        return NextResponse.json({ error: "Senha incorreta — confirme sua senha para assinar o \"concordo\"." }, { status: 401 });
+      }
 
       if (resposta === "aceitar") {
         const ass = await assinaturaDe(meuId!);
@@ -157,6 +173,7 @@ export async function POST(req: Request) {
       const p = pedidos.find((x) => x.id === id);
       if (!p) return NextResponse.json({ error: "Permuta não encontrada." }, { status: 404 });
       if (p.estado !== "aguardando_p1") return NextResponse.json({ error: "Esta permuta não está aguardando o parecer do P/1." }, { status: 409 });
+      if (!(await senhaConfere(session, String(b?.senha || "")))) return NextResponse.json({ error: "Senha incorreta — confirme sua senha para assinar o parecer." }, { status: 401 });
       const favoravel = b?.favoravel !== false; // padrão favorável
       p.parecerP1 = parecer || null;
       p.p1Favoravel = favoravel;
@@ -196,6 +213,7 @@ export async function POST(req: Request) {
       // decidir) OU (b) já está autorizada pelo parecer favorável mas sem o visto dele.
       const podeVistar = p.estado === "aguardando_subcmt" || (p.estado === "autorizada" && !p.visto);
       if (!podeVistar) return NextResponse.json({ error: "Esta permuta não está aguardando o visto do Subcmt." }, { status: 409 });
+      if (!(await senhaConfere(session, String(b?.senha || "")))) return NextResponse.json({ error: "Senha incorreta — confirme sua senha para dar o visto." }, { status: 401 });
       if (visto !== "autorizado" && visto !== "nao_autorizado") {
         return NextResponse.json({ error: "Informe o visto (favorável ou não)." }, { status: 400 });
       }

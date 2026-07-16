@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { conferirSenha, gerarHash } from '@/lib/senha';
+import { conferirSenha, gerarHash, validarSenhaForte } from '@/lib/senha';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
@@ -31,15 +31,8 @@ export async function POST(req: NextRequest) {
 
   const { senhaAtual, novaSenha } = body;
 
-  if (typeof novaSenha !== 'string' || novaSenha.length < 4) {
-    return NextResponse.json({ erro: 'A nova senha deve ter no minimo 4 digitos.' }, { status: 400 });
-  }
-  if (!/^\d+$/.test(novaSenha)) {
-    return NextResponse.json({ erro: 'A nova senha deve conter apenas digitos numericos.' }, { status: 400 });
-  }
-  if (novaSenha === '123456') {
-    return NextResponse.json({ erro: 'Escolha uma senha diferente da padrao.' }, { status: 400 });
-  }
+  const fraca = validarSenhaForte(String(novaSenha ?? ""), [login]);
+  if (fraca) return NextResponse.json({ erro: fraca }, { status: 400 });
 
   const usuario = await prisma.usuario.findFirst({
     where: { login: { equals: login, mode: 'insensitive' } },
