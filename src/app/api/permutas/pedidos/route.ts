@@ -5,6 +5,7 @@ import {
   lerPermutas, salvarPermutas, fichaDe, linhaMilitar, aplicarPermutasNaEscala, cargoP1,
   type Permuta, type Assinatura,
 } from "@/lib/permutaPedidos";
+import { podeComoEncargo, encargoDe, cargoDocDe } from "@/lib/encargos";
 
 export const dynamic = "force-dynamic";
 
@@ -36,14 +37,23 @@ export async function GET() {
   const meuId = (session.user as any).refEfetivo as string | null;
   const admin = ehAdmin((session.user as any).perfil);
 
+  const podeP1 = await podeComoEncargo(meuId, "chefe_p1", admin);
+  const podeSub = await podeComoEncargo(meuId, "subcmt", admin);
+
   const pedidos = await lerPermutas();
   // LGPD: o policial só enxerga as permutas em que ele é parte.
   const meus = pedidos.filter((p) => meuId && (p.solicitanteId === meuId || p.solicitadoId === meuId));
   const paraMim = pedidos.filter((p) => meuId && p.solicitadoId === meuId && p.estado === "aguardando_solicitado");
-  const paraP1 = admin ? pedidos.filter((p) => p.estado === "aguardando_p1") : [];
+  // parecer é do Chefe do P/1 (Silas); visto é do Subcmt (Frans).
+  const paraP1 = podeP1 ? pedidos.filter((p) => p.estado === "aguardando_p1") : [];
+  const paraSubcmt = podeSub ? pedidos.filter((p) => p.estado === "aguardando_subcmt") : [];
 
   const ord = (a: Permuta, b: Permuta) => (b.criadoEm || "").localeCompare(a.criadoEm || "");
-  return NextResponse.json({ meus: meus.sort(ord), paraMim: paraMim.sort(ord), paraP1: paraP1.sort(ord) });
+  return NextResponse.json({
+    meus: meus.sort(ord), paraMim: paraMim.sort(ord),
+    paraP1: paraP1.sort(ord), paraSubcmt: paraSubcmt.sort(ord),
+    podeP1, podeSubcmt: podeSub,
+  });
 }
 
 export async function POST(req: Request) {
@@ -86,6 +96,7 @@ export async function POST(req: Request) {
         motivo,
         estado: "aguardando_solicitado",
         parecerP1: null, p1Nome: null, p1Cargo: null, p1Em: null, visto: null,
+        subcmtNome: null, subcmtEm: null,
         criadoEm: new Date().toISOString(),
       };
       pedidos.push(pedido);
@@ -116,27 +127,44 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, pedido: p });
     }
 
-    // ---------- P/1 dá parecer + visto do Subcomandante ----------
+    // ---------- Chefe do P/1 (Silas) dá o PARECER ----------
     if (acao === "parecer") {
-      if (!admin) return NextResponse.json({ error: "Apenas o P/1 pode analisar." }, { status: 403 });
+      if (!(await podeComoEncargo(meuId, "chefe_p1", admin))) {
+        return NextResponse.json({ error: "Apenas o Chefe da Seção P/1 pode dar o parecer." }, { status: 403 });
+      }
       const id = String(b?.id || "");
-      const visto = String(b?.visto || "");
       const parecer = String(b?.parecer || "").trim();
       const p = pedidos.find((x) => x.id === id);
       if (!p) return NextResponse.json({ error: "Permuta não encontrada." }, { status: 404 });
-      if (p.estado !== "aguardando_p1") return NextResponse.json({ error: "Esta permuta não está aguardando o P/1." }, { status: 409 });
-      if (visto !== "autorizado" && visto !== "nao_autorizado") {
-        return NextResponse.json({ error: "Informe o visto (autorizado ou não autorizado)." }, { status: 400 });
-      }
-      p.visto = visto;
+      if (p.estado !== "aguardando_p1") return NextResponse.json({ error: "Esta permuta não está aguardando o parecer do P/1." }, { status: 409 });
       p.parecerP1 = parecer || null;
       p.p1Nome = (session.user.name || "").trim() || null;
-      p.p1Cargo = cargoP1(session.user.name);
+      const enc = await encargoDe(meuId);
+      p.p1Cargo = (enc && cargoDocDe(enc)) || cargoP1(session.user.name);
       p.p1Em = new Date().toISOString();
+      p.estado = "aguardando_subcmt"; // agora vai para o VISTO do Subcmt
+      await salvarPermutas(pedidos);
+      return NextResponse.json({ ok: true, pedido: p });
+    }
+
+    // ---------- Subcomandante (Frans) dá o VISTO: favorável / não ----------
+    if (acao === "visto") {
+      if (!(await podeComoEncargo(meuId, "subcmt", admin))) {
+        return NextResponse.json({ error: "Apenas o Subcomandante pode dar o visto (favorável/não)." }, { status: 403 });
+      }
+      const id = String(b?.id || "");
+      const visto = String(b?.visto || "");
+      const p = pedidos.find((x) => x.id === id);
+      if (!p) return NextResponse.json({ error: "Permuta não encontrada." }, { status: 404 });
+      if (p.estado !== "aguardando_subcmt") return NextResponse.json({ error: "Esta permuta ainda não tem o parecer do P/1." }, { status: 409 });
+      if (visto !== "autorizado" && visto !== "nao_autorizado") {
+        return NextResponse.json({ error: "Informe o visto (favorável ou não)." }, { status: 400 });
+      }
+      p.visto = visto;
+      p.subcmtNome = (session.user.name || "").trim() || null;
+      p.subcmtEm = new Date().toISOString();
       p.estado = visto === "autorizado" ? "autorizada" : "nao_autorizada";
       await salvarPermutas(pedidos);
-      // autorizada: ja tenta lancar o substituto na escala daquele(s) dia(s)
-      // (se a escala ja existir). Se ainda nao existir, entra ao abrir a escala.
       if (p.estado === "autorizada") { try { await aplicarPermutasNaEscala(); } catch {} }
       return NextResponse.json({ ok: true, pedido: p });
     }

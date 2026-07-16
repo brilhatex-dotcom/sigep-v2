@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import EncargosManager from "@/components/EncargosManager";
 
 type Previa = { totalEfetivo: number; aCorrigir: number; aCriar: number; semMatricula: number; adminsPreservados: number };
 type Resultado = { ok: boolean; corrigidos: number; criados: number; semMatricula: number; adminsPreservados: number; erros?: string[] };
@@ -241,6 +242,9 @@ export default function GerarLoginsClient() {
           <div style={box("#16243a", "#2b3f63", "#9fb0c7")}>Nenhum militar encontrado para a busca.</div>
         )}
       </div>
+
+      {/* ===== Encargos / Funções ===== */}
+      <EncargosManager />
 
       {/* ===== BLOCO 3: gerenciar admins ===== */}
       <div style={{ background: "#0F1B2D", border: "1px solid #1d2c44", borderRadius: 12, padding: 18, marginTop: 22 }}>

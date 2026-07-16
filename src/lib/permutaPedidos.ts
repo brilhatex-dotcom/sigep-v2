@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { podeComoEncargo } from "@/lib/encargos";
 
 /* =========================================================================
    SOLICITAÇÃO DE PERMUTA — documento iniciado pelo policial, ANTES da escala.
@@ -21,7 +22,8 @@ const CHAVE_PEDIDOS = "permuta_pedidos";
 export type EstadoPermuta =
   | "aguardando_solicitado"
   | "recusada"
-  | "aguardando_p1"
+  | "aguardando_p1"       // aguarda o PARECER do Chefe do P/1 (Silas)
+  | "aguardando_subcmt"   // com parecer; aguarda o VISTO do Subcmt (Frans)
   | "autorizada"
   | "nao_autorizada"
   | "cancelada";
@@ -49,6 +51,8 @@ export type Permuta = {
   p1Cargo: string | null;   // cargo de quem deu o parecer (ex.: "Aux. da Seção P/1-18º BPM")
   p1Em: string | null;
   visto: "autorizado" | "nao_autorizado" | null;
+  subcmtNome: string | null;  // quem deu o visto (Subcmt)
+  subcmtEm: string | null;
   criadoEm: string;
   // controle do "amarrar na escala": vira true quando o substituto ja foi
   // lancado na escala daquele dia (aplicado UMA vez; depois o admin pode
@@ -240,10 +244,13 @@ export async function aplicarPermutasNaEscala(): Promise<void> {
 // admin: permutas aguardando o parecer do P/1.
 export async function pendenciasDe(efetivoId: string | null, admin: boolean): Promise<number> {
   const pedidos = await lerPermutas();
+  const podeP1 = await podeComoEncargo(efetivoId, "chefe_p1", admin);
+  const podeSub = await podeComoEncargo(efetivoId, "subcmt", admin);
   let n = 0;
   for (const p of pedidos) {
     if (efetivoId && p.solicitadoId === efetivoId && p.estado === "aguardando_solicitado") n++;
-    else if (admin && p.estado === "aguardando_p1") n++;
+    else if (podeP1 && p.estado === "aguardando_p1") n++;
+    else if (podeSub && p.estado === "aguardando_subcmt") n++;
   }
   return n;
 }

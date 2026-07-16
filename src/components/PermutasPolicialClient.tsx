@@ -14,7 +14,7 @@ type Permuta = {
   solicitadoId: string; solicitadoNome: string; solicitado: Assinatura | null;
   dataPermuta: string; dataRetorno: string; motivo: string;
   estado: string; parecerP1: string | null; p1Nome: string | null; p1Cargo?: string | null; p1Em: string | null;
-  visto: "autorizado" | "nao_autorizado" | null; criadoEm: string;
+  visto: "autorizado" | "nao_autorizado" | null; subcmtNome?: string | null; subcmtEm?: string | null; criadoEm: string;
 };
 type Militar = { id: string; postoGrad: string; numeroBarra: string; nome: string; nomeGuerra: string; matricula: string };
 
@@ -48,7 +48,8 @@ function agruparPorMes(arr: Permuta[]): { mes: string; itens: Permuta[] }[] {
 const ESTADO: Record<string, { rotulo: string; cor: string }> = {
   aguardando_solicitado: { rotulo: "Aguardando o colega assinar", cor: "bg-amber-500/15 text-amber-300" },
   recusada: { rotulo: "Recusada pelo colega", cor: "bg-red-500/15 text-red-300" },
-  aguardando_p1: { rotulo: "Aguardando o P/1", cor: "bg-[#D4AF37]/15 text-[#D4AF37]" },
+  aguardando_p1: { rotulo: "Aguardando parecer do P/1", cor: "bg-[#D4AF37]/15 text-[#D4AF37]" },
+  aguardando_subcmt: { rotulo: "Aguardando visto do Subcmt", cor: "bg-sky-500/15 text-sky-300" },
   autorizada: { rotulo: "Autorizada", cor: "bg-emerald-500/15 text-emerald-300" },
   nao_autorizada: { rotulo: "Não autorizada", cor: "bg-red-500/15 text-red-300" },
   cancelada: { rotulo: "Cancelada", cor: "bg-white/10 text-[#94A3B8]" },
@@ -58,6 +59,9 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
   const [meus, setMeus] = useState<Permuta[]>([]);
   const [paraMim, setParaMim] = useState<Permuta[]>([]);
   const [paraP1, setParaP1] = useState<Permuta[]>([]);
+  const [paraSubcmt, setParaSubcmt] = useState<Permuta[]>([]);
+  const [podeP1, setPodeP1] = useState(false);
+  const [podeSubcmt, setPodeSubcmt] = useState(false);
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [doc, setDoc] = useState<PermutaDoc | null>(null);
@@ -71,8 +75,8 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
   const [dataRetorno, setDataRetorno] = useState("");
   const [motivo, setMotivo] = useState("");
 
-  // parecer P/1
-  const [analisar, setAnalisar] = useState<Permuta | null>(null);
+  // análise: parecer (P/1) ou visto (Subcmt)
+  const [analisar, setAnalisar] = useState<{ p: Permuta; modo: "parecer" | "visto" } | null>(null);
   const [visto, setVisto] = useState<"autorizado" | "nao_autorizado">("autorizado");
   const [parecer, setParecer] = useState("");
 
@@ -85,6 +89,7 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
       const r = await fetch("/api/permutas/pedidos");
       const d = await r.json();
       setMeus(d.meus || []); setParaMim(d.paraMim || []); setParaP1(d.paraP1 || []);
+      setParaSubcmt(d.paraSubcmt || []); setPodeP1(!!d.podeP1); setPodeSubcmt(!!d.podeSubcmt);
     } catch { /* silencioso */ }
   }
   useEffect(() => { carregar(); }, []);
@@ -192,11 +197,11 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
         </section>
       )}
 
-      {/* P/1: para analise */}
-      {isAdmin && paraP1.length > 0 && (
+      {/* Chefe do P/1 (Silas): dar o PARECER */}
+      {podeP1 && paraP1.length > 0 && (
         <section className="ui-card border-[#D4AF37]/30 p-4">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
-            <ShieldCheck className="h-4 w-4 text-[#D4AF37]" /> Permutas para análise do P/1
+            <ShieldCheck className="h-4 w-4 text-[#D4AF37]" /> Permutas para parecer do P/1
           </h2>
           <ul className="space-y-2">
             {paraP1.map((p) => (
@@ -212,9 +217,40 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
                   <button onClick={() => setDoc(p as PermutaDoc)} className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white hover:bg-white/5">
                     <FileText className="h-3.5 w-3.5" /> Ver documento
                   </button>
-                  <button onClick={() => { setAnalisar(p); setVisto("autorizado"); setParecer(""); }}
+                  <button onClick={() => { setAnalisar({ p, modo: "parecer" }); setParecer(""); }}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-xs font-semibold text-[#1a1205] hover:brightness-110">
-                    <ShieldCheck className="h-3.5 w-3.5" /> Dar parecer / visto
+                    <ShieldCheck className="h-3.5 w-3.5" /> Dar parecer
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Subcomandante (Frans): dar o VISTO (favorável/não) */}
+      {podeSubcmt && paraSubcmt.length > 0 && (
+        <section className="ui-card border-sky-500/30 p-4">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
+            <ShieldCheck className="h-4 w-4 text-sky-300" /> Permutas para visto do Subcomandante
+          </h2>
+          <ul className="space-y-2">
+            {paraSubcmt.map((p) => (
+              <li key={p.id} className="rounded-lg border border-white/10 bg-[#0b1626] p-3">
+                <p className="text-sm text-white">
+                  <span className="font-semibold">{p.solicitante.linha}</span> ⇄ <span className="font-semibold">{p.solicitado?.linha || p.solicitadoNome}</span>
+                </p>
+                <p className="mt-0.5 text-xs text-sky-300">
+                  Parecer do P/1 dado{p.p1Nome ? ` por ${p.p1Nome}` : ""} · permuta {dBR(p.dataPermuta)} · retorno {dBR(p.dataRetorno)}
+                </p>
+                {p.parecerP1 && <p className="text-xs text-[#94A3B8]">Parecer: {p.parecerP1}</p>}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button onClick={() => setDoc(p as PermutaDoc)} className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white hover:bg-white/5">
+                    <FileText className="h-3.5 w-3.5" /> Ver documento
+                  </button>
+                  <button onClick={() => { setAnalisar({ p, modo: "visto" }); setVisto("autorizado"); }}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700">
+                    <ShieldCheck className="h-3.5 w-3.5" /> Dar visto (favorável/não)
                   </button>
                 </div>
               </li>
@@ -347,41 +383,58 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
         </div>
       )}
 
-      {/* MODAL parecer P/1 */}
+      {/* MODAL análise: parecer (P/1) ou visto (Subcmt) */}
       {analisar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4" onClick={() => setAnalisar(null)}>
           <div className="w-full max-w-md rounded-xl border border-white/10 bg-[#0F1B2D] shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-              <h3 className="font-bold text-white">Parecer do P/1 · Visto do Subcmt</h3>
+              <h3 className="font-bold text-white">{analisar.modo === "parecer" ? "Parecer do Chefe do P/1" : "Visto do Subcomandante"}</h3>
               <button onClick={() => setAnalisar(null)} className="text-[#94A3B8] hover:text-white"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-3 p-5">
               <div className="rounded-lg bg-white/5 p-3 text-sm text-white">
-                {analisar.solicitante.linha} ⇄ {analisar.solicitado?.linha || analisar.solicitadoNome}
-                <p className="text-xs text-[#94A3B8]">Permuta {dBR(analisar.dataPermuta)} · retorno {dBR(analisar.dataRetorno)}</p>
+                {analisar.p.solicitante.linha} ⇄ {analisar.p.solicitado?.linha || analisar.p.solicitadoNome}
+                <p className="text-xs text-[#94A3B8]">Permuta {dBR(analisar.p.dataPermuta)} · retorno {dBR(analisar.p.dataRetorno)}</p>
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => setVisto("autorizado")}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition ${visto === "autorizado" ? "border-emerald-500 bg-emerald-500/15 text-emerald-300" : "border-white/10 text-[#94A3B8] hover:bg-white/5"}`}>
-                  <CheckCircle2 className="mx-auto mb-0.5 h-4 w-4" /> Autorizado
-                </button>
-                <button onClick={() => setVisto("nao_autorizado")}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition ${visto === "nao_autorizado" ? "border-red-500 bg-red-500/15 text-red-300" : "border-white/10 text-[#94A3B8] hover:bg-white/5"}`}>
-                  <XCircle className="mx-auto mb-0.5 h-4 w-4" /> Não autorizado
-                </button>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[#94A3B8]">Parecer (opcional)</label>
-                <textarea value={parecer} onChange={(e) => setParecer(e.target.value)} rows={3}
-                  className="w-full resize-none rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
-              </div>
-              <div className="flex justify-end gap-2 pt-1">
-                <button onClick={() => setAnalisar(null)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-white">Cancelar</button>
-                <button onClick={() => acao({ acao: "parecer", id: analisar.id, visto, parecer }, "parecer")} disabled={ocupado === "parecer"}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] hover:brightness-110 disabled:opacity-60">
-                  {ocupado === "parecer" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Registrar
-                </button>
-              </div>
+
+              {analisar.modo === "parecer" ? (
+                <>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-[#94A3B8]">Parecer do P/1 (opcional)</label>
+                    <textarea value={parecer} onChange={(e) => setParecer(e.target.value)} rows={3}
+                      className="w-full resize-none rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                  </div>
+                  <p className="text-xs text-[#94A3B8]">Após o parecer, segue para o <b>Subcomandante</b> dar o visto (favorável/não).</p>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button onClick={() => setAnalisar(null)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-white">Cancelar</button>
+                    <button onClick={() => acao({ acao: "parecer", id: analisar.p.id, parecer }, "parecer")} disabled={ocupado === "parecer"}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] hover:brightness-110 disabled:opacity-60">
+                      {ocupado === "parecer" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Enviar parecer
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {analisar.p.parecerP1 && <p className="rounded-lg bg-white/5 p-2 text-xs text-[#94A3B8]"><b>Parecer do P/1:</b> {analisar.p.parecerP1}</p>}
+                  <div className="flex gap-2">
+                    <button onClick={() => setVisto("autorizado")}
+                      className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition ${visto === "autorizado" ? "border-emerald-500 bg-emerald-500/15 text-emerald-300" : "border-white/10 text-[#94A3B8] hover:bg-white/5"}`}>
+                      <CheckCircle2 className="mx-auto mb-0.5 h-4 w-4" /> Favorável (Autorizado)
+                    </button>
+                    <button onClick={() => setVisto("nao_autorizado")}
+                      className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition ${visto === "nao_autorizado" ? "border-red-500 bg-red-500/15 text-red-300" : "border-white/10 text-[#94A3B8] hover:bg-white/5"}`}>
+                      <XCircle className="mx-auto mb-0.5 h-4 w-4" /> Não autorizado
+                    </button>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button onClick={() => setAnalisar(null)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-white">Cancelar</button>
+                    <button onClick={() => acao({ acao: "visto", id: analisar.p.id, visto }, "visto")} disabled={ocupado === "visto"}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-60">
+                      {ocupado === "visto" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Registrar visto
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
