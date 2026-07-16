@@ -24,7 +24,7 @@ const PADRAO = {
   assinatura: "",       // imagem da assinatura (data URL/caminho); "" = em branco
   assinarGov: false,    // se true, a assinatura sai em branco (assina pelo Gov.br)
   cmtAssinatura: "/brasoes/assinatura-cmt.png",   // assinatura do Cmt (VISTO), trocavel se mudar o comando
-  comandante: "TEN CEL FLÁVIO DE CARVALHO RAMOS", // Cmt do 18º BPM (assina solucao/portaria/decisao do disciplinar)
+  comandante: "TEN CEL QOEM FLÁVIO DE CARVALHO RAMOS", // Cmt do 18º BPM (assina solucao/portaria/decisao do disciplinar)
 };
 
 function ehAdmin(perfil?: string | null): boolean {
