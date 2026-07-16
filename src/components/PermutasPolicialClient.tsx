@@ -198,11 +198,12 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
         </section>
       )}
 
-      {/* Chefe do P/1 (Silas): dar o PARECER */}
-      {podeP1 && paraP1.length > 0 && (
+      {/* Seção P/1 (Chefe assina; auxiliares só acompanham) */}
+      {paraP1.length > 0 && (
         <section className="ui-card border-[#D4AF37]/30 p-4">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
             <ShieldCheck className="h-4 w-4 text-[#D4AF37]" /> Permutas para parecer do P/1
+            {!podeP1 && <span className="text-xs font-normal text-[#94A3B8]">(acompanhamento — só o Chefe do P/1 assina)</span>}
           </h2>
           <ul className="space-y-2">
             {paraP1.map((p) => (
@@ -218,10 +219,12 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
                   <button onClick={() => setDoc(p as PermutaDoc)} className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white hover:bg-white/5">
                     <FileText className="h-3.5 w-3.5" /> Ver documento
                   </button>
-                  <button onClick={() => { setAnalisar({ p, modo: "parecer" }); setParecer(""); setParecerFav(true); }}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-xs font-semibold text-[#1a1205] hover:brightness-110">
-                    <ShieldCheck className="h-3.5 w-3.5" /> Dar parecer
-                  </button>
+                  {podeP1 && (
+                    <button onClick={() => { setAnalisar({ p, modo: "parecer" }); setParecer(""); setParecerFav(true); }}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-xs font-semibold text-[#1a1205] hover:brightness-110">
+                      <ShieldCheck className="h-3.5 w-3.5" /> Dar parecer
+                    </button>
+                  )}
                 </div>
               </li>
             ))}

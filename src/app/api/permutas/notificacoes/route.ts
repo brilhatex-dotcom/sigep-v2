@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { lerPermutas } from "@/lib/permutaPedidos";
-import { podeComoEncargo } from "@/lib/encargos";
+import { podeComoEncargo, podeVerP1 } from "@/lib/encargos";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,8 @@ export async function GET() {
   const admin = (session.user.perfil ?? "").toLowerCase() === "admin";
 
   try {
-    const podeP1 = await podeComoEncargo(meuId, "chefe_p1", admin);
+    const podeP1 = await podeComoEncargo(meuId, "chefe_p1", admin); // pode assinar
+    const veP1 = await podeVerP1(meuId, admin);                     // Chefe + Auxiliares
     const podeSub = await podeComoEncargo(meuId, "subcmt", admin);
     const pedidos = await lerPermutas();
     const nots: { id: string; texto: string; em: string }[] = [];
@@ -34,10 +35,13 @@ export async function GET() {
           texto: `${p.solicitante.linha} pediu permuta com você — dia ${dBR(p.dataPermuta)}. Assine o "concordo".`,
           em: p.criadoEm,
         });
-      } else if (podeP1 && p.estado === "aguardando_p1") {
+      } else if (veP1 && p.estado === "aguardando_p1") {
+        // Chefe do P/1 assina; auxiliares recebem para acompanhar (não assinam).
         nots.push({
           id: "p1:" + p.id,
-          texto: `Permuta ${p.solicitante.linha} ⇄ ${p.solicitado?.linha || p.solicitadoNome} aguardando o seu parecer (Chefe do P/1).`,
+          texto: podeP1
+            ? `Permuta ${p.solicitante.linha} ⇄ ${p.solicitado?.linha || p.solicitadoNome} aguardando o seu parecer (Chefe do P/1).`
+            : `Permuta ${p.solicitante.linha} ⇄ ${p.solicitado?.linha || p.solicitadoNome} para acompanhamento do P/1 (o parecer é do Chefe).`,
           em: p.criadoEm,
         });
       } else if (podeSub && p.estado === "aguardando_subcmt") {

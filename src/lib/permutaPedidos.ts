@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { podeComoEncargo } from "@/lib/encargos";
+import { podeComoEncargo, podeVerP1 } from "@/lib/encargos";
 
 /* =========================================================================
    SOLICITAÇÃO DE PERMUTA — documento iniciado pelo policial, ANTES da escala.
@@ -245,12 +245,12 @@ export async function aplicarPermutasNaEscala(): Promise<void> {
 // admin: permutas aguardando o parecer do P/1.
 export async function pendenciasDe(efetivoId: string | null, admin: boolean): Promise<number> {
   const pedidos = await lerPermutas();
-  const podeP1 = await podeComoEncargo(efetivoId, "chefe_p1", admin);
+  const veP1 = await podeVerP1(efetivoId, admin); // Chefe + Auxiliares do P/1
   const podeSub = await podeComoEncargo(efetivoId, "subcmt", admin);
   let n = 0;
   for (const p of pedidos) {
     if (efetivoId && p.solicitadoId === efetivoId && p.estado === "aguardando_solicitado") n++;
-    else if (podeP1 && p.estado === "aguardando_p1") n++;
+    else if (veP1 && p.estado === "aguardando_p1") n++;
     else if (podeSub && p.estado === "aguardando_subcmt") n++;
   }
   return n;

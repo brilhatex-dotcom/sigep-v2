@@ -61,6 +61,17 @@ export async function existeEncargo(encargoId: string): Promise<boolean> {
   return Object.values(mapa).some((v) => v === encargoId);
 }
 
+/* Faz parte da Seção P/1 (Chefe OU Auxiliar) — pode VER/ser notificado das
+   permutas do P/1, mesmo que só o Chefe possa assinar o parecer.
+   Fallback: se ainda não há Chefe do P/1 atribuído, um admin também vê. */
+export async function podeVerP1(refEfetivo: string | null | undefined, admin: boolean): Promise<boolean> {
+  const mapa = await lerEncargos();
+  const meu = refEfetivo ? mapa[refEfetivo] : "";
+  if (meu === "chefe_p1" || meu === "aux_p1") return true;
+  const temChefe = Object.values(mapa).some((v) => v === "chefe_p1");
+  return !temChefe && admin;
+}
+
 /* Pode executar uma ação exigida a um encargo? Regra:
    - quem tem o encargo pode SEMPRE;
    - se NINGUÉM tiver o encargo atribuído ainda, um admin pode (evita travar

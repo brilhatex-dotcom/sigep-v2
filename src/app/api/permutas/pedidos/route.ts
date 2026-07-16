@@ -5,7 +5,7 @@ import {
   lerPermutas, salvarPermutas, fichaDe, linhaMilitar, aplicarPermutasNaEscala, cargoP1,
   type Permuta, type Assinatura,
 } from "@/lib/permutaPedidos";
-import { podeComoEncargo, encargoDe, cargoDocDe } from "@/lib/encargos";
+import { podeComoEncargo, podeVerP1, encargoDe, cargoDocDe } from "@/lib/encargos";
 
 export const dynamic = "force-dynamic";
 
@@ -37,15 +37,16 @@ export async function GET() {
   const meuId = (session.user as any).refEfetivo as string | null;
   const admin = ehAdmin((session.user as any).perfil);
 
-  const podeP1 = await podeComoEncargo(meuId, "chefe_p1", admin);
+  const podeP1 = await podeComoEncargo(meuId, "chefe_p1", admin); // pode ASSINAR o parecer
+  const veP1 = await podeVerP1(meuId, admin);                     // Seção P/1 (vê/acompanha)
   const podeSub = await podeComoEncargo(meuId, "subcmt", admin);
 
   const pedidos = await lerPermutas();
   // LGPD: o policial só enxerga as permutas em que ele é parte.
   const meus = pedidos.filter((p) => meuId && (p.solicitanteId === meuId || p.solicitadoId === meuId));
   const paraMim = pedidos.filter((p) => meuId && p.solicitadoId === meuId && p.estado === "aguardando_solicitado");
-  // parecer é do Chefe do P/1 (Silas); visto é do Subcmt (Frans).
-  const paraP1 = podeP1 ? pedidos.filter((p) => p.estado === "aguardando_p1") : [];
+  // A Seção P/1 (Chefe + Auxiliares) VÊ as que aguardam parecer; só o Chefe assina.
+  const paraP1 = veP1 ? pedidos.filter((p) => p.estado === "aguardando_p1") : [];
   // Subcmt: as que ele PRECISA decidir (parecer não favorável) + as já autorizadas
   // pelo parecer favorável que ele ainda pode "vistar" (opcional, caixinha em branco).
   const paraSubcmt = podeSub
