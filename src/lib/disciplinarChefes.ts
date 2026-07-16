@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 const CHAVE = "escala_chefe_p1";
 const PADRAO = {
   chefeP1: "1º TEN QOEM PAULO SILAS BARROS DE BRITO JUNIOR",
-  comandante: "TEN CEL QOEM FLÁVIO DE CARVALHO RAMOS",
+  comandante: "TEN CEL FLÁVIO DE CARVALHO RAMOS",
 };
 
 export async function lerChefes(): Promise<{ chefeP1: string; comandante: string }> {

@@ -1600,7 +1600,7 @@ export default function EscalaClient() {
             assinatura: d.assinatura || "",
             assinarGov: d.assinarGov === true,
             cmtAssinatura: d.cmtAssinatura || "/brasoes/assinatura-cmt.png",
-            comandante: d.comandante || "TEN CEL QOEM FLÁVIO DE CARVALHO RAMOS",
+            comandante: d.comandante || "TEN CEL FLÁVIO DE CARVALHO RAMOS",
           });
         }
       })
@@ -1975,7 +1975,7 @@ export default function EscalaClient() {
                 <label>Comandante do 18º BPM (assina o disciplinar)
                   <input
                     value={chefe.comandante || ""}
-                    placeholder="ex: TEN CEL QOEM FLÁVIO DE CARVALHO RAMOS"
+                    placeholder="ex: TEN CEL FLÁVIO DE CARVALHO RAMOS"
                     onChange={(e) => setChefe((c) => ({ ...c, comandante: e.target.value }))}
                   />
                 </label>

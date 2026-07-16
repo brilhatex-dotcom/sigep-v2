@@ -28,6 +28,11 @@ function soDigitos(v: string | null | undefined): string {
   return String(v == null ? "" : v).replace(/\D/g, "");
 }
 
+// minúsculo e SEM acento, para a busca não falhar por causa de "João" vs "joao".
+function norm(v: string | null | undefined): string {
+  return String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session || !session.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
@@ -43,16 +48,19 @@ export async function GET(req: Request) {
     const usuarios = await prisma.usuario.findMany({ select: { refEfetivo: true } });
     const comLogin = new Set(usuarios.map((u: { refEfetivo: string | null }) => u.refEfetivo).filter(Boolean) as string[]);
 
-    const b = busca.toLowerCase();
+    const b = norm(busca);
     const bd = soDigitos(busca);
 
     type Ef = { id: string; postoGrad: string | null; numeroBarra: string | null; nome: string | null; nomeGuerra: string | null; matricula: string | null };
-    const filtrados = (busca === "" ? efetivo : efetivo.filter((m: Ef) => {
-      const nome = (m.nome || "").toLowerCase();
-      const guerra = (m.nomeGuerra || "").toLowerCase();
+    const filtrados = (busca === "" ? efetivo.slice(0, 20) : efetivo.filter((m: Ef) => {
+      const nome = norm(m.nome);
+      const guerra = norm(m.nomeGuerra);
+      const posto = norm(m.postoGrad);
+      const barra = soDigitos(m.numeroBarra);
       const mat = soDigitos(m.matricula);
       const id = soDigitos(m.id);
-      return nome.includes(b) || guerra.includes(b) || (bd !== "" && (mat.includes(bd) || id.includes(bd)));
+      return (b !== "" && (nome.includes(b) || guerra.includes(b) || posto.includes(b)))
+        || (bd !== "" && (mat.includes(bd) || id.includes(bd) || barra.includes(bd)));
     })).slice(0, 20);
 
     const resultados = filtrados.map((m: Ef) => ({

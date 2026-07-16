@@ -46,6 +46,15 @@ function garantir(): Promise<void> {
       )
     `);
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS disc_proc_tipo_idx ON disciplinar_procedimento (tipo)`);
+    // coluna com os números já atribuídos a cada peça deste procedimento (JSON)
+    await prisma.$executeRawUnsafe(`ALTER TABLE disciplinar_procedimento ADD COLUMN IF NOT EXISTS numeros text NOT NULL DEFAULT '{}'`);
+    // contador para numeração automática (chave = "<peca>_<ano>", valor sequencial)
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS disciplinar_contador (
+        chave text PRIMARY KEY,
+        valor integer NOT NULL DEFAULT 0
+      )
+    `);
 
     // migração única: se ainda não migrou, copia o array do Config
     const flag = await prisma.config.findUnique({ where: { chave: FLAG_MIGRADO } });
