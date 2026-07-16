@@ -6,6 +6,7 @@ import { X, Printer, ShieldCheck, FileDown, Loader2 } from "lucide-react";
 
 export type PermutaDoc = {
   id: string;
+  protocolo?: string;
   solicitante: { nome: string; linha: string; em: string };
   solicitadoNome: string;
   solicitado: { nome: string; linha: string; em: string } | null;
@@ -110,7 +111,8 @@ export default function SolicitacaoPermutaDoc({ doc, onFechar }: { doc: PermutaD
           <img src="/brasoes/brasao-18bpm.png" alt="" style={{ width: "22mm", height: "22mm", objectFit: "contain" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
         </div>
 
-        <h1 style={{ textAlign: "center", fontSize: "13pt", fontWeight: "bold", margin: "10mm 0 8mm" }}>SOLICITAÇÃO DE PERMUTA</h1>
+        <h1 style={{ textAlign: "center", fontSize: "13pt", fontWeight: "bold", margin: "10mm 0 1mm" }}>SOLICITAÇÃO DE PERMUTA</h1>
+        {doc.protocolo ? <p style={{ textAlign: "center", fontWeight: "bold", margin: "0 0 8mm" }}>PERMUTA Nº {doc.protocolo}</p> : <div style={{ marginBottom: "8mm" }} />}
 
         <p style={{ textAlign: "justify", textIndent: "12mm", margin: "0 0 10mm" }}>
           Eu, <strong>{doc.solicitante.linha}</strong>, integrante do 18º BPM, venho solicitar que seja
