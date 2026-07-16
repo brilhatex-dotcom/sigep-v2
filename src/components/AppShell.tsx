@@ -108,6 +108,12 @@ const NAV: Secao[] = [
     titulo: "Administração",
     itens: [
       { rotulo: "Gerenciar Acessos", href: "/admin/gerar-logins", Icone: KeyRound, disponivel: true, adminOnly: true },
+    ],
+  },
+  {
+    titulo: "Governança",
+    itens: [
+      { rotulo: "Governança e LGPD", href: "/governanca", Icone: Shield, disponivel: true, adminOnly: true },
       { rotulo: "Auditoria", href: "/auditoria", Icone: ShieldCheck, disponivel: true, adminOnly: true },
     ],
   },

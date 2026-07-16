@@ -15,6 +15,9 @@ type Permuta = {
   dataPermuta: string; dataRetorno: string; motivo: string;
   estado: string; parecerP1: string | null; p1Nome: string | null; p1Cargo?: string | null; p1Em: string | null;
   visto: "autorizado" | "nao_autorizado" | null; subcmtNome?: string | null; subcmtEm?: string | null; criadoEm: string;
+  protocolo?: string;
+  cienciaSolicitante?: { em: string; ip: string | null } | null;
+  cienciaSolicitado?: { em: string; ip: string | null } | null;
 };
 type Militar = { id: string; postoGrad: string; numeroBarra: string; nome: string; nomeGuerra: string; matricula: string };
 
@@ -60,6 +63,7 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
   const [paraMim, setParaMim] = useState<Permuta[]>([]);
   const [paraP1, setParaP1] = useState<Permuta[]>([]);
   const [paraSubcmt, setParaSubcmt] = useState<Permuta[]>([]);
+  const [meuId, setMeuId] = useState<string | null>(null);
   const [podeP1, setPodeP1] = useState(false);
   const [podeSubcmt, setPodeSubcmt] = useState(false);
   const [erro, setErro] = useState("");
@@ -93,7 +97,7 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
       const r = await fetch("/api/permutas/pedidos");
       const d = await r.json();
       setMeus(d.meus || []); setParaMim(d.paraMim || []); setParaP1(d.paraP1 || []);
-      setParaSubcmt(d.paraSubcmt || []); setPodeP1(!!d.podeP1); setPodeSubcmt(!!d.podeSubcmt);
+      setParaSubcmt(d.paraSubcmt || []); setPodeP1(!!d.podeP1); setPodeSubcmt(!!d.podeSubcmt); setMeuId(d.meuId ?? null);
     } catch { /* silencioso */ }
   }
   useEffect(() => { carregar(); }, []);
@@ -295,19 +299,33 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
                           <li key={p.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-[#0b1626] p-3">
                             <div className="min-w-0 flex-1">
                               <p className="text-sm text-white">{p.solicitante.linha} ⇄ {p.solicitado?.linha || p.solicitadoNome}</p>
-                              <p className="text-xs text-[#94A3B8]">Permuta {dBR(p.dataPermuta)} · retorno {dBR(p.dataRetorno)}</p>
+                              <p className="text-xs text-[#94A3B8]">{p.protocolo ? <span className="font-mono text-[#D4AF37]">{p.protocolo} · </span> : null}Permuta {dBR(p.dataPermuta)}{p.dataRetorno ? ` · retorno ${dBR(p.dataRetorno)}` : ""}</p>
                               {p.estado === "nao_autorizada" && p.parecerP1 && <p className="text-xs text-red-300">Parecer: {p.parecerP1}</p>}
                             </div>
                             <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${est.cor}`}>{est.rotulo}</span>
                             <button onClick={() => setDoc(p as PermutaDoc)} className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1 text-xs text-white hover:bg-white/5">
                               <FileText className="h-3.5 w-3.5" /> Documento
                             </button>
-                            {p.estado === "aguardando_solicitado" && p.solicitanteId && (
+                            {p.estado === "aguardando_solicitado" && p.solicitanteId === meuId && (
                               <button onClick={() => acao({ acao: "cancelar", id: p.id }, "cancelar-" + p.id)} disabled={ocupado === "cancelar-" + p.id}
                                 className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1 text-xs text-[#94A3B8] hover:bg-white/5 disabled:opacity-60">
                                 <X className="h-3.5 w-3.5" /> Cancelar
                               </button>
                             )}
+                            {(() => {
+                              const decidida = p.estado === "autorizada" || p.estado === "nao_autorizada";
+                              const ehSolic = p.solicitanteId === meuId;
+                              const jaCiente = ehSolic ? !!p.cienciaSolicitante : !!p.cienciaSolicitado;
+                              if (!decidida) return null;
+                              return jaCiente ? (
+                                <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-800/50 bg-emerald-950/30 px-2.5 py-1 text-xs text-emerald-300">☑ Ciente</span>
+                              ) : (
+                                <button onClick={() => acao({ acao: "ciencia", id: p.id }, "ciencia-" + p.id)} disabled={ocupado === "ciencia-" + p.id}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-2.5 py-1 text-xs font-medium text-[#D4AF37] hover:bg-[#D4AF37]/20 disabled:opacity-60">
+                                  ☑ Declaro ciência da decisão
+                                </button>
+                              );
+                            })()}
                           </li>
                         );
                       })}
@@ -421,8 +439,8 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
                     </button>
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-[#94A3B8]">Parecer (opcional)</label>
-                    <textarea value={parecer} onChange={(e) => setParecer(e.target.value)} rows={3}
+                    <label className="mb-1 block text-xs font-medium text-[#94A3B8]">Justificativa do parecer <span className="text-red-300">(obrigatório)</span></label>
+                    <textarea value={parecer} onChange={(e) => setParecer(e.target.value)} rows={3} placeholder="ex.: Permuta atende às necessidades do serviço."
                       className="w-full resize-none rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
                   </div>
                   <p className="text-xs text-[#94A3B8]">
@@ -437,7 +455,7 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
                   </div>
                   <div className="flex justify-end gap-2 pt-1">
                     <button onClick={() => setAnalisar(null)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-white">Cancelar</button>
-                    <button onClick={() => acao({ acao: "parecer", id: analisar.p.id, parecer, favoravel: parecerFav, senha: senhaAss }, "parecer")} disabled={!senhaAss || ocupado === "parecer"}
+                    <button onClick={() => acao({ acao: "parecer", id: analisar.p.id, parecer, favoravel: parecerFav, senha: senhaAss }, "parecer")} disabled={!senhaAss || !parecer.trim() || ocupado === "parecer"}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] hover:brightness-110 disabled:opacity-60">
                       {ocupado === "parecer" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Enviar parecer
                     </button>

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verificarCadeia, garantirColunasAuditoria } from "@/lib/auditoria";
 import AppShell from "@/components/AppShell";
 import AuditoriaClient from "./AuditoriaClient";
+import AncoraLacre from "@/components/AncoraLacre";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,7 @@ export default async function AuditoriaPage() {
         <p className="mb-4 text-sm text-[#94A3B8]">
           Registro de quem fez o quê, quando, de qual IP e dispositivo. Exibindo os {linhas.length} eventos mais recentes.
         </p>
+        <AncoraLacre />
         <AuditoriaClient linhas={linhas} integridade={integridade} />
       </div>
     </AppShell>

@@ -35,8 +35,12 @@ export type Assinatura = {
   em: string;      // ISO da assinatura
 };
 
+export type Ciencia = { em: string; ip: string | null } | null;
 export type Permuta = {
   id: string;
+  protocolo?: string;             // PER-2026-000245 (nº de controle)
+  cienciaSolicitante?: Ciencia;   // termo de ciência da decisão (LGPD/auditoria)
+  cienciaSolicitado?: Ciencia;
   solicitanteId: string;
   solicitante: Assinatura;
   solicitadoId: string;

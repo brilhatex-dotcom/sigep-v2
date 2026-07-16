@@ -9,6 +9,15 @@ import { podeComoEncargo, podeVerP1, encargoDe, cargoDocDe } from "@/lib/encargo
 import { registrar } from "@/lib/auditoria";
 import { prisma } from "@/lib/prisma";
 import { conferirSenha } from "@/lib/senha";
+import { proximoNumero } from "@/lib/disciplinarDb";
+import { headers } from "next/headers";
+
+function ipReq(): string | null {
+  try {
+    const h = headers();
+    return (h.get("x-sigep-ip") || h.get("x-forwarded-for")?.split(",")[0] || h.get("x-real-ip") || "").trim() || null;
+  } catch { return null; }
+}
 
 // Reautenticação: confirma a senha do usuário logado no ATO de assinar.
 async function senhaConfere(session: any, senha: string): Promise<boolean> {
@@ -73,6 +82,7 @@ export async function GET() {
 
   const ord = (a: Permuta, b: Permuta) => (b.criadoEm || "").localeCompare(a.criadoEm || "");
   return NextResponse.json({
+    meuId,
     meus: meus.sort(ord), paraMim: paraMim.sort(ord),
     paraP1: paraP1.sort(ord), paraSubcmt: paraSubcmt.sort(ord),
     podeP1, podeSubcmt: podeSub,
@@ -112,8 +122,15 @@ export async function POST(req: Request) {
       const fColega = await fichaDe(solicitadoId);
       if (!meuAss || !fColega) return NextResponse.json({ error: "Ficha não encontrada." }, { status: 400 });
 
+      const ano = new Date().getFullYear();
+      const seq = await proximoNumero(`permuta_${ano}`);
+      const protocolo = `PER-${ano}-${String(seq).padStart(6, "0")}`;
+
       const pedido: Permuta = {
         id: novoId(),
+        protocolo,
+        cienciaSolicitante: null,
+        cienciaSolicitado: null,
         solicitanteId: meuId,
         solicitante: meuAss,
         solicitadoId,
@@ -173,6 +190,7 @@ export async function POST(req: Request) {
       const p = pedidos.find((x) => x.id === id);
       if (!p) return NextResponse.json({ error: "Permuta não encontrada." }, { status: 404 });
       if (p.estado !== "aguardando_p1") return NextResponse.json({ error: "Esta permuta não está aguardando o parecer do P/1." }, { status: 409 });
+      if (!parecer) return NextResponse.json({ error: "Escreva a justificativa do parecer (obrigatório)." }, { status: 400 });
       if (!(await senhaConfere(session, String(b?.senha || "")))) return NextResponse.json({ error: "Senha incorreta — confirme sua senha para assinar o parecer." }, { status: 401 });
       const favoravel = b?.favoravel !== false; // padrão favorável
       p.parecerP1 = parecer || null;
@@ -227,6 +245,25 @@ export async function POST(req: Request) {
         detalhe: `Visto do Subcomandante: ${visto === "autorizado" ? "FAVORÁVEL (autorizado)" : "NÃO AUTORIZADO"}.`,
       });
       if (p.estado === "autorizada") { try { await aplicarPermutasNaEscala(); } catch {} }
+      return NextResponse.json({ ok: true, pedido: p });
+    }
+
+    // ---------- termo de ciência da decisão (os dois policiais) ----------
+    if (acao === "ciencia") {
+      const id = String(b?.id || "");
+      const p = pedidos.find((x) => x.id === id);
+      if (!p) return NextResponse.json({ error: "Permuta não encontrada." }, { status: 404 });
+      if (p.estado !== "autorizada" && p.estado !== "nao_autorizada") {
+        return NextResponse.json({ error: "Ainda não há decisão da Seção P/1 para dar ciência." }, { status: 409 });
+      }
+      if (meuId !== p.solicitanteId && meuId !== p.solicitadoId) {
+        return NextResponse.json({ error: "Só os policiais da permuta dão ciência." }, { status: 403 });
+      }
+      const ciencia = { em: new Date().toISOString(), ip: ipReq() };
+      if (meuId === p.solicitanteId) p.cienciaSolicitante = ciencia;
+      if (meuId === p.solicitadoId) p.cienciaSolicitado = ciencia;
+      await salvarPermutas(pedidos);
+      await registrar({ acao: "permuta_ciencia", alvo: p.id, alvoNome: alvoPermuta(p), detalhe: `Declarou ciência da decisão da Seção P/1 (${p.protocolo || p.id}).` });
       return NextResponse.json({ ok: true, pedido: p });
     }
 

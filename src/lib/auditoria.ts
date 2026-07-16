@@ -210,6 +210,55 @@ export async function verificarCadeia(): Promise<{ total: number; verificados: n
   return { total, verificados, ok: problemas.length === 0, problemas };
 }
 
+/* ---------------- ÂNCORA EXTERNA DO LACRE ----------------
+   O "selo" é o hash do último registro + a contagem. Você registra uma âncora e
+   guarda esse selo FORA do sistema (imprime/salva/e-mail). Se um dia alguém
+   reescrever a corrente inteira, o hash antigo que você guardou não vai mais
+   existir na base — e o "conferir" acusa. É o que dá peso externo ao lacre. */
+const CHAVE_ANCORAS = "auditoria_ancoras";
+
+export async function seloAtual(): Promise<{ count: number; ultimoHash: string | null; em: string }> {
+  try {
+    await garantirColunas();
+    const total = await prisma.auditoria.count({ where: { hash: { not: null } } as any });
+    const ult: any = await prisma.auditoria.findFirst({ where: { hash: { not: null } } as any, orderBy: { quando: "desc" }, select: { hash: true } as any });
+    return { count: total, ultimoHash: ult?.hash ?? null, em: new Date().toISOString() };
+  } catch { return { count: 0, ultimoHash: null, em: new Date().toISOString() }; }
+}
+
+export async function registrarAncora(por: string): Promise<{ count: number; ultimoHash: string | null; em: string; por: string }> {
+  const s = await seloAtual();
+  const item = { ...s, por };
+  try {
+    const row = await prisma.config.findUnique({ where: { chave: CHAVE_ANCORAS } });
+    const lista = row?.valor ? JSON.parse(row.valor) : [];
+    (Array.isArray(lista) ? lista : []).push(item);
+    await prisma.config.upsert({
+      where: { chave: CHAVE_ANCORAS },
+      update: { valor: JSON.stringify(lista) },
+      create: { chave: CHAVE_ANCORAS, valor: JSON.stringify(lista), descricao: "Âncoras (selos) do lacre da auditoria" },
+    });
+  } catch {}
+  return item;
+}
+
+export async function lerAncoras(): Promise<{ count: number; ultimoHash: string | null; em: string; por: string }[]> {
+  try {
+    const row = await prisma.config.findUnique({ where: { chave: CHAVE_ANCORAS } });
+    const l = row?.valor ? JSON.parse(row.valor) : [];
+    return (Array.isArray(l) ? l : []).slice().reverse();
+  } catch { return []; }
+}
+
+// Confere se um hash de âncora salvo externamente ainda existe na corrente.
+export async function conferirAncora(hash: string): Promise<{ existe: boolean }> {
+  try {
+    await garantirColunas();
+    const r = await prisma.auditoria.findFirst({ where: { hash: (hash || "").trim() } as any, select: { id: true } as any });
+    return { existe: !!r };
+  } catch { return { existe: false }; }
+}
+
 export function diferenca(
   antigo: Record<string, any>,
   novo: Record<string, any>
