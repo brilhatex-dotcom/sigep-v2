@@ -636,20 +636,57 @@ function SlotInline({ slot, onChange, semPermuta }: { slot: Slot; onChange: (s: 
   );
 }
 
+/* Ordem hierarquica a partir do posto abreviado que ABRE o titular da folha
+   (ex.: "1º Sgt PM ...", "Cb PM nº ...", "Cap QOEM ..."). Menor numero = mais
+   antigo, vai para o TOPO da coluna. Linhas em branco ficam por ultimo. */
+const PATENTE_ORDEM: { re: RegExp; ordem: number }[] = [
+  { re: /\bcel\b/i, ordem: 1 },
+  { re: /\btc\b|tenente[-\s]?coronel/i, ordem: 2 },
+  { re: /\bmaj\b/i, ordem: 3 },
+  { re: /\bcap\b/i, ordem: 4 },
+  { re: /1\D*ten\b/i, ordem: 5 },
+  { re: /2\D*ten\b/i, ordem: 6 },
+  { re: /\basp\b/i, ordem: 7 },
+  { re: /sub\s*ten/i, ordem: 8 },
+  { re: /1\D*sgt/i, ordem: 9 },
+  { re: /2\D*sgt/i, ordem: 10 },
+  { re: /3\D*sgt/i, ordem: 11 },
+  { re: /\bcb\b/i, ordem: 12 },
+  { re: /\bsd\b/i, ordem: 13 },
+];
+function ordemPatente(titular: string): number {
+  const t = semTags(titular || "").trim();
+  if (!t) return 999;            // linha em branco -> fim
+  for (const p of PATENTE_ORDEM) if (p.re.test(t)) return p.ordem;
+  return 500;                    // posto nao reconhecido -> antes das em branco
+}
+function ordenaPorPatente(slots: Slot[]): Slot[] {
+  return slots
+    .map((sl, i) => ({ sl, i }))
+    .sort((a, b) => {
+      const oa = ordemPatente(a.sl.titular), ob = ordemPatente(b.sl.titular);
+      return oa !== ob ? oa - ob : a.i - b.i; // estavel: empates mantem a ordem
+    })
+    .map((x) => x.sl);
+}
+
 function SlotList({
-  slots, onChange, center, centro, semPermuta, efetivo,
-}: { slots: Slot[]; onChange: (s: Slot[]) => void; center?: boolean; centro?: boolean; semPermuta?: boolean; efetivo?: Militar[] }) {
+  slots, onChange, center, centro, semPermuta, efetivo, ordenar,
+}: { slots: Slot[]; onChange: (s: Slot[]) => void; center?: boolean; centro?: boolean; semPermuta?: boolean; efetivo?: Militar[]; ordenar?: boolean }) {
   const upd = (i: number, ns: Slot) => { const a = slots.slice(); a[i] = ns; onChange(a); };
   const rm = (i: number) => onChange(slots.filter((_, j) => j !== i));
   const add = () => onChange([...slots, s()]);
   // Busca no efetivo: preenche a 1ª linha vazia ou adiciona uma nova ja com o
-  // nome formatado — evita digitar tudo do zero.
+  // nome formatado — evita digitar tudo do zero. Quando "ordenar" (seções), o
+  // recem-adicionado sobe para a posicao da patente (maior antiguidade no topo).
   const addMilitar = (id: string) => {
     const m = efetivo?.find((x) => x.id === id); if (!m) return;
     const nome = fmtMilitar(m);
     const iVazia = slots.findIndex((sl) => !semTags(sl.titular || "").trim());
-    if (iVazia >= 0) upd(iVazia, { ...slots[iVazia], titular: nome });
-    else onChange([...slots, { ...s(), titular: nome }]);
+    let novo: Slot[];
+    if (iVazia >= 0) { novo = slots.slice(); novo[iVazia] = { ...slots[iVazia], titular: nome }; }
+    else novo = [...slots, { ...s(), titular: nome }];
+    onChange(ordenar ? ordenaPorPatente(novo) : novo);
   };
   return (
     <div className={centro ? "lista centro" : center ? "lista center" : "lista"}>
@@ -1750,7 +1787,28 @@ export default function EscalaClient() {
     return m;
   }, [efetivo]);
 
-  const eBase: Escala = escalas[data] ?? novaEscala(data, cad, nomeDe);
+  // Semente de um dia AINDA NAO salvo: gera o dia pelo motor (rodizio 24/72,
+  // CPU, RP, FT, ROTEM avançam sozinhos) e HERDA o EXPEDIENTE (P1/P3/P4/Ronda/
+  // Patrulha + Cmt/Subcmt) do ULTIMO dia salvo — assim o admin nao refaz todo
+  // dia a mesma parte manual, so ajusta. O oficial de CPU do novo dia folga o
+  // expediente. (O botao "Gerar automatica" ignora a heranca e zera o dia.)
+  const escalaSeed = (iso: string): Escala => {
+    const base = novaEscala(iso, cad, nomeDe);
+    const chaves = Object.keys(escalas).filter((k) => k < iso).sort();
+    const prev = chaves.length ? escalas[chaves[chaves.length - 1]] : null;
+    if (prev?.expediente) {
+      const exp = JSON.parse(JSON.stringify(prev.expediente)) as Expediente;
+      const cpuNome = semTags(base.cpuDeDia?.titular || "").trim();
+      if (cpuNome) {
+        exp.p1 = exp.p1.filter((x) => semTags(x.titular).trim() !== cpuNome);
+        exp.p3 = exp.p3.filter((x) => semTags(x.titular).trim() !== cpuNome);
+      }
+      base.expediente = exp;
+    }
+    return base;
+  };
+
+  const eBase: Escala = escalas[data] ?? escalaSeed(data);
   // Excecao do CPU editada na linha do Mapa vale tambem para dias ja salvos,
   // mantendo Mapa e escala diaria consistentes.
   const ovrCpuDia = cad.cpuOverrides?.[data];
@@ -1762,7 +1820,7 @@ export default function EscalaClient() {
     setEscalas((prev) => {
       const base: Escala = prev[data] != null
         ? (JSON.parse(JSON.stringify(prev[data])) as Escala)
-        : novaEscala(data, cad, nomeDe);
+        : escalaSeed(data);
       fn(base);
       return { ...prev, [data]: base };
     });
@@ -2145,19 +2203,19 @@ export default function EscalaClient() {
                         <td className="lbl">CMT FT</td>
                         <td className="val val-c"><SlotInline semPermuta slot={s2(e.expediente.cmtFt)} onChange={(ns) => editE((d) => { d.expediente.cmtFt = ns.titular; })} /></td>
                         <td className="lbl">P4</td>
-                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.p4} onChange={(arr) => editE((d) => { d.expediente.p4 = arr; })} /></td>
+                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.p4} ordenar onChange={(arr) => editE((d) => { d.expediente.p4 = arr; })} /></td>
                       </tr>
                       <tr>
                         <td className="lbl">P1</td>
-                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.p1} onChange={(arr) => editE((d) => { d.expediente.p1 = arr; })} /></td>
+                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.p1} ordenar onChange={(arr) => editE((d) => { d.expediente.p1 = arr; })} /></td>
                         <td className="lbl">RONDA ESCOLAR</td>
-                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.rondaEscolar} onChange={(arr) => editE((d) => { d.expediente.rondaEscolar = arr; })} /></td>
+                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.rondaEscolar} ordenar onChange={(arr) => editE((d) => { d.expediente.rondaEscolar = arr; })} /></td>
                       </tr>
                       <tr>
                         <td className="lbl">P3</td>
-                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.p3} onChange={(arr) => editE((d) => { d.expediente.p3 = arr; })} /></td>
+                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.p3} ordenar onChange={(arr) => editE((d) => { d.expediente.p3 = arr; })} /></td>
                         <td className="lbl">PATRULHA MARIA DA PENHA</td>
-                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.patrulha} onChange={(arr) => editE((d) => { d.expediente.patrulha = arr; })} /></td>
+                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.patrulha} ordenar onChange={(arr) => editE((d) => { d.expediente.patrulha = arr; })} /></td>
                       </tr>
                     </>
                   )}
@@ -2296,6 +2354,12 @@ const CSS = `
 .sel-mil{ position:relative; flex:1; }
 .sel-mil input{ width:100%; background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:8px; padding:8px 10px; font-size:13px; }
 .sel-mil input:focus{ outline:none; border-color:#D4AF37; }
+/* Busca DENTRO da folha branca (seções P1/P3/P4/Ronda/Patrulha): sem a barra
+   preta — fica transparente e discreta, sem poluir a folha. */
+.slotlist-busca{ margin-top:2px; }
+.slotlist-busca .sel-mil input{ background:transparent; color:#1a1a1a; border:1px dashed #cfcfcf; }
+.slotlist-busca .sel-mil input::placeholder{ color:#9aa0a6; }
+.slotlist-busca .sel-mil input:focus{ background:#fff; border-style:solid; border-color:#D4AF37; }
 .sel-mil-list{ position:absolute; z-index:30; left:0; right:0; top:calc(100% + 4px); background:#0d1830; border:1px solid #2b3f63; border-radius:8px; box-shadow:0 8px 28px rgba(0,0,0,.5); max-height:280px; overflow:auto; }
 .sel-mil-item{ display:flex; justify-content:space-between; align-items:center; gap:10px; width:100%; text-align:left; background:none; border:0; border-bottom:1px solid #18263d; color:#E8EEF6; padding:8px 11px; font-size:13px; cursor:pointer; }
 .sel-mil-item:last-child{ border-bottom:0; }
