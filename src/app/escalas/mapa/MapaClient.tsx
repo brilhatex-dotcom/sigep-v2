@@ -1,6 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ORGANOGRAMA, type NoOrg } from "@/lib/organograma";
+
+/* Lugares selecionáveis (DPM/CIA/Pelotão/seções) para o botão "mudar de
+   lotação" no quadro de equipes. Achatado do organograma (sem a raiz). */
+function flattenLugares(no: NoOrg, acc: { id: string; rotulo: string; cidade?: string }[]): void {
+  if (no.id !== "18bpm") acc.push({ id: no.id, rotulo: no.rotulo, cidade: (no as any).cidade });
+  for (const f of no.filhos ?? []) flattenLugares(f, acc);
+}
+const LUGARES: { id: string; rotulo: string; cidade?: string }[] = (() => {
+  const a: { id: string; rotulo: string; cidade?: string }[] = [];
+  flattenLugares(ORGANOGRAMA, a);
+  return a;
+})();
 
 /* =========================================================================
    SIGEP-18BPM · MAPA DE ESCALA (GUARDIAO) — semi-automatico  ·  v2 UX
@@ -476,6 +489,45 @@ function QuadroEquipes({
   const [afTipo, setAfTipo] = useState<TipoAfastamento>("missao");
   const [afIni, setAfIni] = useState("");
   const [afFim, setAfFim] = useState("");
+  // "mudar de quadro": mover o militar para outra função ou outra lotação
+  const [movCell, setMovCell] = useState<{ team: string; fk: string; id: string } | null>(null);
+  const [movBusca, setMovBusca] = useState("");
+  const [movMsg, setMovMsg] = useState("");
+
+  const slotLivre = (team: string, baseKey: string): string => {
+    const n = cad.linhasExtras?.[baseKey] || 0;
+    const keys = [baseKey];
+    for (let k = 2; k <= n + 1; k++) keys.push(`${baseKey}#${k}`);
+    for (const k of keys) if (!(quadro[team]?.[k])) return k;
+    return baseKey; // todas ocupadas -> sobrescreve a base
+  };
+  const moverFuncao = (team: string, fromFk: string, id: string, toBase: string) => {
+    const toKey = slotLivre(team, toBase);
+    setCad((c) => {
+      const q: Record<string, Record<string, string>> = { ...(c.quadroEquipes || {}) };
+      q[team] = { ...(q[team] || {}), [toKey]: id, [fromFk]: "" };
+      return { ...c, quadroEquipes: q };
+    });
+    setMovCell(null);
+  };
+  const mudarLotacao = async (team: string, fk: string, id: string, lugar: { rotulo: string }) => {
+    setMovMsg("Atualizando lotação…");
+    try {
+      const r = await fetch(`/api/efetivo/${encodeURIComponent(id)}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lotacao: lugar.rotulo }),
+      });
+      if (!r.ok) { setMovMsg("Falha ao alterar a lotação."); return; }
+      // sai do quadro da sede (agora é de outro lugar)
+      setCad((c) => {
+        const q: Record<string, Record<string, string>> = { ...(c.quadroEquipes || {}) };
+        q[team] = { ...(q[team] || {}), [fk]: "" };
+        return { ...c, quadroEquipes: q };
+      });
+      setMovMsg(`Lotação alterada para ${lugar.rotulo}.`);
+      setTimeout(() => { setMovCell(null); setMovMsg(""); setMovBusca(""); }, 1400);
+    } catch { setMovMsg("Falha ao alterar a lotação."); }
+  };
 
   const setCell = (team: string, fk: string, id: string) =>
     setCad((c) => {
@@ -601,7 +653,8 @@ function QuadroEquipes({
                       >
                         <span className="mp-q-nome" style={af ? undefined : { color: "#0a1020" }}>{sobrenome(nomeDe(id))}</span>
                         <span className="mp-q-acoes no-print">
-                          <button title="Afastamento" onClick={() => { setAfCell({ team: lt, fk: f.key, id }); setBusca(""); setAddCell(null); }}>📅</button>
+                          <button title="Afastamento" onClick={() => { setAfCell({ team: lt, fk: f.key, id }); setBusca(""); setAddCell(null); setMovCell(null); }}>📅</button>
+                          <button title="Mudar de quadro / lotação" onClick={() => { setMovCell({ team: lt, fk: f.key, id }); setMovBusca(""); setMovMsg(""); setAfCell(null); setAddCell(null); }}>⇄</button>
                           <button className="del" title="Remover" onClick={() => setCell(lt, f.key, "")}>×</button>
                         </span>
                       </div>
@@ -634,6 +687,31 @@ function QuadroEquipes({
                           <button className="ok" onClick={salvarAf}>Salvar</button>
                           <button onClick={() => setAfCell(null)}>Cancelar</button>
                         </div>
+                      </div>
+                    )}
+
+                    {movCell && movCell.team === lt && movCell.fk === f.key && (
+                      <div className="mp-q-afform no-print" style={{ minWidth: 230 }}>
+                        <div style={{ fontWeight: 700, marginBottom: 2 }}>Mudar {sobrenome(nomeDe(id))}</div>
+                        <div style={{ fontSize: 11, color: "#9fb0c7", margin: "2px 0" }}>Para outra função (quadro):</div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                          {FUNCOES_EQUIPE.filter((ff) => ff.key !== f.baseKey).map((ff) => (
+                            <button key={ff.key} onClick={() => moverFuncao(lt, f.key, id, ff.key)}>{ff.label}</button>
+                          ))}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#9fb0c7", margin: "6px 0 2px" }}>Ou mudar de lotação (DPM/CIA/Pel.):</div>
+                        <input value={movBusca} placeholder="buscar lugar…" onChange={(e) => setMovBusca(e.target.value)} />
+                        {movBusca.trim() !== "" && (
+                          <div className="mp-q-res">
+                            {LUGARES.filter((l) => (l.rotulo + " " + (l.cidade || "")).toLowerCase().includes(movBusca.trim().toLowerCase())).slice(0, 6).map((l) => (
+                              <button key={l.id} onMouseDown={(e) => e.preventDefault()} onClick={() => mudarLotacao(lt, f.key, id, l)}>
+                                {l.rotulo}{l.cidade ? ` — ${l.cidade}` : ""}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {movMsg && <div style={{ fontSize: 11, color: "#9fe6bd", marginTop: 4 }}>{movMsg}</div>}
+                        <div className="mp-q-afbtns"><button onClick={() => { setMovCell(null); setMovMsg(""); }}>Fechar</button></div>
                       </div>
                     )}
                   </td>
