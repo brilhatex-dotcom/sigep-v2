@@ -60,6 +60,7 @@ export default function PermutasClient() {
   const [salvandoKey, setSalvandoKey] = useState<string | null>(null);
   const [periodo, setPeriodo] = useState<Periodo>("mes");
   const [ref, setRef] = useState<string>(hojeISO());
+  const [busca, setBusca] = useState("");
 
   const chave = (l: Linha) => `${l.data}|${l.campo}|${l.idx}`;
 
@@ -120,7 +121,12 @@ export default function PermutasClient() {
 
   const doPeriodo = useMemo(() => linhas.filter((l) => noPeriodo(l.data)), [linhas, noPeriodo]);
   const pendentes = useMemo(() => doPeriodo.filter((l) => (l.status || "pendente") === "pendente").length, [doPeriodo]);
-  const visiveis = soPendentes ? doPeriodo.filter((l) => (l.status || "pendente") === "pendente") : doPeriodo;
+  const visiveis = useMemo(() => {
+    let l = soPendentes ? doPeriodo.filter((x) => (x.status || "pendente") === "pendente") : doPeriodo;
+    const t = busca.trim().toLowerCase();
+    if (t) l = l.filter((x) => `${(x as any).titular || ""} ${(x as any).substituto || ""} ${(x as any).servico || ""}`.toLowerCase().includes(t));
+    return l;
+  }, [soPendentes, doPeriodo, busca]);
 
   return (
     <div className="pm-wrap">
@@ -151,6 +157,7 @@ export default function PermutasClient() {
           <input className="pm-ref" type="date" value={ref} onChange={(e) => setRef(e.target.value || hojeISO())} />
         )}
         <span className="pm-rot">{rotuloPeriodo(periodo, ref)}</span>
+        <input className="pm-ref" style={{ minWidth: 200, flex: 1 }} value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="🔎 Buscar por nome (titular ou substituto)…" />
       </div>
 
       {erro && <div className="pm-erro">{erro}</div>}
