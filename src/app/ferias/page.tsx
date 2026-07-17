@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import PlanoFeriasClient from "@/components/PlanoFeriasClient";
 import FeriasAvulsas from "@/components/FeriasAvulsas";
+import FeriasHojePainel from "@/components/FeriasHojePainel";
+import { militaresDeFeriasHoje } from "@/lib/feriasHoje";
 import { classificarPatente } from "@/lib/patentes";
 import {
   paraData,
@@ -135,6 +137,7 @@ export default async function FeriasPage({
   const totalPracas = totalMilitares - totalOficiais;
 
   const isAdmin = (session.user.perfil ?? "").toLowerCase() === "admin";
+  const feriasHoje = await militaresDeFeriasHoje();
 
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
@@ -145,6 +148,8 @@ export default async function FeriasPage({
         <p className="mb-5 text-sm text-[#94A3B8]">
           {totalMilitares} militares em {equipesAno.length} equipes · ano de gozo {anoSelecionado}.
         </p>
+
+        <FeriasHojePainel militares={feriasHoje} />
 
         {anos.length === 0 ? (
           <div className="rounded-xl border border-white/10 bg-[#0F1B2D] p-8 text-center text-sm text-[#94A3B8]">

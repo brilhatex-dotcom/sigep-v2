@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { listar, criar, registrarRetorno, atualizar, remover, obter } from "@/lib/ccAcessoDb";
-import { inativar, reativar } from "@/lib/inativos";
+import { listar, criar, registrarRetorno, atualizar, remover } from "@/lib/ccAcessoDb";
 
 export const dynamic = "force-dynamic";
 
@@ -45,11 +44,8 @@ export async function POST(req: Request) {
     if (!s(b.efetivoId) && !s(b.nome)) return NextResponse.json({ error: "Informe o policial" }, { status: 400 });
     const quem = String((session.user as any).name || (session.user as any).login || "—");
     const mov = await criar(b, quem);
-    // Saída da unidade (transferência/reforma): oculta o militar de todos os
-    // indicadores na hora (a ficha fica guardada; reversível). Chegada não mexe.
-    if (mov.tipo === "saida" && mov.efetivoId) {
-      try { await inativar(mov.efetivoId, { motivo: mov.motivo, destino: mov.destino, por: quem }); } catch (e) { console.error("[cc inativar]", e); }
-    }
+    // A "saída" oculta o militar dos indicadores automaticamente: o status de
+    // inativo é derivado do próprio registro (ver lib/inativos.ts). Nada a fazer.
     return NextResponse.json({ ok: true, id: mov.id });
   } catch (err) {
     console.error("[POST /api/centro-comando]", err);
@@ -91,12 +87,9 @@ export async function DELETE(req: Request) {
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id obrigatorio" }, { status: 400 });
   try {
-    // Se era uma SAÍDA, reativa o militar (desfaz a ocultação) ao remover o registro.
-    const alvo = await obter(id);
+    // Remover uma "saída" reativa o militar automaticamente (o status de inativo
+    // é derivado dos registros — some o registro, some a inativação).
     await remover(id);
-    if (alvo?.tipo === "saida" && alvo.efetivoId) {
-      try { await reativar(alvo.efetivoId); } catch (e) { console.error("[cc reativar]", e); }
-    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[DELETE /api/centro-comando]", err);

@@ -2,67 +2,39 @@ import { prisma } from "@/lib/prisma";
 
 /* =========================================================================
    Militares INATIVOS (saíram da unidade: transferência/reforma).
-   Guardados numa tabela própria (efetivo_inativo) — a FICHA no efetivo NÃO é
-   apagada, apenas fica OCULTA de todos os indicadores. Reversível: basta
-   remover daqui (reativar). Tabela criada em runtime (o deploy não roda db
-   push). Uso: carregar o conjunto de IDs e filtrar as listas em memória.
+   Fonte da verdade = os registros do Controle (cc_acesso). Um militar está
+   INATIVO quando a sua ÚLTIMA movimentação é uma SAÍDA (sem uma CHEGADA
+   posterior). Assim:
+     - registrar uma Saída  -> fica inativo na hora (some dos indicadores);
+     - remover essa Saída    -> volta a aparecer (reativa);
+     - registrar uma Chegada -> fica ativo (voltou/novo PM).
+   A ficha no efetivo NUNCA é apagada — só fica OCULTA das listas. Reversível.
    ========================================================================= */
 
-let pronto: Promise<void> | null = null;
-function garantir(): Promise<void> {
-  if (!pronto) pronto = (async () => {
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS efetivo_inativo (
-        id text PRIMARY KEY,
-        desde text NOT NULL DEFAULT '',
-        motivo text NOT NULL DEFAULT '',
-        destino text NOT NULL DEFAULT '',
-        por text NOT NULL DEFAULT '',
-        criado_em text NOT NULL DEFAULT ''
-      )
-    `);
-  })().catch((e) => { pronto = null; throw e; });
-  return pronto;
-}
-
-/* Conjunto de IDs inativos, para filtrar as telas. Nunca quebra: se a tabela
-   ainda não existir por algum motivo, devolve conjunto vazio. */
+/* Conjunto de IDs inativos. Nunca quebra: se a tabela ainda não existir,
+   devolve conjunto vazio. */
 export async function idsInativos(): Promise<Set<string>> {
+  const set = new Set<string>();
   try {
-    await garantir();
-    const rows: { id: string }[] = await prisma.$queryRawUnsafe(`SELECT id FROM efetivo_inativo`);
-    return new Set(rows.map((r) => r.id));
+    // garante a coluna "tipo" (tabela criada em runtime pelo Controle)
+    try { await prisma.$executeRawUnsafe(`ALTER TABLE cc_acesso ADD COLUMN IF NOT EXISTS tipo text NOT NULL DEFAULT 'saida'`); } catch {}
+    // pega a ÚLTIMA movimentação de cada militar
+    const rows: { efetivo_id: string; tipo: string }[] = await prisma.$queryRawUnsafe(
+      `SELECT DISTINCT ON (efetivo_id) efetivo_id, tipo
+         FROM cc_acesso
+        WHERE efetivo_id <> ''
+        ORDER BY efetivo_id, data DESC, criado_em DESC`
+    );
+    for (const r of rows) if (r.tipo === "saida") set.add(r.efetivo_id);
   } catch {
-    return new Set<string>();
+    /* tabela ainda não existe -> ninguém inativo */
   }
+  return set;
 }
 
 export async function estaInativo(id: string): Promise<boolean> {
   if (!id) return false;
-  const set = await idsInativos();
-  return set.has(id);
-}
-
-export async function inativar(id: string, dados: { motivo?: string; destino?: string; por?: string }): Promise<void> {
-  if (!id) return;
-  await garantir();
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO efetivo_inativo (id, desde, motivo, destino, por, criado_em)
-     VALUES ($1,$2,$3,$4,$5,$6)
-     ON CONFLICT (id) DO UPDATE SET motivo = EXCLUDED.motivo, destino = EXCLUDED.destino`,
-    id,
-    new Date().toISOString().slice(0, 10),
-    (dados.motivo || "").trim(),
-    (dados.destino || "").trim(),
-    (dados.por || "").trim(),
-    new Date().toISOString(),
-  );
-}
-
-export async function reativar(id: string): Promise<void> {
-  if (!id) return;
-  await garantir();
-  await prisma.$executeRawUnsafe(`DELETE FROM efetivo_inativo WHERE id = $1`, id);
+  return (await idsInativos()).has(id);
 }
 
 /* Helper para filtrar uma lista de militares (qualquer objeto com .id). */
