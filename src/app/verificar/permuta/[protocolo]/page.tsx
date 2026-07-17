@@ -96,12 +96,7 @@ export default async function VerificarPermutaPage({
             <div style={rot}>Datas</div>
             <div style={val}>Permuta: {dBR(d.dataPermuta)} · Retorno: {dBR(d.dataRetorno)}</div>
 
-            {d.parecerP1 && (
-              <>
-                <div style={rot}>Parecer do P/1</div>
-                <div style={val}>{d.parecerP1.favoravel === false ? "Não favorável" : "Favorável"} — {d.parecerP1.cargo ? d.parecerP1.cargo + " " : ""}{d.parecerP1.nome} · {dataHora(d.parecerP1.em)}</div>
-              </>
-            )}
+            {/* Parecer do P/1 ocultado da verificação pública (a pedido). */}
 
             {d.visto && (
               <>

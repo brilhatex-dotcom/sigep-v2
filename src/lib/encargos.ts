@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { ORGANOGRAMA, type NoOrg } from "@/lib/organograma";
 
 /* =========================================================================
    Encargos (funções) dos logins. Guardado na tabela Config (chave "encargos")
@@ -13,7 +14,8 @@ export type Encargo = {
   id: string; label: string; cargoDoc: string; // cargoDoc = como aparece nas assinaturas
 };
 
-export const ENCARGOS: Encargo[] = [
+// Encargos fixos do Comando/Seções (18º BPM).
+const ENCARGOS_BASE: Encargo[] = [
   { id: "cmt", label: "Comandante da Unidade", cargoDoc: "Comandante do 18º BPM" },
   { id: "subcmt", label: "Subcomandante", cargoDoc: "Subcomandante do 18º BPM" },
   { id: "chefe_p1", label: "Chefe da Seção P/1", cargoDoc: "Chefe da Seção P/1-18º BPM" },
@@ -22,6 +24,36 @@ export const ENCARGOS: Encargo[] = [
   { id: "chefe_p3", label: "Chefe do P/3", cargoDoc: "Chefe da Seção P/3-18º BPM" },
   { id: "chefe_p4", label: "Chefe do P/4", cargoDoc: "Chefe da Seção P/4-18º BPM" },
 ];
+
+/* Encargos de COMANDANTE DE LUGAR (CIA, DPM/Pelotão), gerados do organograma.
+   id = "cmt_<noId>" (ex.: cmt_3cia-p1). Assim cada localidade tem o seu Cmt,
+   que fará a escala do próprio lugar. O "noId" liga o encargo à unidade do
+   organograma (usado depois para restringir o acesso à própria lotação). */
+function coletarLugares(no: NoOrg, acc: { id: string; rotulo: string }[]): void {
+  const ehCia = /^\d+cia$/.test(no.id);
+  const ehPelotao = /-p\d+$/.test(no.id);
+  if (ehCia || ehPelotao) acc.push({ id: no.id, rotulo: no.rotulo });
+  for (const f of no.filhos ?? []) coletarLugares(f, acc);
+}
+export const LUGARES_COMANDO: { id: string; rotulo: string }[] = (() => {
+  const a: { id: string; rotulo: string }[] = [];
+  coletarLugares(ORGANOGRAMA, a);
+  return a;
+})();
+export const ENCARGOS_CMT_LUGAR: Encargo[] = LUGARES_COMANDO.map((l) => ({
+  id: `cmt_${l.id}`,
+  label: `Cmt — ${l.rotulo}`,
+  cargoDoc: `Comandante do ${l.rotulo}`,
+}));
+
+// noId do lugar a partir do encargo de comando de lugar ("cmt_3cia-p1" -> "3cia-p1").
+export function lugarDoEncargo(encargoId: string): string | null {
+  if (!encargoId || !encargoId.startsWith("cmt_")) return null;
+  const resto = encargoId.slice(4);
+  return /^\d+cia(-p\d+)?$/.test(resto) ? resto : null;
+}
+
+export const ENCARGOS: Encargo[] = [...ENCARGOS_BASE, ...ENCARGOS_CMT_LUGAR];
 
 export function labelEncargo(id: string): string {
   return ENCARGOS.find((e) => e.id === id)?.label || "";
