@@ -4,6 +4,7 @@ import { getToken } from 'next-auth/jwt';
 const ROTAS_LIVRES = [
   '/login',
   '/trocar-senha',
+  '/verificar',
   '/api/auth',
   '/api/trocar-senha',
   '/_next',

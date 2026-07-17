@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Printer, ShieldCheck, FileDown, Loader2 } from "lucide-react";
+import QrCode from "@/components/QrCode";
 
 export type PermutaDoc = {
   id: string;
   protocolo?: string;
+  verifToken?: string;
   solicitante: { nome: string; linha: string; em: string };
   solicitadoNome: string;
   solicitado: { nome: string; linha: string; em: string } | null;
@@ -32,7 +34,7 @@ function dataHora(iso: string | null | undefined): string {
   return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
 }
 
-function Assinado({ titulo, linha, nome, em }: { titulo: string; linha: string; nome: string; em: string | null }) {
+function Assinado({ titulo, linha, nome, em, qrUrl }: { titulo: string; linha: string; nome: string; em: string | null; qrUrl?: string }) {
   return (
     <div style={{ flex: 1, textAlign: "center", padding: "6px 10px" }}>
       <p style={{ margin: 0, fontWeight: "bold" }}>{titulo}</p>
@@ -40,11 +42,12 @@ function Assinado({ titulo, linha, nome, em }: { titulo: string; linha: string; 
         <>
           <p style={{ margin: "6px 0 2px", fontSize: "9pt" }}>Documento assinado digitalmente</p>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid #1351b4", borderRadius: 4, padding: "3px 8px", margin: "0 auto" }}>
-            <span style={{ fontWeight: "bold", color: "#1351b4", fontSize: "10pt" }}>SIGEP</span>
+            {qrUrl ? <QrCode url={qrUrl} size={54} /> : null}
             <span style={{ textAlign: "left", fontSize: "7.5pt", lineHeight: 1.15 }}>
-              <span style={{ display: "block", fontWeight: "bold" }}>{(nome || linha).toUpperCase()}</span>
+              <span style={{ display: "block", fontWeight: "bold", color: "#1351b4" }}>SIGEP · {(nome || linha).toUpperCase()}</span>
               <span style={{ display: "block" }}>Assinado em {dataHora(em)}</span>
               <span style={{ display: "block" }}>18º BPM · login individual</span>
+              <span style={{ display: "block", color: "#555" }}>Aponte a câmera no QR p/ verificar</span>
             </span>
           </div>
         </>
@@ -61,6 +64,13 @@ export default function SolicitacaoPermutaDoc({ doc, onFechar }: { doc: PermutaD
   const [baixandoWord, setBaixandoWord] = useState(false);
   useEffect(() => { setMontado(true); }, []);
   if (!montado || typeof document === "undefined") return null;
+
+  // URL pública de verificação (QR). Só monta se houver protocolo + token.
+  const base = typeof window !== "undefined" ? window.location.origin : "";
+  const verifUrl = (a: string) =>
+    doc.protocolo && doc.verifToken
+      ? `${base}/verificar/permuta/${encodeURIComponent(doc.protocolo)}?t=${encodeURIComponent(doc.verifToken)}&a=${a}`
+      : "";
 
   async function baixarWord() {
     setBaixandoWord(true);
@@ -124,10 +134,10 @@ export default function SolicitacaoPermutaDoc({ doc, onFechar }: { doc: PermutaD
         {/* Assinaturas */}
         <div style={{ display: "flex", gap: 0, border: "1px solid #000", marginBottom: "4mm" }}>
           <div style={{ flex: 1, borderRight: "1px solid #000" }}>
-            <Assinado titulo="SOLICITANTE" linha={doc.solicitante.linha} nome={doc.solicitante.nome} em={doc.solicitante.em} />
+            <Assinado titulo="SOLICITANTE" linha={doc.solicitante.linha} nome={doc.solicitante.nome} em={doc.solicitante.em} qrUrl={doc.solicitante.em ? verifUrl("solicitante") : ""} />
           </div>
           <div style={{ flex: 1 }}>
-            <Assinado titulo="SOLICITADO" linha={doc.solicitado?.linha || doc.solicitadoNome} nome={doc.solicitado?.nome || ""} em={doc.solicitado?.em || null} />
+            <Assinado titulo="SOLICITADO" linha={doc.solicitado?.linha || doc.solicitadoNome} nome={doc.solicitado?.nome || ""} em={doc.solicitado?.em || null} qrUrl={doc.solicitado?.em ? verifUrl("solicitado") : ""} />
           </div>
         </div>
 
@@ -148,9 +158,10 @@ export default function SolicitacaoPermutaDoc({ doc, onFechar }: { doc: PermutaD
               </>
             )}
             {doc.p1Nome && (
-              <p style={{ fontSize: "8.5pt", marginTop: 8, textAlign: "center" }}>
-                {doc.p1Cargo ? `${doc.p1Cargo} ` : ""}{doc.p1Nome} · {dataHora(doc.p1Em)}
-              </p>
+              <div style={{ marginTop: 8, textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                {verifUrl("p1") ? <QrCode url={verifUrl("p1")} size={48} /> : null}
+                <span style={{ fontSize: "8.5pt" }}>{doc.p1Cargo ? `${doc.p1Cargo} ` : ""}{doc.p1Nome} · {dataHora(doc.p1Em)}</span>
+              </div>
             )}
           </div>
           <div style={{ flex: 1, padding: "6px 10px" }}>
@@ -167,8 +178,20 @@ export default function SolicitacaoPermutaDoc({ doc, onFechar }: { doc: PermutaD
               </span>
               Não Autorizado
             </p>
+            {doc.visto && verifUrl("subcmt") ? (
+              <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8 }}>
+                <QrCode url={verifUrl("subcmt")} size={48} />
+                <span style={{ fontSize: "8pt", color: "#555" }}>{doc.visto === "autorizado" ? "Autorizado" : "Não autorizado"} — verifique no QR</span>
+              </div>
+            ) : null}
           </div>
         </div>
+
+        {doc.protocolo && doc.verifToken ? (
+          <p style={{ marginTop: 10, fontSize: "8pt", color: "#555", textAlign: "center" }}>
+            Autenticidade: aponte a câmera em qualquer QR ou acesse {base.replace(/^https?:\/\//, "")}/verificar/permuta/{doc.protocolo} — o sistema recalcula o lacre e confirma se o documento é autêntico e não foi alterado.
+          </p>
+        ) : null}
 
         <p className="print:hidden" style={{ marginTop: 10, fontSize: "8pt", color: "#999", display: "flex", alignItems: "center", gap: 4 }}>
           <ShieldCheck style={{ width: 12, height: 12 }} /> Assinaturas registradas pelo login individual no SIGEP (não são carimbo do gov.br).

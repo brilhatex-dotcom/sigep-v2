@@ -7,6 +7,7 @@ import {
 } from "@/lib/permutaPedidos";
 import { podeComoEncargo, podeVerP1, encargoDe, cargoDocDe, lerEncargos } from "@/lib/encargos";
 import { registrar } from "@/lib/auditoria";
+import { tokenPermuta } from "@/lib/permutaVerif";
 import { prisma } from "@/lib/prisma";
 import { conferirSenha } from "@/lib/senha";
 import { enviarParaLogin, enviarParaVarios } from "@/lib/push";
@@ -104,10 +105,12 @@ export async function GET() {
     : [];
 
   const ord = (a: Permuta, b: Permuta) => (b.criadoEm || "").localeCompare(a.criadoEm || "");
+  // Anexa o token de verificação (QR) a cada permuta — derivado, não persiste.
+  const comToken = (arr: Permuta[]) => arr.map((p) => ({ ...p, verifToken: tokenPermuta(p) }));
   return NextResponse.json({
     meuId,
-    meus: meus.sort(ord), paraMim: paraMim.sort(ord),
-    paraP1: paraP1.sort(ord), paraSubcmt: paraSubcmt.sort(ord),
+    meus: comToken(meus.sort(ord)), paraMim: comToken(paraMim.sort(ord)),
+    paraP1: comToken(paraP1.sort(ord)), paraSubcmt: comToken(paraSubcmt.sort(ord)),
     podeP1, podeSubcmt: podeSub,
   });
 }

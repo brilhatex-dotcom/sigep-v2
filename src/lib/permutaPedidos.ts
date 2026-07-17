@@ -64,6 +64,7 @@ export type Permuta = {
   // editar/excluir livremente sem que o sistema jogue de novo).
   aplicadaPermuta?: boolean;   // dia da permuta (solicitado cobre o solicitante)
   aplicadaRetorno?: boolean;   // dia do retorno (solicitante cobre o solicitado)
+  verifToken?: string;         // token de verificação (QR) — derivado, não persistido
 };
 
 // Abrevia posto/graduação no padrão dos documentos do batalhão.
