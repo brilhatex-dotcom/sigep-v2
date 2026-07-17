@@ -45,15 +45,25 @@ export const ENCARGOS_CMT_LUGAR: Encargo[] = LUGARES_COMANDO.map((l) => ({
   label: `Cmt — ${l.rotulo}`,
   cargoDoc: `Comandante do ${l.rotulo}`,
 }));
+// Sargenteante de cada lugar: faz a escala do lugar e encaminha ao Cmt.
+export const ENCARGOS_SARG_LUGAR: Encargo[] = LUGARES_COMANDO.map((l) => ({
+  id: `sarg_${l.id}`,
+  label: `Sargenteante — ${l.rotulo}`,
+  cargoDoc: `Sargenteante do ${l.rotulo}`,
+}));
 
-// noId do lugar a partir do encargo de comando de lugar ("cmt_3cia-p1" -> "3cia-p1").
+// noId do lugar a partir de um encargo de lugar ("cmt_3cia-p1"/"sarg_3cia-p1" -> "3cia-p1").
 export function lugarDoEncargo(encargoId: string): string | null {
-  if (!encargoId || !encargoId.startsWith("cmt_")) return null;
-  const resto = encargoId.slice(4);
+  if (!encargoId) return null;
+  const resto = encargoId.startsWith("cmt_") ? encargoId.slice(4) : encargoId.startsWith("sarg_") ? encargoId.slice(5) : "";
   return /^\d+cia(-p\d+)?$/.test(resto) ? resto : null;
 }
+// É um encargo de comando/sargenteante de LUGAR (não os do Comando/Seções)?
+export function ehEncargoDeLugar(encargoId: string): boolean {
+  return lugarDoEncargo(encargoId) !== null;
+}
 
-export const ENCARGOS: Encargo[] = [...ENCARGOS_BASE, ...ENCARGOS_CMT_LUGAR];
+export const ENCARGOS: Encargo[] = [...ENCARGOS_BASE, ...ENCARGOS_CMT_LUGAR, ...ENCARGOS_SARG_LUGAR];
 
 export function labelEncargo(id: string): string {
   return ENCARGOS.find((e) => e.id === id)?.label || "";
