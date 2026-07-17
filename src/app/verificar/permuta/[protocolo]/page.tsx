@@ -35,8 +35,12 @@ export default async function VerificarPermutaPage({
   const permutas = await lerPermutas();
   const p = permutas.find((x) => (x.protocolo || "") === protocolo);
 
-  const ok = !!p && !!token && conferirToken(p, token);
+  const encontrada = !!p;
+  const temToken = !!token;
+  const confere = encontrada && temToken && conferirToken(p!, token);
   const d = p ? dadosVerificacao(p) : null;
+  const status: "nao_encontrada" | "integro" | "divergente" | "localizado" =
+    !encontrada ? "nao_encontrada" : temToken ? (confere ? "integro" : "divergente") : "localizado";
 
   return (
     <div style={wrap}>
@@ -46,60 +50,76 @@ export default async function VerificarPermutaPage({
           <div style={{ fontSize: 12, color: "#8fa3bf" }}>Verificação de autenticidade — Permuta</div>
         </div>
 
-        {!p ? (
-          <div style={{ ...card, background: "#2a1414", borderColor: "#7a1f1f", textAlign: "center" }}>
+        {status === "nao_encontrada" && (
+          <div style={{ background: "#2a1414", border: "1px solid #7a1f1f", borderRadius: 12, padding: 16, textAlign: "center" }}>
             <div style={{ fontSize: 32 }}>❓</div>
             <div style={{ fontWeight: 700, color: "#ffb3b3", marginTop: 6 }}>Permuta não encontrada</div>
-            <div style={{ fontSize: 13, color: "#e6b3b3", marginTop: 4 }}>Nenhum registro para o protocolo <b>{protocolo || "—"}</b>.</div>
+            <div style={{ fontSize: 13, color: "#e6b3b3", marginTop: 4 }}>Nenhum registro para o protocolo <b>{protocolo || "—"}</b>. Confira o número (ex.: PER-2026-000245).</div>
           </div>
-        ) : ok ? (
-          <>
-            <div style={{ background: "#10301f", border: "1px solid #235b3c", borderRadius: 12, padding: 14, textAlign: "center", marginBottom: 16 }}>
-              <div style={{ fontSize: 30 }}>✅</div>
-              <div style={{ fontWeight: 800, color: "#9fe6bd", marginTop: 4 }}>Documento autêntico e íntegro</div>
-              <div style={{ fontSize: 12.5, color: "#bfe6cf", marginTop: 4 }}>O lacre confere: o conteúdo não foi alterado depois da assinatura.</div>
-            </div>
+        )}
 
+        {status === "integro" && (
+          <div style={{ background: "#10301f", border: "1px solid #235b3c", borderRadius: 12, padding: 14, textAlign: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 30 }}>✅</div>
+            <div style={{ fontWeight: 800, color: "#9fe6bd", marginTop: 4 }}>Documento autêntico e íntegro</div>
+            <div style={{ fontSize: 12.5, color: "#bfe6cf", marginTop: 4 }}>O lacre confere: o documento impresso não foi alterado depois da assinatura.</div>
+          </div>
+        )}
+
+        {status === "divergente" && (
+          <div style={{ background: "#3a2f10", border: "1px solid #7a4d12", borderRadius: 12, padding: 16, textAlign: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 30 }}>⚠️</div>
+            <div style={{ fontWeight: 800, color: "#ffe9a8", marginTop: 4 }}>O documento impresso não confere</div>
+            <div style={{ fontSize: 13, color: "#f3df9d", marginTop: 6 }}>O código do QR não bate com o registro atual — o papel pode ter sido <b>alterado depois de impresso</b>. Abaixo está o <b>registro oficial</b> do sistema.</div>
+          </div>
+        )}
+
+        {status === "localizado" && (
+          <div style={{ background: "#12233f", border: "1px solid #2b3f63", borderRadius: 12, padding: 14, textAlign: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 30 }}>🔎</div>
+            <div style={{ fontWeight: 800, color: "#bcd2ff", marginTop: 4 }}>Registro oficial localizado</div>
+            <div style={{ fontSize: 12.5, color: "#a9c0e6", marginTop: 4 }}>Estes são os dados oficiais desta permuta no sistema. Para conferir um documento impresso, use o QR Code da folha.</div>
+          </div>
+        )}
+
+        {d && (
+          <>
             <div style={rot}>Protocolo</div>
-            <div style={val}>{d!.protocolo}</div>
+            <div style={val}>{d.protocolo}</div>
 
             <div style={rot}>Solicitante</div>
-            <div style={val}>{d!.solicitante} · assinou em {dataHora(d!.assinaturaSolicitante)}</div>
+            <div style={val}>{d.solicitante}{d.assinaturaSolicitante ? ` · assinou em ${dataHora(d.assinaturaSolicitante)}` : ""}</div>
 
             <div style={rot}>Solicitado</div>
-            <div style={val}>{d!.solicitado}{d!.assinaturaSolicitado ? ` · assinou em ${dataHora(d!.assinaturaSolicitado)}` : ""}</div>
+            <div style={val}>{d.solicitado}{d.assinaturaSolicitado ? ` · assinou em ${dataHora(d.assinaturaSolicitado)}` : ""}</div>
 
             <div style={rot}>Datas</div>
-            <div style={val}>Permuta: {dBR(d!.dataPermuta)} · Retorno: {dBR(d!.dataRetorno)}</div>
+            <div style={val}>Permuta: {dBR(d.dataPermuta)} · Retorno: {dBR(d.dataRetorno)}</div>
 
-            {d!.parecerP1 && (
+            {d.parecerP1 && (
               <>
                 <div style={rot}>Parecer do P/1</div>
-                <div style={val}>{d!.parecerP1.favoravel === false ? "Não favorável" : "Favorável"} — {d!.parecerP1.cargo ? d!.parecerP1.cargo + " " : ""}{d!.parecerP1.nome} · {dataHora(d!.parecerP1.em)}</div>
+                <div style={val}>{d.parecerP1.favoravel === false ? "Não favorável" : "Favorável"} — {d.parecerP1.cargo ? d.parecerP1.cargo + " " : ""}{d.parecerP1.nome} · {dataHora(d.parecerP1.em)}</div>
               </>
             )}
 
-            {d!.visto && (
+            {d.visto && (
               <>
                 <div style={rot}>Visto do Subcomandante</div>
-                <div style={val}>{d!.visto.sentido} — {d!.visto.nome} · {dataHora(d!.visto.em)}</div>
+                <div style={val}>{d.visto.sentido} — {d.visto.nome} · {dataHora(d.visto.em)}</div>
               </>
             )}
 
             <div style={rot}>Situação</div>
-            <div style={{ ...val, color: d!.estado === "autorizada" ? "#9fe6bd" : d!.estado === "nao_autorizada" ? "#ffb3b3" : "#f3df9d" }}>{d!.decisao}</div>
+            <div style={{ ...val, color: d.estado === "autorizada" ? "#9fe6bd" : d.estado === "nao_autorizada" ? "#ffb3b3" : "#f3df9d" }}>{d.decisao}</div>
           </>
-        ) : (
-          <div style={{ background: "#3a2f10", border: "1px solid #7a4d12", borderRadius: 12, padding: 16, textAlign: "center" }}>
-            <div style={{ fontSize: 30 }}>⚠️</div>
-            <div style={{ fontWeight: 800, color: "#ffe9a8", marginTop: 4 }}>Não foi possível confirmar</div>
-            <div style={{ fontSize: 13, color: "#f3df9d", marginTop: 6 }}>
-              O código de verificação não confere com o registro atual. Isso acontece quando o documento foi <b>alterado depois de impresso</b> ou o QR/código está incompleto. Gere o documento novamente pelo sistema.
-            </div>
-          </div>
         )}
 
-        <div style={{ fontSize: 11, color: "#6f82a0", textAlign: "center", marginTop: 18, lineHeight: 1.5 }}>
+        <div style={{ textAlign: "center", marginTop: 16 }}>
+          <a href="/verificar" style={{ fontSize: 13, color: "#D4AF37", textDecoration: "none" }}>← Verificar outro documento</a>
+        </div>
+
+        <div style={{ fontSize: 11, color: "#6f82a0", textAlign: "center", marginTop: 14, lineHeight: 1.5 }}>
           Verificação por lacre eletrônico (HMAC-SHA256). Esta página mostra apenas dados administrativos da permuta — sem CPF ou dados bancários (LGPD).
         </div>
       </div>

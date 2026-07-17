@@ -218,6 +218,10 @@ export default function LoginPage() {
                   Salmos 127.1
                 </p>
               </div>
+
+              <a href="/verificar" className="mt-4 block text-center text-xs text-white/70 hover:text-sigep-dourado">
+                🔎 Verificar autenticidade de documento
+              </a>
             </div>
           </div>
 
