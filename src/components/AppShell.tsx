@@ -49,6 +49,7 @@ type Item = {
   Icone: React.ComponentType<{ className?: string }>;
   disponivel?: boolean;
   adminOnly?: boolean;
+  policialOnly?: boolean; // aparece só para o usuário final (não-admin)
 };
 type Secao = { titulo: string; itens: Item[] };
 
@@ -84,6 +85,8 @@ const NAV: Secao[] = [
       { rotulo: "Permutas", href: "/permutas", Icone: ArrowLeftRight, disponivel: true },
       { rotulo: "Requerimentos", href: "/requerimentos", Icone: FileText, disponivel: true },
       { rotulo: "Cursos", href: "/cursos", Icone: Award, disponivel: true },
+      { rotulo: "Escala de Serviço", href: "/minha-escala", Icone: ClipboardList, disponivel: true, policialOnly: true },
+      { rotulo: "Minhas Férias", href: "/minhas-ferias", Icone: Palmtree, disponivel: true, policialOnly: true },
       { rotulo: "Diárias", Icone: FileText, adminOnly: true },
       { rotulo: "Escalas de Serviço", href: "/escalas", Icone: ClipboardList, disponivel: true, adminOnly: true },
       { rotulo: "Mapa de Escala", href: "/escalas/mapa", Icone: Map, disponivel: true, adminOnly: true },
@@ -211,7 +214,7 @@ export default function AppShell({
     .map((secao) => ({
       ...secao,
       itens: secao.itens
-        .filter((item) => admin || !item.adminOnly)
+        .filter((item) => (admin ? !item.policialOnly : !item.adminOnly))
         // O policial vai direto para a propria tela de certidoes. Sem isto, o
         // link "/promocoes" faz um redirect no servidor ate
         // "/promocoes/minhas-certidoes", e esse pulo extra causava o "flash
