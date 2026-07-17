@@ -104,6 +104,11 @@ export async function GET() {
     ? pedidos.filter((p) => !p.visto && (p.estado === "aguardando_subcmt" || p.estado === "autorizada"))
     : [];
 
+  // ARQUIVO: admin / Seção P/1 / Subcmt veem TODAS as permutas (visualizar e
+  // arquivar a folha depois de decidida). Policial comum não recebe arquivo.
+  const podeArquivo = admin || veP1 || podeSub;
+  const arquivo = podeArquivo ? pedidos.slice() : [];
+
   const ord = (a: Permuta, b: Permuta) => (b.criadoEm || "").localeCompare(a.criadoEm || "");
   // Anexa o token de verificação (QR) a cada permuta — derivado, não persiste.
   const comToken = (arr: Permuta[]) => arr.map((p) => ({ ...p, verifToken: tokenPermuta(p) }));
@@ -111,6 +116,7 @@ export async function GET() {
     meuId,
     meus: comToken(meus.sort(ord)), paraMim: comToken(paraMim.sort(ord)),
     paraP1: comToken(paraP1.sort(ord)), paraSubcmt: comToken(paraSubcmt.sort(ord)),
+    arquivo: comToken(arquivo.sort(ord)),
     podeP1, podeSubcmt: podeSub,
   });
 }
