@@ -1722,6 +1722,19 @@ export default function EscalaClient() {
     return () => { vivo = false; };
   }, []);
 
+  // Ferias em datas soltas (avulsas): entram como AFASTAMENTO de "ferias" na
+  // escala, para o rodizio pular e o expediente herdado nao carregar quem esta
+  // de ferias. Nao alteram o cad salvo (sao derivadas em memoria).
+  const [feriasAvulsas, setFeriasAvulsas] = useState<{ idPmma: string; inicio: string; fim: string }[]>([]);
+  useEffect(() => {
+    let vivo = true;
+    fetch("/api/ferias/avulsas")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (vivo && Array.isArray(d?.avulsas)) setFeriasAvulsas(d.avulsas); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
+
   const efMap = useMemo(() => {
     const m: Record<string, Militar> = {};
     for (const x of efetivo) m[x.id] = x;
@@ -1787,22 +1800,40 @@ export default function EscalaClient() {
     return m;
   }, [efetivo]);
 
+  // Cadastro EFETIVO para os calculos: o cad salvo + as ferias avulsas como
+  // afastamentos "ferias" (derivadas em memoria, nunca salvas de volta). Assim o
+  // rodizio pula quem esta de ferias e o expediente herdado nao carrega ausentes.
+  const cadEff: Cadastro = useMemo(() => {
+    const extra: Afastamento[] = feriasAvulsas
+      .filter((a) => a.idPmma && a.inicio && a.fim)
+      .map((a) => ({ militar: a.idPmma, tipo: "ferias", inicio: a.inicio, fim: a.fim }));
+    if (extra.length === 0) return cad;
+    return { ...cad, afastamentos: [...(cad.afastamentos || []), ...extra] };
+  }, [cad, feriasAvulsas]);
+
   // Semente de um dia AINDA NAO salvo: gera o dia pelo motor (rodizio 24/72,
   // CPU, RP, FT, ROTEM avançam sozinhos) e HERDA o EXPEDIENTE (P1/P3/P4/Ronda/
   // Patrulha + Cmt/Subcmt) do ULTIMO dia salvo — assim o admin nao refaz todo
   // dia a mesma parte manual, so ajusta. O oficial de CPU do novo dia folga o
-  // expediente. (O botao "Gerar automatica" ignora a heranca e zera o dia.)
+  // expediente e quem esta de FÉRIAS/afastado no dia sai automaticamente.
   const escalaSeed = (iso: string): Escala => {
-    const base = novaEscala(iso, cad, nomeDe);
+    const base = novaEscala(iso, cadEff, nomeDe);
     const chaves = Object.keys(escalas).filter((k) => k < iso).sort();
     const prev = chaves.length ? escalas[chaves[chaves.length - 1]] : null;
     if (prev?.expediente) {
       const exp = JSON.parse(JSON.stringify(prev.expediente)) as Expediente;
       const cpuNome = semTags(base.cpuDeDia?.titular || "").trim();
-      if (cpuNome) {
-        exp.p1 = exp.p1.filter((x) => semTags(x.titular).trim() !== cpuNome);
-        exp.p3 = exp.p3.filter((x) => semTags(x.titular).trim() !== cpuNome);
-      }
+      // remove o oficial de CPU e quem esta afastado (ferias/etc.) neste dia
+      const foraDoDia = (sl: Slot) => {
+        const n = semTags(sl.titular || "").trim();
+        if (!n) return false;              // linhas em branco ficam
+        if (cpuNome && n === cpuNome) return true;
+        const id = nameToId[n] || n;
+        return afastado(id, iso, cadEff.afastamentos);
+      };
+      const limpa = (arr: Slot[]) => { const f = arr.filter((x) => !foraDoDia(x)); return f.length ? f : [s()]; };
+      exp.p1 = limpa(exp.p1); exp.p3 = limpa(exp.p3); exp.p4 = limpa(exp.p4);
+      exp.rondaEscolar = limpa(exp.rondaEscolar); exp.patrulha = limpa(exp.patrulha);
       base.expediente = exp;
     }
     return base;
@@ -1888,14 +1919,17 @@ export default function EscalaClient() {
       const n = semTags(sl.titular || "");
       if (!n) return;
       const id = nameToId[n] || n; // resolve o nome da folha para ID, se possivel
-      if (afastado(id, data, cad.afastamentos) && !nomes.includes(n)) nomes.push(n);
+      if (afastado(id, data, cadEff.afastamentos) && !nomes.includes(n)) nomes.push(n);
     };
     checa(e.cpuDeDia); checa(e.rpAdjunto); checa(e.rpMotorista);
     checa(e.ftGraduado); checa(e.ftMotorista); checa(e.ftPatrulheiro);
     e.guardaPermanente.forEach(checa); e.rpPatrulheiro.forEach(checa);
     e.inteligencia.forEach(checa); e.rotemMilitares.forEach(checa);
+    // tambem confere as seções do expediente (P1/P3/P4/Ronda/Patrulha)
+    e.expediente.p1.forEach(checa); e.expediente.p3.forEach(checa); e.expediente.p4.forEach(checa);
+    e.expediente.rondaEscolar.forEach(checa); e.expediente.patrulha.forEach(checa);
     return nomes;
-  }, [e, data, cad.afastamentos, nameToId]);
+  }, [e, data, cadEff.afastamentos, nameToId]);
 
   const fimDeSemana = ehFimDeSemana(data);
   const ehExtra = e.tipo === "extraordinaria";
@@ -1980,7 +2014,7 @@ export default function EscalaClient() {
               ? <span className="st-chip ok" title="Esta data já foi gerada/editada e está salva">● Escala salva para {brCurto(data)}</span>
               : <span className="st-chip auto" title="Mostrando o resultado automático do motor; clique em Gerar escala para fixar">○ Prévia automática (não salva)</span>}
           </span>
-          <span className="tb-cpu">CPU do dia: <b>{nomeDe(proximoDoPool("cpu", data, cad)) || "-"}</b></span>
+          <span className="tb-cpu">CPU do dia: <b>{nomeDe(proximoDoPool("cpu", data, cadEff)) || "-"}</b></span>
           {fimDeSemana && <span className="tb-hint">Fim de semana · expediente não entra</span>}
           {conflitosDoDia.length > 0 && (
             <span className="st-chip conf" title={"Escalado durante afastamento: " + conflitosDoDia.join(", ")}>

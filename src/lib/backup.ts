@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { cifrar, CAMPOS_SENSIVEIS } from "@/lib/cripto";
 
 /* =========================================================================
    Backup externo — gera um "dump" completo do sistema em JSON.
@@ -24,7 +25,7 @@ export type Backup = {
 // Modelos Prisma exportados (nome no arquivo -> função de leitura).
 const MODELOS: Record<string, () => Promise<unknown[]>> = {
   usuarios: () => prisma.usuario.findMany(),
-  efetivo: () => prisma.efetivo.findMany(),
+  efetivo: async () => protegerSensiveis(await prisma.efetivo.findMany()),
   equipesFerias: () => prisma.equipeFerias.findMany(),
   membrosFerias: () => prisma.membroFerias.findMany(),
   equipesLicencaPremio: () => prisma.equipeLicencaPremio.findMany(),
@@ -58,6 +59,21 @@ function limpar(rows: unknown[]): unknown[] {
     if (!r || typeof r !== "object") return r;
     const o: Record<string, unknown> = { ...(r as Record<string, unknown>) };
     for (const k of Object.keys(o)) if (OMITIR.has(k)) delete o[k];
+    return o;
+  });
+}
+
+/* O Efetivo é lido já DECIFRADO (middleware do Prisma). Para o ARQUIVO de
+   backup, re-ciframos CPF e dados bancários — assim o .json nunca carrega esses
+   dados em texto puro. A restauração continua funcionando: os valores voltam no
+   formato "enc:1:" (idempotente na gravação) e são decifrados na leitura. */
+function protegerSensiveis(rows: unknown[]): unknown[] {
+  return rows.map((r) => {
+    if (!r || typeof r !== "object") return r;
+    const o: Record<string, unknown> = { ...(r as Record<string, unknown>) };
+    for (const campo of CAMPOS_SENSIVEIS) {
+      if (typeof o[campo] === "string" && o[campo]) o[campo] = cifrar(o[campo] as string);
+    }
     return o;
   });
 }
