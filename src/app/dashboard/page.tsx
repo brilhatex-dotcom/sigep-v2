@@ -40,8 +40,9 @@ export default async function DashboardPage() {
   // ferias de hoje (para situacao calculada) - busca antecipada
   const equipesTodas = await prisma.equipeFerias.findMany();
   const membrosTodos = await prisma.membroFerias.findMany();
+  const idsAvulsaHoje = await idsFeriasAvulsasHoje(hoje); // férias em datas soltas
   const idsFerias = montarIdsEmFerias(equipesTodas, membrosTodos, hoje);
-  for (const id of await idsFeriasAvulsasHoje(hoje)) idsFerias.add(id); // ferias em datas soltas
+  for (const id of idsAvulsaHoje) idsFerias.add(id);
 
   // licenca-premio de hoje (mesma logica das ferias, 1 periodo por equipe)
   const equipesLicencaTodas = await prisma.equipeLicencaPremio.findMany();
@@ -178,8 +179,14 @@ export default async function DashboardPage() {
   });
   equipesEmFerias.sort((a,b)=>a.fimTime-b.fimTime);
 
-  // total de militares de ferias hoje (soma das equipes em ferias)
-  const totalMilitaresFerias = equipesEmFerias.reduce((s,e)=>s+e.qtd,0);
+  // ferias avulsas (datas soltas) de hoje — listadas por nome (ex.: Elyana)
+  const avulsasEmFerias = militares
+    .filter((m)=> idsAvulsaHoje.has(m.id))
+    .map((m)=> [m.postoGrad, m.nomeGuerra || m.nome].filter(Boolean).join(" ").trim() || m.id);
+
+  // total de militares de ferias hoje = equipe + avulsas (via situacao calculada,
+  // ja deduplicado no conjunto idsFerias). Assim o card e o painel batem.
+  const totalMilitaresFerias = feriasCount;
   const pctFerias= total? Math.round((totalMilitaresFerias/total)*100):0;
 
   const maxSit=Math.max(1,...situacoes.map((s)=>s.valor));
@@ -261,10 +268,19 @@ export default async function DashboardPage() {
                 <Plane className="h-4 w-4 text-[#3B82F6]" /> Efetivo em férias · {totalMilitaresFerias} ({pctFerias}%)
               </h2>
             </div>
-            {equipesEmFerias.length===0 ? (
-              <p className="py-8 text-center text-sm text-[#94A3B8]">Nenhuma equipe em férias hoje.</p>
+            {equipesEmFerias.length===0 && avulsasEmFerias.length===0 ? (
+              <p className="py-8 text-center text-sm text-[#94A3B8]">Ninguém de férias hoje.</p>
             ):(
               <ul className="space-y-3">
+                {avulsasEmFerias.map((nome,i)=>(
+                  <li key={"av"+i} className="rounded-xl border border-white/5 bg-white/5 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-bold text-white">{nome}
+                        <span className="ml-2 rounded-full bg-[#3B82F6]/15 px-2 py-0.5 text-[10px] font-semibold text-[#7Fb4ff]">férias avulsa</span>
+                      </p>
+                    </div>
+                  </li>
+                ))}
                 {equipesEmFerias.map((e,i)=>(
                   <li key={i} className="rounded-xl border border-white/5 bg-white/5 p-4">
                     <div className="flex items-start justify-between gap-3">

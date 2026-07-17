@@ -88,12 +88,12 @@ export default async function OrganogramaPage() {
   const cSede = COORDS_UNIDADE["18bpm"];
   if (cSede) {
     const sedeCount = (contagens["adm"] || 0) + (contagens["especializado"] || 0) + (contagens["1cia"] || 0);
-    unidadesMapa.push({ noId: "18bpm", rotulo: "18º BPM (Sede)", cidade: "Presidente Dutra - MA", lat: cSede.lat, lng: cSede.lng, disponiveis: sedeCount, efetivoTotal: sedeCount, minimo: 0, faltam: 0, critico: false, sede: true });
+    unidadesMapa.push({ noId: "18bpm", rotulo: "18º BPM (Sede)", cidade: "Presidente Dutra - MA", lat: cSede.lat, lng: cSede.lng, pop: cSede.pop, disponiveis: sedeCount, efetivoTotal: sedeCount, minimo: 0, faltam: 0, critico: false, sede: true });
   }
   for (const u of statusUnidades) {
     const c = COORDS_UNIDADE[u.noId];
     if (!c) continue;
-    unidadesMapa.push({ noId: u.noId, rotulo: u.rotulo, cidade: u.cidade || "", lat: c.lat, lng: c.lng, disponiveis: u.disponiveis, efetivoTotal: u.efetivoTotal, minimo: u.minimo, faltam: u.faltam, critico: u.critico });
+    unidadesMapa.push({ noId: u.noId, rotulo: u.rotulo, cidade: u.cidade || "", lat: c.lat, lng: c.lng, pop: c.pop, disponiveis: u.disponiveis, efetivoTotal: u.efetivoTotal, minimo: u.minimo, faltam: u.faltam, critico: u.critico });
   }
 
   return (
