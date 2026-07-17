@@ -3,13 +3,17 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import { PATENTES, classificarPatente } from "@/lib/patentes";
+import { idsInativos, semInativos } from "@/lib/inativos";
 
 export const dynamic = "force-dynamic";
 
 export default async function HierarquiaPage() {
   const session = await exigirAdmin();
 
-  const militares = await prisma.efetivo.findMany({ select: { postoGrad: true } });
+  const militares = semInativos(
+    await prisma.efetivo.findMany({ select: { id: true, postoGrad: true } }),
+    await idsInativos(),
+  );
 
   const contagem = new Map<number, number>();
   let semInfo = 0;

@@ -10,6 +10,7 @@ import JmsTabela, { LinhaJms } from "@/components/JmsTabela";
 import { classificarPatente } from "@/lib/patentes";
 import { montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
 import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
+import { idsInativos, semInativos } from "@/lib/inativos";
 import {
   hojeBR, paraData, dataBR, diffDias, idade, diasAteAniversario, tempoServico,
 } from "@/lib/datas";
@@ -33,7 +34,7 @@ export default async function DashboardPage() {
   const hoje = hojeBR();
   const mesAtual = hoje.getMonth();
 
-  const militares = await prisma.efetivo.findMany();
+  const militares = semInativos(await prisma.efetivo.findMany(), await idsInativos());
   const total = militares.length;
 
   // ferias de hoje (para situacao calculada) - busca antecipada

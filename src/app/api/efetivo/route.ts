@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { idsInativos, semInativos } from "@/lib/inativos";
 
 export const dynamic = "force-dynamic";
 
@@ -43,8 +44,9 @@ export async function GET() {
       },
     });
 
-    // Normaliza null -> "" para o cliente nunca quebrar.
-    const efetivo = linhas.map((m) => ({
+    // Remove os militares inativos (saíram da unidade) do seletor.
+    const inativos = await idsInativos();
+    const efetivo = semInativos(linhas, inativos).map((m) => ({
       id: m.id,
       postoGrad: m.postoGrad ?? "",
       numeroBarra: m.numeroBarra ?? "",

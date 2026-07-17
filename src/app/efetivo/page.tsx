@@ -5,6 +5,7 @@ import AppShell from "@/components/AppShell";
 import EfetivoLista from "@/components/EfetivoLista";
 import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
 import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
+import { idsInativos, semInativos } from "@/lib/inativos";
 
 export const dynamic = "force-dynamic";
 
@@ -18,13 +19,16 @@ export default async function EfetivoPage({
 
   const hoje = hojeLocal();
 
-  const militares = await prisma.efetivo.findMany({
-    select: {
-      id: true, postoGrad: true, nome: true, nomeGuerra: true,
-      matricula: true, situacao: true, lotacao: true, telefone: true,
-      jmsDataInicio: true, jmsDataRetorno: true,
-    },
-  });
+  const militares = semInativos(
+    await prisma.efetivo.findMany({
+      select: {
+        id: true, postoGrad: true, nome: true, nomeGuerra: true,
+        matricula: true, situacao: true, lotacao: true, telefone: true,
+        jmsDataInicio: true, jmsDataRetorno: true,
+      },
+    }),
+    await idsInativos(),
+  );
 
   // ferias de hoje
   const equipes = await prisma.equipeFerias.findMany();

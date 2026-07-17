@@ -7,6 +7,7 @@ import LotacaoLista, { GrupoLot } from "@/components/LotacaoLista";
 import { classificarPatente } from "@/lib/patentes";
 import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
 import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
+import { idsInativos, semInativos } from "@/lib/inativos";
 import { lotacaoLimpa } from "@/lib/formatarLotacao";
 
 export const dynamic = "force-dynamic";
@@ -32,13 +33,16 @@ export default async function LotacaoPage() {
 
   const hoje = hojeLocal();
 
-  const militares = await prisma.efetivo.findMany({
-    select: {
-      id: true, postoGrad: true, numeroBarra: true, nome: true,
-      nomeGuerra: true, matricula: true, situacao: true, lotacao: true,
-      jmsDataInicio: true, jmsDataRetorno: true,
-    },
-  });
+  const militares = semInativos(
+    await prisma.efetivo.findMany({
+      select: {
+        id: true, postoGrad: true, numeroBarra: true, nome: true,
+        nomeGuerra: true, matricula: true, situacao: true, lotacao: true,
+        jmsDataInicio: true, jmsDataRetorno: true,
+      },
+    }),
+    await idsInativos(),
+  );
 
   const equipes = await prisma.equipeFerias.findMany();
   const membros = await prisma.membroFerias.findMany();

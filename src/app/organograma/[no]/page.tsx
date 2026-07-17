@@ -8,6 +8,7 @@ import { classificarPatente } from "@/lib/patentes";
 import { acharNo, pertenceAoNo } from "@/lib/organograma";
 import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
 import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
+import { idsInativos, semInativos } from "@/lib/inativos";
 import { ArrowLeft, ChevronRight, Users } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -34,13 +35,16 @@ export default async function NoOrganogramaPage({
 
   const hoje = hojeLocal();
 
-  const todos = await prisma.efetivo.findMany({
-    select: {
-      id: true, postoGrad: true, nome: true, nomeGuerra: true,
-      matricula: true, situacao: true, lotacao: true,
-      jmsDataInicio: true, jmsDataRetorno: true,
-    },
-  });
+  const todos = semInativos(
+    await prisma.efetivo.findMany({
+      select: {
+        id: true, postoGrad: true, nome: true, nomeGuerra: true,
+        matricula: true, situacao: true, lotacao: true,
+        jmsDataInicio: true, jmsDataRetorno: true,
+      },
+    }),
+    await idsInativos(),
+  );
 
   const equipes = await prisma.equipeFerias.findMany();
   const membros = await prisma.membroFerias.findMany();

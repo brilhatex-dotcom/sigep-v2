@@ -7,6 +7,7 @@ import OrganogramaArvore, { Contagens } from "@/components/OrganogramaArvore";
 import { ORGANOGRAMA, NoOrg, pertenceAoNo } from "@/lib/organograma";
 import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
 import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
+import { idsInativos, semInativos } from "@/lib/inativos";
 import {
   calcularStatusUnidades,
   mapaMinimos,
@@ -28,15 +29,19 @@ export default async function OrganogramaPage() {
   const hoje = hojeLocal();
 
   // efetivo com os campos necessarios para a situacao calculada
-  const militares = await prisma.efetivo.findMany({
-    select: {
-      id: true,
-      lotacao: true,
-      situacao: true,
-      jmsDataInicio: true,
-      jmsDataRetorno: true,
-    },
-  });
+  // (militares inativos — que saíram da unidade — ficam de fora)
+  const militares = semInativos(
+    await prisma.efetivo.findMany({
+      select: {
+        id: true,
+        lotacao: true,
+        situacao: true,
+        jmsDataInicio: true,
+        jmsDataRetorno: true,
+      },
+    }),
+    await idsInativos(),
+  );
 
   // ferias de hoje
   const equipes = await prisma.equipeFerias.findMany();

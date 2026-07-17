@@ -6,6 +6,7 @@ import AppShell from "@/components/AppShell";
 import AntiguidadeTabela, { MilitarLinha } from "@/components/AntiguidadeTabela";
 import { classificarPatente } from "@/lib/patentes";
 import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
+import { idsInativos, semInativos } from "@/lib/inativos";
 
 export const dynamic = "force-dynamic";
 
@@ -86,13 +87,16 @@ export default async function AntiguidadePage({
 
   const hoje = hojeLocal();
 
-  const militares = await prisma.efetivo.findMany({
-    select: {
-      id: true, postoGrad: true, numeroBarra: true, nome: true, nomeGuerra: true,
-      matricula: true, rg: true, cpf: true, situacao: true, lotacao: true,
-      dataPromocao: true, jmsDataInicio: true, jmsDataRetorno: true,
-    },
-  });
+  const militares = semInativos(
+    await prisma.efetivo.findMany({
+      select: {
+        id: true, postoGrad: true, numeroBarra: true, nome: true, nomeGuerra: true,
+        matricula: true, rg: true, cpf: true, situacao: true, lotacao: true,
+        dataPromocao: true, jmsDataInicio: true, jmsDataRetorno: true,
+      },
+    }),
+    await idsInativos(),
+  );
 
   const equipes = await prisma.equipeFerias.findMany();
   const membros = await prisma.membroFerias.findMany();
