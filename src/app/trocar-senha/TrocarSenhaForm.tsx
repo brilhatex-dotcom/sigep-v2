@@ -18,20 +18,18 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
   const [sucesso, setSucesso] = useState(false);
   const [carregando, setCarregando] = useState(false);
 
-  const apenasDigitos = (v: string) => v.replace(/\D/g, '');
-
   const validar = (): string | null => {
     if (!precisaTrocar && senhaAtual.length < 4) {
-      return 'Informe sua senha atual (minimo 4 digitos).';
+      return 'Informe sua senha atual.';
     }
     if (novaSenha.length < 4) {
-      return 'A nova senha deve ter no minimo 4 digitos.';
+      return 'A nova senha deve ter no mínimo 4 caracteres.';
     }
-    if (!/^\d+$/.test(novaSenha)) {
-      return 'A nova senha deve conter apenas digitos numericos.';
+    if (/^(.)\1+$/.test(novaSenha)) {
+      return 'A senha não pode ser um único caractere repetido (ex.: 1111).';
     }
     if (novaSenha === '123456') {
-      return 'Por seguranca, escolha uma senha diferente da padrao.';
+      return 'Por segurança, escolha uma senha diferente da padrão.';
     }
     if (novaSenha !== confirmar) {
       return 'A confirmacao nao confere com a nova senha.';
@@ -117,11 +115,10 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
           </label>
           <input
             type={mostrar ? 'text' : 'password'}
-            inputMode="numeric"
             autoComplete="current-password"
             value={senhaAtual}
-            onChange={(e) => setSenhaAtual(apenasDigitos(e.target.value))}
-            maxLength={20}
+            onChange={(e) => setSenhaAtual(e.target.value)}
+            maxLength={40}
             className="w-full px-3 py-2 rounded-lg bg-[#08111F] border border-[#D4AF37]/30 text-[#E8EEF6] placeholder-[#E8EEF6]/30 focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] tracking-widest"
             placeholder="Digite sua senha atual"
             required
@@ -131,15 +128,14 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
 
       <div>
         <label className="block text-sm font-medium text-[#E8EEF6] mb-1">
-          Nova senha <span className="text-[#E8EEF6]/50 font-normal">(minimo 4 digitos)</span>
+          Nova senha <span className="text-[#E8EEF6]/50 font-normal">(mínimo 4 caracteres — pode usar letras e números)</span>
         </label>
         <input
           type={mostrar ? 'text' : 'password'}
-          inputMode="numeric"
           autoComplete="new-password"
           value={novaSenha}
-          onChange={(e) => setNovaSenha(apenasDigitos(e.target.value))}
-          maxLength={20}
+          onChange={(e) => setNovaSenha(e.target.value)}
+          maxLength={40}
           className="w-full px-3 py-2 rounded-lg bg-[#08111F] border border-[#D4AF37]/30 text-[#E8EEF6] placeholder-[#E8EEF6]/30 focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] tracking-widest"
           placeholder="Digite a nova senha"
           required
@@ -152,11 +148,10 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
         </label>
         <input
           type={mostrar ? 'text' : 'password'}
-          inputMode="numeric"
           autoComplete="new-password"
           value={confirmar}
-          onChange={(e) => setConfirmar(apenasDigitos(e.target.value))}
-          maxLength={20}
+          onChange={(e) => setConfirmar(e.target.value)}
+          maxLength={40}
           className="w-full px-3 py-2 rounded-lg bg-[#08111F] border border-[#D4AF37]/30 text-[#E8EEF6] placeholder-[#E8EEF6]/30 focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] tracking-widest"
           placeholder="Repita a nova senha"
           required

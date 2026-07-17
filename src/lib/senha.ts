@@ -31,6 +31,22 @@ export async function gerarHash(senha: string): Promise<string> {
 /* Política de senha forte. Devolve a mensagem de erro, ou null se estiver ok.
    Regras: >= 8 caracteres; não pode ser só números; não pode ser toda igual ou
    sequência óbvia; não pode conter/igualar o login/matrícula/ID. */
+/* Política SIMPLES (usada na troca de senha do policial): mínimo 4 caracteres,
+   pode misturar letras e números. Bloqueia só o óbvio: caractere repetido
+   (1111), a padrão "123456" e ser igual ao login/ID. */
+export function validarSenhaSimples(senha: string, refs: (string | null | undefined)[] = []): string | null {
+  const s = (senha || "");
+  if (s.length < 4) return "A senha deve ter ao menos 4 caracteres.";
+  if (/^(.)\1+$/.test(s)) return "A senha não pode ser um único caractere repetido.";
+  if (s === "123456") return "Escolha uma senha diferente da padrão.";
+  const low = s.toLowerCase();
+  for (const r of refs) {
+    const rr = String(r ?? "").trim().toLowerCase();
+    if (rr && rr.length >= 4 && low === rr) return "A senha não pode ser igual ao seu login ou ID.";
+  }
+  return null;
+}
+
 export function validarSenhaForte(senha: string, refs: (string | null | undefined)[] = []): string | null {
   const s = (senha || "");
   if (s.length < 8) return "A senha deve ter ao menos 8 caracteres.";

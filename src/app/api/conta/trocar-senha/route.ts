@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { conferirSenha, gerarHash, validarSenhaForte } from "@/lib/senha";
+import { conferirSenha, gerarHash, validarSenhaSimples } from "@/lib/senha";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   const novaSenha = String(body.novaSenha || "");
 
   const login = String((session.user as any).login || "");
-  const fraca = validarSenhaForte(novaSenha, [login]);
+  const fraca = validarSenhaSimples(novaSenha, [login]);
   if (fraca) return NextResponse.json({ error: fraca }, { status: 400 });
   if (novaSenha === senhaAtual) {
     return NextResponse.json({ error: "A nova senha deve ser diferente da atual." }, { status: 400 });

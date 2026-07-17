@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { conferirSenha, gerarHash, validarSenhaForte } from '@/lib/senha';
+import { conferirSenha, gerarHash, validarSenhaSimples } from '@/lib/senha';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
   const { senhaAtual, novaSenha } = body;
 
-  const fraca = validarSenhaForte(String(novaSenha ?? ""), [login]);
+  const fraca = validarSenhaSimples(String(novaSenha ?? ""), [login]);
   if (fraca) return NextResponse.json({ erro: fraca }, { status: 400 });
 
   const usuario = await prisma.usuario.findFirst({
