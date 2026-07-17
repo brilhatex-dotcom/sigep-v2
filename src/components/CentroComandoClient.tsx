@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-/* Controle de Entrada e Saída (Centro de Comando).
-   Registra a SAÍDA do policial (destino/motivo) e depois o RETORNO (entrada).
-   Painel de quem está fora agora, filtro por ano e totais. Admin. Config. */
+/* Controle de Movimentação de Efetivo (Centro de Comando).
+   Registra a SAÍDA (policial transferido/deixou a unidade) e a CHEGADA
+   (policial novo apresentado na unidade). Movimentação por DATA — sem hora e
+   sem "retorno". Admin. Tabela cc_acesso (uma linha por movimentação). */
 
 type Mov = {
-  id: string; efetivoId: string; nome: string;
+  id: string; efetivoId: string; nome: string; tipo: "saida" | "chegada";
   data: string; horaSaida: string; destino: string; motivo: string;
   horaEntrada: string; dataEntrada: string; status: "fora" | "retornou";
   obs: string; registradoPor: string; criadoEm: string;
@@ -24,7 +25,6 @@ function abrev(p: string) {
   return m[(p || "").trim().toLowerCase()] ?? (p || "").trim();
 }
 function nomeMil(m: Militar) { return [abrev(m.postoGrad), (m.nomeGuerra || m.nome || "").trim()].filter(Boolean).join(" "); }
-function agoraHora() { const d = new Date(); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; }
 const hoje = () => new Date().toISOString().slice(0, 10);
 
 export default function CentroComandoClient() {
@@ -41,12 +41,12 @@ export default function CentroComandoClient() {
     fetch("/api/efetivo").then((r) => (r.ok ? r.json() : null)).then((d) => setEfetivo(Array.isArray(d?.efetivo) ? d.efetivo : [])).catch(() => {});
   }, []);
 
-  // formulário de nova saída
+  // formulário de nova movimentação
+  const [tipo, setTipo] = useState<"saida" | "chegada">("saida");
   const [busca, setBusca] = useState("");
   const [sel, setSel] = useState<Militar | null>(null);
   const [aberto, setAberto] = useState(false);
   const [data, setData] = useState(hoje());
-  const [horaSaida, setHoraSaida] = useState(agoraHora());
   const [destino, setDestino] = useState("");
   const [motivo, setMotivo] = useState("");
   const [obs, setObs] = useState("");
@@ -74,32 +74,20 @@ export default function CentroComandoClient() {
     return efetivo.filter((m) => `${m.postoGrad} ${m.nome} ${m.nomeGuerra} ${m.numeroBarra}`.toLowerCase().includes(t)).slice(0, 12);
   }, [busca, efetivo]);
 
-  const limpar = () => { setSel(null); setBusca(""); setDestino(""); setMotivo(""); setObs(""); setData(hoje()); setHoraSaida(agoraHora()); };
+  const limpar = () => { setSel(null); setBusca(""); setDestino(""); setMotivo(""); setObs(""); setData(hoje()); };
 
-  const registrarSaida = async () => {
+  const registrar = async () => {
     if (!sel) { alert("Escolha o policial no buscador."); return; }
     setSalvando(true);
     try {
       const r = await fetch("/api/centro-comando", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ efetivoId: sel.id, nome: nomeMil(sel), data, horaSaida, destino, motivo, obs, status: "fora" }),
+        body: JSON.stringify({ efetivoId: sel.id, nome: nomeMil(sel), tipo, data, destino, motivo, obs }),
       });
       if (!r.ok) throw new Error();
       limpar(); carregar();
-    } catch { alert("Não foi possível registrar a saída."); }
+    } catch { alert("Não foi possível registrar a movimentação."); }
     finally { setSalvando(false); }
-  };
-
-  const registrarRetorno = async (m: Mov) => {
-    const h = prompt("Hora do retorno (HH:MM):", agoraHora());
-    if (h === null) return;
-    try {
-      const r = await fetch(`/api/centro-comando?id=${encodeURIComponent(m.id)}&acao=retorno`, {
-        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ horaEntrada: h.trim() }),
-      });
-      if (!r.ok) throw new Error();
-      carregar();
-    } catch { alert("Não foi possível registrar o retorno."); }
   };
 
   const remover = async (id: string) => {
@@ -115,7 +103,9 @@ export default function CentroComandoClient() {
   const visiveis = termo
     ? itens.filter((m) => `${m.nome} ${m.destino} ${m.motivo}`.toLowerCase().includes(termo))
     : itens;
-  const fora = itens.filter((m) => m.status === "fora");
+  const nSaidas = itens.filter((m) => m.tipo === "saida").length;
+  const nChegadas = itens.filter((m) => m.tipo === "chegada").length;
+  const ehChegada = tipo === "chegada";
 
   return (
     <div className="cc-wrap">
@@ -123,29 +113,27 @@ export default function CentroComandoClient() {
 
       <div className="cc-top">
         <div>
-          <h1 className="cc-tit">🚪 Controle de Entrada e Saída</h1>
-          <p className="cc-sub">Centro de Comando — registro de movimentação do efetivo (saída e retorno).</p>
+          <h1 className="cc-tit">🔁 Controle de Movimentação de Efetivo</h1>
+          <p className="cc-sub">Centro de Comando — registro de chegada (novos PMs) e saída de policiais da unidade.</p>
         </div>
       </div>
 
-      {/* painel: quem está fora agora */}
-      <div className={`cc-fora ${fora.length ? "on" : ""}`}>
-        <div className="cc-fora-h"><b>{fora.length}</b> {fora.length === 1 ? "policial fora" : "policiais fora"} do Centro de Comando agora</div>
-        {fora.length > 0 && (
-          <div className="cc-fora-lista">
-            {fora.map((m) => (
-              <span key={m.id} className="cc-chip">
-                {m.nome} · saiu {m.horaSaida || "—"}{m.destino ? ` → ${m.destino}` : ""}
-                <button onClick={() => registrarRetorno(m)} title="Registrar retorno">↩ retorno</button>
-              </span>
-            ))}
-          </div>
-        )}
+      {/* resumo */}
+      <div className="cc-resumo">
+        <span className="cc-res chegada"><b>{nChegadas}</b> chegada{nChegadas === 1 ? "" : "s"}</span>
+        <span className="cc-res saida"><b>{nSaidas}</b> saída{nSaidas === 1 ? "" : "s"}</span>
+        <span className="cc-res total"><b>{itens.length}</b> em {ano}</span>
       </div>
 
-      {/* nova saída */}
+      {/* nova movimentação */}
       <div className="cc-form">
-        <div className="cc-form-tit">Registrar saída</div>
+        <div className="cc-form-tit">Registrar movimentação</div>
+
+        <div className="cc-tipo">
+          <button className={!ehChegada ? "on saida" : ""} onClick={() => setTipo("saida")}>➡ Saída (deixou a unidade)</button>
+          <button className={ehChegada ? "on chegada" : ""} onClick={() => setTipo("chegada")}>⬅ Chegada (novo PM)</button>
+        </div>
+
         <div className="cc-grid">
           <div className="cc-campo cc-col2" ref={buscaRef}>
             <label>Policial</label>
@@ -169,13 +157,12 @@ export default function CentroComandoClient() {
             </div>
           </div>
           <div className="cc-campo"><label>Data</label><input type="date" value={data} onChange={(e) => setData(e.target.value)} /></div>
-          <div className="cc-campo"><label>Hora de saída</label><input type="time" value={horaSaida} onChange={(e) => setHoraSaida(e.target.value)} /></div>
-          <div className="cc-campo cc-col2"><label>Destino</label><input value={destino} onChange={(e) => setDestino(e.target.value)} placeholder="para onde vai" /></div>
-          <div className="cc-campo cc-col2"><label>Motivo</label><input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="diligência, missão, dispensa…" /></div>
-          <div className="cc-campo cc-col4"><label>Observações</label><input value={obs} onChange={(e) => setObs(e.target.value)} /></div>
+          <div className="cc-campo"><label>{ehChegada ? "Origem (de onde veio)" : "Destino (para onde foi)"}</label><input value={destino} onChange={(e) => setDestino(e.target.value)} placeholder={ehChegada ? "unidade de origem" : "unidade de destino"} /></div>
+          <div className="cc-campo cc-col2"><label>Motivo</label><input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder={ehChegada ? "apresentação, transferência, movimentação…" : "transferência, movimentação, agregação…"} /></div>
+          <div className="cc-campo cc-col2"><label>Observações</label><input value={obs} onChange={(e) => setObs(e.target.value)} /></div>
         </div>
         <div className="cc-form-btns">
-          <button className="ok" onClick={registrarSaida} disabled={salvando || !sel}>{salvando ? "Salvando…" : "Registrar saída"}</button>
+          <button className="ok" onClick={registrar} disabled={salvando || !sel}>{salvando ? "Salvando…" : ehChegada ? "Registrar chegada" : "Registrar saída"}</button>
           {(sel || destino || motivo) && <button onClick={limpar}>Limpar</button>}
         </div>
       </div>
@@ -188,8 +175,7 @@ export default function CentroComandoClient() {
           </select>
         </label>
         <div className="cc-stat"><b>{itens.length}</b> movimentações em {ano}</div>
-        <div className="cc-stat"><b>{itens.filter((m) => m.status === "retornou").length}</b> concluídas</div>
-        <input className="cc-busca2" value={filtro} onChange={(e) => setFiltro(e.target.value)} placeholder="Buscar por policial, destino, motivo…" />
+        <input className="cc-busca2" value={filtro} onChange={(e) => setFiltro(e.target.value)} placeholder="Buscar por policial, origem/destino, motivo…" />
         <button className="cc-refresh" onClick={carregar} title="Atualizar">⟳</button>
       </div>
 
@@ -201,18 +187,17 @@ export default function CentroComandoClient() {
         <div className="cc-tabela-wrap">
           <table className="cc-tabela">
             <thead>
-              <tr><th>Policial</th><th>Data</th><th>Saída</th><th>Destino</th><th>Motivo</th><th>Retorno</th><th>Situação</th><th></th></tr>
+              <tr><th>Movimentação</th><th>Policial</th><th>Data</th><th>Origem / Destino</th><th>Motivo</th><th>Obs.</th><th></th></tr>
             </thead>
             <tbody>
               {visiveis.map((m) => (
-                <tr key={m.id} className={m.status === "fora" ? "cc-lin-fora" : ""}>
+                <tr key={m.id} className={m.tipo === "chegada" ? "cc-lin-chegada" : "cc-lin-saida"}>
+                  <td><span className={`cc-badge ${m.tipo}`}>{m.tipo === "chegada" ? "⬅ Chegada" : "➡ Saída"}</span></td>
                   <td className="cc-nome">{m.nome}</td>
                   <td>{brData(m.data)}</td>
-                  <td>{m.horaSaida || "—"}</td>
                   <td>{m.destino || "—"}</td>
                   <td>{m.motivo || "—"}</td>
-                  <td>{m.status === "retornou" ? `${m.horaEntrada || "—"}${m.dataEntrada && m.dataEntrada !== m.data ? " (" + brData(m.dataEntrada) + ")" : ""}` : <button className="cc-ret" onClick={() => registrarRetorno(m)}>↩ registrar</button>}</td>
-                  <td><span className={`cc-badge ${m.status}`}>{m.status === "fora" ? "Fora" : "Retornou"}</span></td>
+                  <td>{m.obs || "—"}</td>
                   <td><button className="cc-del" onClick={() => remover(m.id)} title="Remover">🗑</button></td>
                 </tr>
               ))}
@@ -228,21 +213,24 @@ const CSS = `
 .cc-wrap{ color:#cdd9ea; }
 .cc-tit{ font-size:20px; font-weight:800; color:#fff; margin:0; }
 .cc-sub{ font-size:13px; color:#8fa3bf; margin:2px 0 14px; }
-.cc-fora{ border:1px solid #1d2c44; background:#0F1B2D; border-radius:12px; padding:12px 14px; margin-bottom:14px; }
-.cc-fora.on{ border-color:#7a4d12; background:#1c1608; }
-.cc-fora-h{ font-size:13px; color:#cdd9ea; } .cc-fora-h b{ color:#f3df9d; font-size:16px; }
-.cc-fora-lista{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
-.cc-chip{ display:inline-flex; align-items:center; gap:8px; background:#0a1626; border:1px solid #3a2f10; color:#f3df9d; border-radius:999px; padding:4px 6px 4px 12px; font-size:12px; }
-.cc-chip button{ background:#3a2f10; color:#ffe9a8; border:none; border-radius:999px; padding:3px 9px; cursor:pointer; font-size:11px; }
-.cc-chip button:hover{ background:#5a4718; }
+.cc-resumo{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
+.cc-res{ font-size:13px; border-radius:10px; padding:8px 14px; border:1px solid #1d2c44; background:#0F1B2D; color:#cdd9ea; }
+.cc-res b{ font-size:16px; margin-right:4px; }
+.cc-res.chegada{ border-color:#235b3c; } .cc-res.chegada b{ color:#9fe6bd; }
+.cc-res.saida{ border-color:#7a4d12; } .cc-res.saida b{ color:#f3df9d; }
+.cc-res.total b{ color:#fff; }
 .cc-form{ background:#0F1B2D; border:1px solid #2b3f63; border-radius:12px; padding:16px; margin-bottom:16px; }
 .cc-form-tit{ font-weight:700; color:#D4AF37; margin-bottom:12px; }
+.cc-tipo{ display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+.cc-tipo button{ flex:1; min-width:180px; background:#0a1626; color:#9fb0c7; border:1px solid #28395a; border-radius:9px; padding:9px 12px; font-size:13px; cursor:pointer; font-weight:600; }
+.cc-tipo button.on.saida{ background:#3a2f10; color:#ffe9a8; border-color:#7a4d12; }
+.cc-tipo button.on.chegada{ background:#10301f; color:#9fe6bd; border-color:#235b3c; }
 .cc-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
 @media(max-width:820px){ .cc-grid{ grid-template-columns:1fr 1fr; } }
 @media(max-width:520px){ .cc-grid{ grid-template-columns:1fr; } }
 .cc-campo{ display:flex; flex-direction:column; gap:4px; }
-.cc-col2{ grid-column:span 2; } .cc-col4{ grid-column:1 / -1; }
-@media(max-width:520px){ .cc-col2,.cc-col4{ grid-column:1 / -1; } }
+.cc-col2{ grid-column:span 2; }
+@media(max-width:520px){ .cc-col2{ grid-column:1 / -1; } }
 .cc-campo label{ font-size:12px; color:#94a3b8; }
 .cc-campo input, .cc-campo select{ background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:8px; padding:8px 10px; font-size:13px; }
 .cc-campo input:focus, .cc-campo select:focus{ outline:none; border-color:#D4AF37; }
@@ -269,13 +257,11 @@ const CSS = `
 .cc-tabela th{ text-align:left; background:#0a1626; color:#9fb4d4; font-weight:600; padding:9px 10px; border-bottom:1px solid #1d2c44; white-space:nowrap; }
 .cc-tabela td{ padding:9px 10px; border-bottom:1px solid #16233a; color:#cdd9ea; }
 .cc-tabela tr:last-child td{ border-bottom:none; }
-.cc-lin-fora td{ background:#160f04; }
+.cc-lin-chegada td{ background:#0a1a11; }
 .cc-nome{ font-weight:600; color:#fff; white-space:nowrap; }
-.cc-badge{ font-size:11px; font-weight:700; border-radius:999px; padding:2px 10px; }
-.cc-badge.fora{ background:#3a2f10; color:#f3df9d; }
-.cc-badge.retornou{ background:#12351f; color:#9fe6bd; }
-.cc-ret{ background:#16233f; color:#bcd2ff; border:1px solid #3f6bd4; border-radius:7px; padding:3px 8px; cursor:pointer; font-size:11.5px; }
-.cc-ret:hover{ border-color:#D4AF37; color:#fff; }
+.cc-badge{ font-size:11px; font-weight:700; border-radius:999px; padding:2px 10px; white-space:nowrap; }
+.cc-badge.saida{ background:#3a2f10; color:#f3df9d; }
+.cc-badge.chegada{ background:#12351f; color:#9fe6bd; }
 .cc-del{ background:none; border:1px solid #2b3f63; border-radius:7px; padding:3px 7px; cursor:pointer; font-size:12px; }
 .cc-del:hover{ border-color:#e06464; }
 .cc-vazio{ background:#0F1B2D; border:1px solid #1d2c44; border-radius:12px; padding:26px; text-align:center; color:#8fa3bf; }

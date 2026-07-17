@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { exigirAdmin } from "@/lib/guard";
 import AppShell from "@/components/AppShell";
-import PortariaSistemaDoc from "@/components/PortariaSistemaDoc";
+import BackupBotao from "@/components/BackupBotao";
+import AvisoPrivacidadeDoc from "@/components/AvisoPrivacidadeDoc";
 
 export const dynamic = "force-dynamic";
 
@@ -41,13 +42,13 @@ const ITENS: Item[] = [
   },
   {
     titulo: "Backup e trilha de auditoria",
-    status: "parcial",
-    texto: "Trilha de auditoria completa e lacrada (acima). Backup: o banco (Neon) faz backup gerenciado próprio; falta um backup externo periódico (fora do provedor) para redundância total — por isso 'parcial'.",
+    status: "ok",
+    texto: "Trilha de auditoria completa e lacrada (acima). Backup EXTERNO: o admin baixa o backup completo (JSON) quando quiser e há envio automático por e-mail (cópia fora do provedor do banco). Basta configurar o SMTP para o envio semanal automático.",
   },
   {
     titulo: "Proteção de dados pessoais (LGPD)",
-    status: "parcial",
-    texto: "Cada policial só vê os próprios dados; senhas em bcrypt; sessão expira por inatividade (30 min); cabeçalhos de segurança; CPF e dados bancários JÁ criptografados em repouso. Falta o lado documental da LGPD (aviso de privacidade, base legal, política de retenção/descarte e encarregado/DPO) para ficar 100% — por isso 'parcial'.",
+    status: "ok",
+    texto: "Cada policial só vê os próprios dados; senhas em bcrypt; sessão expira por inatividade (30 min); cabeçalhos de segurança; CPF e dados bancários criptografados em repouso; e Aviso de Privacidade documental (finalidade, base legal, retenção/descarte, direitos do titular e encarregado/DPO).",
   },
 ];
 
@@ -92,7 +93,15 @@ export default async function GovernancaPage() {
         <div className="mt-5 flex flex-wrap gap-2">
           <Link href="/auditoria" className="rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] hover:brightness-110">Abrir a Auditoria (log + lacre)</Link>
           <Link href="/admin/gerar-logins" className="rounded-lg border border-white/15 px-4 py-2 text-sm text-white hover:bg-white/5">Encargos / Funções</Link>
-          <PortariaSistemaDoc />
+          <AvisoPrivacidadeDoc />
+        </div>
+
+        <div className="mt-4 rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-4">
+          <h2 className="mb-1 text-sm font-bold text-white">💾 Backup externo</h2>
+          <p className="mb-3 text-xs text-[#94A3B8]">
+            Cópia completa dos dados FORA do provedor do banco. Baixe e guarde no e-mail/Drive, ou configure o envio automático por e-mail.
+          </p>
+          <BackupBotao />
         </div>
 
         <p className="mt-5 rounded-lg border border-[#1d2c44] bg-[#0a1626] p-3 text-xs text-[#8fa3bf]">

@@ -1,16 +1,32 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plane, Plus, Trash2, Search } from "lucide-react";
+import { Plane, Plus, Trash2, Search, FileText } from "lucide-react";
+import MemorandoFerias, { DadosMemorando } from "@/components/MemorandoFerias";
+import { classificarPatente } from "@/lib/patentes";
 
 /* Férias em DATAS SOLTAS (individual), fora do plano por equipes.
    Conta como "Férias" na situacao (dashboard/lotacao/efetivo/organograma). */
 
 type Avulsa = { id: string; idPmma: string; nome: string; inicio: string; fim: string; obs: string };
-type Militar = { id: string; postoGrad?: string; nome?: string; nomeGuerra?: string; matricula?: string };
+type Militar = { id: string; postoGrad?: string; numeroBarra?: string; nome?: string; nomeGuerra?: string; quadro?: string; matricula?: string };
 
 function brData(iso: string) { return iso && iso.length >= 10 ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : iso; }
 function nomeMil(m: Militar) { return [m.postoGrad, m.nomeGuerra || m.nome].filter(Boolean).join(" "); }
+// dias corridos (inclusivo) e o dia seguinte ao fim (apresentação).
+function diasInclusivo(inicio: string, fim: string): number {
+  if (inicio.length < 10 || fim.length < 10) return 0;
+  const a = new Date(inicio + "T00:00:00"), b = new Date(fim + "T00:00:00");
+  const d = Math.round((b.getTime() - a.getTime()) / 86400000) + 1;
+  return d > 0 ? d : 0;
+}
+function diaSeguinteBR(fimIso: string): string {
+  if (fimIso.length < 10) return "";
+  const b = new Date(fimIso + "T00:00:00");
+  b.setDate(b.getDate() + 1);
+  return `${String(b.getDate()).padStart(2, "0")}/${String(b.getMonth() + 1).padStart(2, "0")}/${b.getFullYear()}`;
+}
+function ehOficialPosto(posto?: string): boolean { return classificarPatente(posto ?? "").ordem <= 7; }
 
 export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: boolean }) {
   const [avulsas, setAvulsas] = useState<Avulsa[]>([]);
@@ -22,6 +38,7 @@ export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: 
   const [obs, setObs] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [abrirForm, setAbrirForm] = useState(false);
+  const [memo, setMemo] = useState<DadosMemorando | null>(null);
 
   const carregar = () => {
     fetch(`/api/ferias/avulsas?ano=${encodeURIComponent(ano)}`).then((r) => r.ok ? r.json() : null)
@@ -53,6 +70,23 @@ export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: 
     } catch { alert("Falha ao salvar."); }
     finally { setSalvando(false); }
   };
+  const abrirMemorando = (a: Avulsa) => {
+    const f = efetivo.find((m) => m.id === a.idPmma);
+    const posto = f?.postoGrad || "";
+    setMemo({
+      numero: "____",
+      postoGrad: posto,
+      numeroBarra: f?.numeroBarra || "",
+      nome: f?.nome || a.nome || "",
+      quadro: f?.quadro || "",
+      ehOficial: ehOficialPosto(posto),
+      inicioBR: brData(a.inicio),
+      apresentacaoBR: diaSeguinteBR(a.fim),
+      diasFerias: diasInclusivo(a.inicio, a.fim),
+      nomeGuerra: f?.nomeGuerra || "",
+    });
+  };
+
   const remover = async (id: string) => {
     if (!confirm("Remover estas férias avulsas?")) return;
     try {
@@ -136,11 +170,16 @@ export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: 
                 <p className="text-sm font-semibold text-white">{a.nome || a.idPmma}</p>
                 <p className="text-xs text-[#94A3B8]">{brData(a.inicio)} a {brData(a.fim)}{a.obs ? ` · ${a.obs}` : ""}</p>
               </div>
-              {isAdmin && <button onClick={() => remover(a.id)} className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-[#94A3B8] transition hover:border-red-500/40 hover:text-red-300"><Trash2 className="h-3 w-3" /> remover</button>}
+              <div className="flex items-center gap-2">
+                <button onClick={() => abrirMemorando(a)} className="inline-flex items-center gap-1 rounded border border-[#D4AF37]/30 px-2 py-1 text-xs text-[#D4AF37] transition hover:bg-[#D4AF37] hover:text-[#1a1205]"><FileText className="h-3 w-3" /> Memorando</button>
+                {isAdmin && <button onClick={() => remover(a.id)} className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-[#94A3B8] transition hover:border-red-500/40 hover:text-red-300"><Trash2 className="h-3 w-3" /> remover</button>}
+              </div>
             </li>
           ))}
         </ul>
       )}
+
+      {memo && <MemorandoFerias dados={memo} ano={ano} onFechar={() => setMemo(null)} />}
     </section>
   );
 }
