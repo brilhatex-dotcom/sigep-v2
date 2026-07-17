@@ -132,6 +132,12 @@ export const LABEL_SERVICO: Record<string, string> = {
   inteligencia: "Inteligência",
   rotem: "ROTEM",
 };
+// siglas curtas (para as células do calendário)
+export const ABBR_SERVICO: Record<string, string> = {
+  cpu: "CPU", ftGraduado: "FT-G", ftMotorista: "FT-M", ftPatrulheiro: "FT-P",
+  rpAdjunto: "RP-A", rpMotorista: "RP-M", rpPatrulheiro: "RP-P",
+  guardaPermanente: "PERM", inteligencia: "INT", rotem: "ROTEM",
+};
 
 /* Resolve o nome escrito na folha (dias já salvos) de volta para o ID, sem
    depender do formato exato: casa pelo nº/barra (ex.: "338/22") e, na falta,
@@ -166,7 +172,7 @@ export function previsaoDoMilitar(cad: Cadastro, escalas: Record<string, any>, i
   for (let i = 0; i < dias; i++) {
     const a = assignDia(iso, cad, escalas, idDe);
     const servicos: string[] = [];
-    for (const [k, ids] of Object.entries(a)) if ((ids || []).includes(id)) servicos.push(LABEL_SERVICO[k] || k);
+    for (const [k, ids] of Object.entries(a)) if ((ids || []).includes(id)) servicos.push(k); // devolve a CHAVE do serviço
     if (servicos.length) out.push({ iso, servicos });
     iso = proxDia(iso);
   }
