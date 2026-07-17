@@ -74,10 +74,12 @@ export default function MapaEfetivo({ unidades }: { unidades: UnidadeMapa[] }) {
       const linhaEfetivo = u.sede
         ? `Efetivo na sede: <b>${u.efetivoTotal}</b>`
         : `Efetivo destacado: <b>${u.disponiveis}</b> disponíveis (mínimo ${u.minimo})${u.critico ? ` — <b style="color:#dc2626">faltam ${u.faltam}</b>` : ' — <b style="color:#16a34a">OK</b>'}`;
+      const gmaps = `https://www.google.com/maps/search/?api=1&query=${u.lat},${u.lng}`;
       m.bindPopup(
         `<b>${u.rotulo}</b><br>${u.cidade}<br>${linhaEfetivo}` +
         (u.sede ? "" : `<br>Distância da sede: <b>${dist.toFixed(0)} km</b>`) +
-        `<br>População: <b>${nf.format(u.pop)}</b> hab. (aprox.)`
+        `<br>População: <b>${nf.format(u.pop)}</b> hab. (aprox.)` +
+        `<br><a href="${gmaps}" target="_blank" rel="noopener">📍 abrir no Google Maps</a>`
       );
       pontos.push(L.latLng(u.lat, u.lng));
     }
