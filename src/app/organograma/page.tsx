@@ -8,6 +8,9 @@ import { ORGANOGRAMA, NoOrg, pertenceAoNo } from "@/lib/organograma";
 import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
 import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
 import { idsInativos, semInativos } from "@/lib/inativos";
+import { COORDS_UNIDADE } from "@/lib/coordsUnidades";
+import MapaEfetivoWrapper from "@/components/MapaEfetivoWrapper";
+import type { UnidadeMapa } from "@/components/MapaEfetivo";
 import {
   calcularStatusUnidades,
   mapaMinimos,
@@ -80,6 +83,19 @@ export default async function OrganogramaPage() {
   const statusPorNo: Record<string, StatusUnidade> = {};
   for (const s of statusUnidades) statusPorNo[s.noId] = s;
 
+  // pontos do mapa: sede (dourado) + pelotoes controlados (verde/vermelho)
+  const unidadesMapa: UnidadeMapa[] = [];
+  const cSede = COORDS_UNIDADE["18bpm"];
+  if (cSede) {
+    const sedeCount = (contagens["adm"] || 0) + (contagens["especializado"] || 0) + (contagens["1cia"] || 0);
+    unidadesMapa.push({ noId: "18bpm", rotulo: "18º BPM (Sede)", cidade: "Presidente Dutra - MA", lat: cSede.lat, lng: cSede.lng, disponiveis: sedeCount, efetivoTotal: sedeCount, minimo: 0, faltam: 0, critico: false, sede: true });
+  }
+  for (const u of statusUnidades) {
+    const c = COORDS_UNIDADE[u.noId];
+    if (!c) continue;
+    unidadesMapa.push({ noId: u.noId, rotulo: u.rotulo, cidade: u.cidade || "", lat: c.lat, lng: c.lng, disponiveis: u.disponiveis, efetivoTotal: u.efetivoTotal, minimo: u.minimo, faltam: u.faltam, critico: u.critico });
+  }
+
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-6xl">
@@ -123,6 +139,13 @@ export default async function OrganogramaPage() {
           minimos={minimos}
           statusPorNo={statusPorNo}
         />
+
+        {/* Mapa das unidades: verde = efetivo OK, vermelho = efetivo baixo */}
+        <div className="mt-8">
+          <h2 className="mb-1 text-xl font-bold text-white">Mapa do efetivo</h2>
+          <p className="mb-3 text-sm text-[#94A3B8]">Cidades das unidades no Maranhão. <span className="text-emerald-400">Verde</span> = efetivo OK; <span className="text-red-400">vermelho</span> = efetivo abaixo do mínimo.</p>
+          <MapaEfetivoWrapper unidades={unidadesMapa} />
+        </div>
       </div>
     </AppShell>
   );

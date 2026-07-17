@@ -34,13 +34,21 @@ export default function AvisoPrivacidadeDoc() {
             className="mx-auto my-6 bg-white text-black shadow-2xl outline-none print:my-0 print:shadow-none"
             style={{ width: "210mm", minHeight: "297mm", padding: "16mm 22mm", fontFamily: "Times New Roman, Times, serif", fontSize: "12pt", lineHeight: 1.55, position: "relative" }}>
 
-            <div style={{ textAlign: "center", lineHeight: 1.25 }} contentEditable={false}>
-              <p style={{ margin: 0, fontWeight: "bold" }}>ESTADO DO MARANHÃO</p>
-              <p style={{ margin: 0, fontWeight: "bold" }}>POLÍCIA MILITAR DO MARANHÃO</p>
-              <p style={{ margin: 0, fontWeight: "bold" }}>COMANDO DO POLICIAMENTO DE ÁREA I/2</p>
-              <p style={{ margin: 0, fontWeight: "bold" }}>18º BATALHÃO DE POLÍCIA MILITAR</p>
-              <p style={{ margin: "1mm 0 0", fontSize: "9pt" }}>Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP-65.760-000</p>
+            <div style={{ display: "flex", alignItems: "center", gap: "4mm" }} contentEditable={false}>
+              <img src="/brasoes/pmma-190.jpg" alt="" style={{ width: "26mm", height: "22mm", objectFit: "contain" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
+              <div style={{ flex: 1, textAlign: "center", lineHeight: 1.2 }}>
+                <img src="/brasoes/armas-ma.png" alt="" style={{ height: "16mm", objectFit: "contain", display: "block", margin: "0 auto 1mm" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
+                <p style={{ margin: 0, fontWeight: "bold" }}>ESTADO DO MARANHÃO</p>
+                <p style={{ margin: 0, fontWeight: "bold" }}>SECRETARIA DE ESTADO DA SEGURANÇA PÚBLICA</p>
+                <p style={{ margin: 0, fontWeight: "bold" }}>POLÍCIA MILITAR DO MARANHÃO</p>
+                <p style={{ margin: 0, fontWeight: "bold" }}>COMANDO DO POLICIAMENTO DE ÁREA I/2</p>
+                <p style={{ margin: 0, fontWeight: "bold" }}>18º BATALHÃO DE POLÍCIA MILITAR</p>
+              </div>
+              <img src="/brasoes/brasao-18bpm.png" alt="" style={{ width: "22mm", height: "22mm", objectFit: "contain" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
             </div>
+            <p style={{ textAlign: "center", fontSize: "8.5pt", margin: "1mm 0 0", lineHeight: 1.2 }} contentEditable={false}>
+              Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP-65.760-000
+            </p>
 
             <h1 style={{ textAlign: "center", fontSize: "13pt", fontWeight: "bold", margin: "10mm 0 1mm" }}>AVISO DE PRIVACIDADE E PROTEÇÃO DE DADOS</h1>
             <p style={{ textAlign: "center", fontWeight: "bold", margin: "0 0 8mm" }}>Sistema SIGEP-18º BPM — Lei nº 13.709/2018 (LGPD)</p>
@@ -70,16 +78,10 @@ export default function AvisoPrivacidadeDoc() {
               <strong>8. Compartilhamento.</strong> Os dados não são compartilhados com terceiros externos, salvo por determinação legal, judicial ou por exigência do Comando-Geral da Corporação.
             </p>
             <p style={{ textAlign: "justify", margin: "0 0 8mm" }}>
-              <strong>9. Encarregado (DPO).</strong> Encargo do tratamento de dados no âmbito do 18º BPM: Chefe da Seção P/1. Contato: <u>18batalhaopmma@gmail.com</u>.
+              <strong>9. Encarregado (DPO).</strong> O encarregado pelo tratamento de dados no âmbito do 18º BPM será oportunamente designado pelo Comando da Unidade. Contato: <u>18batalhaopmma@gmail.com</u>.
             </p>
 
-            <p style={{ textAlign: "center", margin: "10mm 0 16mm" }} contentEditable={false}>Presidente Dutra - MA, ______ de ____________________ de {ANO}.</p>
-            <div style={{ display: "flex", justifyContent: "center" }} contentEditable={false}>
-              <div style={{ textAlign: "center", width: "110mm" }}>
-                <div style={{ borderTop: "1px solid #000", paddingTop: "1mm", fontWeight: "bold" }}>________________________</div>
-                <div>Chefe da Seção P/1 — 18º BPM (Encarregado de Dados)</div>
-              </div>
-            </div>
+            <p style={{ textAlign: "center", margin: "12mm 0 0" }} contentEditable={false}>Presidente Dutra - MA, ______ de ____________________ de {ANO}.</p>
           </div>
 
           <style>{`@media print { body > *:not(#lgpd-overlay){display:none!important;} #lgpd-overlay{position:static!important;overflow:visible!important;background:#fff!important;inset:auto!important;display:block!important;} #lgpd-print{position:static!important;margin:0 auto!important;box-shadow:none!important;min-height:0!important;width:100%!important;padding:14mm 18mm!important;} html,body{margin:0!important;padding:0!important;background:#fff!important;} @page{size:A4;margin:0;} }`}</style>
