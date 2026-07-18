@@ -51,6 +51,7 @@ type Cadastro = {
   // Excecao do CPU por dia (editado direto na linha do mapa). cpuOverrides[iso]
   // = ID do militar ou "__FOLGA__" (folga). Ausente = automatico (rodizio).
   cpuOverrides?: Record<string, string>;
+  padraoEscala?: string;   // como a escala desta unidade funciona (ex.: "3 por 6")
 };
 
 type Militar = {
@@ -1014,6 +1015,18 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                 : <span className="mp-tag">Guardião</span>}
             </div>
             <div className="mp-sub">{grupo ? "Tela do serviço · mapa colorido + equipes editáveis" : "Visão do mês inteiro, gerada automaticamente. Atualiza sozinho — não precisa salvar."}</div>
+            {escopo && (
+              <div className="no-print" style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12.5, color: "#9fb0c7" }}>Como funciona a escala desta unidade:</span>
+                <input
+                  value={cad.padraoEscala ?? "3 por 6"}
+                  onChange={(e) => setCad((c) => ({ ...c, padraoEscala: e.target.value }))}
+                  placeholder="ex.: 3 por 6"
+                  style={{ background: "#0a1626", color: "#E8EEF6", border: "1px solid #28395a", borderRadius: 8, padding: "6px 10px", fontSize: 13, minWidth: 140 }}
+                />
+                <span style={{ fontSize: 11, color: "#6f82a0" }}>(cada unidade define o seu padrão)</span>
+              </div>
+            )}
           </div>
         </div>
         <div className="mp-controls">
