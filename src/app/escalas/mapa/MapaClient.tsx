@@ -1027,7 +1027,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                   style={{ background: "#0a1626", color: "#E8EEF6", border: "1px solid #28395a", borderRadius: 8, padding: "6px 10px", fontSize: 13, minWidth: 140 }}
                 />
                 <span style={{ fontSize: 11, color: "#6f82a0" }}>(cada unidade define o seu padrão)</span>
-                <button className="mp-btn" style={{ background: "#1b3a2a", borderColor: "#2e6b48", color: "#bff0d0" }} onClick={() => setFolhaAberta(true)}>📄 Folha do dia (RP)</button>
+                <button className="mp-btn" style={{ background: "#1b3a2a", borderColor: "#2e6b48", color: "#bff0d0" }} onClick={() => setFolhaAberta(true)}>📄 Folha da semana (RP)</button>
               </div>
             )}
           </div>

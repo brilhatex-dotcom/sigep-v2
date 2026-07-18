@@ -20,7 +20,28 @@ export type Cadastro = {
   quadroEquipes?: Record<string, Record<string, string>>;
   linhasExtras?: Record<string, number>;
   cpuOverrides?: Record<string, string>;
+  padraoEscala?: string;   // ex.: "3 por 6" (3 trab / 6 folga). Vazio = 24/72 (sede).
 };
+
+/* Interpreta o padrão digitado ("3 por 6", "3x6", "1/3"...) em dias de trabalho
+   e de folga, e quantas equipes cobrem o ciclo. Sem padrão = 24/72 (sede):
+   1 dia de serviço, 3 de folga, 4 equipes (A/B/C/D). */
+export function parsePadrao(s: string | undefined | null): { trabalho: number; folga: number; equipes: number } {
+  const m = (s || "").match(/(\d+)\s*(?:por|x|\/|-|\s)\s*(\d+)/i);
+  if (m) {
+    const t = Math.max(1, parseInt(m[1], 10));
+    const f = Math.max(0, parseInt(m[2], 10));
+    const equipes = Math.max(1, Math.round((t + f) / t));
+    return { trabalho: t, folga: f, equipes };
+  }
+  return { trabalho: 1, folga: 3, equipes: 4 };
+}
+// Índice da equipe (0..equipes-1) para um dia, conforme o padrão.
+function timeDoDia(diasDesdeRef: number, p: { trabalho: number; equipes: number }): number {
+  const ciclo = p.trabalho * p.equipes;
+  const d = ((diasDesdeRef % ciclo) + ciclo) % ciclo;
+  return Math.floor(d / p.trabalho);
+}
 
 const DAY = 86400000;
 const EQUIPES_ABCD = ["A", "B", "C", "D"];
@@ -94,7 +115,10 @@ export function assignDia(iso: string, cad: Cadastro, escalas: Record<string, an
   }
   const a = cad.afastamentos, r = cad.refRodizioISO;
   const eq = equipeRotem(iso, cad.rotemEquipes, cad.refRotemISO);
-  const team = EQUIPES_ABCD[(((diasEntre(r, iso) % 4) + 4) % 4)];
+  // equipe do dia conforme o padrão da unidade (ex.: "3 por 6" = 3 equipes);
+  // sem padrão = 24/72 (4 equipes A/B/C/D), como a sede.
+  const padrao = parsePadrao(cad.padraoEscala);
+  const team = EQUIPES_ABCD[timeDoDia(diasEntre(r, iso), padrao) % EQUIPES_ABCD.length];
   const q = cad.quadroEquipes || {};
   const nExtra = (fk: string) => cad.linhasExtras?.[fk] || 0;
   const dq = (fk: string) => {
