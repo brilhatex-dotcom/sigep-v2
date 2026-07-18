@@ -94,6 +94,7 @@ const NAV: Secao[] = [
       { rotulo: "Diárias", Icone: FileText, adminOnly: true },
       { rotulo: "Escalas de Serviço", href: "/escalas", Icone: ClipboardList, disponivel: true, adminOnly: true },
       { rotulo: "Mapa de Escala", href: "/escalas/mapa", Icone: Map, disponivel: true, adminOnly: true },
+      { rotulo: "Escalas das Unidades", href: "/escalas/unidades", Icone: Building2, disponivel: true, adminOnly: true },
       { rotulo: "Escala da Unidade (RP)", href: "/escalas/servico/rp", Icone: ClipboardList, disponivel: true, soLugar: true },
     ],
   },
