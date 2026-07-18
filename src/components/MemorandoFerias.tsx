@@ -185,6 +185,8 @@ type ChefeP1 = { nome: string; funcao: string; assinatura: string; assinarGov: b
 export default function MemorandoFerias(props: {
   dados: DadosMemorando; ano: string; onFechar: () => void;
   variante?: "ferias" | "licenca";
+  tipoAssinatura?: string;   // ex.: "memorando_ferias"
+  refAssinatura?: string;    // ex.: "849988:2026"
 }) {
   const [chefe, setChefe] = useState<ChefeP1 | null>(null);
   const [carregado, setCarregado] = useState(false);
@@ -212,12 +214,23 @@ export default function MemorandoFerias(props: {
   return <MemorandoDoc {...props} chefe={chefe} />;
 }
 
-function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe }: {
+function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe, tipoAssinatura, refAssinatura }: {
   dados: DadosMemorando; ano: string; onFechar: () => void;
   variante?: "ferias" | "licenca";
   chefe: ChefeP1 | null;
+  tipoAssinatura?: string;
+  refAssinatura?: string;
 }) {
   const ehLicenca = variante === "licenca";
+  // Assinatura AVANÇADA do Chefe do P/1 (SIGEP) para ESTE memorando, se houver.
+  const [assP1, setAssP1] = useState<{ id: string; token: string; nome: string; cargo: string; em: string } | null>(null);
+  useEffect(() => {
+    if (!tipoAssinatura || !refAssinatura) return;
+    fetch(`/api/assinatura-sigep?tipo=${encodeURIComponent(tipoAssinatura)}&ref=${encodeURIComponent(refAssinatura)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { const a = (d?.assinaturas || []).find((x: any) => x.papel === "chefe_p1"); if (a) setAssP1(a); })
+      .catch(() => {});
+  }, [tipoAssinatura, refAssinatura]);
   const prazoLic = (dados.prazoTexto && dados.prazoTexto.trim()) || "3 (três) meses";
   // Assinatura do emissor (Chefe do P/1): em branco quando assina pelo Gov.br
   // ou quando nao ha imagem configurada; caso contrario usa a assinatura do
@@ -514,13 +527,18 @@ function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe }: {
             A rubrica so aparece se houver imagem configurada e o chefe nao
             estiver assinando pelo Gov.br. */}
         <div style={{ textAlign: "center" }}>
-          {assinaturaChefe && (
+          {assP1 ? (
+            // Assinou pela avançada SIGEP: carimbo com QR verificável.
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "1mm" }}>
+              <CarimboSigep nome={assP1.nome} cargo={assP1.cargo} data={assP1.em} largura="80mm" assinatura={{ id: assP1.id, token: assP1.token }} />
+            </div>
+          ) : assinaturaChefe ? (
             <div style={{ display: "flex", justifyContent: "center", marginBottom: "1mm" }}>
               <img src={assinaturaChefe} alt=""
                 style={{ height: "16mm", objectFit: "contain" }}
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
             </div>
-          )}
+          ) : null}
           <C campo="nomeCmt" style={{ display: "block", textAlign: "center" }} />
           <C campo="cargoCmt" style={{ display: "block", textAlign: "center" }} />
         </div>

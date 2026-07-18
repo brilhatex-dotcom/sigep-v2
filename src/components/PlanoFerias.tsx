@@ -12,6 +12,7 @@ import {
   Pencil,
   Loader2,
   Calendar,
+  ShieldCheck,
 } from "lucide-react";
 import MemorandoFerias, { DadosMemorando } from "@/components/MemorandoFerias";
 
@@ -100,6 +101,13 @@ export default function PlanoFerias({
   const [novaEquipe, setNovaEquipe] = useState("");
   const [salvandoPermuta, setSalvandoPermuta] = useState(false);
   const [memorando, setMemorando] = useState<DadosMemorando | null>(null);
+  const [memInfo, setMemInfo] = useState<{ efetivoId: string } | null>(null);
+  // Assinatura em lote dos memorandos da equipe (Chefe do P/1, senha única)
+  const [assinarLote, setAssinarLote] = useState(false);
+  const [selAss, setSelAss] = useState<Set<string>>(new Set());
+  const [senhaAss, setSenhaAss] = useState("");
+  const [assinando, setAssinando] = useState(false);
+  const [assMsg, setAssMsg] = useState("");
 
   // --- edição de datas ---
   const [editando, setEditando] = useState<EquipeView | null>(null);
@@ -224,6 +232,7 @@ export default function PlanoFerias({
   function abrirMemorando(m: MembroEquipe, e: EquipeView) {
     const p = e.periodos[0];
     const numeroGlobal = mapaNumeroGlobal.get(m.efetivoId) ?? 1;
+    setMemInfo({ efetivoId: m.efetivoId });
     setMemorando({
       numero: String(numeroGlobal).padStart(3, "0"),
       postoGrad: m.postoGrad ?? "",
@@ -235,6 +244,35 @@ export default function PlanoFerias({
       apresentacaoBR: p?.apres ?? p?.fimBR ?? "",
       diasFerias: 35,
     });
+  }
+
+  function abrirAssinarLote(e: EquipeView) {
+    setSelAss(new Set(filtrarMembros(e.membros).map((m) => m.efetivoId)));
+    setSenhaAss(""); setAssMsg(""); setAssinarLote(true);
+  }
+  async function assinarMemorandos() {
+    if (!aberta) return;
+    const membros = filtrarMembros(aberta.membros).filter((m) => selAss.has(m.efetivoId));
+    if (!membros.length) { setAssMsg("Selecione ao menos um militar."); return; }
+    if (!senhaAss) { setAssMsg("Digite sua senha para assinar."); return; }
+    setAssinando(true); setAssMsg("");
+    try {
+      const p = aberta.periodos[0];
+      const itens = membros.map((m) => ({
+        tipo: "memorando_ferias",
+        ref: `${m.efetivoId}:${anoSelecionado}`,
+        conteudo: `ferias|${m.efetivoId}|${anoSelecionado}|${p?.inicioBR || ""}|${p?.apres || p?.fimBR || ""}`,
+      }));
+      const r = await fetch("/api/assinatura-sigep", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ papel: "chefe_p1", senha: senhaAss, itens }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setAssMsg(d?.error || "Falha ao assinar."); setAssinando(false); return; }
+      setAssMsg(`✅ ${d.assinaturas?.length || 0} memorando(s) assinados pela avançada SIGEP.`);
+      setSenhaAss("");
+    } catch { setAssMsg("Falha ao assinar."); }
+    finally { setAssinando(false); }
   }
 
   function filtrarMembros(membros: MembroEquipe[]) {
@@ -568,9 +606,17 @@ export default function PlanoFerias({
                   EQUIPE {aberta.numeroEquipe} · {filtrarMembros(aberta.membros).length} militares
                 </h3>
               </div>
-              <button onClick={() => setAberta(null)} aria-label="Fechar" className="text-[#94A3B8] hover:text-white">
-                <X className="h-5 w-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                {isAdmin && filtrarMembros(aberta.membros).length > 0 && (
+                  <button onClick={() => abrirAssinarLote(aberta)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-3 py-1.5 text-xs font-medium text-[#f3df9d] hover:bg-[#D4AF37]/20">
+                    <ShieldCheck className="h-4 w-4" /> Assinar memorandos (SIGEP)
+                  </button>
+                )}
+                <button onClick={() => setAberta(null)} aria-label="Fechar" className="text-[#94A3B8] hover:text-white">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
 
             <div className="p-5">
@@ -704,11 +750,57 @@ export default function PlanoFerias({
         </div>
       )}
 
+      {/* Assinar memorandos da equipe em lote (Chefe do P/1) */}
+      {assinarLote && aberta && (
+        <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/60 p-4" onClick={() => !assinando && setAssinarLote(false)}>
+          <div className="mt-10 w-full max-w-lg rounded-xl border border-[#D4AF37]/30 bg-[#0F1B2D] shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 text-white">
+              <h3 className="flex items-center gap-2 font-bold"><ShieldCheck className="h-5 w-5 text-[#D4AF37]" /> Assinar memorandos — Equipe {aberta.numeroEquipe}</h3>
+              <button onClick={() => !assinando && setAssinarLote(false)} className="text-[#94A3B8] hover:text-white"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="space-y-3 p-5">
+              <p className="text-xs text-[#94A3B8]">Assinatura <b>avançada SIGEP</b> (com sua senha) do Chefe do P/1. Marque quem assinar — todos vêm marcados. Cada memorando recebe um carimbo com QR verificável.</p>
+              <div className="flex items-center justify-between text-xs text-[#94A3B8]">
+                <span>{selAss.size} de {filtrarMembros(aberta.membros).length} selecionados</span>
+                <div className="flex gap-2">
+                  <button onClick={() => setSelAss(new Set(filtrarMembros(aberta.membros).map((m) => m.efetivoId)))} className="rounded border border-white/15 px-2 py-0.5 hover:bg-white/5">Todos</button>
+                  <button onClick={() => setSelAss(new Set())} className="rounded border border-white/15 px-2 py-0.5 hover:bg-white/5">Nenhum</button>
+                </div>
+              </div>
+              <div className="max-h-[40vh] overflow-y-auto rounded-lg border border-white/10">
+                {filtrarMembros(aberta.membros).map((m) => (
+                  <label key={m.efetivoId} className="flex cursor-pointer items-center gap-2 border-b border-white/5 px-3 py-2 text-sm text-white hover:bg-white/5">
+                    <input type="checkbox" checked={selAss.has(m.efetivoId)}
+                      onChange={(e) => setSelAss((s) => { const n = new Set(s); if (e.target.checked) n.add(m.efetivoId); else n.delete(m.efetivoId); return n; })} />
+                    <span>{m.postoGrad} {m.numeroBarra ? `nº ${m.numeroBarra}` : ""} {m.nomeGuerra || m.nome}</span>
+                  </label>
+                ))}
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[#94A3B8]">Sua senha (para assinar)</label>
+                <input type="password" value={senhaAss} onChange={(e) => setSenhaAss(e.target.value)}
+                  className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+              </div>
+              {assMsg && <div className="text-xs text-emerald-300">{assMsg}</div>}
+              <div className="flex justify-end gap-2 pt-1">
+                <button onClick={() => setAssinarLote(false)} disabled={assinando} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-white">Fechar</button>
+                <button onClick={assinarMemorandos} disabled={assinando || !senhaAss || selAss.size === 0}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] hover:brightness-110 disabled:opacity-60">
+                  {assinando ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Assinar {selAss.size > 0 ? `(${selAss.size})` : ""}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* memorando */}
       {memorando && (
         <MemorandoFerias
           dados={memorando}
           ano={anoSelecionado}
+          tipoAssinatura="memorando_ferias"
+          refAssinatura={memInfo ? `${memInfo.efetivoId}:${anoSelecionado}` : undefined}
           onFechar={() => setMemorando(null)}
         />
       )}
