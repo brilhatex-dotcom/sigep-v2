@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
+import { TERMO_TITULO, TERMO_BLOCOS, TERMO_VERSAO } from '@/lib/termoLgpd';
 
 interface Props {
   precisaTrocar: boolean;
@@ -14,6 +15,8 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
   const [novaSenha, setNovaSenha] = useState('');
   const [confirmar, setConfirmar] = useState('');
   const [mostrar, setMostrar] = useState(false);
+  const [aceite, setAceite] = useState(false);
+  const [verTermo, setVerTermo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState(false);
   const [carregando, setCarregando] = useState(false);
@@ -37,6 +40,9 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
     if (!precisaTrocar && novaSenha === senhaAtual) {
       return 'A nova senha deve ser diferente da atual.';
     }
+    if (!aceite) {
+      return 'É necessário ler e aceitar o Termo de Consentimento (LGPD) para continuar.';
+    }
     return null;
   };
 
@@ -58,6 +64,8 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
         body: JSON.stringify({
           senhaAtual: precisaTrocar ? null : senhaAtual,
           novaSenha,
+          aceiteTermo: aceite,
+          termoVersao: TERMO_VERSAO,
         }),
       });
 
@@ -168,6 +176,34 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
         Mostrar senhas
       </label>
 
+      {/* Termo de Consentimento LGPD — aceite obrigatório e registrado */}
+      <div className="rounded-lg border border-[#D4AF37]/25 bg-[#08111F] p-3">
+        <button
+          type="button"
+          onClick={() => setVerTermo((v) => !v)}
+          className="flex w-full items-center justify-between text-left text-sm font-medium text-[#E8EEF6]"
+        >
+          <span>📄 {TERMO_TITULO}</span>
+          <span className="text-[#D4AF37]">{verTermo ? '▲ ocultar' : '▼ ler'}</span>
+        </button>
+        {verTermo && (
+          <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1 text-[12px] leading-relaxed text-[#E8EEF6]/75">
+            {TERMO_BLOCOS.map((b) => (
+              <p key={b.t}><b className="text-[#E8EEF6]">{b.t}</b> {b.c}</p>
+            ))}
+          </div>
+        )}
+        <label className="mt-3 flex items-start gap-2 text-sm text-[#E8EEF6]/85 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={aceite}
+            onChange={(e) => setAceite(e.target.checked)}
+            className="mt-0.5 accent-[#D4AF37]"
+          />
+          <span>Li e <b>aceito</b> o Termo de Consentimento (LGPD) e assumo a responsabilidade pelo uso pessoal e sigiloso das minhas credenciais.</span>
+        </label>
+      </div>
+
       {erro && (
         <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/40 text-red-300 text-sm">
           {erro}
@@ -176,7 +212,7 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
 
       <button
         type="submit"
-        disabled={carregando}
+        disabled={carregando || !aceite}
         className="w-full py-2.5 rounded-lg bg-[#D4AF37] text-[#08111F] font-semibold hover:bg-[#D4AF37]/90 disabled:opacity-50 disabled:cursor-not-allowed transition"
       >
         {carregando ? 'Salvando...' : 'Trocar senha'}

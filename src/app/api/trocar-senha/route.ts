@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ erro: 'Sessao invalida.' }, { status: 401 });
   }
 
-  let body: { senhaAtual: string | null; novaSenha: string };
+  let body: { senhaAtual: string | null; novaSenha: string; aceiteTermo?: boolean; termoVersao?: string };
   try {
     body = await req.json();
   } catch {
@@ -30,6 +30,11 @@ export async function POST(req: NextRequest) {
   }
 
   const { senhaAtual, novaSenha } = body;
+
+  // LGPD: o consentimento precisa ser inequívoco (Art. 8º). Sem aceite, barra.
+  if (!body.aceiteTermo) {
+    return NextResponse.json({ erro: 'É necessário aceitar o Termo de Consentimento (LGPD).' }, { status: 400 });
+  }
 
   const fraca = validarSenhaSimples(String(novaSenha ?? ""), [login]);
   if (fraca) return NextResponse.json({ erro: fraca }, { status: 400 });
@@ -79,6 +84,10 @@ export async function POST(req: NextRequest) {
     } as any,
   });
 
+  const versao = String(body.termoVersao || 'v?');
+  const quando = new Date().toISOString();
+  const ua = req.headers.get('user-agent') || '';
+
   try {
     await prisma.auditoria.create({
       data: {
@@ -87,6 +96,26 @@ export async function POST(req: NextRequest) {
         autorNome: usuario.nomeCompleto ?? usuario.login,
         detalhe: `Senha alterada via /trocar-senha (IP ${ip})`,
       } as any,
+    });
+  } catch {}
+
+  // LGPD: registro do consentimento (prova do aceite — Art. 8º, §1º).
+  try {
+    await prisma.auditoria.create({
+      data: {
+        acao: 'consentimento_lgpd',
+        autorLogin: usuario.login,
+        autorNome: usuario.nomeCompleto ?? usuario.login,
+        detalhe: `Aceitou o Termo de Consentimento (LGPD) ${versao} em ${quando} — IP ${ip} — ${ua}`,
+      } as any,
+    });
+  } catch {}
+  // Estado atual do consentimento (consulta rápida por usuário).
+  try {
+    await prisma.config.upsert({
+      where: { chave: `consent_lgpd__${usuario.id}` },
+      update: { valor: JSON.stringify({ versao, aceitoEm: quando, ip, ua, login: usuario.login }) },
+      create: { chave: `consent_lgpd__${usuario.id}`, valor: JSON.stringify({ versao, aceitoEm: quando, ip, ua, login: usuario.login }), descricao: 'Consentimento LGPD do usuario' },
     });
   } catch {}
 

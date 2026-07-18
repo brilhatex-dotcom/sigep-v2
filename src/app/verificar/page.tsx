@@ -24,6 +24,12 @@ export default function VerificarPage() {
   return (
     <div style={{ minHeight: "100vh", background: "#0a1220", color: "#e6edf7", fontFamily: "system-ui, sans-serif", display: "flex", justifyContent: "center", alignItems: "flex-start", padding: "40px 16px" }}>
       <div style={{ width: "100%", maxWidth: 480, background: "#0F1B2D", border: "1px solid #1d2c44", borderRadius: 16, padding: 24 }}>
+        <button
+          onClick={() => { if (window.history.length > 1) router.back(); else router.push("/dashboard"); }}
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", color: "#8fa3bf", border: "1px solid #28395a", borderRadius: 8, padding: "6px 10px", fontSize: 13, cursor: "pointer", marginBottom: 14 }}
+        >
+          ← Voltar
+        </button>
         <div style={{ textAlign: "center", marginBottom: 18 }}>
           <div style={{ fontSize: 34 }}>🔎</div>
           <div style={{ fontWeight: 800, fontSize: 18, marginTop: 4 }}>Verificar Autenticidade</div>

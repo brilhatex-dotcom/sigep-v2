@@ -38,6 +38,28 @@ function ipDaRequisicao(): string {
   }
 }
 
+function uaDaRequisicao(): string {
+  try { return headers().get("user-agent") || ""; } catch { return ""; }
+}
+
+/* Resume o contexto do dispositivo (mandado pelo cliente no login) para a
+   auditoria: GPS, fuso, idioma, tela, plataforma e user-agent. Usado nas
+   tentativas de senha para localizar melhor quem tentou (não só o IP). */
+function resumoContexto(raw: string | undefined, uaServidor: string): string {
+  let o: any = {};
+  try { o = raw ? JSON.parse(raw) : {}; } catch {}
+  const ua = (o.ua || uaServidor || "").slice(0, 180);
+  const partes = [
+    o.geo ? `GPS ${o.geo}` : "GPS não informado",
+    o.tz ? `fuso ${o.tz}` : null,
+    o.idioma ? `idioma ${o.idioma}` : null,
+    o.tela ? `tela ${o.tela}` : null,
+    o.plataforma ? `plataforma ${o.plataforma}` : null,
+    ua ? `UA ${ua}` : null,
+  ].filter(Boolean);
+  return partes.join(" · ");
+}
+
 // ----- Protecao contra forca bruta -----
 const MAX_TENTATIVAS = 5;       // erros permitidos antes de bloquear
 const BLOQUEIO_MINUTOS = 15;    // tempo de bloqueio
@@ -64,6 +86,7 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         login: { label: "Login", type: "text" },
         senha: { label: "Senha", type: "password" },
+        ctx: { label: "ctx", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.login || !credentials?.senha) return null;
@@ -79,8 +102,10 @@ export const authOptions: NextAuthOptions = {
         // precisa estar ativo (Ativo == "SIM")
         if ((usuario.ativo ?? "").toUpperCase() !== "SIM") return null;
 
-        // IP de quem esta tentando logar (injetado pelo middleware)
+        // IP de quem esta tentando logar (injetado pelo middleware) + contexto
+        // do dispositivo (GPS/fuso/UA...) mandado pelo cliente na tentativa.
         const ip = ipDaRequisicao();
+        const ctx = resumoContexto((credentials as any)?.ctx, uaDaRequisicao());
 
         // ---- bloqueio por forca bruta ----
         const restante = minutosRestantes((usuario as any).bloqueadoAte ?? null);
@@ -92,7 +117,7 @@ export const authOptions: NextAuthOptions = {
                 acao: "login_bloqueado",
                 autorLogin: usuario.login,
                 autorNome: usuario.nomeCompleto ?? usuario.login,
-                detalhe: `Tentativa em conta bloqueada (${restante} min restantes)`,
+                detalhe: `Tentativa em conta bloqueada (${restante} min restantes) — ${ctx}`,
                 ip,
               } as any,
             });
@@ -120,9 +145,9 @@ export const authOptions: NextAuthOptions = {
                 acao: "login_falha",
                 autorLogin: usuario.login,
                 autorNome: usuario.nomeCompleto ?? usuario.login,
-                detalhe: data.bloqueadoAte
+                detalhe: (data.bloqueadoAte
                   ? `Senha incorreta — conta BLOQUEADA por ${BLOQUEIO_MINUTOS} min`
-                  : `Senha incorreta (tentativa ${tent}/${MAX_TENTATIVAS})`,
+                  : `Senha incorreta (tentativa ${tent}/${MAX_TENTATIVAS})`) + ` — ${ctx}`,
                 ip,
               } as any,
             });

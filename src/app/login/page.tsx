@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -39,6 +39,35 @@ export default function LoginPage() {
   const [verSenha, setVerSenha] = useState(false);
   const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(false);
+  // Contexto do dispositivo para a auditoria de segurança. O GPS só é pedido
+  // APÓS um erro de senha (não incomoda o acesso normal) e vai junto nas
+  // próximas tentativas — ajuda a localizar quem fica errando a senha.
+  const geoRef = useRef<string>("");
+  const pedindoGeo = useRef(false);
+
+  function coletarContexto() {
+    try {
+      return JSON.stringify({
+        ua: navigator.userAgent,
+        plataforma: (navigator as any).userAgentData?.platform || navigator.platform || "",
+        idioma: navigator.language || "",
+        tela: typeof screen !== "undefined" ? `${screen.width}x${screen.height}` : "",
+        tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+        geo: geoRef.current || "",
+      });
+    } catch { return "{}"; }
+  }
+
+  function pedirLocalizacao() {
+    if (pedindoGeo.current || geoRef.current) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) { geoRef.current = "sem suporte"; return; }
+    pedindoGeo.current = true;
+    navigator.geolocation.getCurrentPosition(
+      (p) => { geoRef.current = `${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)} ±${Math.round(p.coords.accuracy)}m`; pedindoGeo.current = false; },
+      (e) => { geoRef.current = e.code === 1 ? "negado pelo usuário" : "indisponível"; pedindoGeo.current = false; },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
+    );
+  }
 
   async function entrar() {
     setErro("");
@@ -46,6 +75,7 @@ export default function LoginPage() {
     const res = await signIn("credentials", {
       login,
       senha,
+      ctx: coletarContexto(),
       redirect: false,
     });
     setCarregando(false);
@@ -58,6 +88,8 @@ export default function LoginPage() {
       } else {
         setErro("Usuário ou senha inválidos.");
       }
+      // a partir do 1º erro, tenta capturar a localização para a auditoria
+      pedirLocalizacao();
       return;
     }
     router.push("/dashboard");

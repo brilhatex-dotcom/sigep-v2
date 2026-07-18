@@ -45,6 +45,9 @@ export default async function VerificarPermutaPage({
   return (
     <div style={wrap}>
       <div style={card}>
+        <a href="/verificar" style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", color: "#8fa3bf", border: "1px solid #28395a", borderRadius: 8, padding: "6px 10px", fontSize: 13, textDecoration: "none", marginBottom: 14 }}>
+          ← Verificar outro documento
+        </a>
         <div style={{ textAlign: "center", marginBottom: 16 }}>
           <div style={{ fontWeight: 800, letterSpacing: 0.5 }}>SIGEP · 18º BPM</div>
           <div style={{ fontSize: 12, color: "#8fa3bf" }}>Verificação de autenticidade — Permuta</div>
