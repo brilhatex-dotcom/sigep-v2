@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { conferirSenha, gerarHash, hashLegado } from "@/lib/senha";
+import { MINUTOS_INATIVIDADE } from "@/lib/sessao";
 
 // ==========================================================
 //  Hash IDENTICO ao Auth.gs original:
@@ -51,10 +52,11 @@ function minutosRestantes(iso: string | null): number {
 }
 
 export const authOptions: NextAuthOptions = {
-  // Logout automatico por INATIVIDADE: a sessao vale 30 min e e renovada a cada
-  // requisicao (updateAge 0 = deslizante). Ficou 30 min parado -> cai sozinho.
-  // Protege o PC compartilhado deixado aberto, sem atrapalhar quem esta usando.
-  session: { strategy: "jwt", maxAge: 30 * 60, updateAge: 0 },
+  // Logout automatico por INATIVIDADE: a sessao vale MINUTOS_INATIVIDADE e e
+  // renovada a cada requisicao (updateAge 0 = deslizante). Ficou o tempo todo
+  // parado -> cai sozinho. Protege o PC compartilhado deixado aberto, sem
+  // atrapalhar quem esta usando. O mesmo valor alimenta o relogio visivel.
+  session: { strategy: "jwt", maxAge: MINUTOS_INATIVIDADE * 60, updateAge: 0 },
   pages: { signIn: "/login" },
   providers: [
     CredentialsProvider({

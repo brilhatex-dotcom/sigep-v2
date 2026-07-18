@@ -50,7 +50,14 @@ export default function LoginPage() {
     });
     setCarregando(false);
     if (res?.error) {
-      setErro("Usuário ou senha inválidos.");
+      // authorize() lança "BLOQUEADO:<min>" quando a conta está travada por
+      // tentativas erradas — mostra o tempo em vez de "senha inválida".
+      const m = /BLOQUEADO:(\d+)/.exec(res.error);
+      if (m) {
+        setErro(`Conta temporariamente bloqueada por segurança (várias tentativas). Tente novamente em ${m[1]} min.`);
+      } else {
+        setErro("Usuário ou senha inválidos.");
+      }
       return;
     }
     router.push("/dashboard");

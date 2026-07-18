@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import SinoNotificacoes from "@/components/SinoNotificacoes";
+import RelogioInatividade from "@/components/RelogioInatividade";
 import {
   LayoutDashboard,
   Users,
@@ -402,6 +403,8 @@ export default function AppShell({
                 tamanho={46}
               />
             </div>
+
+            <RelogioInatividade />
 
             <Link
               href="/trocar-senha"
