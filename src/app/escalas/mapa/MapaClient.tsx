@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ORGANOGRAMA, acharNo, pertenceAoNo, type NoOrg } from "@/lib/organograma";
+import FolhaUnidadeRp from "@/components/FolhaUnidadeRp";
 
 /* Lugares selecionáveis (DPM/CIA/Pelotão/seções) para o botão "mudar de
    lotação" no quadro de equipes. Achatado do organograma (sem a raiz). */
@@ -739,6 +740,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
   const noEscopo = escopo ? acharNo(escopo) : null; // unidade do organograma
   const [cad, setCad] = useState<Cadastro>(SEED_CADASTRO);
   const [escalas, setEscalas] = useState<Record<string, any>>({});
+  const [folhaAberta, setFolhaAberta] = useState(false);
   // Abre no mes da ULTIMA data mexida na escala diaria (salva no localStorage);
   // se nao houver, usa o mes atual. Antes ficava fixo em junho/2026.
   const [mes, setMes] = useState(() => {
@@ -1025,6 +1027,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                   style={{ background: "#0a1626", color: "#E8EEF6", border: "1px solid #28395a", borderRadius: 8, padding: "6px 10px", fontSize: 13, minWidth: 140 }}
                 />
                 <span style={{ fontSize: 11, color: "#6f82a0" }}>(cada unidade define o seu padrão)</span>
+                <button className="mp-btn" style={{ background: "#1b3a2a", borderColor: "#2e6b48", color: "#bff0d0" }} onClick={() => setFolhaAberta(true)}>📄 Folha do dia (RP)</button>
               </div>
             )}
           </div>
@@ -1380,6 +1383,16 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
             </div>
           </div>
         </div>
+      )}
+
+      {folhaAberta && escopo && (
+        <FolhaUnidadeRp
+          cad={cad}
+          efetivo={efetivo as any}
+          rotuloUnidade={noEscopo?.rotulo || ""}
+          escopo={escopo}
+          onFechar={() => setFolhaAberta(false)}
+        />
       )}
     </div>
   );
