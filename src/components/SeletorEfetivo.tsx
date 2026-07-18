@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
    "SD PM 169/24 Gleydson Robson Rocha da Silva"). O usuário também pode digitar
    livremente. Recebe/entrega uma string (o campo continua sendo texto livre). */
 
-export type MilitarLite = { id: string; postoGrad: string; nome: string; nomeGuerra: string; numeroBarra: string; quadro?: string };
+export type MilitarLite = { id: string; postoGrad: string; nome: string; nomeGuerra: string; numeroBarra: string; quadro?: string; rg?: string };
 
 function abrev(p: string): string {
   const m: Record<string, string> = {

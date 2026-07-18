@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import FatdDoc, { type FatdRegistro } from "@/components/FatdDoc";
 import PortariaDoc, { type PortariaRegistro, type PortariaModelo } from "@/components/PortariaDoc";
 import TermoDoc, { type TermoRegistro, type TermoModelo, TERMO_LABEL } from "@/components/TermoDoc";
-import SeletorEfetivo, { type MilitarLite } from "@/components/SeletorEfetivo";
+import SeletorEfetivo, { type MilitarLite, refMilitar } from "@/components/SeletorEfetivo";
+import { type DadosPessoa } from "@/components/FatdDoc";
 
 /* Modulo Disciplinar (FATD / Sindicancia / IPS / IPM). Para cada tipo:
    uma AREA DE CONTROLE no topo (criar novo + ver os passados) com os campos de
@@ -26,6 +27,39 @@ const vazio = (tipo: string): Registro => ({
   envolvido: "", objeto: "", prazo: "", status: "Em andamento", obs: "", criadoEm: "", criadoPor: "",
 });
 function brData(iso: string) { return iso && iso.length >= 10 ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : iso || "—"; }
+
+// Resolve grau/nome/RG de um militar a partir do texto salvo (ex.: "SD PM
+// 169/24 Fulano...") casando com o efetivo. Grau = posto+quadro (sem a barra),
+// RG puxado automaticamente. Sem correspondência, devolve só o nome livre.
+function dadosDocFatd(texto: string, efetivo: MilitarLite[]): DadosPessoa | null {
+  const s = (texto || "").trim();
+  if (!s) return null;
+  const low = s.toLowerCase();
+  const m =
+    efetivo.find((e) => refMilitar(e) === s) ||
+    efetivo.find((e) => e.numeroBarra && low.includes(e.numeroBarra.toLowerCase())) ||
+    efetivo.find((e) => e.nome && low.includes(e.nome.toLowerCase()));
+  if (!m) return { grau: "", nome: s, rg: "" };
+  const nome = (m.nome || m.nomeGuerra || "").trim();
+  const ref = refMilitar(m);
+  const barra = (m.numeroBarra || "").trim();
+  const grau = ref.replace(barra, "").replace(nome, "").replace(/\s+/g, " ").trim(); // ex.: "SD PM"
+  return { grau, nome, rg: (m.rg || "").trim() };
+}
+
+// Data + N dias ÚTEIS (pula sábado/domingo). Usado para o prazo do FATD
+// (3 dias úteis após o ciente), mas o campo continua editável.
+function somaDiasUteis(iso: string, dias: number): string {
+  if (!iso || iso.length < 10) return "";
+  const d = new Date(iso + "T00:00:00");
+  let restam = dias;
+  while (restam > 0) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) restam--;
+  }
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 // Converte "DD/MM/AAAA" (ou "AAAA-MM-DD") para ISO. Vazio -> "".
 function dataParaISO(v: string): string {
@@ -191,9 +225,21 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
               <SeletorEfetivo value={form.encarregado} onChange={(v) => set("encarregado", v)} efetivo={efetivo}
                 placeholder={tipo === "fatd" ? "vazio = usa o Chefe do P/1 da escala" : "busque o posto/nome…"} />
             </label>
-            <label>Portaria (nº / data)<input value={form.portaria} onChange={(e) => set("portaria", e.target.value)} placeholder="ex: Port. 12/2026" /></label>
-            <label>Data de instauração<input type="date" value={form.dataInstauracao} onChange={(e) => set("dataInstauracao", e.target.value)} /></label>
-            <label>Prazo / conclusão<input type="date" value={form.prazo} onChange={(e) => set("prazo", e.target.value)} /></label>
+            {/* FATD não usa Portaria; os demais tipos mantêm o campo. */}
+            {tipo !== "fatd" && (
+              <label>Portaria (nº / data)<input value={form.portaria} onChange={(e) => set("portaria", e.target.value)} placeholder="ex: Port. 12/2026" /></label>
+            )}
+            <label>Data de instauração{tipo === "fatd" ? " / ciente" : ""}
+              <input type="date" value={form.dataInstauracao}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  // FATD: amarra o prazo em 3 dias úteis após o ciente (editável).
+                  if (tipo === "fatd" && v) { setForm((f) => f ? { ...f, dataInstauracao: v, prazo: somaDiasUteis(v, 3) } : f); }
+                  else set("dataInstauracao", v);
+                }} />
+            </label>
+            <label>Prazo / conclusão{tipo === "fatd" ? " (3 dias úteis — editável)" : ""}
+              <input type="date" value={form.prazo} onChange={(e) => set("prazo", e.target.value)} /></label>
             <label>Status
               <select value={form.status} onChange={(e) => set("status", e.target.value)}>
                 {STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -253,7 +299,7 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
               <div className="dsc-linhas">
                 {r.encarregado && <div><b>Encarregado:</b> {r.encarregado}</div>}
                 {r.envolvido && <div><b>Envolvido:</b> {r.envolvido}</div>}
-                {r.portaria && <div><b>Portaria:</b> {r.portaria}</div>}
+                {tipo !== "fatd" && r.portaria && <div><b>Portaria:</b> {r.portaria}</div>}
                 {(r.dataInstauracao || r.prazo) && <div><b>Instaurado:</b> {brData(r.dataInstauracao)}{r.prazo ? ` · Prazo: ${brData(r.prazo)}` : ""}</div>}
                 {r.objeto && <div className="dsc-obj"><b>Objeto:</b> {r.objeto}</div>}
                 {r.obs && <div className="dsc-obs">{r.obs}</div>}
@@ -299,7 +345,7 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
         </div>
       )}
 
-      {peca && <FatdDoc reg={peca} chefeP1={chefeP1} comandante={comandante} onFechar={() => setPeca(null)} />}
+      {peca && <FatdDoc reg={peca} mil={dadosDocFatd(peca.envolvido, efetivo)} enc={dadosDocFatd(peca.encarregado || chefeP1, efetivo)} chefeP1={chefeP1} comandante={comandante} onFechar={() => setPeca(null)} />}
       {portaria && <PortariaDoc reg={portaria.reg} comandante={comandante} modelo={portaria.modelo} numeroAuto={portaria.numeroAuto} onFechar={() => setPortaria(null)} />}
       {termoDoc && <TermoDoc reg={termoDoc.reg} modelo={termoDoc.modelo} comandante={comandante} onFechar={() => setTermoDoc(null)} />}
     </div>

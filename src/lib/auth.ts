@@ -156,7 +156,20 @@ export const authOptions: NextAuthOptions = {
             });
           } catch {}
 
-          if (data.bloqueadoAte) throw new Error(`BLOQUEADO:${BLOQUEIO_MINUTOS}`);
+          if (data.bloqueadoAte) {
+            // Alerta de segurança para os admins (push). O sino também mostra
+            // os bloqueios recentes via /api/seguranca/alertas.
+            try {
+              const { enviarParaAdmins } = await import("@/lib/push");
+              void enviarParaAdmins({
+                title: "🔒 Conta bloqueada por tentativas",
+                body: `${usuario.login} — 5 senhas erradas. IP ${ip}.${geoIp ? " " + geoIp : ""}`,
+                url: "/seguranca/tentativas",
+                tag: "bloqueio-" + usuario.id,
+              }).catch(() => {});
+            } catch {}
+            throw new Error(`BLOQUEADO:${BLOQUEIO_MINUTOS}`);
+          }
           return null;
         }
 

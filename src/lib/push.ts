@@ -74,3 +74,18 @@ export async function enviarParaVarios(logins: string[], n: Notificacao) {
   }
   return { enviadas, removidas };
 }
+
+/* Envia uma notificacao para TODOS os admins (perfil admin) — util para
+   alertas de seguranca (ex.: conta bloqueada por tentativas). Best-effort. */
+export async function enviarParaAdmins(n: Notificacao) {
+  try {
+    const admins = await prisma.usuario.findMany({
+      where: { perfil: { equals: "admin", mode: "insensitive" } },
+      select: { login: true },
+    });
+    const logins = admins.map((a) => a.login).filter(Boolean) as string[];
+    return await enviarParaVarios(logins, n);
+  } catch {
+    return { enviadas: 0, removidas: 0 };
+  }
+}

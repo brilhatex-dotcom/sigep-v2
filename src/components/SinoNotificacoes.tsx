@@ -34,9 +34,12 @@ export default function SinoNotificacoes() {
 
   async function buscar() {
     try {
-      const r = await fetch("/api/permutas/notificacoes");
-      const d = await r.json();
-      const lista: Notificacao[] = d.notificacoes || [];
+      // Permutas (todos) + alertas de segurança (só admin; vazio p/ os demais).
+      const [rp, rs] = await Promise.all([
+        fetch("/api/permutas/notificacoes").then((r) => r.json()).catch(() => ({ notificacoes: [] })),
+        fetch("/api/seguranca/alertas").then((r) => r.json()).catch(() => ({ notificacoes: [] })),
+      ]);
+      const lista: Notificacao[] = [...(rs.notificacoes || []), ...(rp.notificacoes || [])];
       setNots(lista);
       // limpa das "vistas" ids que nao existem mais (permutas ja resolvidas),
       // para nao crescer sem limite

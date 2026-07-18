@@ -30,7 +30,9 @@ function ul(w: string): React.CSSProperties {
   return { display: "inline-block", minWidth: w, borderBottom: "1px solid #000" };
 }
 
-export default function FatdDoc({ reg, chefeP1 = "", comandante = "", onFechar }: { reg: FatdRegistro; chefeP1?: string; comandante?: string; onFechar: () => void }) {
+export type DadosPessoa = { grau: string; nome: string; rg: string };
+
+export default function FatdDoc({ reg, mil: milD, enc: encD, chefeP1 = "", comandante = "", onFechar }: { reg: FatdRegistro; mil?: DadosPessoa | null; enc?: DadosPessoa | null; chefeP1?: string; comandante?: string; onFechar: () => void }) {
   const [montado, setMontado] = useState(false);
   const [baixandoWord, setBaixandoWord] = useState(false);
   useEffect(() => { setMontado(true); }, []);
@@ -60,6 +62,10 @@ export default function FatdDoc({ reg, chefeP1 = "", comandante = "", onFechar }
   // senão, o Chefe do P/1 configurado na Escala (fonte única).
   const enc = (reg.encarregado || "").trim() || (chefeP1 || "").trim();
   const mil = (reg.envolvido || "").trim();
+  // Dados estruturados (grau / nome / RG) resolvidos do efetivo; caem para o
+  // texto livre quando não há correspondência.
+  const milNome = (milD?.nome || mil || "").trim();
+  const encNome = (encD?.nome || enc || "").trim();
 
   const conteudo = (
     <div id="fatd-overlay" className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 print:bg-white">
@@ -116,16 +122,16 @@ export default function FatdDoc({ reg, chefeP1 = "", comandante = "", onFechar }
         {/* Identificação do militar */}
         <div style={sBar}>IDENTIFICAÇÃO DO MILITAR</div>
         <div style={sBox}>
-          <p style={pLin}><strong>Grau de Hierárquico:</strong> <span style={ul("55mm")}>&nbsp;</span> &nbsp; <strong>Nº Identidade:</strong> <span style={ul("35mm")}>&nbsp;</span> PMMA.</p>
-          <p style={pLin}><strong>Nome Completo:</strong> {mil ? mil : <span style={ul("120mm")}>&nbsp;</span>}</p>
+          <p style={pLin}><strong>Grau Hierárquico:</strong> {milD?.grau ? milD.grau : <span style={ul("50mm")}>&nbsp;</span>} &nbsp; <strong>Nº Identidade:</strong> {milD?.rg ? milD.rg : <span style={ul("35mm")}>&nbsp;</span>} PMMA.</p>
+          <p style={pLin}><strong>Nome Completo:</strong> {milNome ? milNome : <span style={ul("120mm")}>&nbsp;</span>}</p>
           <p style={pLin}><strong>Unidade:</strong> 18º Batalhão de Polícia Militar</p>
         </div>
 
         {/* Identificação do participante */}
         <div style={sBar}>IDENTIFICAÇÃO DO PARTICIPANTE</div>
         <div style={sBox}>
-          <p style={pLin}><strong>Grau Hierárquico:</strong> {enc ? enc : <span style={ul("55mm")}>&nbsp;</span>} &nbsp; <strong>Nº Identidade:</strong> <span style={ul("35mm")}>&nbsp;</span> PMMA.</p>
-          <p style={pLin}><strong>Nome Completo:</strong> <span style={ul("120mm")}>&nbsp;</span></p>
+          <p style={pLin}><strong>Grau Hierárquico:</strong> {encD?.grau ? encD.grau : <span style={ul("50mm")}>&nbsp;</span>} &nbsp; <strong>Nº Identidade:</strong> {encD?.rg ? encD.rg : <span style={ul("35mm")}>&nbsp;</span>} PMMA.</p>
+          <p style={pLin}><strong>Nome Completo:</strong> {encNome ? encNome : <span style={ul("120mm")}>&nbsp;</span>}</p>
           <p style={pLin}><strong>Unidade:</strong> 18º Batalhão de Polícia Militar</p>
         </div>
 
@@ -139,13 +145,14 @@ export default function FatdDoc({ reg, chefeP1 = "", comandante = "", onFechar }
           <p style={{ textAlign: "center", margin: "6mm 0 12mm" }}>Presidente Dutra - MA, {dataExtenso(reg.dataInstauracao)}.</p>
           <div contentEditable={false} style={{ textAlign: "center" }}>
             <div style={{ borderTop: "1px solid #000", width: "110mm", margin: "0 auto", paddingTop: "1mm", fontWeight: "bold", fontSize: "11pt" }}>
-              {enc ? enc.toUpperCase() : "________________________"}
+              {encNome ? encNome.toUpperCase() : "________________________"}
             </div>
             <div style={{ fontSize: "11pt", fontWeight: "bold" }}>CHEFE P/1 18º BPM</div>
           </div>
         </div>
 
-        {/* Ciente do militar arrolado */}
+        {/* Ciente do militar arrolado — FECHA A PÁGINA 1 (termina no nome do
+            militar apurado). O prazo de 3 dias úteis conta do ciente. */}
         <div style={sBar}>CIENTE DO MILITAR ARROLADO</div>
         <div style={sBox}>
           <p style={{ ...pLin, textAlign: "justify", textIndent: "10mm" }}>
@@ -155,31 +162,34 @@ export default function FatdDoc({ reg, chefeP1 = "", comandante = "", onFechar }
           <p style={{ textAlign: "center", margin: "6mm 0 12mm" }}>Presidente Dutra - MA, ____ /_________/ {ANO}.</p>
           <div contentEditable={false} style={{ textAlign: "center" }}>
             <div style={{ borderTop: "1px solid #000", width: "110mm", margin: "0 auto", paddingTop: "1mm", fontWeight: "bold", fontSize: "11pt" }}>
-              {mil ? mil.toUpperCase() : "________________________"}
+              {milNome ? milNome.toUpperCase() : "________________________"}
             </div>
           </div>
         </div>
 
-        {/* Justificativas / razões de defesa */}
-        <div style={sBar}>JUSTIFICATIVAS / RAZÕES DE DEFESA</div>
-        <div style={{ ...sBox, minHeight: "45mm" }}>
-          <div style={{ borderBottom: "1px solid #000", height: "8mm" }} />
-          <div style={{ borderBottom: "1px solid #000", height: "8mm" }} />
-          <div style={{ borderBottom: "1px solid #000", height: "8mm" }} />
-          <p style={{ textAlign: "center", margin: "6mm 0 12mm" }}>Presidente Dutra - MA, ______/ __________/ {ANO}.</p>
-          <div contentEditable={false} style={{ textAlign: "center" }}>
+        {/* ===================== PÁGINA 2 ===================== */}
+        {/* Justificativa (sobre a página 1) + Decisão, num ÚNICO bloco, sem as
+            caixas/faixas cinza. */}
+        <div style={{ pageBreakBefore: "always", breakBefore: "page" }}>
+          <p style={pgTit}>JUSTIFICATIVAS / RAZÕES DE DEFESA</p>
+          <p style={{ ...pLin, textAlign: "justify", textIndent: "10mm", marginTop: "3mm" }}>
+            Em atenção ao FATD acima, apresento as seguintes justificativas / razões de defesa acerca do fato apurado:
+          </p>
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div key={i} style={{ borderBottom: "1px solid #000", height: "8mm" }} />
+          ))}
+          <p style={{ textAlign: "center", margin: "8mm 0 12mm" }}>Presidente Dutra - MA, ______/ __________/ {ANO}.</p>
+          <div contentEditable={false} style={{ textAlign: "center", marginBottom: "10mm" }}>
             <div style={{ borderTop: "1px solid #000", width: "110mm", margin: "0 auto", paddingTop: "1mm", fontWeight: "bold", fontSize: "11pt" }}>
-              {mil ? mil.toUpperCase() : "________________________"}
+              {milNome ? milNome.toUpperCase() : "________________________"}
             </div>
           </div>
-        </div>
 
-        {/* Decisão da autoridade competente */}
-        <div style={sBar}>(DECISÃO DA AUTORIDADE COMPETENTE PARA APLICAR A PUNIÇÃO DISCIPLINAR)</div>
-        <div style={{ ...sBox, minHeight: "40mm" }}>
-          <div style={{ borderBottom: "1px solid #000", height: "8mm" }} />
-          <div style={{ borderBottom: "1px solid #000", height: "8mm" }} />
-          <p style={{ textAlign: "center", margin: "6mm 0 12mm" }}>Presidente Dutra - MA, _______/ __________/ {ANO}.</p>
+          <p style={pgTit}>DECISÃO DA AUTORIDADE COMPETENTE PARA APLICAR A PUNIÇÃO DISCIPLINAR</p>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} style={{ borderBottom: "1px solid #000", height: "8mm" }} />
+          ))}
+          <p style={{ textAlign: "center", margin: "8mm 0 12mm" }}>Presidente Dutra - MA, _______/ __________/ {ANO}.</p>
           <div contentEditable={false} style={{ textAlign: "center" }}>
             <div style={{ borderTop: "1px solid #000", width: "90mm", margin: "0 auto", paddingTop: "1mm", fontWeight: "bold" }}>
               {comandante ? comandante : "________________________"}
@@ -209,5 +219,7 @@ const sBar: React.CSSProperties = {
   border: "1px solid #000", borderBottom: "none", padding: "1.5mm 3mm",
 };
 const sBox: React.CSSProperties = { border: "1px solid #000", padding: "3mm 4mm", marginBottom: "3mm" };
+// Título de seção da PÁGINA 2 — sem faixa/caixa cinza (bloco corrido).
+const pgTit: React.CSSProperties = { fontWeight: "bold", textAlign: "center", fontSize: "11pt", margin: "6mm 0 2mm", textDecoration: "underline" };
 const pLin: React.CSSProperties = { margin: "0 0 2mm" };
 const boxLinha: React.CSSProperties = { display: "flex", border: "1px solid #000", padding: "2mm 3mm", margin: "0 0 3mm", fontSize: "11pt" };
