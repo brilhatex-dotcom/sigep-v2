@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
+import { padronizarBrasao } from "@/lib/imagem";
 
 /* =========================================================================
    SIGEP-18BPM  ·  MODULO DE ESCALAS  (Escala de Servico diaria)  ·  v2 UX
@@ -1891,8 +1892,9 @@ export default function EscalaClient() {
     inp.onchange = () => {
       const f = inp.files && inp.files[0]; if (!f) return;
       const r = new FileReader();
-      r.onload = () => {
-        const valor = String(r.result);
+      r.onload = async () => {
+        // padroniza o tamanho do brasao (mesmo molde da sede) antes de salvar
+        const valor = await padronizarBrasao(String(key), String(r.result));
         setBrasoes((b) => {
           const novo = { ...b, [key]: valor };
           // pmma/ma/bpm sao os brasoes do cabecalho: salva no banco para

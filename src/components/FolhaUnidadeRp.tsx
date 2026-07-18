@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Printer } from "lucide-react";
 import { type Cadastro, assignDia, construirIdDe, toISO, parseISO } from "@/lib/escalaMotor";
+import { padronizarBrasao } from "@/lib/imagem";
 
 /* Folha SEMANAL de RÁDIO PATRULHA da UNIDADE (interior). A escala dos
    destacamentos sai a semana inteira (segunda a domingo), diferente da sede
@@ -117,6 +118,35 @@ export default function FolhaUnidadeRp({
     finally { setPublicando(false); }
   };
 
+  // Clicar num brasão do cabeçalho → subir a logo da unidade. A imagem é
+  // padronizada pelo molde da sede (mesma proporção, sem distorcer) e salva no
+  // banco escopada a esta unidade — reflete em todos os PCs da unidade.
+  const [salvandoLogo, setSalvandoLogo] = useState(false);
+  const pickBrasao = (chave: "pmma" | "ma" | "bpm") => {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "image/*";
+    inp.onchange = () => {
+      const f = inp.files && inp.files[0]; if (!f) return;
+      const r = new FileReader();
+      r.onload = async () => {
+        setSalvandoLogo(true); setMsg("");
+        try {
+          const padr = await padronizarBrasao(chave, String(r.result));
+          const novo = { ...brasoes, [chave]: padr };
+          setBrasoes(novo);
+          await fetch(`/api/escala-brasoes?escopo=${encodeURIComponent(escopo)}`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ brasoes: novo }),
+          });
+          setMsg("Logo da unidade atualizada. ✅");
+        } catch { setMsg("Não foi possível salvar a logo."); }
+        finally { setSalvandoLogo(false); }
+      };
+      r.readAsDataURL(f);
+    };
+    inp.click();
+  };
+
   if (!montado || typeof document === "undefined") return null;
 
   return createPortal((
@@ -146,17 +176,23 @@ export default function FolhaUnidadeRp({
       <div id="folha-print" className="mx-auto my-6 bg-white text-black shadow-2xl print:my-0 print:shadow-none"
         style={{ width: "210mm", minHeight: "297mm", padding: "14mm 16mm", fontFamily: "Times New Roman, Times, serif", fontSize: "11pt", lineHeight: 1.35, position: "relative" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "4mm" }}>
-          <img src={brasoes.pmma} alt="" style={{ width: "26mm", height: "22mm", objectFit: "contain" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
+          <img src={brasoes.pmma} alt="" title="Clique para trocar a logo (esquerda)" onClick={() => pickBrasao("pmma")}
+            className="brasao-troca" style={{ width: "26mm", height: "22mm", objectFit: "contain", cursor: "pointer" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
           <div style={{ flex: 1, textAlign: "center", lineHeight: 1.2 }}>
-            <img src={brasoes.ma} alt="" style={{ height: "16mm", objectFit: "contain", display: "block", margin: "0 auto 1mm" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
+            <img src={brasoes.ma} alt="" title="Clique para trocar a logo (centro)" onClick={() => pickBrasao("ma")}
+              className="brasao-troca" style={{ height: "16mm", objectFit: "contain", display: "block", margin: "0 auto 1mm", cursor: "pointer" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
             <p style={{ margin: 0, fontWeight: "bold" }}>ESTADO DO MARANHÃO</p>
             <p style={{ margin: 0, fontWeight: "bold" }}>POLÍCIA MILITAR DO MARANHÃO</p>
             <p style={{ margin: 0, fontWeight: "bold" }}>COMANDO DO POLICIAMENTO DE ÁREA I/2</p>
             <p style={{ margin: 0, fontWeight: "bold" }}>18º BATALHÃO DE POLÍCIA MILITAR</p>
             <p style={{ margin: "1mm 0 0", fontWeight: "bold" }}>{rotuloUnidade.toUpperCase()}</p>
           </div>
-          <img src={brasoes.bpm} alt="" style={{ width: "22mm", height: "22mm", objectFit: "contain" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
+          <img src={brasoes.bpm} alt="" title="Clique para trocar a logo da unidade (direita)" onClick={() => pickBrasao("bpm")}
+            className="brasao-troca" style={{ width: "22mm", height: "22mm", objectFit: "contain", cursor: "pointer" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
         </div>
+        <p className="no-print" style={{ textAlign: "center", fontSize: "8pt", color: "#888", margin: "1mm 0 0" }}>
+          {salvandoLogo ? "Salvando logo…" : "Dica: clique em qualquer brasão do cabeçalho para enviar a logo da unidade (o tamanho é padronizado automaticamente)."}
+        </p>
 
         <h1 style={{ textAlign: "center", fontSize: "13pt", fontWeight: "bold", margin: "8mm 0 1mm" }}>ESCALA SEMANAL DE SERVIÇO — RÁDIO PATRULHA</h1>
         <p style={{ textAlign: "center", margin: "0 0 6mm" }}>Semana de {periodoExtenso(segISO, domISO)}</p>
@@ -198,7 +234,7 @@ export default function FolhaUnidadeRp({
         </div>
       </div>
 
-      <style>{`@media print { body > *:not(#folha-overlay){display:none!important;} #folha-overlay{position:static!important;overflow:visible!important;background:#fff!important;inset:auto!important;display:block!important;} .no-print{display:none!important;} #folha-print{position:static!important;margin:0 auto!important;box-shadow:none!important;min-height:0!important;width:100%!important;padding:12mm 14mm!important;} html,body{margin:0!important;padding:0!important;background:#fff!important;} @page{size:A4;margin:0;} }`}</style>
+      <style>{`.brasao-troca{border-radius:4px;transition:outline .1s;} .brasao-troca:hover{outline:2px dashed #2e6b48;outline-offset:2px;} @media print { .brasao-troca{outline:none!important;} body > *:not(#folha-overlay){display:none!important;} #folha-overlay{position:static!important;overflow:visible!important;background:#fff!important;inset:auto!important;display:block!important;} .no-print{display:none!important;} #folha-print{position:static!important;margin:0 auto!important;box-shadow:none!important;min-height:0!important;width:100%!important;padding:12mm 14mm!important;} html,body{margin:0!important;padding:0!important;background:#fff!important;} @page{size:A4;margin:0;} }`}</style>
     </div>
   ), document.body);
 }
