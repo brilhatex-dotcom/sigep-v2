@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { aplicarPermutasNaEscala } from "@/lib/permutaPedidos";
+import { chaveEscopada } from "@/lib/escalaEscopo";
 
 export const dynamic = "force-dynamic";
 
@@ -22,16 +23,18 @@ function ehAdmin(perfil?: string | null): boolean {
   return p !== "" && p !== "policial";
 }
 
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
+export async function GET(req: Request) {
+  const ctx = await chaveEscopada(req, CHAVE);
+  if (!ctx) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
 
   try {
-    // Antes de devolver, lanca na escala as permutas ja autorizadas que ainda
-    // nao entraram (ex.: a permuta foi decidida antes deste dia existir).
-    try { await aplicarPermutasNaEscala(); } catch { /* nao bloqueia a escala */ }
+    // Só na SEDE: lança na escala as permutas já autorizadas que ainda não
+    // entraram. As permutas são da sede — não se aplicam à escala do interior.
+    if (ctx.escopo === null) {
+      try { await aplicarPermutasNaEscala(); } catch { /* nao bloqueia a escala */ }
+    }
 
-    const row = await prisma.config.findUnique({ where: { chave: CHAVE } });
+    const row = await prisma.config.findUnique({ where: { chave: ctx.chave } });
     if (!row?.valor) return NextResponse.json({ escalas: {} });
     try {
       return NextResponse.json({ escalas: JSON.parse(row.valor) });
@@ -45,11 +48,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
-  if (!ehAdmin((session.user as any).perfil)) {
-    return NextResponse.json({ error: "Apenas o P1 pode salvar a escala" }, { status: 403 });
-  }
+  const ctx = await chaveEscopada(req, CHAVE);
+  if (!ctx) return NextResponse.json({ error: "Nao autorizado" }, { status: 403 });
 
   try {
     const b = await req.json();
@@ -58,9 +58,9 @@ export async function POST(req: Request) {
     }
     const valor = JSON.stringify(b.escalas);
     await prisma.config.upsert({
-      where: { chave: CHAVE },
+      where: { chave: ctx.chave },
       update: { valor },
-      create: { chave: CHAVE, valor, descricao: "Dias gerados/editados da Escala de Servico" },
+      create: { chave: ctx.chave, valor, descricao: "Dias gerados/editados da Escala de Servico" },
     });
     return NextResponse.json({ ok: true });
   } catch (err) {
