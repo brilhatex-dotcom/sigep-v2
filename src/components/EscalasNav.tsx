@@ -18,6 +18,7 @@ const ITENS: Item[] = [
   { href: "/escalas/servico/inteligencia", ic: "🕵️", label: "Inteligência" },
   { href: "/escalas/servico/permanencia", ic: "🏢", label: "Permanência" },
   { href: "/escalas/permutas", ic: "🔄", label: "Substituições" },
+  { href: "/escalas/permutas/arquivo", ic: "🗂️", label: "Permutas por Lugar" },
   { href: "/escalas/unidades", ic: "🏘️", label: "Escalas das Unidades" },
   { href: "/escalas/encargos", ic: "🧑‍✈️", label: "Encargos e Comando" },
   { href: "/escalas/publicacoes", ic: "📄", label: "Publicações" },
