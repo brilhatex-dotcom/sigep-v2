@@ -306,7 +306,8 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
     let x = MX;
     cels.forEach((c, idx) => {
       const cw = usable * c.w;
-      if (c.fill) page.drawRectangle({ x, y: topoL - altura, width: cw, height: altura, color: rgb(0.86, 0.86, 0.86) });
+      // Espelha a IMPRESSÃO (limpa): rótulos/cabeçalhos são só negrito + borda
+      // preta, SEM preenchimento cinza. Mantém apenas a moldura da célula.
       page.drawRectangle({ x, y: topoL - altura, width: cw, height: altura, borderColor: rgb(0, 0, 0), borderWidth: 0.7 });
       const linhas = conteudo[idx];
       const f = fontDe(c);
