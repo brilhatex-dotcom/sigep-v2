@@ -61,11 +61,25 @@ export default function FolhaUnidadeRp({
   const [brasoes, setBrasoes] = useState<Brasoes>({ pmma: "/brasoes/pmma-190.jpg", ma: "/brasao-estado-ma.png", bpm: "/brasoes/brasao-18bpm.png" });
   const [publicando, setPublicando] = useState(false);
   const [msg, setMsg] = useState("");
-  const [publicadas, setPublicadas] = useState<{ id: string; dataEscala: string; publicadoEm: string }[]>([]);
+  const [publicadas, setPublicadas] = useState<{ id: string; dataEscala: string; publicadoEm: string; status?: string; aprovadoPor?: string | null }[]>([]);
+  // Comando do lugar: a assinatura de baixo é SEMPRE o Cmt local.
+  const [cmt, setCmt] = useState<{ nome: string; cargo: string; assinatura: string; assinarGov: boolean }>({ nome: "", cargo: `Comandante do ${rotuloUnidade}`, assinatura: "", assinarGov: false });
+  const [papel, setPapel] = useState<"admin" | "cmt" | "sarg" | null>(null);
+  const [temSarg, setTemSarg] = useState(false);
+  const podeAssinar = papel === "admin" || papel === "cmt";
   useEffect(() => { setMontado(true); }, []);
   useEffect(() => {
     fetch(`/api/escala-brasoes?escopo=${encodeURIComponent(escopo)}`).then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.brasoes) setBrasoes(d.brasoes); }).catch(() => {});
   }, [escopo]);
+  const carregarComando = () => {
+    fetch(`/api/escala-comando?escopo=${encodeURIComponent(escopo)}`).then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (!d) return;
+      if (d.cmt) setCmt({ nome: d.cmt.nome || "", cargo: d.cmt.cargo || `Comandante do ${rotuloUnidade}`, assinatura: d.cmt.assinatura || "", assinarGov: !!d.cmt.assinarGov });
+      setPapel(d.papel ?? null);
+      setTemSarg(!!d.temSargenteante);
+    }).catch(() => {});
+  };
+  useEffect(() => { carregarComando(); /* eslint-disable-next-line */ }, [escopo]);
   const carregarPublicadas = () => {
     fetch(`/api/publicacoes?escopo=${encodeURIComponent(escopo)}`).then((r) => (r.ok ? r.json() : null)).then((d) => { if (Array.isArray(d?.publicacoes)) setPublicadas(d.publicacoes); }).catch(() => {});
   };
@@ -104,19 +118,59 @@ export default function FolhaUnidadeRp({
     setPublicando(true); setMsg("");
     try {
       const escala = {
-        semanaInicio: segISO, semanaFim: domISO, tipo: "rp_unidade_semana", rotuloUnidade,
+        // `data` = segunda da semana (chave do registro); guarda a semana inteira.
+        data: segISO, semanaInicio: segISO, semanaFim: domISO, tipo: "rp_unidade_semana", rotuloUnidade,
         dias: dias.map((d) => ({ iso: d.iso, adjunto: d.adjunto, motorista: d.motorista, patrulheiro: d.patrulheiro })),
+        cmt: { nome: cmt.nome, cargo: cmt.cargo, assinatura: cmt.assinarGov ? "" : cmt.assinatura, assinarGov: cmt.assinarGov },
       };
       const r = await fetch(`/api/publicacoes?escopo=${encodeURIComponent(escopo)}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ escala, brasoes }),
       });
       if (!r.ok) throw new Error();
-      setMsg("Escala da semana publicada no arquivo da unidade. ✅");
+      const d = await r.json().catch(() => ({}));
+      setMsg(d?.status === "pendente"
+        ? "Escala enviada ao Cmt para aprovação. ⏳"
+        : "Escala da semana publicada e autorizada. ✅");
       carregarPublicadas();
     } catch { setMsg("Não foi possível publicar."); }
     finally { setPublicando(false); }
   };
+
+  // Cmt/admin: aprovar uma semana enviada pelo sargenteante.
+  const aprovar = async (id: string) => {
+    setMsg("");
+    try {
+      const r = await fetch(`/api/publicacoes?escopo=${encodeURIComponent(escopo)}&id=${encodeURIComponent(id)}&acao=aprovar`, { method: "PATCH" });
+      if (!r.ok) throw new Error();
+      setMsg("Escala autorizada. ✅");
+      carregarPublicadas();
+    } catch { setMsg("Não foi possível aprovar."); }
+  };
+
+  // Cmt/admin: subir a imagem da assinatura (ou marcar "assinar via Gov.br").
+  const salvarAssinatura = async (novo: { assinatura: string; assinarGov: boolean }) => {
+    setCmt((c) => ({ ...c, ...novo }));
+    try {
+      await fetch(`/api/escala-comando?escopo=${encodeURIComponent(escopo)}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(novo),
+      });
+    } catch { /* silencioso */ }
+  };
+  const pickAssinatura = () => {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "image/*";
+    inp.onchange = () => {
+      const f = inp.files && inp.files[0]; if (!f) return;
+      const r = new FileReader();
+      r.onload = () => salvarAssinatura({ assinatura: String(r.result), assinarGov: false });
+      r.readAsDataURL(f);
+    };
+    inp.click();
+  };
+
+  const pendentes = publicadas.filter((p) => (p.status || "autorizada") === "pendente");
 
   // Clicar num brasão do cabeçalho → subir a logo da unidade. A imagem é
   // padronizada pelo molde da sede (mesma proporção, sem distorcer) e salva no
@@ -164,13 +218,36 @@ export default function FolhaUnidadeRp({
           <select value="" onChange={(e) => { if (e.target.value) setSegISO(segundaDaSemana(e.target.value)); }}
             className="rounded-md border border-white/15 bg-[#0a1626] px-2 py-1 text-sm text-white" title="Semanas publicadas da unidade">
             <option value="">Publicadas ({publicadas.length})…</option>
-            {publicadas.map((p) => <option key={p.id} value={p.dataEscala}>Semana de {brData(p.dataEscala)}</option>)}
+            {publicadas.map((p) => <option key={p.id} value={p.dataEscala}>Semana de {brData(p.dataEscala)} {(p.status || "autorizada") === "pendente" ? "⏳ pendente" : "✅"}</option>)}
           </select>
         )}
-        <button onClick={publicar} disabled={publicando} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">📢 {publicando ? "Publicando…" : "Publicar semana"}</button>
+        {podeAssinar && (
+          <button onClick={pickAssinatura} className="rounded-md border border-white/15 px-2 py-1 text-xs text-white hover:bg-white/5" title="Assinatura do Cmt na folha">✍ Assinatura do Cmt</button>
+        )}
+        <button onClick={publicar} disabled={publicando}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">
+          📢 {publicando ? "Enviando…" : (papel === "sarg" ? "Enviar ao Cmt" : "Publicar semana")}
+        </button>
         <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"><Printer className="h-4 w-4" /> Imprimir / PDF</button>
         <button onClick={onFechar} className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"><X className="h-4 w-4" /> Fechar</button>
       </div>
+      {/* Cmt/admin: semanas enviadas pelo sargenteante aguardando aprovação */}
+      {podeAssinar && pendentes.length > 0 && (
+        <div className="no-print bg-[#1a1206] px-3 py-2 text-xs text-amber-200">
+          <b>Aguardando sua aprovação ({pendentes.length}):</b>
+          <span className="ml-2 inline-flex flex-wrap gap-2 align-middle">
+            {pendentes.map((p) => (
+              <span key={p.id} className="inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5">
+                Semana de {brData(p.dataEscala)}
+                <button onClick={() => aprovar(p.id)} className="ml-1 rounded bg-emerald-700 px-1.5 py-0.5 text-white hover:bg-emerald-800">Aprovar</button>
+              </span>
+            ))}
+          </span>
+        </div>
+      )}
+      {papel === "sarg" && (
+        <div className="no-print bg-[#0b1626] px-3 pb-1 text-xs text-[#94A3B8]">Você é o sargenteante: ao publicar, a escala vai para o Cmt local aprovar. A assinatura de baixo é sempre do Cmt.</div>
+      )}
       {msg && <div className="no-print bg-[#0b1626] px-3 pb-2 text-xs text-emerald-300">{msg}</div>}
 
       <div id="folha-print" className="mx-auto my-6 bg-white text-black shadow-2xl print:my-0 print:shadow-none"
@@ -224,15 +301,35 @@ export default function FolhaUnidadeRp({
           Previsão gerada pelo SIGEP conforme o rodízio da unidade{cad.padraoEscala ? ` (padrão: ${cad.padraoEscala})` : ""}. Confira antes de publicar.
         </p>
 
-        <div style={{ display: "flex", justifyContent: "space-around", marginTop: "22mm", textAlign: "center" }}>
-          <div style={{ width: "70mm" }}>
-            <div style={{ borderTop: "1px solid #000", paddingTop: "1mm" }}>Sargenteante da Unidade</div>
-          </div>
-          <div style={{ width: "70mm" }}>
-            <div style={{ borderTop: "1px solid #000", paddingTop: "1mm" }}>Comandante da Unidade</div>
+        {/* Assinatura única = Cmt local (como o Chefe do P/1 na sede). Imagem
+            se enviada; em branco quando for assinar via Gov.br ou ainda não. */}
+        <div style={{ display: "flex", justifyContent: "center", marginTop: "22mm", textAlign: "center" }}>
+          <div style={{ width: "90mm" }}>
+            <div style={{ height: "16mm", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+              {cmt.assinatura && !cmt.assinarGov
+                ? <img src={cmt.assinatura} alt="assinatura do Cmt" style={{ maxHeight: "16mm", maxWidth: "80mm", objectFit: "contain" }} />
+                : null}
+            </div>
+            <div style={{ borderTop: "1px solid #000", paddingTop: "1mm" }}>
+              {cmt.nome && <p style={{ margin: 0, fontWeight: "bold" }}>{cmt.nome}</p>}
+              <p style={{ margin: 0 }}>{cmt.cargo}</p>
+              {cmt.assinarGov && <p className="no-print" style={{ margin: "1mm 0 0", fontSize: "8pt", color: "#888" }}>(assinatura digital via Gov.br)</p>}
+            </div>
           </div>
         </div>
       </div>
+
+      {podeAssinar && (
+        <div className="no-print mx-auto mb-8 max-w-[210mm] px-4 text-xs text-[#94A3B8]">
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={cmt.assinarGov} onChange={(e) => salvarAssinatura({ assinatura: cmt.assinatura, assinarGov: e.target.checked })} />
+            Sair <b>em branco</b> para eu assinar via Gov.br (não usar a imagem)
+          </label>
+          {cmt.assinatura && (
+            <button onClick={() => salvarAssinatura({ assinatura: "", assinarGov: cmt.assinarGov })} className="mt-1 rounded border border-white/15 px-2 py-0.5 text-white hover:bg-white/5">🗑 Remover imagem da assinatura</button>
+          )}
+        </div>
+      )}
 
       <style>{`.brasao-troca{border-radius:4px;transition:outline .1s;} .brasao-troca:hover{outline:2px dashed #2e6b48;outline-offset:2px;} @media print { .brasao-troca{outline:none!important;} body > *:not(#folha-overlay){display:none!important;} #folha-overlay{position:static!important;overflow:visible!important;background:#fff!important;inset:auto!important;display:block!important;} .no-print{display:none!important;} #folha-print{position:static!important;margin:0 auto!important;box-shadow:none!important;min-height:0!important;width:100%!important;padding:12mm 14mm!important;} html,body{margin:0!important;padding:0!important;background:#fff!important;} @page{size:A4;margin:0;} }`}</style>
     </div>

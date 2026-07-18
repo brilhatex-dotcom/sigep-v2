@@ -32,7 +32,11 @@ const ENCARGOS_BASE: Encargo[] = [
 function coletarLugares(no: NoOrg, acc: { id: string; rotulo: string }[]): void {
   const ehCia = /^\d+cia$/.test(no.id);
   const ehPelotao = /-p\d+$/.test(no.id);
-  if (ehCia || ehPelotao) acc.push({ id: no.id, rotulo: no.rotulo });
+  // O 1º Pel de uma CIA É a própria CIA (mesma sede/cidade). Não gera lugar
+  // separado: a CIA já cobre o 1º Pel (um só Cmt, uma só escala). Os demais
+  // pelotões (2º, 3º...) continuam como lugares próprios.
+  const eh1PelDaCia = /^\d+cia-p1$/.test(no.id);
+  if ((ehCia || ehPelotao) && !eh1PelDaCia) acc.push({ id: no.id, rotulo: no.rotulo });
   for (const f of no.filhos ?? []) coletarLugares(f, acc);
 }
 export const LUGARES_COMANDO: { id: string; rotulo: string }[] = (() => {
