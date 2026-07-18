@@ -176,6 +176,13 @@ export const authOptions: NextAuthOptions = {
         token.perfil = (user as any).perfil;
         token.refEfetivo = (user as any).refEfetivo;
         token.precisaTrocar = (user as any).precisaTrocar;
+        // Cmt do BPM / Subcmt / Chefe do P/1: acesso total (entra como admin).
+        try {
+          const { temAcessoTotalPorEncargo } = await import("@/lib/encargos");
+          if (token.perfil !== "admin" && (await temAcessoTotalPorEncargo(token.refEfetivo as string))) {
+            token.perfil = "admin";
+          }
+        } catch {}
       }
       return token;
     },

@@ -65,6 +65,15 @@ export function ehEncargoDeLugar(encargoId: string): boolean {
 
 export const ENCARGOS: Encargo[] = [...ENCARGOS_BASE, ...ENCARGOS_CMT_LUGAR, ...ENCARGOS_SARG_LUGAR];
 
+/* Encargos com ACESSO TOTAL (equivalente a admin): Cmt do BPM, Subcmt e Chefe
+   do P/1. Quem tem um destes entra no sistema já como admin (vê e faz tudo). */
+export const ENCARGOS_ACESSO_TOTAL = ["cmt", "subcmt", "chefe_p1"];
+export async function temAcessoTotalPorEncargo(refEfetivo: string | null | undefined): Promise<boolean> {
+  if (!refEfetivo) return false;
+  const enc = await encargoDe(refEfetivo);
+  return ENCARGOS_ACESSO_TOTAL.includes(enc);
+}
+
 export function labelEncargo(id: string): string {
   return ENCARGOS.find((e) => e.id === id)?.label || "";
 }
