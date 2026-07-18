@@ -1,9 +1,11 @@
-/* Carimbo de ASSINATURA ELETRÔNICA do SIGEP. Alternativa à imagem da rubrica e
-   ao "em branco (Gov.br)": o próprio sistema estampa um bloco de autenticidade
-   com nome, cargo, data e um código derivado do conteúdo. Puramente visual/
-   determinístico (mesmo conteúdo => mesmo código), pronto para imprimir. */
+import QrCode from "@/components/QrCode";
 
-// Código curto e estável a partir do texto (hash simples -> base36, 8 chars).
+/* Carimbo de ASSINATURA ELETRÔNICA do SIGEP.
+   - Sem `assinatura`: carimbo VISUAL (nome, cargo, data e um código estável).
+   - Com `assinatura` ({id, token}): assinatura AVANÇADA (assinada com senha),
+     mostra QR que aponta para a verificação pública (recalcula o lacre HMAC).
+   Base: MP 2.200-2/2001 e Lei 14.063/2020. */
+
 function codigoDe(txt: string): string {
   let h1 = 0x811c9dc5, h2 = 0x1000193;
   for (let i = 0; i < txt.length; i++) {
@@ -17,29 +19,37 @@ function codigoDe(txt: string): string {
 }
 
 export default function CarimboSigep({
-  nome, cargo, data, largura = "70mm",
+  nome, cargo, data, largura = "70mm", assinatura,
 }: {
   nome: string;
   cargo: string;
-  data?: string;       // ISO ou texto; se vazio, usa hoje
+  data?: string;
   largura?: string;
+  assinatura?: { id: string; token: string } | null;
 }) {
   const quando = data && /^\d{4}-\d{2}-\d{2}/.test(data)
     ? `${data.slice(8, 10)}/${data.slice(5, 7)}/${data.slice(0, 4)}`
     : (data || new Date().toLocaleDateString("pt-BR"));
-  const codigo = codigoDe(`${nome}|${cargo}|${quando}`);
+  const base = typeof window !== "undefined" ? window.location.origin : "";
+  const qrUrl = assinatura ? `${base}/verificar/assinatura/${encodeURIComponent(assinatura.id)}?t=${encodeURIComponent(assinatura.token)}` : "";
+  const codigo = assinatura ? assinatura.id : codigoDe(`${nome}|${cargo}|${quando}`);
+
   return (
     <div style={{
-      width: largura, margin: "0 auto", border: "1px solid #333", borderRadius: 3,
+      width: largura, margin: "0 auto", border: "1px solid #1351b4", borderRadius: 3,
       padding: "1.5mm 2mm", fontFamily: "Arial, Helvetica, sans-serif", fontSize: "7.2pt",
       lineHeight: 1.25, color: "#111", textAlign: "left", background: "#fff",
+      display: "flex", gap: "2mm", alignItems: "center",
     }}>
-      <div style={{ fontWeight: "bold", fontSize: "7.4pt", marginBottom: "0.5mm" }}>
-        ✔ Assinado eletronicamente — SIGEP · 18º BPM
+      {assinatura && qrUrl ? <div style={{ flexShrink: 0 }}><QrCode url={qrUrl} size={52} /></div> : null}
+      <div>
+        <div style={{ fontWeight: "bold", fontSize: "7.4pt", marginBottom: "0.5mm", color: "#1351b4" }}>
+          ✔ Assinado eletronicamente — SIGEP · 18º BPM
+        </div>
+        <div style={{ fontWeight: "bold" }}>{(nome || "").toUpperCase()}</div>
+        <div>{cargo}{quando ? ` · ${quando}` : ""}</div>
+        <div style={{ color: "#555" }}>{assinatura ? "Autenticação (aponte o QR)" : "Autenticação"}: {codigo}</div>
       </div>
-      <div style={{ fontWeight: "bold" }}>{(nome || "").toUpperCase()}</div>
-      <div>{cargo}{quando ? ` · ${quando}` : ""}</div>
-      <div style={{ color: "#555" }}>Autenticação: {codigo}</div>
     </div>
   );
 }
