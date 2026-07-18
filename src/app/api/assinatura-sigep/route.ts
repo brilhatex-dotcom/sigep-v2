@@ -64,7 +64,7 @@ export async function POST(req: Request) {
 
     const limpos = itens
       .filter((i: any) => i && i.tipo && i.ref)
-      .map((i: any) => ({ tipo: String(i.tipo), ref: String(i.ref), conteudo: String(i.conteudo || "") }));
+      .map((i: any) => ({ tipo: String(i.tipo), ref: String(i.ref), conteudo: String(i.conteudo || ""), resumo: String(i.resumo || "") }));
     const criadas = await criarAssinaturas(limpos, { papel, nome, cargo, efetivoId: meuId });
 
     await registrar({

@@ -262,6 +262,7 @@ export default function PlanoFerias({
         tipo: "memorando_ferias",
         ref: `${m.efetivoId}:${anoSelecionado}`,
         conteudo: `ferias|${m.efetivoId}|${anoSelecionado}|${p?.inicioBR || ""}|${p?.apres || p?.fimBR || ""}`,
+        resumo: `Férias · ${m.postoGrad || ""} ${m.nomeGuerra || m.nome || ""} · ${anoSelecionado} · ${p?.inicioBR || "?"} a ${p?.fimBR || "?"}`,
       }));
       const r = await fetch("/api/assinatura-sigep", {
         method: "POST", headers: { "Content-Type": "application/json" },

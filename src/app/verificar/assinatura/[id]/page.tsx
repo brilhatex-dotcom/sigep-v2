@@ -63,7 +63,9 @@ export default async function VerificarAssinaturaPage({
             <div style={rot}>Assinante</div><div style={val}>{a!.nome} — {PAPEL_ROT[a!.papel] || a!.papel}</div>
             <div style={rot}>Cargo</div><div style={val}>{a!.cargo}</div>
             <div style={rot}>Assinado em</div><div style={val}>{dataHora(a!.em)}</div>
+            {a!.resumo ? (<><div style={rot}>Conteúdo assinado</div><div style={val}>{a!.resumo}</div></>) : null}
             <div style={rot}>Código</div><div style={{ ...val, fontFamily: "monospace" }}>{a!.id}</div>
+            <p style={{ fontSize: 11, color: "#8fa3bf", marginTop: 4 }}>Confira se o documento impresso confere com o conteúdo assinado acima — qualquer alteração posterior fica evidente.</p>
           </>
         ) : (
           <div style={{ background: "#2a1414", border: "1px solid #7a1f1f", borderRadius: 12, padding: 16, textAlign: "center" }}>

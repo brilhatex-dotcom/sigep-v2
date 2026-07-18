@@ -1478,6 +1478,13 @@ export default function EscalaClient() {
   // Estes valores sao apenas o padrao inicial antes do carregamento \u2014 o valor
   // real vem da config "escala_chefe_p1" (campo unico, editavel na aba).
   const [chefe, setChefe] = useState<Chefe>({ nome: "1\u00ba TEN QOEM PAULO SILAS BARROS DE BRITO JUNIOR", funcao: "CHEFE DO P/1 DO 18\u00ba BPM", assinatura: "", assinarGov: false, cmtAssinatura: "/brasoes/assinatura-cmt.png", cmtModo: "imagem", comandante: "TEN CEL QOEM FL\u00c1VIO DE CARVALHO RAMOS" });
+  // Assinatura AVAN\u00c7ADA SIGEP da escala do dia (Chefe do P/1 e Cmt), por data.
+  type AssRec = { id: string; token: string; nome: string; cargo: string; em: string };
+  const [assEscala, setAssEscala] = useState<{ chefe_p1?: AssRec; cmt?: AssRec }>({});
+  const [assinarPapel, setAssinarPapel] = useState<null | "chefe_p1" | "cmt">(null);
+  const [senhaAssEsc, setSenhaAssEsc] = useState("");
+  const [assinandoEsc, setAssinandoEsc] = useState(false);
+  const [assEscMsg, setAssEscMsg] = useState("");
   const [chefeSalvando, setChefeSalvando] = useState(false);
   const [chefeMsg, setChefeMsg] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -1983,11 +1990,55 @@ export default function EscalaClient() {
     }
   };
 
+  // Busca as assinaturas avançadas desta escala (por data).
+  const carregarAssEscala = (dt: string) => {
+    fetch(`/api/assinatura-sigep?tipo=escala&ref=${encodeURIComponent(dt)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { const m: { chefe_p1?: AssRec; cmt?: AssRec } = {}; for (const a of (d?.assinaturas || [])) (m as any)[a.papel] = a; setAssEscala(m); })
+      .catch(() => setAssEscala({}));
+  };
+  useEffect(() => { carregarAssEscala(data); /* eslint-disable-next-line */ }, [data]);
+
+  const assinarEscala = async () => {
+    if (!assinarPapel) return;
+    setAssinandoEsc(true); setAssEscMsg("");
+    try {
+      const conteudo = JSON.stringify({ data, tipo: e.tipo, e });
+      const resumo = `Escala de Serviço · ${brCurto(data)}${e.tipo && e.tipo !== "normal" ? ` (${e.tipo})` : ""}`;
+      const r = await fetch("/api/assinatura-sigep", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ papel: assinarPapel, senha: senhaAssEsc, itens: [{ tipo: "escala", ref: data, conteudo, resumo }] }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setAssEscMsg(d?.error || "Falha ao assinar."); setAssinandoEsc(false); return; }
+      setAssEscMsg("✅ Escala assinada pela avançada SIGEP.");
+      setSenhaAssEsc(""); setAssinarPapel(null);
+      carregarAssEscala(data);
+    } catch { setAssEscMsg("Falha ao assinar."); }
+    finally { setAssinandoEsc(false); }
+  };
+
   return (
     <EfetivoCtx.Provider value={efetivo}>
     <div className="app-shell">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <BarraFormatacao />
+
+      {assinarPapel && (
+        <div className="no-print" style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => !assinandoEsc && setAssinarPapel(null)}>
+          <div style={{ width: "100%", maxWidth: 420, background: "#0F1B2D", border: "1px solid #2b3f63", borderRadius: 14, padding: 18 }} onClick={(ev) => ev.stopPropagation()}>
+            <h3 style={{ color: "#fff", fontWeight: 700, margin: "0 0 4px" }}>🔏 Assinar {assinarPapel === "chefe_p1" ? "como Chefe do P/1" : "o VISTO do Comandante"}</h3>
+            <p style={{ color: "#94A3B8", fontSize: 12, margin: "0 0 12px" }}>Assinatura <b>avançada SIGEP</b> da escala de <b>{brCurto(data)}</b>. Confirme com a sua senha — sai um carimbo com QR verificável.</p>
+            <input type="password" value={senhaAssEsc} onChange={(ev) => setSenhaAssEsc(ev.target.value)} placeholder="Sua senha"
+              style={{ width: "100%", boxSizing: "border-box", background: "#0a1626", color: "#E8EEF6", border: "1px solid #28395a", borderRadius: 8, padding: "9px 11px", fontSize: 14 }} />
+            {assEscMsg && <div style={{ color: assEscMsg.startsWith("✅") ? "#9fe6bd" : "#ffb3b3", fontSize: 12, marginTop: 8 }}>{assEscMsg}</div>}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+              <button className="btn" onClick={() => setAssinarPapel(null)} disabled={assinandoEsc}>Cancelar</button>
+              <button className="btn primary" onClick={assinarEscala} disabled={assinandoEsc || !senhaAssEsc}>{assinandoEsc ? "Assinando…" : "Assinar"}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ---- Barra principal: o fluxo diario ---- */}
       <div className="toolbar no-print">
@@ -2012,6 +2063,8 @@ export default function EscalaClient() {
           <button className="btn" onClick={() => baixarEscala("docx")} title="Baixar a escala do dia em Word (.docx)">📝 Word</button>
           <button className="btn" onClick={() => baixarEscala("pdf")} title="Baixar a escala do dia em PDF">📄 PDF</button>
           <button className="btn gen" onClick={publicar} title="Arquivar esta escala nas Publicações (histórico oficial)">📢 Publicar</button>
+          <button className="btn" onClick={() => { setAssinarPapel("chefe_p1"); setSenhaAssEsc(""); setAssEscMsg(""); }} title="Assinar a escala como Chefe do P/1 (avançada SIGEP)">🔏 Assinar P/1{assEscala.chefe_p1 ? " ✅" : ""}</button>
+          <button className="btn" onClick={() => { setAssinarPapel("cmt"); setSenhaAssEsc(""); setAssEscMsg(""); }} title="Assinar o VISTO como Comandante (avançada SIGEP)">🔏 Visto Cmt{assEscala.cmt ? " ✅" : ""}</button>
         </div>
         <div className="tb-row tb-sub">
           <span className="tb-status">
@@ -2195,7 +2248,9 @@ export default function EscalaClient() {
               <div className="titulo-wrap">
                 <div className="visto-side">
                   <div className="visto">VISTO</div>
-                  {(chefe.cmtModo || "imagem") === "sigep"
+                  {assEscala.cmt
+                    ? <CarimboSigep nome={assEscala.cmt.nome} cargo="Cmt. do 18º BPM" data={data} largura="58mm" assinatura={{ id: assEscala.cmt.id, token: assEscala.cmt.token }} />
+                    : (chefe.cmtModo || "imagem") === "sigep"
                     ? <CarimboSigep nome={chefe.comandante || ""} cargo="Cmt. do 18º BPM" data={data} largura="58mm" />
                     : (chefe.cmtModo || "imagem") === "gov"
                     ? <div className="visto-esp" />
@@ -2315,7 +2370,11 @@ export default function EscalaClient() {
               </>)}
 
               <div className="assinatura">
-                {chefe.assinarGov ? (
+                {assEscala.chefe_p1 ? (
+                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 2 }}>
+                    <CarimboSigep nome={assEscala.chefe_p1.nome} cargo={assEscala.chefe_p1.cargo} data={data} largura="80mm" assinatura={{ id: assEscala.chefe_p1.id, token: assEscala.chefe_p1.token }} />
+                  </div>
+                ) : chefe.assinarGov ? (
                   <div className="ass-gov-espaco" />
                 ) : (
                   chefe.assinatura ? (

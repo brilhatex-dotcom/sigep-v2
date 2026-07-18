@@ -23,6 +23,7 @@ export type AssinaturaSigep = {
   cargo: string;         // cargo (ex.: "Chefe do P/1 do 18º BPM")
   efetivoId: string | null;
   hash: string;          // sha256 do conteúdo assinado (detecta alteração)
+  resumo?: string;       // o QUE foi assinado (texto legível, não sensível)
   em: string;            // ISO
 };
 
@@ -66,7 +67,7 @@ function novoId(seq: number): string {
 /* Cria uma OU várias assinaturas (lote). Cada item traz o conteúdo a lacrar.
    Devolve os registros com o token (para montar o QR). */
 export async function criarAssinaturas(
-  itens: { tipo: string; ref: string; conteudo: string }[],
+  itens: { tipo: string; ref: string; conteudo: string; resumo?: string }[],
   meta: { papel: string; nome: string; cargo: string; efetivoId: string | null },
 ): Promise<{ id: string; ref: string; token: string; em: string }[]> {
   const lista = await lerTodas();
@@ -78,7 +79,7 @@ export async function criarAssinaturas(
     const rec: AssinaturaSigep = {
       id: novoId(seq), tipo: it.tipo, ref: it.ref, papel: meta.papel,
       nome: meta.nome, cargo: meta.cargo, efetivoId: meta.efetivoId,
-      hash: hashConteudo(it.conteudo), em,
+      hash: hashConteudo(it.conteudo), resumo: (it.resumo || "").slice(0, 200), em,
     };
     // Uma assinatura por (tipo, ref, papel): re-assinar substitui a anterior.
     const idx = lista.findIndex((a) => a.tipo === rec.tipo && a.ref === rec.ref && a.papel === rec.papel);
