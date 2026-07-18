@@ -51,6 +51,7 @@ type Item = {
   adminOnly?: boolean;
   policialOnly?: boolean; // aparece só para o usuário final (não-admin)
   lugarOk?: boolean;      // liberado também para Cmt/Sargenteante de lugar (escopo da lotação)
+  soLugar?: boolean;      // aparece SOMENTE para Cmt/Sargenteante de lugar
 };
 type Secao = { titulo: string; itens: Item[] };
 
@@ -93,6 +94,7 @@ const NAV: Secao[] = [
       { rotulo: "Diárias", Icone: FileText, adminOnly: true },
       { rotulo: "Escalas de Serviço", href: "/escalas", Icone: ClipboardList, disponivel: true, adminOnly: true },
       { rotulo: "Mapa de Escala", href: "/escalas/mapa", Icone: Map, disponivel: true, adminOnly: true },
+      { rotulo: "Escala da Unidade (RP)", href: "/escalas/servico/rp", Icone: ClipboardList, disponivel: true, soLugar: true },
     ],
   },
   {
@@ -221,7 +223,10 @@ export default function AppShell({
     .map((secao) => ({
       ...secao,
       itens: secao.itens
-        .filter((item) => (admin ? !item.policialOnly : (!item.adminOnly || (souLugar && item.lugarOk))))
+        .filter((item) => {
+          if (item.soLugar) return souLugar;               // só comando de lugar
+          return admin ? !item.policialOnly : (!item.adminOnly || (souLugar && item.lugarOk));
+        })
         // O policial vai direto para a propria tela de certidoes. Sem isto, o
         // link "/promocoes" faz um redirect no servidor ate
         // "/promocoes/minhas-certidoes", e esse pulo extra causava o "flash

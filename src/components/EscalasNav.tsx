@@ -22,14 +22,20 @@ const ITENS: Item[] = [
   { href: "/escalas/estatisticas", ic: "📊", label: "Estatísticas" },
 ];
 
-export default function EscalasNav() {
+// Para o comando de lugar (interior): só Rádio Patrulha e Publicações.
+const ITENS_RP: Item[] = [
+  { href: "/escalas/servico/rp", ic: "🚔", label: "Rádio Patrulha da unidade" },
+];
+
+export default function EscalasNav({ soRp = false }: { soRp?: boolean }) {
   const path = usePathname() || "";
+  const itens = soRp ? ITENS_RP : ITENS;
   return (
     <div className="esc-nav no-print">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <span className="esc-nav-tit">Escalas</span>
       <div className="esc-nav-itens">
-        {ITENS.map((it) => {
+        {itens.map((it) => {
           if (it.breve || !it.href) {
             return (
               <span key={it.label} className="esc-item breve" title="Em breve — próximas fases">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ORGANOGRAMA, type NoOrg } from "@/lib/organograma";
+import { ORGANOGRAMA, acharNo, pertenceAoNo, type NoOrg } from "@/lib/organograma";
 
 /* Lugares selecionáveis (DPM/CIA/Pelotão/seções) para o botão "mudar de
    lotação" no quadro de equipes. Achatado do organograma (sem a raiz). */
@@ -731,8 +731,11 @@ function QuadroEquipes({
 
 /* ===================== PAGINA ===================== */
 
-export default function MapaClient({ servico }: { servico?: string } = {}) {
+export default function MapaClient({ servico, escopo }: { servico?: string; escopo?: string } = {}) {
   const grupo = servico ? SERVICO_GRUPOS[servico] : null;
+  // Escala por lugar: sufixo de escopo nas APIs; sem escopo = sede (global).
+  const qs = escopo ? `?escopo=${encodeURIComponent(escopo)}` : "";
+  const noEscopo = escopo ? acharNo(escopo) : null; // unidade do organograma
   const [cad, setCad] = useState<Cadastro>(SEED_CADASTRO);
   const [escalas, setEscalas] = useState<Record<string, any>>({});
   // Abre no mes da ULTIMA data mexida na escala diaria (salva no localStorage);
@@ -790,11 +793,11 @@ export default function MapaClient({ servico }: { servico?: string } = {}) {
     const puxar = async () => {
       if (document.hidden) return;
       try {
-        const r = await fetch("/api/escala-dias");
+        const r = await fetch(`/api/escala-dias${qs}`);
         if (r.ok) { const d = await r.json(); if (d && d.escalas && Object.keys(d.escalas).length > 0) setEscalas(d.escalas); }
       } catch {}
       try {
-        const r = await fetch("/api/escala-config");
+        const r = await fetch(`/api/escala-config${qs}`);
         if (r.ok) {
           const d = await r.json();
           if (d && d.cad) {
@@ -813,26 +816,30 @@ export default function MapaClient({ servico }: { servico?: string } = {}) {
   }, []);
 
   useEffect(() => {
-    try {
-      const e = localStorage.getItem("sigep_escalas"); if (e) setEscalas(JSON.parse(e));
-    } catch {}
+    // cache local só vale para a SEDE (escopo vazio) — evita misturar unidades.
+    if (!escopo) { try { const e = localStorage.getItem("sigep_escalas"); if (e) setEscalas(JSON.parse(e)); } catch {} }
     setHoje(toISO(new Date()));
     fetch("/api/efetivo")
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((d) => setEfetivo((d.efetivo || d || []) as Militar[]))
+      .then((d) => {
+        let lista = (d.efetivo || d || []) as Militar[];
+        if (noEscopo) lista = lista.filter((m) => pertenceAoNo((m as any).lotacao ?? null, noEscopo)); // só a unidade
+        setEfetivo(lista);
+      })
       .catch(() => {});
     // Dias salvos vem do servidor (localStorage acima e so fallback instantaneo).
-    fetch("/api/escala-dias")
+    fetch(`/api/escala-dias${qs}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (d && d.escalas && Object.keys(d.escalas).length > 0) setEscalas(d.escalas); })
       .catch(() => {});
     // Equipes/afastamentos do servidor (migra o localStorage antigo se preciso).
     (async () => {
       try {
-        const r = await fetch("/api/escala-config");
+        const r = await fetch(`/api/escala-config${qs}`);
         const d = r.ok ? await r.json() : null;
         if (d && d.cad) { setCad(d.cad); ultimoCadSalvo.current = JSON.stringify(d.cad); return; }
       } catch {}
+      if (escopo) return; // sem cadastro salvo ainda para a unidade -> começa do zero
       try {
         const cLS = localStorage.getItem("sigep_cadastro");
         if (cLS) {
@@ -852,8 +859,8 @@ export default function MapaClient({ servico }: { servico?: string } = {}) {
     if (cadSaveTimer.current) clearTimeout(cadSaveTimer.current);
     cadSaveTimer.current = setTimeout(() => {
       ultimoCadSalvo.current = s;
-      fetch("/api/escala-config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cad }) }).catch(() => {});
-      try { localStorage.setItem("sigep_cadastro", s); } catch {}
+      fetch(`/api/escala-config${qs}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cad }) }).catch(() => {});
+      if (!escopo) { try { localStorage.setItem("sigep_cadastro", s); } catch {} } // cache só da sede
     }, 800);
   }, [cad]);
 
