@@ -24,8 +24,10 @@ const PADRAO = {
   assinatura: "",       // imagem da assinatura (data URL/caminho); "" = em branco
   assinarGov: false,    // se true, a assinatura sai em branco (assina pelo Gov.br)
   cmtAssinatura: "/brasoes/assinatura-cmt.png",   // assinatura do Cmt (VISTO), trocavel se mudar o comando
+  cmtModo: "imagem",    // como sai o VISTO do Cmt: "imagem" | "sigep" | "gov"
   comandante: "TEN CEL QOEM FLÁVIO DE CARVALHO RAMOS", // Cmt do 18º BPM (assina solucao/portaria/decisao do disciplinar)
 };
+const MODOS = ["imagem", "sigep", "gov"];
 
 function ehAdmin(perfil?: string | null): boolean {
   const p = (perfil || "").toLowerCase();
@@ -47,6 +49,7 @@ export async function GET() {
         assinatura: typeof v.assinatura === "string" ? v.assinatura : "",
         assinarGov: v.assinarGov === true,
         cmtAssinatura: typeof v.cmtAssinatura === "string" ? v.cmtAssinatura : PADRAO.cmtAssinatura,
+        cmtModo: MODOS.includes(v.cmtModo) ? v.cmtModo : PADRAO.cmtModo,
         comandante: typeof v.comandante === "string" && v.comandante.trim() ? v.comandante : PADRAO.comandante,
       });
     } catch {
@@ -72,10 +75,11 @@ export async function POST(req: Request) {
     const assinatura = typeof b.assinatura === "string" ? b.assinatura : "";
     const assinarGov = b.assinarGov === true;
     const cmtAssinatura = typeof b.cmtAssinatura === "string" ? b.cmtAssinatura : PADRAO.cmtAssinatura;
+    const cmtModo = MODOS.includes(b.cmtModo) ? b.cmtModo : PADRAO.cmtModo;
     const comandante = typeof b.comandante === "string" && b.comandante.trim() ? b.comandante.trim() : PADRAO.comandante;
     if (!nome) return NextResponse.json({ error: "Informe o nome do chefe" }, { status: 400 });
 
-    const valor = JSON.stringify({ nome, funcao, assinatura, assinarGov, cmtAssinatura, comandante });
+    const valor = JSON.stringify({ nome, funcao, assinatura, assinarGov, cmtAssinatura, cmtModo, comandante });
     await prisma.config.upsert({
       where: { chave: CHAVE },
       update: { valor },

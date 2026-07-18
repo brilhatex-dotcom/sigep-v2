@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { padronizarBrasao } from "@/lib/imagem";
+import CarimboSigep from "@/components/CarimboSigep";
 
 /* =========================================================================
    SIGEP-18BPM  ·  MODULO DE ESCALAS  (Escala de Servico diaria)  ·  v2 UX
@@ -124,7 +125,8 @@ type Cadastro = {
 type Brasoes = {
   pmma: string; ma: string; bpm: string; vistoCmt: string; assinaturaChefe: string;
 };
-type Chefe = { nome: string; funcao: string; assinatura?: string; assinarGov?: boolean; cmtAssinatura?: string; comandante?: string };
+type CmtModo = "imagem" | "sigep" | "gov";
+type Chefe = { nome: string; funcao: string; assinatura?: string; assinarGov?: boolean; cmtAssinatura?: string; cmtModo?: CmtModo; comandante?: string };
 
 /* Efetivo (Cadastro de Efetivo via Prisma). Os POOLS guardam o ID PMMA;
    o nome exibido/impresso e montado a partir da ficha em fmtMilitar(). */
@@ -1475,7 +1477,7 @@ export default function EscalaClient() {
   // Chefe do P/1: carregado do servidor (aba "Chefe do P1"), igual em todo PC.
   // Estes valores sao apenas o padrao inicial antes do carregamento \u2014 o valor
   // real vem da config "escala_chefe_p1" (campo unico, editavel na aba).
-  const [chefe, setChefe] = useState<Chefe>({ nome: "1\u00ba TEN QOEM PAULO SILAS BARROS DE BRITO JUNIOR", funcao: "CHEFE DO P/1 DO 18\u00ba BPM", assinatura: "", assinarGov: false, cmtAssinatura: "/brasoes/assinatura-cmt.png", comandante: "TEN CEL QOEM FL\u00c1VIO DE CARVALHO RAMOS" });
+  const [chefe, setChefe] = useState<Chefe>({ nome: "1\u00ba TEN QOEM PAULO SILAS BARROS DE BRITO JUNIOR", funcao: "CHEFE DO P/1 DO 18\u00ba BPM", assinatura: "", assinarGov: false, cmtAssinatura: "/brasoes/assinatura-cmt.png", cmtModo: "imagem", comandante: "TEN CEL QOEM FL\u00c1VIO DE CARVALHO RAMOS" });
   const [chefeSalvando, setChefeSalvando] = useState(false);
   const [chefeMsg, setChefeMsg] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -1638,6 +1640,7 @@ export default function EscalaClient() {
             assinatura: d.assinatura || "",
             assinarGov: d.assinarGov === true,
             cmtAssinatura: d.cmtAssinatura || "/brasoes/assinatura-cmt.png",
+            cmtModo: (["imagem", "sigep", "gov"].includes(d.cmtModo) ? d.cmtModo : "imagem") as CmtModo,
             comandante: d.comandante || "TEN CEL QOEM FLÁVIO DE CARVALHO RAMOS",
           });
         }
@@ -2129,20 +2132,38 @@ export default function EscalaClient() {
 
             <div className="chefe-cmt">
               <div className="chefe-ass-tit">Assinatura do Comandante (VISTO)</div>
-              <div className="chefe-cmt-row">
-                <div className="chefe-ass-box" style={{ maxWidth: 240 }}>
-                  {chefe.cmtAssinatura
-                    ? <img src={chefe.cmtAssinatura} alt="assinatura do Cmt" />
-                    : <span className="chefe-ass-ph">sem assinatura (em branco)</span>}
-                </div>
-                <div className="chefe-cmt-acoes">
-                  <button className="btn" onClick={pickCmtAssinatura}>📤 Trocar assinatura do Cmt</button>
-                  {chefe.cmtAssinatura && (
-                    <button className="btn danger" onClick={() => setChefe((c) => ({ ...c, cmtAssinatura: "" }))}>🗑 Remover</button>
-                  )}
-                  <span className="chefe-ass-dica">Sai no “VISTO” da escala e da escala semanal do CPU. Troque quando mudar o comando; salve para valer em todos os PCs.</span>
-                </div>
+              {/* 3 modos: imagem da rubrica · carimbo eletrônico do SIGEP · em branco (Gov.br) */}
+              <div className="cmt-modo-row" style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "6px 0 10px" }}>
+                {([["imagem", "🖼️ Imagem"], ["sigep", "🔏 Assinatura SIGEP"], ["gov", "🏛️ Via Gov.br (em branco)"]] as [CmtModo, string][]).map(([m, lbl]) => (
+                  <button key={m} type="button" className={"btn" + ((chefe.cmtModo || "imagem") === m ? " primary" : "")}
+                    onClick={() => setChefe((c) => ({ ...c, cmtModo: m }))}>{lbl}</button>
+                ))}
               </div>
+              {(chefe.cmtModo || "imagem") === "imagem" && (
+                <div className="chefe-cmt-row">
+                  <div className="chefe-ass-box" style={{ maxWidth: 240 }}>
+                    {chefe.cmtAssinatura
+                      ? <img src={chefe.cmtAssinatura} alt="assinatura do Cmt" />
+                      : <span className="chefe-ass-ph">sem assinatura (em branco)</span>}
+                  </div>
+                  <div className="chefe-cmt-acoes">
+                    <button className="btn" onClick={pickCmtAssinatura}>📤 Trocar assinatura do Cmt</button>
+                    {chefe.cmtAssinatura && (
+                      <button className="btn danger" onClick={() => setChefe((c) => ({ ...c, cmtAssinatura: "" }))}>🗑 Remover</button>
+                    )}
+                    <span className="chefe-ass-dica">Sai no “VISTO” da escala e da escala semanal do CPU. Troque quando mudar o comando; salve para valer em todos os PCs.</span>
+                  </div>
+                </div>
+              )}
+              {(chefe.cmtModo || "imagem") === "sigep" && (
+                <div style={{ maxWidth: 280 }}>
+                  <CarimboSigep nome={chefe.comandante || ""} cargo="Cmt. do 18º BPM" data={data} largura="70mm" />
+                  <span className="chefe-ass-dica">Carimbo eletrônico gerado pelo SIGEP com o nome do Cmt, cargo, data e código de autenticação.</span>
+                </div>
+              )}
+              {(chefe.cmtModo || "imagem") === "gov" && (
+                <div className="chefe-gov-nota">O VISTO sairá <b>em branco</b>; o Cmt assina digitalmente pelo Gov.br.</div>
+              )}
             </div>
           </div>
         </div>
@@ -2174,9 +2195,13 @@ export default function EscalaClient() {
               <div className="titulo-wrap">
                 <div className="visto-side">
                   <div className="visto">VISTO</div>
-                  {chefe.cmtAssinatura
-                    ? <img className="visto-img" src={chefe.cmtAssinatura} alt="assinatura Cmt" />
-                    : <div className="visto-esp" />}
+                  {(chefe.cmtModo || "imagem") === "sigep"
+                    ? <CarimboSigep nome={chefe.comandante || ""} cargo="Cmt. do 18º BPM" data={data} largura="58mm" />
+                    : (chefe.cmtModo || "imagem") === "gov"
+                    ? <div className="visto-esp" />
+                    : (chefe.cmtAssinatura
+                        ? <img className="visto-img" src={chefe.cmtAssinatura} alt="assinatura Cmt" />
+                        : <div className="visto-esp" />)}
                   <div className="hdr-left-cargo">Cmt. do 18º BPM</div>
                 </div>
                 <div className="titulo">{(ehExtra || ehJoe) ? "ESCALA DE SERVIÇO EXTRAORDINÁRIA" : "ESCALA DE SERVIÇO"}</div>
