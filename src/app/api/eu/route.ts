@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { lugarDoUsuario } from "@/lib/lugarUsuario";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,15 @@ export async function GET() {
       nomeExibicao = [posto, cap].filter(Boolean).join(" ").trim();
     }
 
-    return NextResponse.json({ efetivoId, temFoto, nomeExibicao });
+    // Lugar do usuário (Cmt/Sargenteante de CIA/DPM/Pelotão) — para o AppShell
+    // mostrar as abas restritas à própria lotação.
+    let lugar: { noId: string; rotulo: string } | null = null;
+    try {
+      const lu = await lugarDoUsuario(efetivoId);
+      if (lu) lugar = { noId: lu.noId, rotulo: lu.no.rotulo };
+    } catch {}
+
+    return NextResponse.json({ efetivoId, temFoto, nomeExibicao, lugar });
   } catch (err) {
     console.error("[GET /api/eu]", err);
     return NextResponse.json({ efetivoId: null, temFoto: false });
