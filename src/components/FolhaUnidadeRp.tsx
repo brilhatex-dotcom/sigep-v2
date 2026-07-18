@@ -331,7 +331,18 @@ export default function FolhaUnidadeRp({
         </div>
       )}
 
-      <style>{`.brasao-troca{border-radius:4px;transition:outline .1s;} .brasao-troca:hover{outline:2px dashed #2e6b48;outline-offset:2px;} @media print { .brasao-troca{outline:none!important;} body > *:not(#folha-overlay){display:none!important;} #folha-overlay{position:static!important;overflow:visible!important;background:#fff!important;inset:auto!important;display:block!important;} .no-print{display:none!important;} #folha-print{position:static!important;margin:0 auto!important;box-shadow:none!important;min-height:0!important;width:100%!important;padding:12mm 14mm!important;} html,body{margin:0!important;padding:0!important;background:#fff!important;} @page{size:A4;margin:0;} }`}</style>
+      <style>{`.brasao-troca{border-radius:4px;transition:outline .1s;} .brasao-troca:hover{outline:2px dashed #2e6b48;outline-offset:2px;} @media print {
+        /* Vence a regra global de outras telas (ex.: o mapa faz body*{visibility:hidden}). */
+        body *{ visibility:hidden !important; }
+        #folha-overlay, #folha-overlay *{ visibility:visible !important; }
+        .brasao-troca{outline:none!important;}
+        body > *:not(#folha-overlay){display:none!important;}
+        #folha-overlay{position:static!important;overflow:visible!important;background:#fff!important;inset:auto!important;display:block!important;}
+        .no-print{display:none!important;}
+        #folha-print{position:static!important;margin:0 auto!important;box-shadow:none!important;min-height:0!important;width:100%!important;padding:12mm 14mm!important;}
+        html,body{margin:0!important;padding:0!important;background:#fff!important;}
+        @page{size:A4 portrait;margin:0;}
+      } `}</style>
     </div>
   ), document.body);
 }

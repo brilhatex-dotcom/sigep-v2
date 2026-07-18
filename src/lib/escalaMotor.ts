@@ -37,7 +37,7 @@ export function parsePadrao(s: string | undefined | null): { trabalho: number; f
   return { trabalho: 1, folga: 3, equipes: 4 };
 }
 // Índice da equipe (0..equipes-1) para um dia, conforme o padrão.
-function timeDoDia(diasDesdeRef: number, p: { trabalho: number; equipes: number }): number {
+export function timeDoDia(diasDesdeRef: number, p: { trabalho: number; equipes: number }): number {
   const ciclo = p.trabalho * p.equipes;
   const d = ((diasDesdeRef % ciclo) + ciclo) % ciclo;
   return Math.floor(d / p.trabalho);

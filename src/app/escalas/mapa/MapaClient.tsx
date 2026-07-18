@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ORGANOGRAMA, acharNo, pertenceAoNo, type NoOrg } from "@/lib/organograma";
 import FolhaUnidadeRp from "@/components/FolhaUnidadeRp";
+import { parsePadrao, timeDoDia } from "@/lib/escalaMotor";
 
 /* Lugares selecionáveis (DPM/CIA/Pelotão/seções) para o botão "mudar de
    lotação" no quadro de equipes. Achatado do organograma (sem a raiz). */
@@ -191,8 +192,11 @@ function assignDia(iso: string, cad: Cadastro, escalas: Record<string, any>, idD
   }
   const a = cad.afastamentos, r = cad.refRodizioISO;
   const eq = equipeRotem(iso, cad.rotemEquipes, cad.refRotemISO);
-  // O quadro A/B/C/D e a FONTE: a equipe do dia (ciclo 24/72) cobre cada funcao.
-  const team = EQUIPES_ABCD[(((diasEntre(r, iso) % 4) + 4) % 4)];
+  // O quadro por equipes e a FONTE: a equipe do dia cobre cada funcao. A equipe
+  // vem do padrao da unidade (24/72 na sede; "3 por 6" = 3 equipes; etc.).
+  const padrao = parsePadrao(cad.padraoEscala);
+  const times = equipesDoPadrao(cad.padraoEscala);
+  const team = times[timeDoDia(diasEntre(r, iso), padrao) % times.length];
   const q = cad.quadroEquipes || {};
   // Coleta o titular da funcao + eventuais linhas extras (ex.: 2o patrulheiro).
   const nExtra = (fk: string) => cad.linhasExtras?.[fk] || 0;
@@ -316,6 +320,13 @@ const FUNCOES_EQUIPE: { key: string; label: string }[] = [
   { key: "inteligencia", label: "Inteligência" },
 ];
 const EQUIPES_ABCD = ["A", "B", "C", "D"];
+const LETRAS_EQUIPE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+/* Equipes conforme o padrão da unidade: 24/72 (sem padrão) = A/B/C/D;
+   "3 por 6" = 3 equipes (A/B/C); etc. A sede fica igual (padrão vazio). */
+function equipesDoPadrao(padraoEscala?: string): string[] {
+  const p = parsePadrao(padraoEscala);
+  return LETRAS_EQUIPE.slice(0, Math.max(1, Math.min(26, p.equipes)));
+}
 
 /* Editor compacto de um pool no painel de equipes: lista numerada (ordem do
    rodizio) com subir/descer/remover e uma busca para adicionar. Controles
@@ -483,6 +494,8 @@ function QuadroEquipes({
 }) {
   const quadro = cad.quadroEquipes || {};
   const cell = (team: string, fk: string) => quadro[team]?.[fk] || "";
+  // Colunas do quadro conforme o padrão da unidade (A/B/C/D na sede; 3 na 3x6).
+  const times = equipesDoPadrao(cad.padraoEscala);
 
   const [drag, setDrag] = useState<{ team: string; fk: string } | null>(null);
   const [addCell, setAddCell] = useState<{ team: string; fk: string } | null>(null);
@@ -605,7 +618,7 @@ function QuadroEquipes({
         <thead>
           <tr>
             <th className="mp-q-func">Função</th>
-            {EQUIPES_ABCD.map((lt, i) => (
+            {times.map((lt, i) => (
               <th key={lt} className="mp-q-eq">
                 <div className="mp-q-dia">{brCurto(teamDias[i])} <span>{DSEM[parseISO(teamDias[i]).getDay()]}</span></div>
                 <div className="mp-q-letra">{lt}</div>
@@ -633,7 +646,7 @@ function QuadroEquipes({
                     onClick={() => removeLinha(f.baseKey)}>－</button>
                 )}
               </td>
-              {EQUIPES_ABCD.map((lt, i) => {
+              {times.map((lt, i) => {
                 const id = cell(lt, f.key);
                 const af = id ? afastado(id, teamDias[i], cad.afastamentos) : false;
                 const cor = COR_SERVICO[f.baseKey];
@@ -975,13 +988,22 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
   const setRotemMil = (i: number, ids: string[]) =>
     setCad((c) => ({ ...c, rotemEquipes: c.rotemEquipes.map((eq, j) => (j === i ? { ...eq, militares: ids } : eq)) }));
 
-  // Dia de servico de cada equipe A/B/C/D (24/72 com 4 equipes, a partir de hoje).
+  // Dia de servico (proximo) de cada equipe, conforme o padrao da unidade.
+  // 24/72 -> 1 dia por equipe; "3 por 6" -> mostra o 1o dia do bloco da equipe.
   const teamDias = useMemo(() => {
     const ref = cad.refRodizioISO || `${mes}-01`;
     const base = hoje || `${mes}-01`;
-    const off = (((diasEntre(ref, base) % 4) + 4) % 4);
-    return EQUIPES_ABCD.map((_, i) => somaDias(base, (i - off + 4) % 4));
-  }, [cad.refRodizioISO, hoje, mes]);
+    const p = parsePadrao(cad.padraoEscala);
+    const times = equipesDoPadrao(cad.padraoEscala);
+    const ciclo = p.trabalho * p.equipes;
+    return times.map((_, i) => {
+      for (let d = 0; d < ciclo; d++) {
+        const dia = somaDias(base, d);
+        if (timeDoDia(diasEntre(ref, dia), p) === i) return dia;
+      }
+      return base;
+    });
+  }, [cad.refRodizioISO, cad.padraoEscala, hoje, mes]);
 
   // Filtros da tela por serviço (Fase 3). Sem grupo = mapa mensal completo.
   const servicosView = grupo ? SERVICOS.filter((s) => grupo.servicos.includes(s.key)) : SERVICOS;
@@ -1256,7 +1278,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
         <div className="mp-quadro no-print">
           <div className="mp-quadro-tit">{grupo ? `${grupo.titulo} · por equipes` : "Escala por equipes"}</div>
           <div className="mp-quadro-sub">
-            <b style={{ color: "#9fe6bd" }}>Este quadro é a fonte da escala</b> — mexeu aqui, muda o mapa e a diária. Equipe A/B/C/D no ciclo 24/72; em cima de cada letra, o dia de serviço.{!grupo && " O CPU não entra aqui."}
+            <b style={{ color: "#9fe6bd" }}>Este quadro é a fonte da escala</b> — mexeu aqui, muda o mapa e a diária. Equipes {equipesDoPadrao(cad.padraoEscala).join("/")} no {cad.padraoEscala ? `padrão ${cad.padraoEscala}` : "ciclo 24/72"}; em cima de cada letra, o dia de serviço.{!grupo && " O CPU não entra aqui."}
           </div>
           <QuadroEquipes cad={cad} setCad={setCad} efetivo={efetivo} nomeDe={nomeDe} teamDias={teamDias} funcoes={funcoesView} />
         </div>
