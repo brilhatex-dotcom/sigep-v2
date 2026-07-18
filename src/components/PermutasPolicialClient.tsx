@@ -18,6 +18,7 @@ type Permuta = {
   protocolo?: string;
   cienciaSolicitante?: { em: string; ip: string | null } | null;
   cienciaSolicitado?: { em: string; ip: string | null } | null;
+  pareceristaRotulo?: string;
 };
 type Militar = { id: string; postoGrad: string; numeroBarra: string; nome: string; nomeGuerra: string; matricula: string };
 
@@ -209,8 +210,8 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
       {paraP1.length > 0 && (
         <section className="ui-card border-[#D4AF37]/30 p-4">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
-            <ShieldCheck className="h-4 w-4 text-[#D4AF37]" /> Permutas para parecer do P/1
-            {!podeP1 && <span className="text-xs font-normal text-[#94A3B8]">(acompanhamento — só o Chefe do P/1 assina)</span>}
+            <ShieldCheck className="h-4 w-4 text-[#D4AF37]" /> Permutas para o seu parecer
+            {!podeP1 && <span className="text-xs font-normal text-[#94A3B8]">(acompanhamento — só quem comanda o lugar assina)</span>}
           </h2>
           <ul className="space-y-2">
             {paraP1.map((p) => (
@@ -221,6 +222,7 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
                 <p className="mt-0.5 text-xs text-emerald-300">
                   Ambos assinaram · permuta {dBR(p.dataPermuta)} · retorno {dBR(p.dataRetorno)}
                 </p>
+                {p.pareceristaRotulo && <p className="text-xs text-[#D4AF37]">Parecer: {p.pareceristaRotulo}</p>}
                 {p.motivo && <p className="text-xs text-[#94A3B8]">Motivo: {p.motivo}</p>}
                 <div className="mt-2 flex flex-wrap gap-2">
                   <button onClick={() => setDoc(p as PermutaDoc)} className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white hover:bg-white/5">

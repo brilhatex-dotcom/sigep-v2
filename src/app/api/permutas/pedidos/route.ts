@@ -8,6 +8,7 @@ import {
 import { podeComoEncargo, podeVerP1, encargoDe, cargoDocDe, lerEncargos } from "@/lib/encargos";
 import { registrar } from "@/lib/auditoria";
 import { tokenPermuta } from "@/lib/permutaVerif";
+import { pareceristaDoSolicitado } from "@/lib/permutaRoteamento";
 import { prisma } from "@/lib/prisma";
 import { conferirSenha } from "@/lib/senha";
 import { enviarParaLogin, enviarParaVarios } from "@/lib/push";
@@ -88,16 +89,26 @@ export async function GET() {
   const meuId = (session.user as any).refEfetivo as string | null;
   const admin = ehAdmin((session.user as any).perfil);
 
-  const podeP1 = await podeComoEncargo(meuId, "chefe_p1", admin); // pode ASSINAR o parecer
+  const podeP1 = await podeComoEncargo(meuId, "chefe_p1", admin); // pode ASSINAR o parecer (P/1)
   const veP1 = await podeVerP1(meuId, admin);                     // Seção P/1 (vê/acompanha)
   const podeSub = await podeComoEncargo(meuId, "subcmt", admin);
+  const meuEncargo = await encargoDe(meuId);                      // ex.: "cmt_2cia"
 
   const pedidos = await lerPermutas();
   // LGPD: o policial só enxerga as permutas em que ele é parte.
   const meus = pedidos.filter((p) => meuId && (p.solicitanteId === meuId || p.solicitadoId === meuId));
   const paraMim = pedidos.filter((p) => meuId && p.solicitadoId === meuId && p.estado === "aguardando_solicitado");
-  // A Seção P/1 (Chefe + Auxiliares) VÊ as que aguardam parecer; só o Chefe assina.
-  const paraP1 = veP1 ? pedidos.filter((p) => p.estado === "aguardando_p1") : [];
+  // Aguardando PARECER: cada um vê o que é seu — a Seção P/1 vê as roteadas para
+  // o P/1 (sede); o Cmt do lugar vê as roteadas para ele; admin vê todas.
+  const paraP1 = pedidos.filter((p) => {
+    if (p.estado !== "aguardando_p1") return false;
+    const enc = p.pareceristaEncargo || "chefe_p1";
+    if (admin) return true;
+    if (enc === "chefe_p1") return veP1;
+    return !!meuEncargo && meuEncargo === enc;
+  });
+  // Pode dar parecer: P/1, admin ou qualquer Cmt de lugar (nas permutas dele).
+  const podeDarParecer = podeP1 || admin || (!!meuEncargo && meuEncargo.startsWith("cmt_"));
   // Subcmt: as que ele PRECISA decidir (parecer não favorável) + as já autorizadas
   // pelo parecer favorável que ele ainda pode "vistar" (opcional, caixinha em branco).
   const paraSubcmt = podeSub
@@ -117,7 +128,7 @@ export async function GET() {
     meus: comToken(meus.sort(ord)), paraMim: comToken(paraMim.sort(ord)),
     paraP1: comToken(paraP1.sort(ord)), paraSubcmt: comToken(paraSubcmt.sort(ord)),
     arquivo: comToken(arquivo.sort(ord)),
-    podeP1, podeSubcmt: podeSub,
+    podeP1: podeDarParecer, podeSubcmt: podeSub,
   });
 }
 
@@ -201,6 +212,10 @@ export async function POST(req: Request) {
         if (!ass) return NextResponse.json({ error: "Ficha não encontrada." }, { status: 400 });
         p.solicitado = ass;
         p.estado = "aguardando_p1";
+        // Roteia o parecer: Cmt do lugar do solicitado, ou P/1 se for da sede.
+        const par = await pareceristaDoSolicitado(p.solicitadoId);
+        p.pareceristaEncargo = par.encargo;
+        p.pareceristaRotulo = par.rotulo;
       } else if (resposta === "recusar") {
         p.estado = "recusada";
       } else {
@@ -213,23 +228,30 @@ export async function POST(req: Request) {
         detalhe: resposta === "aceitar" ? "Assinou o \"concordo\" (colega solicitado)." : "Recusou a permuta (colega solicitado).",
       });
       if (resposta === "aceitar") {
-        // segue para o P/1: avisa a Seção P/1 (Chefe + Auxiliares) por push
-        const logsP1 = await loginsPorEncargo("chefe_p1", "aux_p1");
-        if (logsP1.length) void enviarParaVarios(logsP1, { title: "Permuta para parecer do P/1", body: `${p.solicitante.linha} ⇄ ${p.solicitado?.linha || p.solicitadoNome} aguardando parecer.`, url: "/permutas", tag: "permuta-" + p.id }).catch(() => {});
+        // avisa quem dá o parecer: Cmt do lugar do solicitado, ou a Seção P/1
+        // (Chefe + Auxiliares) quando o solicitado é da sede.
+        const enc = p.pareceristaEncargo || "chefe_p1";
+        const alvos = enc === "chefe_p1"
+          ? await loginsPorEncargo("chefe_p1", "aux_p1")
+          : await loginsPorEncargo(enc);
+        if (alvos.length) void enviarParaVarios(alvos, { title: `Permuta para parecer (${p.pareceristaRotulo || "P/1"})`, body: `${p.solicitante.linha} ⇄ ${p.solicitado?.linha || p.solicitadoNome} aguardando parecer.`, url: "/permutas", tag: "permuta-" + p.id }).catch(() => {});
       }
       return NextResponse.json({ ok: true, pedido: p });
     }
 
     // ---------- Chefe do P/1 (Silas) dá o PARECER ----------
     if (acao === "parecer") {
-      if (!(await podeComoEncargo(meuId, "chefe_p1", admin))) {
-        return NextResponse.json({ error: "Apenas o Chefe da Seção P/1 pode dar o parecer." }, { status: 403 });
-      }
       const id = String(b?.id || "");
       const parecer = String(b?.parecer || "").trim();
       const p = pedidos.find((x) => x.id === id);
       if (!p) return NextResponse.json({ error: "Permuta não encontrada." }, { status: 404 });
-      if (p.estado !== "aguardando_p1") return NextResponse.json({ error: "Esta permuta não está aguardando o parecer do P/1." }, { status: 409 });
+      if (p.estado !== "aguardando_p1") return NextResponse.json({ error: "Esta permuta não está aguardando parecer." }, { status: 409 });
+      // Quem decide é o parecerista roteado (Cmt do lugar do solicitado, ou o
+      // Chefe do P/1 se for da sede). Admin também pode (acesso total).
+      const encParecer = p.pareceristaEncargo || "chefe_p1";
+      if (!admin && !(await podeComoEncargo(meuId, encParecer, admin))) {
+        return NextResponse.json({ error: `Apenas ${p.pareceristaRotulo || "o Chefe do P/1"} pode dar o parecer desta permuta.` }, { status: 403 });
+      }
       const favoravel = b?.favoravel !== false; // padrão favorável
       // Favorável = basta assinar (senha), sem precisar digitar nada. Só o
       // parecer DESFAVORÁVEL exige a justificativa por escrito.

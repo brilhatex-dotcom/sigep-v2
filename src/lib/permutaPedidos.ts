@@ -65,6 +65,10 @@ export type Permuta = {
   aplicadaPermuta?: boolean;   // dia da permuta (solicitado cobre o solicitante)
   aplicadaRetorno?: boolean;   // dia do retorno (solicitante cobre o solicitado)
   verifToken?: string;         // token de verificação (QR) — derivado, não persistido
+  // Quem deve dar o PARECER: depende do lugar do SOLICITADO (quem tem o serviço
+  // coberto). Sede -> "chefe_p1"; CIA/pelotão -> "cmt_<noId>". Sem isto = P/1.
+  pareceristaEncargo?: string; // "chefe_p1" | "cmt_2cia" ...
+  pareceristaRotulo?: string;  // ex.: "Chefe do P/1" | "Cmt — 2ª CIA"
 };
 
 // Abrevia posto/graduação no padrão dos documentos do batalhão.
