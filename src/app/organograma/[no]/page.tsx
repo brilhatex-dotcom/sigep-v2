@@ -9,6 +9,7 @@ import { acharNo, pertenceAoNo } from "@/lib/organograma";
 import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
 import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
 import { idsInativos, semInativos } from "@/lib/inativos";
+import { exigirAdminOuLugar } from "@/lib/guard";
 import { ArrowLeft, ChevronRight, Users } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -27,11 +28,12 @@ export default async function NoOrganogramaPage({
 }: {
   params: { no: string };
 }) {
-  const session = await getServerSession(authOptions);
-  if (!session) redirect("/login");
+  const { session, lugar } = await exigirAdminOuLugar();
 
   const no = acharNo(params.no);
   if (!no) redirect("/organograma");
+  // Comando de lugar só abre nós dentro da PRÓPRIA unidade.
+  if (lugar && !acharNo(params.no, lugar.no)) redirect("/organograma");
 
   const hoje = hojeLocal();
 

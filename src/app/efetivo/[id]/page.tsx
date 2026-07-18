@@ -7,6 +7,8 @@ import AvatarUpload from "@/components/AvatarUpload";
 import CopiarDados from "./CopiarDados";
 import { ArrowLeft, Pencil } from "lucide-react";
 import { hojeLocal, montarIdsEmFerias, situacaoCalculada } from "@/lib/situacao";
+import { lugarDoUsuario } from "@/lib/lugarUsuario";
+import { pertenceAoNo } from "@/lib/organograma";
 
 export const dynamic = "force-dynamic";
 
@@ -45,10 +47,18 @@ export default async function FichaEfetivoPage({
   const meuEfetivo = (session.user as any).refEfetivo as string | undefined;
 
   // >>> SEGURANCA: policial so pode ver a PROPRIA ficha. <<<
-  // admin ve qualquer uma; policial que tentar abrir outra vai para a propria.
+  // admin ve qualquer uma; Cmt/Sargenteante de lugar ve as da PRÓPRIA unidade;
+  // policial comum que tentar abrir outra vai para a propria.
   if (!ehAdmin) {
     if (!meuEfetivo) redirect("/ficha");
-    if (params.id !== meuEfetivo) redirect(`/efetivo/${encodeURIComponent(String(meuEfetivo))}`);
+    const lugar = await lugarDoUsuario(meuEfetivo);
+    if (lugar) {
+      const alvo = await prisma.efetivo.findUnique({ where: { id: params.id }, select: { lotacao: true } });
+      const permitido = params.id === meuEfetivo || (!!alvo && pertenceAoNo(alvo.lotacao, lugar.no));
+      if (!permitido) redirect(`/organograma/${encodeURIComponent(lugar.noId)}`);
+    } else if (params.id !== meuEfetivo) {
+      redirect(`/efetivo/${encodeURIComponent(String(meuEfetivo))}`);
+    }
   }
 
   const m = await prisma.efetivo.findUnique({ where: { id: params.id } });

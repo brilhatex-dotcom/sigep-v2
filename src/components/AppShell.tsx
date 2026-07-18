@@ -50,6 +50,7 @@ type Item = {
   disponivel?: boolean;
   adminOnly?: boolean;
   policialOnly?: boolean; // aparece só para o usuário final (não-admin)
+  lugarOk?: boolean;      // liberado também para Cmt/Sargenteante de lugar (escopo da lotação)
 };
 type Secao = { titulo: string; itens: Item[] };
 
@@ -69,9 +70,9 @@ const NAV: Secao[] = [
     itens: [
       { rotulo: "Cadastro de Efetivo", href: "/efetivo", Icone: Users, disponivel: true, adminOnly: true },
       { rotulo: "Hierarquia", href: "/hierarquia", Icone: Network, disponivel: true, adminOnly: true },
-      { rotulo: "Organograma", href: "/organograma", Icone: Network, disponivel: true, adminOnly: true },
+      { rotulo: "Organograma", href: "/organograma", Icone: Network, disponivel: true, adminOnly: true, lugarOk: true },
       { rotulo: "Efetivo por Antiguidade", href: "/antiguidade", Icone: ListOrdered, disponivel: true, adminOnly: true },
-      { rotulo: "Efetivo por Lotação", href: "/lotacao", Icone: Building2, disponivel: true, adminOnly: true },
+      { rotulo: "Efetivo por Lotação", href: "/lotacao", Icone: Building2, disponivel: true, adminOnly: true, lugarOk: true },
       { rotulo: "Ficha Individual", href: "/ficha", Icone: Contact, disponivel: true },
       { rotulo: "Promoções / Certidões", href: "/promocoes", Icone: Award, disponivel: true },
     ],
@@ -90,8 +91,8 @@ const NAV: Secao[] = [
       { rotulo: "Meu Mapa de Escala", href: "/meu-mapa", Icone: Map, disponivel: true, policialOnly: true },
       { rotulo: "Minhas Férias", href: "/minhas-ferias", Icone: Palmtree, disponivel: true, policialOnly: true },
       { rotulo: "Diárias", Icone: FileText, adminOnly: true },
-      { rotulo: "Escalas de Serviço", href: "/escalas", Icone: ClipboardList, disponivel: true, adminOnly: true },
-      { rotulo: "Mapa de Escala", href: "/escalas/mapa", Icone: Map, disponivel: true, adminOnly: true },
+      { rotulo: "Escalas de Serviço", href: "/escalas", Icone: ClipboardList, disponivel: true, adminOnly: true, lugarOk: true },
+      { rotulo: "Mapa de Escala", href: "/escalas/mapa", Icone: Map, disponivel: true, adminOnly: true, lugarOk: true },
     ],
   },
   {
@@ -193,6 +194,7 @@ export default function AppShell({
   const [meuEfetivoId, setMeuEfetivoId] = useState<string | null>(null);
   const [tenhoFoto, setTenhoFoto] = useState(false);
   const [meuNome, setMeuNome] = useState<string>("");
+  const [meuLugar, setMeuLugar] = useState<{ noId: string; rotulo: string } | null>(null);
   useEffect(() => {
     let vivo = true;
     fetch("/api/eu")
@@ -202,10 +204,13 @@ export default function AppShell({
         setMeuEfetivoId(d.efetivoId ?? null);
         setTenhoFoto(!!d.temFoto);
         setMeuNome(d.nomeExibicao || "");
+        setMeuLugar(d.lugar ?? null);
       })
       .catch(() => {});
     return () => { vivo = false; };
   }, []);
+  // Cmt/Sargenteante de lugar: não-admin que tem uma unidade vinculada.
+  const souLugar = !admin && !!meuLugar;
 
   // Nome a exibir no cabecalho: usa "Posto + nome de guerra" da ficha quando
   // disponivel; enquanto carrega, cai no primeiro nome do login.
@@ -216,7 +221,7 @@ export default function AppShell({
     .map((secao) => ({
       ...secao,
       itens: secao.itens
-        .filter((item) => (admin ? !item.policialOnly : !item.adminOnly))
+        .filter((item) => (admin ? !item.policialOnly : (!item.adminOnly || (souLugar && item.lugarOk))))
         // O policial vai direto para a propria tela de certidoes. Sem isto, o
         // link "/promocoes" faz um redirect no servidor ate
         // "/promocoes/minhas-certidoes", e esse pulo extra causava o "flash

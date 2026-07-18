@@ -36,3 +36,19 @@ export async function exigirAdmin() {
 export function souAdmin(session: any): boolean {
   return ehAdmin(session?.user?.perfil);
 }
+
+/* Libera ADMIN (acesso total, lugar=null) OU um Cmt/Sargenteante de lugar
+   (acesso escopado à própria unidade, lugar preenchido). Qualquer outro é
+   mandado para a própria ficha. Use nas telas que o comando de lugar acessa. */
+export async function exigirAdminOuLugar() {
+  const { lugarDoUsuario } = await import("@/lib/lugarUsuario");
+  const session = await getServerSession(authOptions);
+  if (!session?.user) redirect("/login");
+  if ((session.user as any).precisaTrocar) redirect("/trocar-senha");
+  if (ehAdmin((session.user as any).perfil)) {
+    return { session, admin: true as const, lugar: null };
+  }
+  const lugar = await lugarDoUsuario((session.user as any).refEfetivo);
+  if (!lugar) redirect("/ficha");
+  return { session, admin: false as const, lugar };
+}

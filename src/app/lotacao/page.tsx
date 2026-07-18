@@ -8,6 +8,8 @@ import { classificarPatente } from "@/lib/patentes";
 import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
 import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
 import { idsInativos, semInativos } from "@/lib/inativos";
+import { exigirAdminOuLugar } from "@/lib/guard";
+import { filtrarPeloLugar } from "@/lib/lugarUsuario";
 import { lotacaoLimpa } from "@/lib/formatarLotacao";
 
 export const dynamic = "force-dynamic";
@@ -27,21 +29,23 @@ function pesoLotacao(lot: string): number {
 }
 
 export default async function LotacaoPage() {
-  const session = await getServerSession(authOptions);
-  if (!session) redirect("/login");
-  const ehAdmin = (session.user.perfil ?? "").toLowerCase() === "admin";
+  const { session, admin, lugar } = await exigirAdminOuLugar();
+  const ehAdmin = admin;
 
   const hoje = hojeLocal();
 
-  const militares = semInativos(
-    await prisma.efetivo.findMany({
-      select: {
-        id: true, postoGrad: true, numeroBarra: true, nome: true,
-        nomeGuerra: true, matricula: true, situacao: true, lotacao: true,
-        jmsDataInicio: true, jmsDataRetorno: true,
-      },
-    }),
-    await idsInativos(),
+  const militares = filtrarPeloLugar(
+    semInativos(
+      await prisma.efetivo.findMany({
+        select: {
+          id: true, postoGrad: true, numeroBarra: true, nome: true,
+          nomeGuerra: true, matricula: true, situacao: true, lotacao: true,
+          jmsDataInicio: true, jmsDataRetorno: true,
+        },
+      }),
+      await idsInativos(),
+    ),
+    lugar,
   );
 
   const equipes = await prisma.equipeFerias.findMany();

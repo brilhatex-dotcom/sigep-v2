@@ -10,6 +10,8 @@ import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
 import { idsInativos, semInativos } from "@/lib/inativos";
 import { COORDS_UNIDADE } from "@/lib/coordsUnidades";
 import MapaEfetivoWrapper from "@/components/MapaEfetivoWrapper";
+import { exigirAdminOuLugar } from "@/lib/guard";
+import { filtrarPeloLugar } from "@/lib/lugarUsuario";
 import type { UnidadeMapa } from "@/components/MapaEfetivo";
 import {
   calcularStatusUnidades,
@@ -26,24 +28,28 @@ function contar(no: NoOrg, lotacoes: (string | null)[], acc: Contagens) {
 }
 
 export default async function OrganogramaPage() {
-  const session = await getServerSession(authOptions);
-  if (!session) redirect("/login");
+  const { session, admin, lugar } = await exigirAdminOuLugar();
+  // Comando de lugar vê só o SEU pedaço do organograma; admin vê o batalhão todo.
+  const raiz = lugar ? lugar.no : ORGANOGRAMA;
 
   const hoje = hojeLocal();
 
   // efetivo com os campos necessarios para a situacao calculada
   // (militares inativos — que saíram da unidade — ficam de fora)
-  const militares = semInativos(
-    await prisma.efetivo.findMany({
-      select: {
-        id: true,
-        lotacao: true,
-        situacao: true,
-        jmsDataInicio: true,
-        jmsDataRetorno: true,
-      },
-    }),
-    await idsInativos(),
+  const militares = filtrarPeloLugar(
+    semInativos(
+      await prisma.efetivo.findMany({
+        select: {
+          id: true,
+          lotacao: true,
+          situacao: true,
+          jmsDataInicio: true,
+          jmsDataRetorno: true,
+        },
+      }),
+      await idsInativos(),
+    ),
+    lugar,
   );
 
   // ferias de hoje
@@ -60,7 +66,7 @@ export default async function OrganogramaPage() {
   // contagem total por no (efetivo lotado, como antes)
   const lotacoes = militares.map((m) => m.lotacao);
   const contagens: Contagens = {};
-  contar(ORGANOGRAMA, lotacoes, contagens);
+  contar(raiz, lotacoes, contagens);
 
   // situacao calculada de cada militar (Pronto / Ferias / JMS / Licença-Prêmio / ...)
   const comSituacao = militares.map((m) => ({
@@ -99,13 +105,13 @@ export default async function OrganogramaPage() {
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-6xl">
-        <h1 className="mb-1 text-2xl font-bold text-white">Organograma — 18º BPM</h1>
+        <h1 className="mb-1 text-2xl font-bold text-white">Organograma — {lugar ? lugar.no.rotulo : "18º BPM"}</h1>
         <p className="mb-5 text-sm text-[#94A3B8]">
-          Estrutura do batalhão (Memorando 116/2022). Clique em uma CIA ou pelotão para ver o efetivo.
+          {lugar ? "Estrutura e efetivo da sua unidade." : "Estrutura do batalhão (Memorando 116/2022). Clique em uma CIA ou pelotão para ver o efetivo."}
         </p>
 
-        {/* ALERTA DE EFETIVO CRITICO */}
-        {criticas.length > 0 && (
+        {/* ALERTA DE EFETIVO CRITICO (só admin — visão do batalhão) */}
+        {admin && criticas.length > 0 && (
           <div className="mb-6 rounded-xl border border-red-500/40 bg-red-950/40 p-4">
             <div className="mb-2 flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-red-400" />
@@ -134,18 +140,20 @@ export default async function OrganogramaPage() {
         )}
 
         <OrganogramaArvore
-          raiz={ORGANOGRAMA}
+          raiz={raiz}
           contagens={contagens}
           minimos={minimos}
           statusPorNo={statusPorNo}
         />
 
-        {/* Mapa das unidades: verde = efetivo OK, vermelho = efetivo baixo */}
-        <div className="mt-8">
-          <h2 className="mb-1 text-xl font-bold text-white">Mapa do efetivo</h2>
-          <p className="mb-3 text-sm text-[#94A3B8]">Cidades das unidades no Maranhão. <span className="text-emerald-400">Verde</span> = efetivo OK; <span className="text-red-400">vermelho</span> = efetivo abaixo do mínimo.</p>
-          <MapaEfetivoWrapper unidades={unidadesMapa} />
-        </div>
+        {/* Mapa das unidades (só admin — visão do batalhão inteiro) */}
+        {admin && (
+          <div className="mt-8">
+            <h2 className="mb-1 text-xl font-bold text-white">Mapa do efetivo</h2>
+            <p className="mb-3 text-sm text-[#94A3B8]">Cidades das unidades no Maranhão. <span className="text-emerald-400">Verde</span> = efetivo OK; <span className="text-red-400">vermelho</span> = efetivo abaixo do mínimo.</p>
+            <MapaEfetivoWrapper unidades={unidadesMapa} />
+          </div>
+        )}
       </div>
     </AppShell>
   );
