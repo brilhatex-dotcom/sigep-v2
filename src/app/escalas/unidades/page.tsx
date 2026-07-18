@@ -28,8 +28,11 @@ export default async function EscalasUnidadesPage() {
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <EscalasNav />
       <div className="mx-auto max-w-5xl text-[#cdd9ea]">
-        <h1 className="mb-1 text-2xl font-bold text-white">Escalas das Unidades</h1>
-        <p className="mb-5 text-sm text-[#94A3B8]">Escala de Rádio Patrulha de cada CIA/DPM/Pelotão. Clique para abrir e gerir a escala da unidade (você é admin — vê todas).</p>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-2xl font-bold text-white">Escalas das Unidades</h1>
+          <Link href="/escalas/encargos" className="rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-3 py-1.5 text-sm font-medium text-[#f3df9d] hover:bg-[#D4AF37]/20">🧑‍✈️ Encargos e Comando</Link>
+        </div>
+        <p className="mb-5 text-sm text-[#94A3B8]">Escala de Rádio Patrulha de cada CIA/DPM/Pelotão. Clique para abrir e gerir a escala da unidade (você é admin — vê todas). Defina quem comanda cada lugar em <b>Encargos e Comando</b>.</p>
 
         <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-[#D4AF37]">Companhias</h2>
         <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

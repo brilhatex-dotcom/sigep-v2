@@ -47,8 +47,17 @@ export async function POST(req: Request) {
     if (encargo && !ENCARGOS.some((e) => e.id === encargo)) return NextResponse.json({ error: "Encargo inválido" }, { status: 400 });
 
     const mapa = await lerEncargos();
-    if (encargo) mapa[efetivoId] = encargo;
-    else delete mapa[efetivoId];
+    if (encargo) {
+      // Encargos de comando têm UM titular só (Cmt do BPM/lugar, Subcmt, Chefe
+      // P/1, sargenteante do lugar): ao atribuir, tira o mesmo de quem tinha.
+      const exclusivo = /^(cmt|subcmt|chefe_p1|sarg_)/.test(encargo);
+      if (exclusivo) {
+        for (const k of Object.keys(mapa)) if (mapa[k] === encargo && k !== efetivoId) delete mapa[k];
+      }
+      mapa[efetivoId] = encargo;
+    } else {
+      delete mapa[efetivoId];
+    }
     await salvarEncargos(mapa);
     return NextResponse.json({ ok: true });
   } catch (err) {
