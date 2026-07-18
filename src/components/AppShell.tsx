@@ -91,8 +91,8 @@ const NAV: Secao[] = [
       { rotulo: "Meu Mapa de Escala", href: "/meu-mapa", Icone: Map, disponivel: true, policialOnly: true },
       { rotulo: "Minhas Férias", href: "/minhas-ferias", Icone: Palmtree, disponivel: true, policialOnly: true },
       { rotulo: "Diárias", Icone: FileText, adminOnly: true },
-      { rotulo: "Escalas de Serviço", href: "/escalas", Icone: ClipboardList, disponivel: true, adminOnly: true, lugarOk: true },
-      { rotulo: "Mapa de Escala", href: "/escalas/mapa", Icone: Map, disponivel: true, adminOnly: true, lugarOk: true },
+      { rotulo: "Escalas de Serviço", href: "/escalas", Icone: ClipboardList, disponivel: true, adminOnly: true },
+      { rotulo: "Mapa de Escala", href: "/escalas/mapa", Icone: Map, disponivel: true, adminOnly: true },
     ],
   },
   {
