@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { chaveEscopada } from "@/lib/escalaEscopo";
 
 export const dynamic = "force-dynamic";
 
@@ -21,11 +22,11 @@ function ehAdmin(perfil?: string | null): boolean {
   return p !== "" && p !== "policial";
 }
 
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
+export async function GET(req: Request) {
+  const ctx = await chaveEscopada(req, CHAVE);
+  if (!ctx) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
   try {
-    const row = await prisma.config.findUnique({ where: { chave: CHAVE } });
+    const row = await prisma.config.findUnique({ where: { chave: ctx.chave } });
     if (!row?.valor) return NextResponse.json({ brasoes: PADRAO });
     const v = JSON.parse(row.valor);
     return NextResponse.json({
@@ -41,9 +42,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
-  if (!ehAdmin((session.user as any).perfil)) return NextResponse.json({ error: "Apenas o P1/admin" }, { status: 403 });
+  const ctx = await chaveEscopada(req, CHAVE);
+  if (!ctx) return NextResponse.json({ error: "Nao autorizado" }, { status: 403 });
   try {
     const b = await req.json();
     const br = b?.brasoes || {};
@@ -53,9 +53,9 @@ export async function POST(req: Request) {
       bpm: String(br.bpm || PADRAO.bpm),
     });
     await prisma.config.upsert({
-      where: { chave: CHAVE },
+      where: { chave: ctx.chave },
       update: { valor },
-      create: { chave: CHAVE, valor, descricao: "Brasoes da Escala Diaria" },
+      create: { chave: ctx.chave, valor, descricao: "Brasoes da Escala Diaria" },
     });
     return NextResponse.json({ ok: true });
   } catch (err) {
