@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { conferirSenha, gerarHash, hashLegado } from "@/lib/senha";
 import { MINUTOS_INATIVIDADE } from "@/lib/sessao";
+import { geoPorIp } from "@/lib/geoip";
 
 // ==========================================================
 //  Hash IDENTICO ao Auth.gs original:
@@ -111,13 +112,14 @@ export const authOptions: NextAuthOptions = {
         const restante = minutosRestantes((usuario as any).bloqueadoAte ?? null);
         if (restante > 0) {
           // bloqueado: registra a tentativa negada e nega sem checar senha
+          const geoIp = await geoPorIp(ip);
           try {
             await prisma.auditoria.create({
               data: {
                 acao: "login_bloqueado",
                 autorLogin: usuario.login,
                 autorNome: usuario.nomeCompleto ?? usuario.login,
-                detalhe: `Tentativa em conta bloqueada (${restante} min restantes) — ${ctx}`,
+                detalhe: `Tentativa em conta bloqueada (${restante} min restantes) — ${ctx}${geoIp ? " — " + geoIp : ""}`,
                 ip,
               } as any,
             });
@@ -138,7 +140,8 @@ export const authOptions: NextAuthOptions = {
           }
           try { await prisma.usuario.update({ where: { id: usuario.id }, data }); } catch {}
 
-          // auditoria da tentativa falha (com IP)
+          // auditoria da tentativa falha (com IP + contexto + geo por IP)
+          const geoIp = await geoPorIp(ip);
           try {
             await prisma.auditoria.create({
               data: {
@@ -147,7 +150,7 @@ export const authOptions: NextAuthOptions = {
                 autorNome: usuario.nomeCompleto ?? usuario.login,
                 detalhe: (data.bloqueadoAte
                   ? `Senha incorreta — conta BLOQUEADA por ${BLOQUEIO_MINUTOS} min`
-                  : `Senha incorreta (tentativa ${tent}/${MAX_TENTATIVAS})`) + ` — ${ctx}`,
+                  : `Senha incorreta (tentativa ${tent}/${MAX_TENTATIVAS})`) + ` — ${ctx}${geoIp ? " — " + geoIp : ""}`,
                 ip,
               } as any,
             });
