@@ -48,11 +48,12 @@ function abrev(p?: string): string {
 }
 
 export default function FolhaUnidadeRp({
-  cad, efetivo, rotuloUnidade, escopo, onFechar,
+  cad, efetivo, rotuloUnidade, cidadeUnidade = "", escopo, onFechar,
 }: {
   cad: Cadastro;
   efetivo: Militar[];
   rotuloUnidade: string;
+  cidadeUnidade?: string;
   escopo: string;
   onFechar: () => void;
 }) {
@@ -99,6 +100,22 @@ export default function FolhaUnidadeRp({
 
   const idDe = useMemo(() => construirIdDe(efetivo), [efetivo]);
   const linha = (ids: string[]) => (ids && ids.length ? ids.map(nomeDe).join(" · ") : "—");
+
+  // Título do cabeçalho com o nome EXPRESSO da cidade. Ex.: "3ª CIA DOM PEDRO -
+  // MA". Quando o rótulo já traz a cidade (ex.: "2º Pel. Governador Archer"),
+  // só acrescenta a UF ("... - MA") em vez de repetir a cidade.
+  const tituloUnidade = useMemo(() => {
+    const semAcento = (s: string) => s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const rot = (rotuloUnidade || "").trim();
+    const cid = (cidadeUnidade || "").trim();
+    if (!cid) return rot.toUpperCase();
+    const uf = (cid.match(/-\s*([A-Za-zÀ-ÿ]{2})\s*$/)?.[1] || "").toUpperCase();
+    const cidSemUf = cid.replace(/\s*-\s*[A-Za-zÀ-ÿ]{2}\s*$/, "").trim();
+    if (cidSemUf && semAcento(rot).includes(semAcento(cidSemUf))) {
+      return (uf ? `${rot} - ${uf}` : rot).toUpperCase();
+    }
+    return `${rot} ${cid}`.toUpperCase();
+  }, [rotuloUnidade, cidadeUnidade]);
 
   // 7 dias da semana (segunda→domingo), cada um com a previsão de RP.
   const domISO = somaDias(segISO, 6);
@@ -251,7 +268,7 @@ export default function FolhaUnidadeRp({
       {msg && <div className="no-print bg-[#0b1626] px-3 pb-2 text-xs text-emerald-300">{msg}</div>}
 
       <div id="folha-print" className="mx-auto my-6 bg-white text-black shadow-2xl print:my-0 print:shadow-none"
-        style={{ width: "210mm", minHeight: "297mm", padding: "14mm 16mm", fontFamily: "Times New Roman, Times, serif", fontSize: "11pt", lineHeight: 1.35, position: "relative" }}>
+        style={{ width: "210mm", minHeight: "297mm", padding: "12mm 16mm", fontFamily: "Times New Roman, Times, serif", fontSize: "11pt", lineHeight: 1.3, position: "relative" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "4mm" }}>
           <img src={brasoes.pmma} alt="" title="Clique para trocar a logo (esquerda)" onClick={() => pickBrasao("pmma")}
             className="brasao-troca" style={{ width: "26mm", height: "22mm", objectFit: "contain", cursor: "pointer" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
@@ -262,7 +279,7 @@ export default function FolhaUnidadeRp({
             <p style={{ margin: 0, fontWeight: "bold" }}>POLÍCIA MILITAR DO MARANHÃO</p>
             <p style={{ margin: 0, fontWeight: "bold" }}>COMANDO DO POLICIAMENTO DE ÁREA I/2</p>
             <p style={{ margin: 0, fontWeight: "bold" }}>18º BATALHÃO DE POLÍCIA MILITAR</p>
-            <p style={{ margin: "1mm 0 0", fontWeight: "bold" }}>{rotuloUnidade.toUpperCase()}</p>
+            <p style={{ margin: "1mm 0 0", fontWeight: "bold" }}>{tituloUnidade}</p>
           </div>
           <img src={brasoes.bpm} alt="" title="Clique para trocar a logo da unidade (direita)" onClick={() => pickBrasao("bpm")}
             className="brasao-troca" style={{ width: "22mm", height: "22mm", objectFit: "contain", cursor: "pointer" }} onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
@@ -271,8 +288,8 @@ export default function FolhaUnidadeRp({
           {salvandoLogo ? "Salvando logo…" : "Dica: clique em qualquer brasão do cabeçalho para enviar a logo da unidade (o tamanho é padronizado automaticamente)."}
         </p>
 
-        <h1 style={{ textAlign: "center", fontSize: "13pt", fontWeight: "bold", margin: "8mm 0 1mm" }}>ESCALA SEMANAL DE SERVIÇO — RÁDIO PATRULHA</h1>
-        <p style={{ textAlign: "center", margin: "0 0 6mm" }}>Semana de {periodoExtenso(segISO, domISO)}</p>
+        <h1 style={{ textAlign: "center", fontSize: "13pt", fontWeight: "bold", margin: "5mm 0 1mm" }}>ESCALA SEMANAL DE SERVIÇO — RÁDIO PATRULHA</h1>
+        <p style={{ textAlign: "center", margin: "0 0 4mm" }}>Semana de {periodoExtenso(segISO, domISO)}</p>
 
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10.5pt" }}>
           <thead>
@@ -297,13 +314,9 @@ export default function FolhaUnidadeRp({
           </tbody>
         </table>
 
-        <p style={{ fontSize: "9pt", fontStyle: "italic", color: "#555", margin: "3mm 0 0" }}>
-          Previsão gerada pelo SIGEP conforme o rodízio da unidade{cad.padraoEscala ? ` (padrão: ${cad.padraoEscala})` : ""}. Confira antes de publicar.
-        </p>
-
         {/* Assinatura única = Cmt local (como o Chefe do P/1 na sede). Imagem
             se enviada; em branco quando for assinar via Gov.br ou ainda não. */}
-        <div style={{ display: "flex", justifyContent: "center", marginTop: "22mm", textAlign: "center" }}>
+        <div style={{ display: "flex", justifyContent: "center", marginTop: "14mm", textAlign: "center" }}>
           <div style={{ width: "90mm" }}>
             <div style={{ height: "16mm", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
               {cmt.assinatura && !cmt.assinarGov

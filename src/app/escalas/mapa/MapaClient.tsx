@@ -1412,6 +1412,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
           cad={cad}
           efetivo={efetivo as any}
           rotuloUnidade={noEscopo?.rotulo || ""}
+          cidadeUnidade={noEscopo?.cidade || ""}
           escopo={escopo}
           onFechar={() => setFolhaAberta(false)}
         />

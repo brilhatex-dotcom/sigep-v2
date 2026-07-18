@@ -26,6 +26,7 @@ import {
   Bell,
   ChevronRight,
   ShieldCheck,
+  ShieldAlert,
   FileText,
   KeyRound,
   BookOpen,
@@ -125,6 +126,7 @@ const NAV: Secao[] = [
     itens: [
       { rotulo: "Governança e LGPD", href: "/governanca", Icone: Shield, disponivel: true, adminOnly: true },
       { rotulo: "Auditoria", href: "/auditoria", Icone: ShieldCheck, disponivel: true, adminOnly: true },
+      { rotulo: "Tentativas de Acesso", href: "/seguranca/tentativas", Icone: ShieldAlert, disponivel: true, adminOnly: true },
     ],
   },
   {
