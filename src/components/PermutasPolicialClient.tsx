@@ -483,8 +483,12 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
                     </button>
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-[#94A3B8]">Justificativa do parecer <span className="text-red-300">(obrigatório)</span></label>
-                    <textarea value={parecer} onChange={(e) => setParecer(e.target.value)} rows={3} placeholder="ex.: Permuta atende às necessidades do serviço."
+                    <label className="mb-1 block text-xs font-medium text-[#94A3B8]">
+                      {parecerFav
+                        ? <>Observação do parecer <span className="text-[#64748b]">(opcional — favorável basta assinar)</span></>
+                        : <>Justificativa do parecer <span className="text-red-300">(obrigatória quando não favorável)</span></>}
+                    </label>
+                    <textarea value={parecer} onChange={(e) => setParecer(e.target.value)} rows={3} placeholder={parecerFav ? "opcional" : "ex.: Não atende à necessidade do serviço no período."}
                       className="w-full resize-none rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
                   </div>
                   <p className="text-xs text-[#94A3B8]">
@@ -499,7 +503,7 @@ export default function PermutasPolicialClient({ isAdmin, temFicha }: { isAdmin:
                   </div>
                   <div className="flex justify-end gap-2 pt-1">
                     <button onClick={() => setAnalisar(null)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-white">Cancelar</button>
-                    <button onClick={() => acao({ acao: "parecer", id: analisar.p.id, parecer, favoravel: parecerFav, senha: senhaAss }, "parecer")} disabled={!senhaAss || !parecer.trim() || ocupado === "parecer"}
+                    <button onClick={() => acao({ acao: "parecer", id: analisar.p.id, parecer, favoravel: parecerFav, senha: senhaAss }, "parecer")} disabled={!senhaAss || (!parecerFav && !parecer.trim()) || ocupado === "parecer"}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] hover:brightness-110 disabled:opacity-60">
                       {ocupado === "parecer" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Enviar parecer
                     </button>

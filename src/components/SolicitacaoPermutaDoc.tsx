@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Printer, ShieldCheck, FileDown, Loader2 } from "lucide-react";
 import QrCode from "@/components/QrCode";
+import { imprimirElemento } from "@/lib/imprimir";
 
 export type PermutaDoc = {
   id: string;
@@ -91,7 +92,7 @@ export default function SolicitacaoPermutaDoc({ doc, onFechar }: { doc: PermutaD
   const conteudo = (
     <div id="permuta-overlay" className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 print:bg-white">
       <div className="sticky top-0 z-10 flex items-center justify-end gap-2 bg-[#0b1626] px-3 py-2 shadow print:hidden">
-        <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
+        <button onClick={() => imprimirElemento(document.getElementById("permuta-print"), { titulo: `Permuta ${doc.protocolo || ""}` })} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
           <Printer className="h-4 w-4" /> Baixar PDF
         </button>
         <button onClick={baixarWord} disabled={baixandoWord} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-800 disabled:opacity-60">

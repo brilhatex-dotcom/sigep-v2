@@ -230,9 +230,11 @@ export async function POST(req: Request) {
       const p = pedidos.find((x) => x.id === id);
       if (!p) return NextResponse.json({ error: "Permuta não encontrada." }, { status: 404 });
       if (p.estado !== "aguardando_p1") return NextResponse.json({ error: "Esta permuta não está aguardando o parecer do P/1." }, { status: 409 });
-      if (!parecer) return NextResponse.json({ error: "Escreva a justificativa do parecer (obrigatório)." }, { status: 400 });
-      if (!(await senhaConfere(session, String(b?.senha || "")))) return NextResponse.json({ error: "Senha incorreta — confirme sua senha para assinar o parecer." }, { status: 401 });
       const favoravel = b?.favoravel !== false; // padrão favorável
+      // Favorável = basta assinar (senha), sem precisar digitar nada. Só o
+      // parecer DESFAVORÁVEL exige a justificativa por escrito.
+      if (!favoravel && !parecer) return NextResponse.json({ error: "Explique por que o parecer é desfavorável (obrigatório)." }, { status: 400 });
+      if (!(await senhaConfere(session, String(b?.senha || "")))) return NextResponse.json({ error: "Senha incorreta — confirme sua senha para assinar o parecer." }, { status: 401 });
       p.parecerP1 = parecer || null;
       p.p1Favoravel = favoravel;
       p.p1Nome = (session.user.name || "").trim() || null;

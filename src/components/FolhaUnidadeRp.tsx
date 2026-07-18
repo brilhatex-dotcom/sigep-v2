@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { X, Printer } from "lucide-react";
 import { type Cadastro, assignDia, construirIdDe, toISO, parseISO } from "@/lib/escalaMotor";
 import { padronizarBrasao } from "@/lib/imagem";
+import { imprimirElemento } from "@/lib/imprimir";
 
 /* Folha SEMANAL de RÁDIO PATRULHA da UNIDADE (interior). A escala dos
    destacamentos sai a semana inteira (segunda a domingo), diferente da sede
@@ -245,7 +246,7 @@ export default function FolhaUnidadeRp({
           className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">
           📢 {publicando ? "Enviando…" : (papel === "sarg" ? "Enviar ao Cmt" : "Publicar semana")}
         </button>
-        <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"><Printer className="h-4 w-4" /> Imprimir / PDF</button>
+        <button onClick={() => imprimirElemento(document.getElementById("folha-print"), { titulo: `Escala ${rotuloUnidade}` })} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"><Printer className="h-4 w-4" /> Imprimir / PDF</button>
         <button onClick={onFechar} className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"><X className="h-4 w-4" /> Fechar</button>
       </div>
       {/* Cmt/admin: semanas enviadas pelo sargenteante aguardando aprovação */}
