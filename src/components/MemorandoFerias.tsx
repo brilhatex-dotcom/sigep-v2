@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Printer, Pencil, Check, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, FileDown, Loader2 } from "lucide-react";
+import CarimboSigep from "@/components/CarimboSigep";
 
 export type DadosMemorando = {
   numero: string;
@@ -175,7 +176,7 @@ function Portal({ montado, children }: { montado: boolean; children: React.React
   return createPortal(children, document.body);
 }
 
-type ChefeP1 = { nome: string; funcao: string; assinatura: string; assinarGov: boolean };
+type ChefeP1 = { nome: string; funcao: string; assinatura: string; assinarGov: boolean; cmtAssinatura: string; cmtModo: "imagem" | "sigep" | "gov"; comandante: string };
 
 // Wrapper: busca o Chefe do P/1 ATUAL (o mesmo campo da Escala de Serviço —
 // config "escala_chefe_p1", aba "Chefe do P1"). Esse campo e a fonte unica de
@@ -198,6 +199,9 @@ export default function MemorandoFerias(props: {
           funcao: String(d?.funcao || ""),
           assinatura: String(d?.assinatura || ""),
           assinarGov: d?.assinarGov === true,
+          cmtAssinatura: String(d?.cmtAssinatura || "/brasoes/assinatura-cmt.png"),
+          cmtModo: (["imagem", "sigep", "gov"].includes(d?.cmtModo) ? d.cmtModo : "imagem"),
+          comandante: String(d?.comandante || ""),
         });
         setCarregado(true);
       })
@@ -398,11 +402,21 @@ function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe }: {
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
             </div>
             <p style={{ fontWeight: "bold", margin: "0 0 1mm 0" }}>VISTO</p>
-            <div style={{ width: "34mm", height: "15mm", marginBottom: "1mm", display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
-              <img src="/assinatura-cmt.png" alt=""
-                style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-            </div>
+            {/* Visto do Cmt conforme o modo salvo na config (imagem / carimbo
+                SIGEP / em branco p/ Gov.br) — mesma fonte da escala. */}
+            {(chefe?.cmtModo || "imagem") === "sigep" ? (
+              <div style={{ marginBottom: "1mm" }}>
+                <CarimboSigep nome={chefe?.comandante || ""} cargo="Cmt. do 18º BPM" largura="36mm" />
+              </div>
+            ) : (chefe?.cmtModo || "imagem") === "gov" ? (
+              <div style={{ width: "34mm", height: "15mm", marginBottom: "1mm" }} />
+            ) : (
+              <div style={{ width: "34mm", height: "15mm", marginBottom: "1mm", display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
+                <img src={chefe?.cmtAssinatura || "/brasoes/assinatura-cmt.png"} alt=""
+                  style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              </div>
+            )}
             <p style={{ margin: 0 }}>Cmt. do 18º BPM</p>
           </div>
 

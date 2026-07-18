@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import CarimboSigep from "@/components/CarimboSigep";
 
 /* =========================================================================
    Escala de Serviço SEMANAL do CPU (paisagem) — no padrão da Escala Diária.
@@ -12,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 type Afastamento = { militar: string; tipo: string; inicio: string; fim: string };
 type Cadastro = { cpu: string[]; afastamentos: Afastamento[]; refCpuISO: string; cpuOverrides?: Record<string, string> };
 type Militar = { id: string; postoGrad: string; numeroBarra: string; nome: string; nomeGuerra: string; telefone?: string; quadro?: string };
-type Chefe = { nome: string; funcao: string; assinatura?: string; assinarGov?: boolean; cmtAssinatura?: string };
+type Chefe = { nome: string; funcao: string; assinatura?: string; assinarGov?: boolean; cmtAssinatura?: string; cmtModo?: "imagem" | "sigep" | "gov"; comandante?: string };
 type Override = { nome?: string; fone?: string; permuta?: string };
 type Brasoes = { pmma: string; ma: string; bpm: string };
 
@@ -152,7 +153,7 @@ export default function CpuSemanalClient() {
     fetch("/api/efetivo").then((r) => r.ok ? r.json() : null).then((d) => {
       const m: Record<string, Militar> = {}; for (const x of (d?.efetivo || [])) m[x.id] = x; setEfMap(m);
     }).catch(() => {});
-    fetch("/api/escala-chefe").then((r) => r.ok ? r.json() : null).then((d) => { if (d) setChefe({ nome: d.nome || "", funcao: d.funcao || "", assinatura: d.assinatura || "", assinarGov: d.assinarGov === true, cmtAssinatura: d.cmtAssinatura || "/brasoes/assinatura-cmt.png" }); }).catch(() => {});
+    fetch("/api/escala-chefe").then((r) => r.ok ? r.json() : null).then((d) => { if (d) setChefe({ nome: d.nome || "", funcao: d.funcao || "", assinatura: d.assinatura || "", assinarGov: d.assinarGov === true, cmtAssinatura: d.cmtAssinatura || "/brasoes/assinatura-cmt.png", cmtModo: (["imagem", "sigep", "gov"].includes(d.cmtModo) ? d.cmtModo : "imagem"), comandante: d.comandante || "" }); }).catch(() => {});
     fetch("/api/cpu-permutas").then((r) => r.ok ? r.json() : null).then((d) => { if (d?.permutas && typeof d.permutas === "object") setOv(d.permutas); }).catch(() => {});
     fetch("/api/cpu-brasoes").then((r) => r.ok ? r.json() : null).then((d) => { if (d?.brasoes) setBrasoes((b) => ({ pmma: d.brasoes.pmma || b.pmma, ma: d.brasoes.ma || b.ma, bpm: d.brasoes.bpm || b.bpm })); }).catch(() => {});
   }, []);
@@ -282,7 +283,11 @@ export default function CpuSemanalClient() {
       <div className="cpuw-titw">
         <div className="cpuw-visto">
           <div className="cpuw-visto-t">VISTO</div>
-          {chefe.cmtAssinatura ? <img src={chefe.cmtAssinatura} alt="" className="cpuw-visto-img" /> : <div className="cpuw-visto-esp" />}
+          {(chefe.cmtModo || "imagem") === "sigep"
+            ? <CarimboSigep nome={chefe.comandante || ""} cargo="Cmt. do 18º BPM" largura="56mm" />
+            : (chefe.cmtModo || "imagem") === "gov"
+            ? <div className="cpuw-visto-esp" />
+            : (chefe.cmtAssinatura ? <img src={chefe.cmtAssinatura} alt="" className="cpuw-visto-img" /> : <div className="cpuw-visto-esp" />)}
           <div className="cpuw-visto-c">Cmt. do 18º BPM</div>
         </div>
         <div className="cpuw-titulo">ESCALA DE SERVIÇO SEMANAL CPU (18º BPM)</div>
