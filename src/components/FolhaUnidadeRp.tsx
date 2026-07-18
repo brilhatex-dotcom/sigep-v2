@@ -20,6 +20,10 @@ function extenso(iso: string): string {
   const dt = new Date(y, m - 1, d);
   return `${DSEM[dt.getDay()]}, ${String(d).padStart(2, "0")} de ${MES[m - 1]} de ${y}`;
 }
+function brData(iso: string): string {
+  const [y, m, d] = (iso || "").split("-");
+  return d ? `${d}/${m}/${y}` : iso;
+}
 function abrev(p?: string): string {
   const map: Record<string, string> = {
     "coronel": "Cel", "tenente-coronel": "Ten Cel", "major": "Maj", "capitão": "Cap", "capitao": "Cap",
@@ -41,10 +45,17 @@ export default function FolhaUnidadeRp({
   const [montado, setMontado] = useState(false);
   const [data, setData] = useState(toISO(new Date()));
   const [brasoes, setBrasoes] = useState<Brasoes>({ pmma: "/brasoes/pmma-190.jpg", ma: "/brasao-estado-ma.png", bpm: "/brasoes/brasao-18bpm.png" });
+  const [publicando, setPublicando] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [publicadas, setPublicadas] = useState<{ id: string; dataEscala: string; publicadoEm: string }[]>([]);
   useEffect(() => { setMontado(true); }, []);
   useEffect(() => {
     fetch(`/api/escala-brasoes?escopo=${encodeURIComponent(escopo)}`).then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.brasoes) setBrasoes(d.brasoes); }).catch(() => {});
   }, [escopo]);
+  const carregarPublicadas = () => {
+    fetch(`/api/publicacoes?escopo=${encodeURIComponent(escopo)}`).then((r) => (r.ok ? r.json() : null)).then((d) => { if (Array.isArray(d?.publicacoes)) setPublicadas(d.publicacoes); }).catch(() => {});
+  };
+  useEffect(() => { carregarPublicadas(); /* eslint-disable-next-line */ }, [escopo]);
 
   const nomeDe = useMemo(() => {
     const idx = new Map<string, Militar>(efetivo.map((m) => [m.id, m]));
@@ -61,6 +72,24 @@ export default function FolhaUnidadeRp({
   const assign = useMemo(() => assignDia(data, cad, {}, construirIdDe(efetivo)), [data, cad, efetivo]);
   const linha = (ids: string[]) => (ids && ids.length ? ids.map(nomeDe).join(" · ") : "—");
 
+  const publicar = async () => {
+    setPublicando(true); setMsg("");
+    try {
+      const escala = {
+        data, tipo: "rp_unidade", rotuloUnidade,
+        rp: { adjunto: linha(assign.rpAdjunto), motorista: linha(assign.rpMotorista), patrulheiro: linha(assign.rpPatrulheiro) },
+      };
+      const r = await fetch(`/api/publicacoes?escopo=${encodeURIComponent(escopo)}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ escala, brasoes }),
+      });
+      if (!r.ok) throw new Error();
+      setMsg("Folha publicada no arquivo da unidade. ✅");
+      carregarPublicadas();
+    } catch { setMsg("Não foi possível publicar."); }
+    finally { setPublicando(false); }
+  };
+
   if (!montado || typeof document === "undefined") return null;
 
   return createPortal((
@@ -71,9 +100,18 @@ export default function FolhaUnidadeRp({
           <input type="date" value={data} onChange={(e) => setData(e.target.value || toISO(new Date()))}
             className="rounded-md border border-white/15 bg-[#0a1626] px-2 py-1 text-sm text-white" />
         </label>
+        {publicadas.length > 0 && (
+          <select value="" onChange={(e) => { if (e.target.value) setData(e.target.value); }}
+            className="rounded-md border border-white/15 bg-[#0a1626] px-2 py-1 text-sm text-white" title="Folhas publicadas da unidade">
+            <option value="">Publicadas ({publicadas.length})…</option>
+            {publicadas.map((p) => <option key={p.id} value={p.dataEscala}>{brData(p.dataEscala)}</option>)}
+          </select>
+        )}
+        <button onClick={publicar} disabled={publicando} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60">📢 {publicando ? "Publicando…" : "Publicar"}</button>
         <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"><Printer className="h-4 w-4" /> Imprimir / PDF</button>
         <button onClick={onFechar} className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"><X className="h-4 w-4" /> Fechar</button>
       </div>
+      {msg && <div className="no-print bg-[#0b1626] px-3 pb-2 text-xs text-emerald-300">{msg}</div>}
 
       <div id="folha-print" className="mx-auto my-6 bg-white text-black shadow-2xl print:my-0 print:shadow-none"
         style={{ width: "210mm", minHeight: "297mm", padding: "14mm 18mm", fontFamily: "Times New Roman, Times, serif", fontSize: "12pt", lineHeight: 1.4, position: "relative" }}>

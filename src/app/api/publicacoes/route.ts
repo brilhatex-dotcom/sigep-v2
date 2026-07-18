@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { chaveEscopada } from "@/lib/escalaEscopo";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -33,21 +34,21 @@ function ehAdmin(perfil?: string | null): boolean {
 function ler(valor?: string | null): Registro[] {
   try { const a = valor ? JSON.parse(valor) : []; return Array.isArray(a) ? a : []; } catch { return []; }
 }
-async function salvar(lista: Registro[]) {
+async function salvar(lista: Registro[], chave: string) {
   const valor = JSON.stringify(lista.slice(0, LIMITE));
   await prisma.config.upsert({
-    where: { chave: CHAVE },
+    where: { chave },
     update: { valor },
-    create: { chave: CHAVE, valor, descricao: "Escalas publicadas (arquivo)" },
+    create: { chave, valor, descricao: "Escalas publicadas (arquivo)" },
   });
 }
 
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
+  const ctx = await chaveEscopada(req, CHAVE);
+  if (!ctx) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
 
   const id = new URL(req.url).searchParams.get("id");
-  const row = await prisma.config.findUnique({ where: { chave: CHAVE } });
+  const row = await prisma.config.findUnique({ where: { chave: ctx.chave } });
   const lista = ler(row?.valor);
 
   if (id) {
@@ -62,28 +63,26 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const ctx = await chaveEscopada(req, CHAVE);
+  if (!ctx) return NextResponse.json({ error: "Nao autorizado" }, { status: 403 });
   const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
-  if (!ehAdmin((session.user as any).perfil)) {
-    return NextResponse.json({ error: "Apenas o P1/admin pode publicar" }, { status: 403 });
-  }
   try {
     const b = await req.json();
     if (!b?.escala || !b.escala.data) {
       return NextResponse.json({ error: "Escala invalida" }, { status: 400 });
     }
-    const row = await prisma.config.findUnique({ where: { chave: CHAVE } });
+    const row = await prisma.config.findUnique({ where: { chave: ctx.chave } });
     const lista = ler(row?.valor);
     const registro: Registro = {
       id: crypto.randomUUID(),
       dataEscala: String(b.escala.data),
       tipo: String(b.escala.tipo || "normal"),
       publicadoEm: new Date().toISOString(),
-      publicadoPor: String((session.user as any).name || (session.user as any).login || "—"),
+      publicadoPor: String((session?.user as any)?.name || (session?.user as any)?.login || "—"),
       escala: b.escala, brasoes: b.brasoes || null, chefe: b.chefe || null,
     };
     lista.unshift(registro);
-    await salvar(lista);
+    await salvar(lista, ctx.chave);
     return NextResponse.json({ ok: true, id: registro.id });
   } catch (err) {
     console.error("[POST /api/publicacoes]", err);
@@ -92,15 +91,12 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
-  if (!ehAdmin((session.user as any).perfil)) {
-    return NextResponse.json({ error: "Apenas o P1/admin" }, { status: 403 });
-  }
+  const ctx = await chaveEscopada(req, CHAVE);
+  if (!ctx) return NextResponse.json({ error: "Nao autorizado" }, { status: 403 });
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id obrigatorio" }, { status: 400 });
-  const row = await prisma.config.findUnique({ where: { chave: CHAVE } });
+  const row = await prisma.config.findUnique({ where: { chave: ctx.chave } });
   const lista = ler(row?.valor).filter((r) => r.id !== id);
-  await salvar(lista);
+  await salvar(lista, ctx.chave);
   return NextResponse.json({ ok: true });
 }
