@@ -3,6 +3,7 @@ import { exigirAdmin } from "@/lib/guard";
 import AppShell from "@/components/AppShell";
 import BackupBotao from "@/components/BackupBotao";
 import AvisoPrivacidadeDoc from "@/components/AvisoPrivacidadeDoc";
+import DocumentosLgpd from "@/components/DocumentosLgpd";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +49,7 @@ const ITENS: Item[] = [
   {
     titulo: "Proteção de dados pessoais (LGPD)",
     status: "ok",
-    texto: "Cada policial só vê os próprios dados; senhas em bcrypt; sessão expira por inatividade (30 min); cabeçalhos de segurança; CPF e dados bancários criptografados em repouso; e Aviso de Privacidade documental (finalidade, base legal, retenção/descarte, direitos do titular e encarregado/DPO).",
+    texto: "Cada policial só vê os próprios dados; senhas em bcrypt; sessão expira por inatividade (15 min) com relógio visível; cabeçalhos de segurança; CPF e dados bancários criptografados em repouso; e Aviso de Privacidade documental (finalidade, base legal, retenção/descarte, direitos do titular e encarregado/DPO).",
   },
 ];
 
@@ -94,6 +95,12 @@ export default async function GovernancaPage() {
           <Link href="/auditoria" className="rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] hover:brightness-110">Abrir a Auditoria (log + lacre)</Link>
           <Link href="/admin/gerar-logins" className="rounded-lg border border-white/15 px-4 py-2 text-sm text-white hover:bg-white/5">Encargos / Funções</Link>
           <AvisoPrivacidadeDoc />
+        </div>
+
+        <div className="mt-4 rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-4">
+          <h2 className="mb-1 text-sm font-bold text-white">📄 Documentos LGPD</h2>
+          <p className="mb-3 text-xs text-[#94A3B8]">Além do Aviso de Privacidade: política de retenção/descarte, designação do Encarregado (DPO) e o registro das operações de tratamento (ROPA). Editáveis e imprimíveis — completam a parte documental exigida pela LGPD.</p>
+          <DocumentosLgpd />
         </div>
 
         <div className="mt-4 rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-4">

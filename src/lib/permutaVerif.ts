@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import type { Permuta } from "@/lib/permutaPedidos";
+import { segredoApp } from "@/lib/segredo";
 
 /* =========================================================================
    Verificação pública da permuta (QR Code + página /verificar).
@@ -11,7 +12,7 @@ import type { Permuta } from "@/lib/permutaPedidos";
    ========================================================================= */
 
 function segredo(): string {
-  return process.env.NEXTAUTH_SECRET || process.env.DADOS_SENSIVEIS_KEY || "sigep-18bpm-chave-local";
+  return segredoApp();
 }
 
 // Campos DECISIVOS do documento: qualquer alteração muda o token.

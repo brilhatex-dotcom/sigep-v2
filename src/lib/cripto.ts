@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { segredoApp } from "@/lib/segredo";
 
 /* =========================================================================
    Criptografia de dados sensíveis em repouso (CPF, dados bancários).
@@ -12,7 +13,7 @@ import crypto from "crypto";
 const PREFIXO = "enc:1:";
 
 function chave(): Buffer {
-  const base = process.env.NEXTAUTH_SECRET || process.env.DADOS_SENSIVEIS_KEY || "sigep-18bpm-chave-local";
+  const base = segredoApp();
   return crypto.createHash("sha256").update(base, "utf8").digest(); // 32 bytes
 }
 
