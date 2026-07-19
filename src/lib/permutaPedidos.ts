@@ -120,24 +120,75 @@ export async function fichaDe(efetivoId: string): Promise<FichaMin | null> {
   });
 }
 
+/* TABELA PRÓPRIA (uma linha por permuta), no lugar do array JSON num único
+   Config. Motivo: cada permuta é gravada isoladamente (upsertPermuta), então
+   dois admins agindo em permutas diferentes não se sobrescrevem. Criada em
+   runtime (o deploy não roda db push) e o Config antigo é migrado 1x. O objeto
+   completo fica na coluna `dados` (nenhum campo se perde); as colunas soltas são
+   só para índice/consulta. */
+const FLAG_MIGRADO_PERM = "permuta_pedidos_migrado_tabela";
+let prontoPerm: Promise<void> | null = null;
+function garantirPerm(): Promise<void> {
+  if (!prontoPerm) prontoPerm = (async () => {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS permuta (
+        id text PRIMARY KEY,
+        estado text NOT NULL DEFAULT '',
+        solicitante_id text NOT NULL DEFAULT '',
+        solicitado_id text NOT NULL DEFAULT '',
+        criado_em text NOT NULL DEFAULT '',
+        dados text NOT NULL DEFAULT '{}'
+      )`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_permuta_estado ON permuta (estado)`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_permuta_solicitante ON permuta (solicitante_id)`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_permuta_solicitado ON permuta (solicitado_id)`);
+    // Migração única do Config antigo (idempotente: ON CONFLICT DO NOTHING).
+    try {
+      const flag = await prisma.config.findUnique({ where: { chave: FLAG_MIGRADO_PERM } });
+      if (!flag) {
+        const row = await prisma.config.findUnique({ where: { chave: CHAVE_PEDIDOS } });
+        const antigas: Permuta[] = row?.valor ? (JSON.parse(row.valor) || []) : [];
+        for (const p of antigas) {
+          if (!p?.id) continue;
+          await prisma.$executeRawUnsafe(
+            `INSERT INTO permuta (id, estado, solicitante_id, solicitado_id, criado_em, dados)
+             VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING`,
+            p.id, p.estado || "", p.solicitanteId || "", p.solicitadoId || "", p.criadoEm || "", JSON.stringify(p));
+        }
+        await prisma.config.upsert({ where: { chave: FLAG_MIGRADO_PERM }, update: { valor: "1" }, create: { chave: FLAG_MIGRADO_PERM, valor: "1", descricao: "Permutas migradas para tabela" } });
+      }
+    } catch (e) { console.error("[permutaPedidos] migracao", e); }
+  })();
+  return prontoPerm;
+}
+
 export async function lerPermutas(): Promise<Permuta[]> {
   try {
-    const row = await prisma.config.findUnique({ where: { chave: CHAVE_PEDIDOS } });
-    if (!row?.valor) return [];
-    const v = JSON.parse(row.valor);
-    return Array.isArray(v) ? (v as Permuta[]) : [];
+    await garantirPerm();
+    const rows: any[] = await prisma.$queryRawUnsafe(`SELECT dados FROM permuta ORDER BY criado_em ASC`);
+    const out: Permuta[] = [];
+    for (const r of rows) { try { out.push(JSON.parse(r.dados) as Permuta); } catch { /* ignora linha corrompida */ } }
+    return out;
   } catch {
     return [];
   }
 }
 
+// Grava UMA permuta (add ou atualização). É o caminho normal de escrita.
+export async function upsertPermuta(p: Permuta): Promise<void> {
+  await garantirPerm();
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO permuta (id, estado, solicitante_id, solicitado_id, criado_em, dados)
+     VALUES ($1,$2,$3,$4,$5,$6)
+     ON CONFLICT (id) DO UPDATE SET estado=$2, solicitante_id=$3, solicitado_id=$4, criado_em=$5, dados=$6`,
+    p.id, p.estado || "", p.solicitanteId || "", p.solicitadoId || "", p.criadoEm || "", JSON.stringify(p));
+}
+
+/* Compat: grava uma lista (upsert de cada item). Não apaga nenhuma permuta —
+   no fluxo elas nunca são removidas (cancelar só muda o estado). */
 export async function salvarPermutas(pedidos: Permuta[]): Promise<void> {
-  const valor = JSON.stringify(pedidos);
-  await prisma.config.upsert({
-    where: { chave: CHAVE_PEDIDOS },
-    update: { valor },
-    create: { chave: CHAVE_PEDIDOS, valor, descricao: "Solicitações de permuta (documento)" },
-  });
+  await garantirPerm();
+  for (const p of pedidos) { if (p?.id) await upsertPermuta(p); }
 }
 
 /* -------------------------------------------------------------------------
@@ -220,23 +271,26 @@ export async function aplicarPermutasNaEscala(): Promise<void> {
   if (pend.length === 0) return;
 
   const escalas = await lerEscalaDias();
-  let mudouEscala = false, mudouPed = false;
+  let mudouEscala = false;
+  const mudadas: Permuta[] = [];
 
   for (const p of pend) {
+    let mudou = false;
     // dia da permuta: o SOLICITADO cobre o SOLICITANTE
     if (!p.aplicadaPermuta && escalas[p.dataPermuta]) {
       const f = await fichaDe(p.solicitanteId);
       if (f && lancarNoDia(escalas[p.dataPermuta], f, p.solicitado?.linha || p.solicitadoNome)) {
-        p.aplicadaPermuta = true; mudouEscala = true; mudouPed = true;
+        p.aplicadaPermuta = true; mudouEscala = true; mudou = true;
       }
     }
     // dia do retorno: o SOLICITANTE cobre o SOLICITADO
     if (!p.aplicadaRetorno && escalas[p.dataRetorno]) {
       const f = await fichaDe(p.solicitadoId);
       if (f && lancarNoDia(escalas[p.dataRetorno], f, p.solicitante.linha)) {
-        p.aplicadaRetorno = true; mudouEscala = true; mudouPed = true;
+        p.aplicadaRetorno = true; mudouEscala = true; mudou = true;
       }
     }
+    if (mudou) mudadas.push(p);
   }
 
   if (mudouEscala) {
@@ -246,7 +300,8 @@ export async function aplicarPermutasNaEscala(): Promise<void> {
       create: { chave: CHAVE_ESCALA, valor: JSON.stringify(escalas), descricao: "Dias gerados/editados da Escala de Servico" },
     });
   }
-  if (mudouPed) await salvarPermutas(pedidos);
+  // grava só as permutas que mudaram (uma a uma)
+  for (const p of mudadas) await upsertPermuta(p);
 }
 
 // Quantos itens exigem AÇÃO deste usuário (para o sininho).

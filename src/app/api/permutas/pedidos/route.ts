@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import {
-  lerPermutas, salvarPermutas, fichaDe, linhaMilitar, aplicarPermutasNaEscala, cargoP1,
+  lerPermutas, upsertPermuta, fichaDe, linhaMilitar, aplicarPermutasNaEscala, cargoP1,
   type Permuta, type Assinatura,
 } from "@/lib/permutaPedidos";
 import { podeComoEncargo, podeVerP1, encargoDe, cargoDocDe, lerEncargos } from "@/lib/encargos";
@@ -186,8 +186,7 @@ export async function POST(req: Request) {
         subcmtNome: null, subcmtEm: null,
         criadoEm: new Date().toISOString(),
       };
-      pedidos.push(pedido);
-      await salvarPermutas(pedidos);
+      await upsertPermuta(pedido);
       await registrar({ acao: "permuta_criar", alvo: pedido.id, alvoNome: alvoPermuta(pedido), detalhe: `Solicitou e assinou a permuta para ${dataPermuta}${dataRetorno ? ` (retorno ${dataRetorno})` : ""}.` });
       // avisa o colega (push) para assinar o "concordo"
       const loginColega = await loginDeEfetivo(solicitadoId);
@@ -221,7 +220,7 @@ export async function POST(req: Request) {
       } else {
         return NextResponse.json({ error: "Resposta inválida." }, { status: 400 });
       }
-      await salvarPermutas(pedidos);
+      await upsertPermuta(p);
       await registrar({
         acao: resposta === "aceitar" ? "permuta_assinar" : "permuta_recusar",
         alvo: p.id, alvoNome: alvoPermuta(p),
@@ -268,13 +267,13 @@ export async function POST(req: Request) {
         // escala mesmo sem o visto do Subcmt (a caixinha dele fica em branco; ele
         // pode assinar depois, mas não é impeditivo).
         p.estado = "autorizada";
-        await salvarPermutas(pedidos);
+        await upsertPermuta(p);
         try { await aplicarPermutasNaEscala(); } catch {}
         await pushDecisao(p); // avisa os dois policiais (push)
       } else {
         // Parecer não favorável: sobe para o Subcmt decidir.
         p.estado = "aguardando_subcmt";
-        await salvarPermutas(pedidos);
+        await upsertPermuta(p);
         const logsSub = await loginsPorEncargo("subcmt");
         if (logsSub.length) void enviarParaVarios(logsSub, { title: "Permuta para visto do Subcmt", body: `${p.solicitante.linha} ⇄ ${p.solicitado?.linha || p.solicitadoNome} aguardando seu visto.`, url: "/permutas", tag: "permuta-" + p.id }).catch(() => {});
       }
@@ -306,7 +305,7 @@ export async function POST(req: Request) {
       p.subcmtNome = (session.user.name || "").trim() || null;
       p.subcmtEm = new Date().toISOString();
       p.estado = visto === "autorizado" ? "autorizada" : "nao_autorizada";
-      await salvarPermutas(pedidos);
+      await upsertPermuta(p);
       await registrar({
         acao: "permuta_visto", alvo: p.id, alvoNome: alvoPermuta(p),
         detalhe: `Visto do Subcomandante: ${visto === "autorizado" ? "FAVORÁVEL (autorizado)" : "NÃO AUTORIZADO"}.`,
@@ -330,7 +329,7 @@ export async function POST(req: Request) {
       const ciencia = { em: new Date().toISOString(), ip: ipReq() };
       if (meuId === p.solicitanteId) p.cienciaSolicitante = ciencia;
       if (meuId === p.solicitadoId) p.cienciaSolicitado = ciencia;
-      await salvarPermutas(pedidos);
+      await upsertPermuta(p);
       await registrar({ acao: "permuta_ciencia", alvo: p.id, alvoNome: alvoPermuta(p), detalhe: `Declarou ciência da decisão da Seção P/1 (${p.protocolo || p.id}).` });
       return NextResponse.json({ ok: true, pedido: p });
     }
@@ -343,7 +342,7 @@ export async function POST(req: Request) {
       if (p.solicitanteId !== meuId) return NextResponse.json({ error: "Você só pode cancelar as suas permutas." }, { status: 403 });
       if (p.estado !== "aguardando_solicitado") return NextResponse.json({ error: "Só dá para cancelar enquanto o colega não assinou." }, { status: 409 });
       p.estado = "cancelada";
-      await salvarPermutas(pedidos);
+      await upsertPermuta(p);
       await registrar({ acao: "permuta_cancelar", alvo: p.id, alvoNome: alvoPermuta(p), detalhe: "Cancelou a solicitação de permuta." });
       return NextResponse.json({ ok: true, pedido: p });
     }
