@@ -1976,7 +1976,14 @@ export default function EscalaClient() {
   };
 
   const publicar = async () => {
-    if (!confirm(`Publicar a escala de ${brCurto(data)} no arquivo de Publicações?`)) return;
+    // Se houver conflito (alguém escalado enquanto afastado), avisa e pergunta
+    // se publica mesmo assim.
+    if (conflitosDoDia.length) {
+      const quem = conflitosDoDia.join(", ");
+      if (!confirm(`⚠️ ATENÇÃO — CONFLITO nesta escala de ${brCurto(data)}:\n\n${quem} está${conflitosDoDia.length > 1 ? "ão" : ""} escalado${conflitosDoDia.length > 1 ? "s" : ""} enquanto afastado${conflitosDoDia.length > 1 ? "s" : ""} (férias/curso/missão/licença).\n\nDeseja PUBLICAR mesmo assim?`)) return;
+    } else {
+      if (!confirm(`Publicar a escala de ${brCurto(data)} no arquivo de Publicações?`)) return;
+    }
     try {
       const r = await fetch("/api/publicacoes", {
         method: "POST",
