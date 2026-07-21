@@ -245,6 +245,11 @@ const ABBR_AF: Record<TipoAfastamento, string> = {
   ferias: "FÉR", missao: "MIS", curso: "CUR", licenca_premio: "LP",
   licenca_paternidade: "LPT", jms: "JMS", rotam: "RTM", outro: "AF",
 };
+// Nome COMPLETO do afastamento — usado na marca visual da vaga no mapa.
+const AF_LABEL: Record<TipoAfastamento, string> = {
+  ferias: "Férias", missao: "Missão", curso: "Curso", licenca_premio: "Licença-Prêmio",
+  licenca_paternidade: "Lic. Paternidade", jms: "JMS", rotam: "ROTAM", outro: "Afastado",
+};
 const TIPOS_AF: { v: TipoAfastamento; t: string }[] = [
   { v: "missao", t: "Missão" },
   { v: "rotam", t: "ROTAM" },
@@ -920,6 +925,29 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     [cad, planoAfast]
   );
 
+  // Quando uma vaga do QUADRO fica vazia porque o militar do dia está afastado,
+  // devolve o tipo (Férias/Missão/…) e o nome — para a marca visual no mapa.
+  const vagaAfast = (iso: string, funcaoKey: string): { tipo: string; nome: string } | null => {
+    if (funcaoKey === "cpu" || funcaoKey === "rotem") return null; // pool: o rodízio já cobre
+    const times = equipesDoPadrao(cadEff.padraoEscala);
+    if (!times.length) return null;
+    const padrao = parsePadrao(cadEff.padraoEscala);
+    const idx = ((timeDoDia(diasEntre(cadEff.refRodizioISO, iso), padrao) % times.length) + times.length) % times.length;
+    const team = times[idx];
+    const q = cadEff.quadroEquipes || {};
+    const cands: string[] = [];
+    const b = q[team]?.[funcaoKey] || ""; if (b) cands.push(b);
+    const nExtra = cadEff.linhasExtras?.[funcaoKey] || 0;
+    for (let k = 2; k <= nExtra + 1; k++) { const id = q[team]?.[`${funcaoKey}#${k}`] || ""; if (id) cands.push(id); }
+    for (const id of cands) {
+      if (afastado(id, iso, cadEff.afastamentos)) {
+        const tp = afastamentoDe(id, iso, cadEff.afastamentos);
+        return { tipo: AF_LABEL[(tp || "outro") as TipoAfastamento] || "Afastado", nome: nomeDe(id) };
+      }
+    }
+    return null;
+  };
+
   const assign = useMemo(() => {
     const out: Record<string, Assign> = {};
     for (const iso of dias) {
@@ -1262,6 +1290,10 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                         title={ehCpu ? "Clique para editar o CPU deste dia" : undefined}
                       >
                         {nomes.length === 0 && ehCpu && <div className="mp-cel-vazio no-print">+</div>}
+                        {nomes.length === 0 && !ehCpu && (() => {
+                          const v = vagaAfast(iso, srv.key);
+                          return v ? <div className="mp-vaga-af" title={`${sobrenome(v.nome)} de ${v.tipo} — vaga a cobrir`}>{v.tipo}</div> : null;
+                        })()}
                         {nomes.map((n, i) => {
                           const conf = afastado(n, iso, cad.afastamentos);
                           let cls = "mp-nome";
@@ -1569,6 +1601,7 @@ const CSS = `
 .mp-cel.editavel:hover{ box-shadow:inset 0 0 0 1px #D4AF37; }
 .mp-cel.ovr{ box-shadow:inset 0 0 0 1px #6b5320; }
 .mp-cel-vazio{ color:#4a5a72; font-weight:700; }
+.mp-vaga-af{ display:inline-block; white-space:nowrap; font-size:10px; font-style:italic; font-weight:700; color:#f0b24b; background:#3a2f12; border:1px dashed #6b5320; border-radius:4px; padding:1px 5px; }
 .mp-nome{ white-space:nowrap; cursor:pointer; border-radius:4px; padding:1px 5px; font-weight:600; }
 .mp-nome:hover{ background:#1a2a45; }
 .mp-leg-tit{ color:#D4AF37; }
@@ -1722,6 +1755,7 @@ const CSS = `
   .mp-dnum, .mp-dia.hoje .mp-dnum{ color:#000 !important; }
   .mp-cel, .mp-cel.mil{ background:#fff !important; color:#000 !important; box-shadow:none !important; }
   .mp-nome{ background:transparent !important; color:#000 !important; }
+  .mp-vaga-af{ background:#f6eecb !important; color:#000 !important; border:1px dashed #999 !important; }
   .mp-cel.fds, .mp-dia.fds{ background:#f2f2f2 !important; }
   .mp-cel.mil.afast{ background:#ececec !important; color:#000 !important; }
   .mp-cel.mil.conf, .mp-nome.conf{ background:#f4c6c6 !important; color:#000 !important; }
