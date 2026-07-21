@@ -68,6 +68,18 @@ export async function GET(req: Request) {
       if (p) afast.push({ militar: m.idPmma, tipo: "licenca_premio", inicio: p.inicio, fim: p.fim });
     }
 
+    // Férias AVULSAS (datas soltas, Config "ferias_avulsas") — também removem.
+    try {
+      const row = await prisma.config.findUnique({ where: { chave: "ferias_avulsas" } });
+      const lista = row?.valor ? JSON.parse(row.valor) : [];
+      if (Array.isArray(lista)) {
+        for (const a of lista) {
+          const i = toISO(a?.inicio || null), f = toISO(a?.fim || null);
+          if (a?.idPmma && i && f) afast.push({ militar: String(a.idPmma), tipo: "ferias", inicio: i, fim: f });
+        }
+      }
+    } catch {}
+
     return NextResponse.json({ afastamentos: afast });
   } catch (err) {
     console.error("[GET afastamentos-plano]", err);
