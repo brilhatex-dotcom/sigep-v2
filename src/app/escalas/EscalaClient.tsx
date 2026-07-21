@@ -466,13 +466,15 @@ function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
   // O quadro A/B/C/D e a FONTE: a equipe do dia (ciclo 24/72) cobre cada funcao.
   const team = ["A", "B", "C", "D"][(((diasEntre(r, iso) % 4) + 4) % 4)];
   const q = cad.quadroEquipes || {};
-  const dqNome = (fk: string) => { const id = q[team]?.[fk] || ""; return id ? nm(id) : ""; };
+  // Pula quem está AFASTADO (férias/LP/etc.) no dia — o ausente sai da escala a
+  // partir da data, deixando a vaga em branco para o escalante cobrir.
+  const dqNome = (fk: string) => { const id = q[team]?.[fk] || ""; return id && !afastado(id, iso, cad.afastamentos) ? nm(id) : ""; };
   // Titular + linhas extras (ex.: 2o patrulheiro) definidas no Mapa.
   const dqNomes = (fk: string) => {
     const out: string[] = [];
     const b = dqNome(fk); if (b) out.push(b);
     const n = cad.linhasExtras?.[fk] || 0;
-    for (let k = 2; k <= n + 1; k++) { const id = q[team]?.[`${fk}#${k}`] || ""; if (id) out.push(nm(id)); }
+    for (let k = 2; k <= n + 1; k++) { const id = q[team]?.[`${fk}#${k}`] || ""; if (id && !afastado(id, iso, cad.afastamentos)) out.push(nm(id)); }
     return out;
   };
 
@@ -1467,6 +1469,8 @@ function BarraFormatacao() {
 export default function EscalaClient() {
   const [cad, setCad] = useState<Cadastro>(SEED_CADASTRO);
   const [escalas, setEscalas] = useState<Record<string, Escala>>({});
+  // Afastamentos do PLANO (férias/LP das equipes) — o motor remove o ausente.
+  const [planoAfast, setPlanoAfast] = useState<Afastamento[]>([]);
   const [data, setData] = useState<string>(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -1523,6 +1527,11 @@ export default function EscalaClient() {
         if (ld && /^\d{4}-\d{2}-\d{2}$/.test(ld)) setData(ld);
       }
     } catch {}
+    // Afastamentos do plano (férias/LP) para o motor pular o ausente.
+    fetch("/api/escala/afastamentos-plano")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (Array.isArray(d?.afastamentos)) setPlanoAfast(d.afastamentos as Afastamento[]); })
+      .catch(() => {});
     // Dias salvos vem do servidor (migra o localStorage antigo se preciso).
     (async () => {
       try {
@@ -1824,9 +1833,10 @@ export default function EscalaClient() {
     const extra: Afastamento[] = feriasAvulsas
       .filter((a) => a.idPmma && a.inicio && a.fim)
       .map((a) => ({ militar: a.idPmma, tipo: "ferias", inicio: a.inicio, fim: a.fim }));
-    if (extra.length === 0) return cad;
-    return { ...cad, afastamentos: [...(cad.afastamentos || []), ...extra] };
-  }, [cad, feriasAvulsas]);
+    const todos = [...extra, ...planoAfast];
+    if (todos.length === 0) return cad;
+    return { ...cad, afastamentos: [...(cad.afastamentos || []), ...todos] };
+  }, [cad, feriasAvulsas, planoAfast]);
 
   // Auto-preenche na FOLHA os campos vindos do QUADRO (FT, RP, Guarda,
   // Inteligência) que estão VAZIOS, para os dias de HOJE em diante já salvos.
@@ -1915,7 +1925,7 @@ export default function EscalaClient() {
     });
   };
 
-  const gerarAutomatica = () => setEscalas((prev) => ({ ...prev, [data]: novaEscala(data, cad, nomeDe) }));
+  const gerarAutomatica = () => setEscalas((prev) => ({ ...prev, [data]: novaEscala(data, cadEff, nomeDe) }));
 
   // Monta a escala da JOE (print 4) a partir dos aprovados do JOE selecionado.
   const montarDaJoe = (joeId: string) => {
@@ -2278,7 +2288,7 @@ export default function EscalaClient() {
 
       {aba === "dia" && (
         <>
-          <PreviaRodizio cad={cad} data={data} nomeDe={nomeDe} />
+          <PreviaRodizio cad={cadEff} data={data} nomeDe={nomeDe} />
 
           <div className="paper-wrap">
             {ehJoe && <style dangerouslySetInnerHTML={{ __html: "@media print{@page{size:A4 landscape;margin:6mm}}" }} />}

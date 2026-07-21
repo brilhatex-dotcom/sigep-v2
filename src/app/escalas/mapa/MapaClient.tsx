@@ -200,10 +200,12 @@ function assignDia(iso: string, cad: Cadastro, escalas: Record<string, any>, idD
   const q = cad.quadroEquipes || {};
   // Coleta o titular da funcao + eventuais linhas extras (ex.: 2o patrulheiro).
   const nExtra = (fk: string) => cad.linhasExtras?.[fk] || 0;
+  // Pula quem está AFASTADO (férias/LP/etc.) no dia — o militar ausente sai da
+  // escala a partir da data, deixando a vaga para o escalante cobrir.
   const dq = (fk: string) => {
     const ids: string[] = [];
-    const b = q[team]?.[fk] || ""; if (b) ids.push(b);
-    for (let k = 2; k <= nExtra(fk) + 1; k++) { const id = q[team]?.[`${fk}#${k}`] || ""; if (id) ids.push(id); }
+    const b = q[team]?.[fk] || ""; if (b && !afastado(b, iso, a)) ids.push(b);
+    for (let k = 2; k <= nExtra(fk) + 1; k++) { const id = q[team]?.[`${fk}#${k}`] || ""; if (id && !afastado(id, iso, a)) ids.push(id); }
     return ids;
   };
   return {
@@ -773,6 +775,9 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
   // Aviso pro escalante: quem da SEDE entra de ferias/LP faltando ate 5 dias.
   const [proxAusencias, setProxAusencias] = useState<{ nome: string; lotacao: string; tipo: string; inicio: string; dias: number }[]>([]);
   const [avisoDispensado, setAvisoDispensado] = useState(false);
+  // Afastamentos vindos do PLANO (férias/LP das equipes) — o motor usa junto com
+  // os afastamentos avulsos para REMOVER o militar ausente da escala.
+  const [planoAfast, setPlanoAfast] = useState<Afastamento[]>([]);
   // Edicao do CPU direto na linha (excecao por dia).
   const [editCpu, setEditCpu] = useState<string | null>(null);
   const [buscaCpu, setBuscaCpu] = useState("");
@@ -785,6 +790,10 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     fetch("/api/escala/proximas-ausencias?dias=5")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (Array.isArray(d?.ausencias)) setProxAusencias(d.ausencias); })
+      .catch(() => {});
+    fetch("/api/escala/afastamentos-plano")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (Array.isArray(d?.afastamentos)) setPlanoAfast(d.afastamentos as Afastamento[]); })
       .catch(() => {});
     // "nao lembrar ate a proxima equipe": dispensa vale so para o dia de hoje
     // (amanha e outra equipe no ciclo 24/72, entao o aviso volta).
@@ -904,16 +913,23 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     [mes, nDias]
   );
 
+  // cad + afastamentos do PLANO (férias/LP) — é o que o MOTOR usa, para remover
+  // o militar ausente da escala em todas as funções/abas.
+  const cadEff = useMemo<Cadastro>(
+    () => (planoAfast.length ? { ...cad, afastamentos: [...(cad.afastamentos || []), ...planoAfast] } : cad),
+    [cad, planoAfast]
+  );
+
   const assign = useMemo(() => {
     const out: Record<string, Assign> = {};
     for (const iso of dias) {
-      out[iso] = assignDia(iso, cad, escalas, idDe);
+      out[iso] = assignDia(iso, cadEff, escalas, idDe);
       // Excecao do CPU editada direto na linha tem prioridade sobre o rodizio.
-      const ovr = cad.cpuOverrides?.[iso];
+      const ovr = cadEff.cpuOverrides?.[iso];
       if (ovr !== undefined) out[iso] = { ...out[iso], cpu: ovr ? [ovr] : [] };
     }
     return out;
-  }, [dias, cad, escalas, idDe]);
+  }, [dias, cadEff, escalas, idDe]);
 
   /* Aplica o QUADRO atual aos dias JÁ SALVOS a partir de hoje. Um dia salvo fica
      "congelado"; mudanças no quadro (militar novo, remoção, troca) precisam valer
@@ -921,9 +937,14 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
      Inteligência) nesses dias, PRESERVANDO as permutas — o expediente e o resto do
      dia não mudam. Roda AUTOMÁTICO ao mexer no quadro (silent) e também pelo botão. */
   const escalasRef = useRef(escalas); escalasRef.current = escalas;
+  const planoAfastRef = useRef(planoAfast); planoAfastRef.current = planoAfast;
   const reaplicarQuadroCore = async (silent: boolean) => {
     const escalasAtual = escalasRef.current;
-    const cadAtual = cadRef.current;
+    const cadBase = cadRef.current;
+    // inclui os afastamentos do plano (férias/LP) para remover o ausente ao reaplicar.
+    const cadAtual: Cadastro = planoAfastRef.current.length
+      ? { ...cadBase, afastamentos: [...(cadBase.afastamentos || []), ...planoAfastRef.current] }
+      : cadBase;
     const hj = hoje || toISO(new Date());
     const alvos = Object.keys(escalasAtual).filter((iso) => iso >= hj);
     if (!alvos.length) { if (!silent) alert("Não há dias já salvos a partir de hoje para atualizar."); return; }
@@ -1008,7 +1029,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     for (const iso of dias)
       for (const k of Object.keys(assign[iso]))
         for (const n of assign[iso][k])
-          if (afastado(n, iso, cad.afastamentos)) lista.push({ nome: n, iso });
+          if (afastado(n, iso, cadEff.afastamentos)) lista.push({ nome: n, iso });
     return lista;
   }, [dias, assign, cad.afastamentos]);
   const nomesComConflito = useMemo(() => new Set(conflitos.map((c) => c.nome)), [conflitos]);
@@ -1341,7 +1362,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
             </button>
             <span style={{ marginLeft: 8, fontSize: 11.5, color: "#8fa3bf" }}>Agora é <b>automático</b> ao mexer no quadro; este botão é só para reforçar/forçar quando quiser.</span>
           </div>
-          <QuadroEquipes cad={cad} setCad={setCadQuadro} efetivo={efetivo} nomeDe={nomeDe} teamDias={teamDias} funcoes={funcoesView} />
+          <QuadroEquipes cad={cadEff} setCad={setCadQuadro} efetivo={efetivo} nomeDe={nomeDe} teamDias={teamDias} funcoes={funcoesView} />
         </div>
       )}
 
