@@ -82,8 +82,11 @@ const BORDAS = { top: BORDA, bottom: BORDA, left: BORDA, right: BORDA };
 const SEM = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
 const SEM_BORDAS = { top: SEM, bottom: SEM, left: SEM, right: SEM };
 
+// docx: `size` é em MEIOS-PONTOS. Os valores originais saíam pequenos (15 = 7,5pt).
+// Escala ~1,5× para casar com a IMPRESSÃO (corpo ~11pt, título ~19pt).
+const ESCALA_DOCX = 1.5;
 function run(text: string, opt: { bold?: boolean; size?: number; italics?: boolean; underline?: boolean } = {}) {
-  return new TextRun({ text, bold: opt.bold, italics: opt.italics, size: opt.size ?? 15, underline: opt.underline ? {} : undefined });
+  return new TextRun({ text, bold: opt.bold, italics: opt.italics, size: Math.round((opt.size ?? 15) * ESCALA_DOCX), underline: opt.underline ? {} : undefined });
 }
 function par(children: TextRun[], align = AlignmentType.CENTER) { return new Paragraph({ alignment: align, children }); }
 function linhaP(text: string, opt: { bold?: boolean; size?: number; italics?: boolean; underline?: boolean; align?: (typeof AlignmentType)[keyof typeof AlignmentType] } = {}) {
@@ -278,14 +281,14 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
   const iVisto = await embed(ch.cmtAssinatura);
   page.drawText("VISTO", { x: MX + 10, y: tituloY - 11, size: 10, font: bold, color: rgb(0, 0, 0) });
   if (iVisto) page.drawImage(iVisto, { x: MX + 6, y: tituloY - 44, width: 78, height: 26 });
-  page.drawText("Cmt. do 18o BPM", { x: MX + 2, y: tituloY - 56, size: 8, font, color: rgb(0, 0, 0) });
-  const tit = safe(extra ? "ESCALA DE SERVICO EXTRAORDINARIA" : "ESCALA DE SERVICO");
+  page.drawText("Cmt. do 18º BPM", { x: MX + 2, y: tituloY - 56, size: 8, font, color: rgb(0, 0, 0) });
+  const tit = safe(extra ? "ESCALA DE SERVIÇO EXTRAORDINÁRIA" : "ESCALA DE SERVIÇO");
   const titW = bold.widthOfTextAtSize(tit, 15);
   page.drawText(tit, { x: (W - titW) / 2, y: tituloY - 30, size: 15, font: bold, color: rgb(0, 0, 0) });
   page.drawLine({ start: { x: (W - titW) / 2, y: tituloY - 33 }, end: { x: (W + titW) / 2, y: tituloY - 33 }, thickness: 0.9, color: rgb(0, 0, 0) });
   y = tituloY - 52;
   centro(`PARA O DIA ${extensoUpper(e.data)} (${diaSemana(e.data)})`, 10, bold, 2, true);
-  centro(`SERVICO - ${limpa(e.servicoHoras) || "24 HORAS"} (APRESENTACAO AS ${limpa(e.apresentacao) || "08H"})`, 9, bold, 4, true);
+  centro(`SERVIÇO - ${limpa(e.servicoHoras) || "24 HORAS"} (APRESENTAÇÃO ÀS ${limpa(e.apresentacao) || "08H"})`, 9, bold, 4, true);
 
   // ---- desenho de tabela generico ----
   type Cel = { text: string; w: number; bold?: boolean; center?: boolean; fill?: boolean };
@@ -352,13 +355,13 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
     d2("CPU DE DIA", nomeSlot(e.cpuDeDia));
     faixa("GUARDA DO QUARTEL");
     d2("PERMANENTE", lista(e.guardaPermanente));
-    faixa("RADIO PATRULHA");
+    faixa("RÁDIO PATRULHA");
     d2("ADJUNTO DE DIA", nomeSlot(e.rpAdjunto));
     d2("MOTORISTA", nomeSlot(e.rpMotorista));
     d2("PATRULHEIRO", lista(e.rpPatrulheiro));
-    faixa("SERVICO DE INTELIGENCIA 24 HRS");
+    faixa("SERVIÇO DE INTELIGÊNCIA 24 HRS");
     drawLinha([{ text: lista(e.inteligencia), w: 1, center: true }]);
-    faixa("FORCA TATICA");
+    faixa("FORÇA TÁTICA");
     d2("GRADUADO", nomeSlot(e.ftGraduado));
     d2("MOTORISTA", nomeSlot(e.ftMotorista));
     d2("PATRULHEIRO", nomeSlot(e.ftPatrulheiro));
@@ -366,7 +369,7 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
     drawLinha([{ text: (e.rotemHorarios || []).filter(Boolean).join("\n"), w: 0.3, bold: true, center: true, fill: true }, { text: lista(e.rotemMilitares), w: 0.7 }]);
 
     y -= 12;
-    centro(`Quartel do 18o BPM, em ${CIDADE}, ${extensoLow(e.dataConfeccao || e.data)}.`, 9.5, font, 4);
+    centro(`Quartel do 18º BPM, em ${CIDADE}, ${extensoLow(e.dataConfeccao || e.data)}.`, 9.5, font, 4);
   }
 
   // assinatura
