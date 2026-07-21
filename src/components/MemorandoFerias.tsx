@@ -202,7 +202,7 @@ export default function MemorandoFerias(props: {
           assinatura: String(d?.assinatura || ""),
           assinarGov: d?.assinarGov === true,
           cmtAssinatura: String(d?.cmtAssinatura || "/brasoes/assinatura-cmt.png"),
-          cmtModo: (["imagem", "sigep", "gov"].includes(d?.cmtModo) ? d.cmtModo : "imagem"),
+          cmtModo: (["imagem", "sigep", "gov"].includes(d?.cmtModo) ? d.cmtModo : "sigep"),
           comandante: String(d?.comandante || ""),
         });
         setCarregado(true);
@@ -417,11 +417,11 @@ function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe, tipoAs
             <p style={{ fontWeight: "bold", margin: "0 0 1mm 0" }}>VISTO</p>
             {/* Visto do Cmt conforme o modo salvo na config (imagem / carimbo
                 SIGEP / em branco p/ Gov.br) — mesma fonte da escala. */}
-            {(chefe?.cmtModo || "imagem") === "sigep" ? (
+            {(chefe?.cmtModo || "sigep") === "sigep" ? (
               <div style={{ marginBottom: "1mm" }}>
                 <CarimboSigep nome={chefe?.comandante || ""} cargo="Cmt. do 18º BPM" largura="36mm" />
               </div>
-            ) : (chefe?.cmtModo || "imagem") === "gov" ? (
+            ) : (chefe?.cmtModo || "sigep") === "gov" ? (
               <div style={{ width: "34mm", height: "15mm", marginBottom: "1mm" }} />
             ) : (
               <div style={{ width: "34mm", height: "15mm", marginBottom: "1mm", display: "flex", alignItems: "center", justifyContent: "flex-start" }}>

@@ -109,3 +109,37 @@ export function carimboAntiguidade(
   if (ano !== 9999) return Date.UTC(2000 + ano, 0, 1);
   return Number.POSITIVE_INFINITY;
 }
+
+export type EntradaAntiguidade = {
+  postoGrad: string | null;
+  dataPromocao?: string | null;
+  numeroBarra?: string | null;
+  nome?: string | null;
+};
+
+// Comparador OFICIAL de antiguidade, unico para todo o SIGEP (efetivo,
+// escalas, documentos): ordena por
+//   1) posto/graduacao (mais alto primeiro),
+//   2) data da ultima promocao (mais antiga primeiro),
+//   3) Numero/Barra (ano + sequencia),
+//   4) nome (desempate estavel).
+// Retorno < 0 => "a" e mais antigo/graduado e vai PRIMEIRO.
+export function compararAntiguidade(
+  a: EntradaAntiguidade,
+  b: EntradaAntiguidade
+): number {
+  const pa = classificarPatente(a.postoGrad ?? null).ordem;
+  const pb = classificarPatente(b.postoGrad ?? null).ordem;
+  if (pa !== pb) return pa - pb;
+
+  const da = dataParaMs(a.dataPromocao ?? null) ?? Number.POSITIVE_INFINITY;
+  const db = dataParaMs(b.dataPromocao ?? null) ?? Number.POSITIVE_INFINITY;
+  if (da !== db) return da - db;
+
+  const [anoA, seqA] = chaveAntiguidade(a.numeroBarra ?? null);
+  const [anoB, seqB] = chaveAntiguidade(b.numeroBarra ?? null);
+  if (anoA !== anoB) return anoA - anoB;
+  if (seqA !== seqB) return seqA - seqB;
+
+  return (a.nome ?? "").localeCompare(b.nome ?? "", "pt-BR");
+}

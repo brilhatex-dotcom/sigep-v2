@@ -60,6 +60,28 @@ function isoParaBR(iso: string): string {
   return `${m[3]}/${m[2]}/${m[1]}`;
 }
 
+// Campo de data — definido FORA do componente para não remontar a cada
+// tecla (senão o <input type="date"> perde o foco/valor durante a digitação
+// manual e "não aceita salvar").
+function InputData({
+  label, value, onChange, required,
+}: { label: string; value: string; onChange: (v: string) => void; required?: boolean }) {
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-medium text-[#94A3B8]">
+        {label}{required && <span className="ml-0.5 text-red-400">*</span>}
+        {value && <span className="ml-1 text-[#D4AF37]">({isoParaBR(value)})</span>}
+      </label>
+      <input
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+      />
+    </div>
+  );
+}
+
 // Calcula data de apresentação (dia seguinte ao fim)
 function calcApres(fim: string): string {
   if (!fim) return "";
@@ -376,23 +398,6 @@ export default function PlanoFerias({
         {qtd}
       </span>
     </button>
-  );
-
-  const InputData = ({
-    label, value, onChange, required,
-  }: { label: string; value: string; onChange: (v: string) => void; required?: boolean }) => (
-    <div>
-      <label className="mb-1 block text-xs font-medium text-[#94A3B8]">
-        {label}{required && <span className="ml-0.5 text-red-400">*</span>}
-        {value && <span className="ml-1 text-[#D4AF37]">({isoParaBR(value)})</span>}
-      </label>
-      <input
-        type="date"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
-      />
-    </div>
   );
 
   return (

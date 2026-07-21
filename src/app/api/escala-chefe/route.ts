@@ -24,7 +24,7 @@ const PADRAO = {
   assinatura: "",       // imagem da assinatura (data URL/caminho); "" = em branco
   assinarGov: false,    // se true, a assinatura sai em branco (assina pelo Gov.br)
   cmtAssinatura: "/brasoes/assinatura-cmt.png",   // assinatura do Cmt (VISTO), trocavel se mudar o comando
-  cmtModo: "imagem",    // como sai o VISTO do Cmt: "imagem" | "sigep" | "gov"
+  cmtModo: "sigep",     // como sai o VISTO do Cmt: "imagem" | "sigep" | "gov". Padrao: SIGEP (carimbo eletronico com QR quando o Cmt assina com a senha)
   comandante: "TEN CEL QOEM FLÁVIO DE CARVALHO RAMOS", // Cmt do 18º BPM (assina solucao/portaria/decisao do disciplinar)
 };
 const MODOS = ["imagem", "sigep", "gov"];

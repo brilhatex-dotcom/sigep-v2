@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { padronizarBrasao } from "@/lib/imagem";
 import CarimboSigep from "@/components/CarimboSigep";
+import { compararAntiguidade } from "@/lib/patentes";
 
 /* =========================================================================
    SIGEP-18BPM  ·  MODULO DE ESCALAS  (Escala de Servico diaria)  ·  v2 UX
@@ -134,6 +135,7 @@ type Militar = {
   id: string;
   postoGrad: string;
   numeroBarra: string;
+  dataPromocao?: string;
   nome: string;
   nomeGuerra: string;
   matricula: string;
@@ -639,36 +641,40 @@ function SlotInline({ slot, onChange, semPermuta }: { slot: Slot; onChange: (s: 
   );
 }
 
-/* Ordem hierarquica a partir do posto abreviado que ABRE o titular da folha
-   (ex.: "1º Sgt PM ...", "Cb PM nº ...", "Cap QOEM ..."). Menor numero = mais
-   antigo, vai para o TOPO da coluna. Linhas em branco ficam por ultimo. */
-const PATENTE_ORDEM: { re: RegExp; ordem: number }[] = [
-  { re: /\bcel\b/i, ordem: 1 },
-  { re: /\btc\b|tenente[-\s]?coronel/i, ordem: 2 },
-  { re: /\bmaj\b/i, ordem: 3 },
-  { re: /\bcap\b/i, ordem: 4 },
-  { re: /1\D*ten\b/i, ordem: 5 },
-  { re: /2\D*ten\b/i, ordem: 6 },
-  { re: /\basp\b/i, ordem: 7 },
-  { re: /sub\s*ten/i, ordem: 8 },
-  { re: /1\D*sgt/i, ordem: 9 },
-  { re: /2\D*sgt/i, ordem: 10 },
-  { re: /3\D*sgt/i, ordem: 11 },
-  { re: /\bcb\b/i, ordem: 12 },
-  { re: /\bsd\b/i, ordem: 13 },
-];
-function ordemPatente(titular: string): number {
+/* Resolve o titular (texto da folha) de volta para a ficha do efetivo, para
+   podermos usar a data de promocao e o Numero/Barra na antiguidade. Casa por
+   nome formatado exato e, se nao achar, pelo Numero/Barra que aparece no texto. */
+function fichaDoTitular(titular: string, efetivo?: Militar[]): Militar | undefined {
+  if (!efetivo?.length) return undefined;
   const t = semTags(titular || "").trim();
-  if (!t) return 999;            // linha em branco -> fim
-  for (const p of PATENTE_ORDEM) if (p.re.test(t)) return p.ordem;
-  return 500;                    // posto nao reconhecido -> antes das em branco
+  if (!t) return undefined;
+  const exato = efetivo.find((m) => fmtMilitar(m) === t);
+  if (exato) return exato;
+  const barra = (t.match(/\d+\s*\/\s*\d+/) || [])[0]?.replace(/\s/g, "");
+  if (barra) return efetivo.find((m) => (m.numeroBarra || "").replace(/\s/g, "") === barra);
+  return undefined;
 }
-function ordenaPorPatente(slots: Slot[]): Slot[] {
+
+/* Ordena a lista por ANTIGUIDADE (o mesmo criterio do "Efetivo por
+   Antiguidade"): posto -> data de promocao -> Numero/Barra -> nome. Assim,
+   entre dois do MESMO posto (ex.: dois cabos), o mais antigo sobe sozinho,
+   independente da ordem em que foram digitados. Linhas em branco ficam no fim. */
+function ordenaPorPatente(slots: Slot[], efetivo?: Militar[]): Slot[] {
   return slots
     .map((sl, i) => ({ sl, i }))
     .sort((a, b) => {
-      const oa = ordemPatente(a.sl.titular), ob = ordemPatente(b.sl.titular);
-      return oa !== ob ? oa - ob : a.i - b.i; // estavel: empates mantem a ordem
+      const ta = semTags(a.sl.titular || "").trim();
+      const tb = semTags(b.sl.titular || "").trim();
+      if (!ta && !tb) return a.i - b.i;
+      if (!ta) return 1;   // em branco por ultimo
+      if (!tb) return -1;
+      const fa = fichaDoTitular(ta, efetivo);
+      const fb = fichaDoTitular(tb, efetivo);
+      const c = compararAntiguidade(
+        { postoGrad: fa?.postoGrad ?? ta, dataPromocao: fa?.dataPromocao, numeroBarra: fa?.numeroBarra ?? (ta.match(/\d+\s*\/\s*\d+/) || [])[0], nome: fa?.nome ?? ta },
+        { postoGrad: fb?.postoGrad ?? tb, dataPromocao: fb?.dataPromocao, numeroBarra: fb?.numeroBarra ?? (tb.match(/\d+\s*\/\s*\d+/) || [])[0], nome: fb?.nome ?? tb },
+      );
+      return c !== 0 ? c : a.i - b.i; // estavel: empate total mantem a ordem
     })
     .map((x) => x.sl);
 }
@@ -689,7 +695,7 @@ function SlotList({
     let novo: Slot[];
     if (iVazia >= 0) { novo = slots.slice(); novo[iVazia] = { ...slots[iVazia], titular: nome }; }
     else novo = [...slots, { ...s(), titular: nome }];
-    onChange(ordenar ? ordenaPorPatente(novo) : novo);
+    onChange(ordenar ? ordenaPorPatente(novo, efetivo) : novo);
   };
   return (
     <div className={centro ? "lista centro" : center ? "lista center" : "lista"}>
@@ -1477,7 +1483,7 @@ export default function EscalaClient() {
   // Chefe do P/1: carregado do servidor (aba "Chefe do P1"), igual em todo PC.
   // Estes valores sao apenas o padrao inicial antes do carregamento \u2014 o valor
   // real vem da config "escala_chefe_p1" (campo unico, editavel na aba).
-  const [chefe, setChefe] = useState<Chefe>({ nome: "1\u00ba TEN QOEM PAULO SILAS BARROS DE BRITO JUNIOR", funcao: "CHEFE DO P/1 DO 18\u00ba BPM", assinatura: "", assinarGov: false, cmtAssinatura: "/brasoes/assinatura-cmt.png", cmtModo: "imagem", comandante: "TEN CEL QOEM FL\u00c1VIO DE CARVALHO RAMOS" });
+  const [chefe, setChefe] = useState<Chefe>({ nome: "1\u00ba TEN QOEM PAULO SILAS BARROS DE BRITO JUNIOR", funcao: "CHEFE DO P/1 DO 18\u00ba BPM", assinatura: "", assinarGov: false, cmtAssinatura: "/brasoes/assinatura-cmt.png", cmtModo: "sigep", comandante: "TEN CEL QOEM FL\u00c1VIO DE CARVALHO RAMOS" });
   // Assinatura AVAN\u00c7ADA SIGEP da escala do dia (Chefe do P/1 e Cmt), por data.
   type AssRec = { id: string; token: string; nome: string; cargo: string; em: string };
   const [assEscala, setAssEscala] = useState<{ chefe_p1?: AssRec; cmt?: AssRec }>({});
@@ -1647,7 +1653,7 @@ export default function EscalaClient() {
             assinatura: d.assinatura || "",
             assinarGov: d.assinarGov === true,
             cmtAssinatura: d.cmtAssinatura || "/brasoes/assinatura-cmt.png",
-            cmtModo: (["imagem", "sigep", "gov"].includes(d.cmtModo) ? d.cmtModo : "imagem") as CmtModo,
+            cmtModo: (["imagem", "sigep", "gov"].includes(d.cmtModo) ? d.cmtModo : "sigep") as CmtModo,
             comandante: d.comandante || "TEN CEL QOEM FLÁVIO DE CARVALHO RAMOS",
           });
         }
@@ -2195,11 +2201,11 @@ export default function EscalaClient() {
               {/* 3 modos: imagem da rubrica · carimbo eletrônico do SIGEP · em branco (Gov.br) */}
               <div className="cmt-modo-row" style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "6px 0 10px" }}>
                 {([["imagem", "🖼️ Imagem"], ["sigep", "🔏 Assinatura SIGEP"], ["gov", "🏛️ Via Gov.br (em branco)"]] as [CmtModo, string][]).map(([m, lbl]) => (
-                  <button key={m} type="button" className={"btn" + ((chefe.cmtModo || "imagem") === m ? " primary" : "")}
+                  <button key={m} type="button" className={"btn" + ((chefe.cmtModo || "sigep") === m ? " primary" : "")}
                     onClick={() => setChefe((c) => ({ ...c, cmtModo: m }))}>{lbl}</button>
                 ))}
               </div>
-              {(chefe.cmtModo || "imagem") === "imagem" && (
+              {(chefe.cmtModo || "sigep") === "imagem" && (
                 <div className="chefe-cmt-row">
                   <div className="chefe-ass-box" style={{ maxWidth: 240 }}>
                     {chefe.cmtAssinatura
@@ -2215,13 +2221,13 @@ export default function EscalaClient() {
                   </div>
                 </div>
               )}
-              {(chefe.cmtModo || "imagem") === "sigep" && (
+              {(chefe.cmtModo || "sigep") === "sigep" && (
                 <div style={{ maxWidth: 280 }}>
                   <CarimboSigep nome={chefe.comandante || ""} cargo="Cmt. do 18º BPM" data={data} largura="70mm" />
                   <span className="chefe-ass-dica">Carimbo eletrônico gerado pelo SIGEP com o nome do Cmt, cargo, data e código de autenticação.</span>
                 </div>
               )}
-              {(chefe.cmtModo || "imagem") === "gov" && (
+              {(chefe.cmtModo || "sigep") === "gov" && (
                 <div className="chefe-gov-nota">O VISTO sairá <b>em branco</b>; o Cmt assina digitalmente pelo Gov.br.</div>
               )}
             </div>
@@ -2257,9 +2263,9 @@ export default function EscalaClient() {
                   <div className="visto">VISTO</div>
                   {assEscala.cmt
                     ? <CarimboSigep nome={assEscala.cmt.nome} cargo="Cmt. do 18º BPM" data={data} largura="58mm" assinatura={{ id: assEscala.cmt.id, token: assEscala.cmt.token }} />
-                    : (chefe.cmtModo || "imagem") === "sigep"
+                    : (chefe.cmtModo || "sigep") === "sigep"
                     ? <CarimboSigep nome={chefe.comandante || ""} cargo="Cmt. do 18º BPM" data={data} largura="58mm" />
-                    : (chefe.cmtModo || "imagem") === "gov"
+                    : (chefe.cmtModo || "sigep") === "gov"
                     ? <div className="visto-esp" />
                     : (chefe.cmtAssinatura
                         ? <img className="visto-img" src={chefe.cmtAssinatura} alt="assinatura Cmt" />
