@@ -928,8 +928,9 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     const alvos = Object.keys(escalasAtual).filter((iso) => iso >= hj);
     if (!alvos.length) { if (!silent) alert("Não há dias já salvos a partir de hoje para atualizar."); return; }
     if (!silent && !confirm(`Aplicar o quadro atual (equipes) a ${alvos.length} dia(s) já salvo(s) a partir de hoje?\n\nAs permutas são preservadas; o expediente e o restante do dia não mudam.`)) return;
-    const CAMPOS_UM = ["ftGraduado", "ftMotorista", "rpAdjunto", "rpMotorista"] as const;
-    const CAMPOS_LISTA = ["rpPatrulheiro", "guardaPermanente", "inteligencia", "ftPatrulheiro"] as const;
+    // ftPatrulheiro é campo ÚNICO na folha (Slot), não lista — por isso vai em UM.
+    const CAMPOS_UM = ["ftGraduado", "ftMotorista", "ftPatrulheiro", "rpAdjunto", "rpMotorista"] as const;
+    const CAMPOS_LISTA = ["rpPatrulheiro", "guardaPermanente", "inteligencia"] as const;
     const nm = (id: string) => (id ? nomeDe(id) : "");
     const novo: Record<string, any> = { ...escalasAtual };
     let mudou = false;

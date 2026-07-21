@@ -1840,8 +1840,9 @@ export default function EscalaClient() {
     const vazioSlot = (sl: any) => !semTags(sl?.titular || "").trim();
     const vaziaLista = (arr: any) =>
       !Array.isArray(arr) || arr.length === 0 || arr.every((x: any) => !semTags(x?.titular || "").trim());
-    const CAMPOS_UM: (keyof Escala)[] = ["ftGraduado", "ftMotorista", "rpAdjunto", "rpMotorista"];
-    const CAMPOS_LISTA: (keyof Escala)[] = ["ftPatrulheiro", "rpPatrulheiro", "guardaPermanente", "inteligencia"];
+    // ftPatrulheiro é campo ÚNICO na folha (Slot), não lista — por isso vai em UM.
+    const CAMPOS_UM: (keyof Escala)[] = ["ftGraduado", "ftMotorista", "ftPatrulheiro", "rpAdjunto", "rpMotorista"];
+    const CAMPOS_LISTA: (keyof Escala)[] = ["rpPatrulheiro", "guardaPermanente", "inteligencia"];
     setEscalas((prev) => {
       let mudou = false;
       const next: Record<string, Escala> = { ...prev };
