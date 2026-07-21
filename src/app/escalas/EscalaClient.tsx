@@ -496,7 +496,7 @@ function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
     ftMotorista: s(dqNome("ftMotorista")),
     ftPatrulheiro: s(dqNome("ftPatrulheiro")),
     rotemHorarios: eq ? eq.turnos.slice() : ["07h \u00e0s 12h", "18h \u00e0s 23h"],
-    rotemMilitares: eq ? sList(nmList(eq.militares.filter((id) => !afastado(id, iso, cad.afastamentos)))) : [s(), s(), s()],
+    rotemMilitares: eq ? sList(nmList(eq.militares)) : [s(), s(), s()],
     extraOperacao: "",
     extraLocal: "",
     extraHorario: "",
