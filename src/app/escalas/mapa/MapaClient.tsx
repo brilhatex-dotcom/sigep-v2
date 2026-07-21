@@ -171,6 +171,8 @@ function equipeRotem(data: string, equipes: EquipeRotem[], ref: string): EquipeR
 
 type Assign = Record<string, string[]>;
 function assignDia(iso: string, cad: Cadastro, escalas: Record<string, any>, idDe: (nome: string) => string): Assign {
+  const a = cad.afastamentos;
+  const semAfast = (ids: string[]) => ids.filter((id) => !afastado(id, iso, a)); // remove ausentes
   const e = escalas[iso];
   if (e) {
     // Dias salvos guardam NOMES na folha; normalizamos para ID quando possivel
@@ -179,18 +181,18 @@ function assignDia(iso: string, cad: Cadastro, escalas: Record<string, any>, idD
     const lst = (arr: any[]) => (arr || []).map(t).filter(Boolean);
     return {
       cpu: [t(e.cpuDeDia)].filter(Boolean),
-      ftGraduado: [t(e.ftGraduado)].filter(Boolean),
-      ftMotorista: [t(e.ftMotorista)].filter(Boolean),
-      ftPatrulheiro: [t(e.ftPatrulheiro)].filter(Boolean),
-      rpAdjunto: [t(e.rpAdjunto)].filter(Boolean),
-      rpMotorista: [t(e.rpMotorista)].filter(Boolean),
-      rpPatrulheiro: lst(e.rpPatrulheiro),
-      guardaPermanente: lst(e.guardaPermanente),
-      inteligencia: lst(e.inteligencia),
-      rotem: lst(e.rotemMilitares),
+      ftGraduado: semAfast([t(e.ftGraduado)].filter(Boolean)),
+      ftMotorista: semAfast([t(e.ftMotorista)].filter(Boolean)),
+      ftPatrulheiro: semAfast([t(e.ftPatrulheiro)].filter(Boolean)),
+      rpAdjunto: semAfast([t(e.rpAdjunto)].filter(Boolean)),
+      rpMotorista: semAfast([t(e.rpMotorista)].filter(Boolean)),
+      rpPatrulheiro: semAfast(lst(e.rpPatrulheiro)),
+      guardaPermanente: semAfast(lst(e.guardaPermanente)),
+      inteligencia: semAfast(lst(e.inteligencia)),
+      rotem: semAfast(lst(e.rotemMilitares)),
     };
   }
-  const a = cad.afastamentos, r = cad.refRodizioISO;
+  const r = cad.refRodizioISO;
   const eq = equipeRotem(iso, cad.rotemEquipes, cad.refRotemISO);
   // O quadro por equipes e a FONTE: a equipe do dia cobre cada funcao. A equipe
   // vem do padrao da unidade (24/72 na sede; "3 por 6" = 3 equipes; etc.).
@@ -218,7 +220,7 @@ function assignDia(iso: string, cad: Cadastro, escalas: Record<string, any>, idD
     rpPatrulheiro: dq("rpPatrulheiro"),
     guardaPermanente: dq("guardaPermanente"),
     inteligencia: dq("inteligencia"),
-    rotem: eq ? eq.militares.slice() : [],
+    rotem: eq ? semAfast(eq.militares.slice()) : [],  // ROTEM também remove ausentes
   };
 }
 
