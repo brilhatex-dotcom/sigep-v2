@@ -916,38 +916,55 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
   }, [dias, cad, escalas, idDe]);
 
   /* Aplica o QUADRO atual aos dias JÁ SALVOS a partir de hoje. Um dia salvo fica
-     "congelado"; mudanças no quadro (ex.: militar novo) só apareciam no próximo
-     giro não salvo. Este botão atualiza os campos vindos do quadro (FT/RP/
-     Permanência/Inteligência) nesses dias, PRESERVANDO as permutas — o expediente
-     e o resto do dia não mudam. */
-  const aplicarQuadroFuturo = async () => {
+     "congelado"; mudanças no quadro (militar novo, remoção, troca) precisam valer
+     JÁ no próximo serviço. Atualiza os campos vindos do quadro (FT/RP/Permanência/
+     Inteligência) nesses dias, PRESERVANDO as permutas — o expediente e o resto do
+     dia não mudam. Roda AUTOMÁTICO ao mexer no quadro (silent) e também pelo botão. */
+  const escalasRef = useRef(escalas); escalasRef.current = escalas;
+  const reaplicarQuadroCore = async (silent: boolean) => {
+    const escalasAtual = escalasRef.current;
+    const cadAtual = cadRef.current;
     const hj = hoje || toISO(new Date());
-    const alvos = Object.keys(escalas).filter((iso) => iso >= hj);
-    if (!alvos.length) { alert("Não há dias já salvos a partir de hoje para atualizar."); return; }
-    if (!confirm(`Aplicar o quadro atual (equipes) a ${alvos.length} dia(s) já salvo(s) a partir de hoje?\n\nAs permutas são preservadas; o expediente e o restante do dia não mudam.`)) return;
+    const alvos = Object.keys(escalasAtual).filter((iso) => iso >= hj);
+    if (!alvos.length) { if (!silent) alert("Não há dias já salvos a partir de hoje para atualizar."); return; }
+    if (!silent && !confirm(`Aplicar o quadro atual (equipes) a ${alvos.length} dia(s) já salvo(s) a partir de hoje?\n\nAs permutas são preservadas; o expediente e o restante do dia não mudam.`)) return;
     const CAMPOS_UM = ["ftGraduado", "ftMotorista", "rpAdjunto", "rpMotorista"] as const;
     const CAMPOS_LISTA = ["rpPatrulheiro", "guardaPermanente", "inteligencia", "ftPatrulheiro"] as const;
     const nm = (id: string) => (id ? nomeDe(id) : "");
-    const novo: Record<string, any> = { ...escalas };
+    const novo: Record<string, any> = { ...escalasAtual };
+    let mudou = false;
     for (const iso of alvos) {
       const dia = { ...(novo[iso] || {}) };
-      // recomputa a partir do QUADRO (escalas={} força a fonte, ignorando o dia salvo)
-      const a = assignDia(iso, cad, {}, idDe);
+      const a = assignDia(iso, cadAtual, {}, idDe); // {} força a fonte = QUADRO
       for (const k of CAMPOS_UM) {
         const id = (a as any)[k]?.[0] || "";
         const antigo = dia[k];
-        dia[k] = { titular: nm(id), permuta: antigo?.permuta ?? null, status: antigo?.status ?? null };
+        const novoSlot = { titular: nm(id), permuta: antigo?.permuta ?? null, status: antigo?.status ?? null };
+        if (JSON.stringify(antigo) !== JSON.stringify(novoSlot)) mudou = true;
+        dia[k] = novoSlot;
       }
       for (const k of CAMPOS_LISTA) {
         const ids: string[] = (a as any)[k] || [];
         const antigo: any[] = Array.isArray(dia[k]) ? dia[k] : [];
-        dia[k] = ids.map((id, i) => ({ titular: nm(id), permuta: antigo[i]?.permuta ?? null, status: antigo[i]?.status ?? null }));
+        const novoArr = ids.map((id, i) => ({ titular: nm(id), permuta: antigo[i]?.permuta ?? null, status: antigo[i]?.status ?? null }));
+        if (JSON.stringify(antigo) !== JSON.stringify(novoArr)) mudou = true;
+        dia[k] = novoArr;
       }
       novo[iso] = dia;
     }
+    if (silent && !mudou) return; // nada mudou de fato
     setEscalas(novo);
     try { await fetch(`/api/escala-dias${qs}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ escalas: novo }) }); } catch {}
-    alert("Quadro aplicado aos dias futuros. ✅");
+    if (!silent) alert("Quadro aplicado aos dias futuros. ✅");
+  };
+  const aplicarQuadroFuturo = () => reaplicarQuadroCore(false);
+
+  // Auto: ao editar o QUADRO, reaplica sozinho aos dias futuros (debounce).
+  const autoTimer = useRef<any>(null);
+  const setCadQuadro = (updater: (c: Cadastro) => Cadastro) => {
+    setCad(updater);
+    if (autoTimer.current) clearTimeout(autoTimer.current);
+    autoTimer.current = setTimeout(() => { reaplicarQuadroCore(true); }, 1200);
   };
 
   // Quando numa tela por serviço, o "Por militar" mostra só a força daquela tela.
@@ -1321,9 +1338,9 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
               title="Aplica o quadro atual aos dias JÁ SALVOS a partir de hoje (ex.: militar novo passa a valer já no próximo dia). Preserva as permutas.">
               🔄 Aplicar o quadro aos dias futuros
             </button>
-            <span style={{ marginLeft: 8, fontSize: 11.5, color: "#8fa3bf" }}>Use quando trocar alguém no quadro e quiser que valha já nos próximos dias (não só no próximo giro).</span>
+            <span style={{ marginLeft: 8, fontSize: 11.5, color: "#8fa3bf" }}>Agora é <b>automático</b> ao mexer no quadro; este botão é só para reforçar/forçar quando quiser.</span>
           </div>
-          <QuadroEquipes cad={cad} setCad={setCad} efetivo={efetivo} nomeDe={nomeDe} teamDias={teamDias} funcoes={funcoesView} />
+          <QuadroEquipes cad={cad} setCad={setCadQuadro} efetivo={efetivo} nomeDe={nomeDe} teamDias={teamDias} funcoes={funcoesView} />
         </div>
       )}
 
