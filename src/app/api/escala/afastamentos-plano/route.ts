@@ -24,6 +24,24 @@ function toISO(v: string | null): string {
   return "";
 }
 
+function addDiasISO(iso: string, n: number): string {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return dt.toISOString().slice(0, 10);
+}
+
+// Deriva o FIM do período: usa o fim explícito; senão a apresentação menos 1
+// dia (o militar volta na apresentação); senão assume 30 dias a partir do
+// início. Assim, uma equipe com só a data de saída ainda remove o militar.
+function fimPeriodo(inicio: string, fim: string, apres: string): string {
+  if (fim) return fim;
+  if (apres) return addDiasISO(apres, -1);
+  if (inicio) return addDiasISO(inicio, 29);
+  return "";
+}
+
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
@@ -47,10 +65,10 @@ export async function GET(req: Request) {
     const perFer = new Map<string, { inicio: string; fim: string }[]>();
     for (const e of eqFer) {
       const arr: { inicio: string; fim: string }[] = [];
-      const p1i = toISO(e.periodo1Inicio), p1f = toISO(e.periodo1Fim);
-      if (p1i && p1f) arr.push({ inicio: p1i, fim: p1f });
-      const p2i = toISO(e.periodo2Inicio), p2f = toISO(e.periodo2Fim);
-      if (p2i && p2f) arr.push({ inicio: p2i, fim: p2f });
+      const p1i = toISO(e.periodo1Inicio);
+      if (p1i) arr.push({ inicio: p1i, fim: fimPeriodo(p1i, toISO(e.periodo1Fim), toISO(e.periodo1Apres)) });
+      const p2i = toISO(e.periodo2Inicio);
+      if (p2i) arr.push({ inicio: p2i, fim: fimPeriodo(p2i, toISO(e.periodo2Fim), toISO(e.periodo2Apres)) });
       perFer.set(`${e.numeroEquipe}|${e.anoGozo}`, arr);
     }
     for (const m of mbFer)
@@ -60,8 +78,8 @@ export async function GET(req: Request) {
     // Licença-prêmio — um período por equipe.
     const perLic = new Map<string, { inicio: string; fim: string }>();
     for (const e of eqLic) {
-      const i = toISO(e.periodoInicio), f = toISO(e.periodoFim);
-      if (i && f) perLic.set(`${e.numeroEquipe}|${e.anoGozo}`, { inicio: i, fim: f });
+      const i = toISO(e.periodoInicio);
+      if (i) perLic.set(`${e.numeroEquipe}|${e.anoGozo}`, { inicio: i, fim: fimPeriodo(i, toISO(e.periodoFim), "") });
     }
     for (const m of mbLic) {
       const p = perLic.get(`${m.numeroEquipe}|${m.anoGozo}`);
