@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import EncargosManager from "@/components/EncargosManager";
 
-type Previa = { totalEfetivo: number; aCorrigir: number; aCriar: number; semMatricula: number; adminsPreservados: number; preservados?: number };
+type Preservado = { efetivoId: string; nome: string; motivo: string };
+type Previa = { totalEfetivo: number; aCorrigir: number; aCriar: number; semMatricula: number; adminsPreservados: number; preservados?: number; preservadosLista?: Preservado[] };
 type Resultado = { ok: boolean; corrigidos: number; criados: number; semMatricula: number; adminsPreservados: number; preservados?: number; erros?: string[] };
 type Militar = {
   efetivoId: string; postoGrad: string | null; numeroBarra: string | null;
@@ -170,6 +171,27 @@ export default function GerarLoginsClient() {
             <Num v={previa.aCriar} l="logins a criar" destaque />
             <Num v={previa.preservados ?? 0} l="preservados (Silas + admins)" />
           </div>
+        )}
+
+        {previa && !carregando && (previa.preservadosLista?.length ?? 0) > 0 && (
+          <details style={{ marginBottom: 12 }}>
+            <summary style={{ cursor: "pointer", fontSize: 12.5, color: "#D4AF37", userSelect: "none" }}>
+              Ver os {previa.preservadosLista!.length} preservados (mantêm a senha atual)
+            </summary>
+            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+              {previa.preservadosLista!.map((p) => (
+                <div key={p.efetivoId} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12.5, color: "#cdd9ea", background: "#0a1626", border: "1px solid #1d2c44", borderRadius: 8, padding: "7px 10px" }}>
+                  <span><b style={{ color: "#E8EEF6" }}>{p.nome}</b> <span style={{ color: "#6f82a0" }}>· ID {p.efetivoId}</span></span>
+                  <span style={{ color: p.motivo === "administrador" ? "#7fb8ff" : "#f3df9d" }}>{p.motivo}</span>
+                </div>
+              ))}
+            </div>
+            <p style={{ fontSize: 11.5, color: "#6f82a0", marginTop: 8, lineHeight: 1.5 }}>
+              Quem aparece como <b>administrador</b> não é migrado (mantém a senha). Se algum deles NÃO deveria
+              ser admin, rebaixe o perfil em <b>Gerenciar administradores</b> e rode a padronização de novo — aí ele
+              migra para login = ID + senha 12345678.
+            </p>
+          </details>
         )}
 
         {resultado && (

@@ -83,12 +83,22 @@ async function levantar() {
   const corrigir: { efetivoId: string; usuarioId: string; login: string; senha: string }[] = [];
   const criar: { efetivoId: string; login: string; senha: string }[] = [];
   const semMatricula: string[] = [];
-  let preservados = 0;
+  const preservadosLista: { efetivoId: string; nome: string; motivo: string }[] = [];
 
   for (const m of efetivo) {
     // Ten Silas (e a lista configurada) + qualquer ADMIN: preserva a senha, nao
     // migra e nao cria login policial duplicado (protege a conta do admin).
-    if (ehPreservado(m) || efetivoAdmin.has(m.id)) { preservados++; continue; }
+    const porNome = ehPreservado(m);
+    const porAdmin = efetivoAdmin.has(m.id);
+    if (porNome || porAdmin) {
+      const nome = (m.nomeGuerra || m.nome || m.id || "").trim();
+      preservadosLista.push({
+        efetivoId: m.id,
+        nome,
+        motivo: porNome ? "lista preservada (Ten Silas)" : "administrador",
+      });
+      continue;
+    }
 
     const login = soDigitos(m.id);   // login = ID PMMA
     const senha = "12345678";        // senha inicial padrao (troca obrigatoria no 1o acesso)
@@ -102,7 +112,7 @@ async function levantar() {
     }
   }
 
-  return { totalEfetivo: efetivo.length, corrigir, criar, semMatricula, naoPolicial, preservados };
+  return { totalEfetivo: efetivo.length, corrigir, criar, semMatricula, naoPolicial, preservados: preservadosLista.length, preservadosLista };
 }
 
 export async function GET() {
@@ -119,6 +129,7 @@ export async function GET() {
       semMatricula: p.semMatricula.length,
       adminsPreservados: p.naoPolicial,
       preservados: p.preservados,
+      preservadosLista: p.preservadosLista,
     });
   } catch (err) {
     console.error("[GET gerar-logins]", err);
