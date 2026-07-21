@@ -11,10 +11,10 @@ import { MINUTOS_INATIVIDADE } from "@/lib/sessao";
    zero, desconecta sozinho (protege o PC compartilhado deixado aberto). O
    valor é o mesmo da sessão no servidor (lib/sessao.ts). */
 
-const TOTAL = MINUTOS_INATIVIDADE * 60; // segundos
 const AVISO_EM = 60;                    // mostra o aviso no último minuto
 
-export default function RelogioInatividade() {
+export default function RelogioInatividade({ minutos }: { minutos?: number }) {
+  const TOTAL = (minutos && minutos > 0 ? minutos : MINUTOS_INATIVIDADE) * 60; // segundos
   const [resta, setResta] = useState(TOTAL);
   const fim = useRef<number>(Date.now() + TOTAL * 1000);
   const saiu = useRef(false);
@@ -36,7 +36,7 @@ export default function RelogioInatividade() {
         getSession().catch(() => {});
       }
     }
-  }, []);
+  }, [TOTAL]);
 
   useEffect(() => {
     const onAtividade = () => {

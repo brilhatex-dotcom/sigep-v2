@@ -34,11 +34,12 @@ function soDigitos(v: string | null | undefined): string {
   return String(v == null ? "" : v).replace(/\D/g, "");
 }
 
-// Contas PRESERVADAS: mantem a senha atual e NAO sao migradas. Sao os que ja
-// tinham acesso (Ten Silas, Danilo). Batem por NOME (parte do nome completo ou
-// de guerra) e tambem por qualquer id/matricula/login listado na Config
-// "auth_login_preservados" (JSON array) — assim da pra ajustar sem mexer no codigo.
-const PRESERVAR_NOMES = ["SILAS", "DANILO"];
+// Contas PRESERVADAS: mantem a senha atual e NAO sao migradas. Hoje so o Ten
+// Silas (o Sgt Danilo sera redefinido normalmente). Bate por NOME (parte do
+// nome completo ou de guerra) e tambem por qualquer id/matricula/login listado
+// na Config "auth_login_preservados" (JSON array) — da pra ajustar sem mexer no
+// codigo. Os ADMINISTRADORES nunca sao migrados (tratado a parte, abaixo).
+const PRESERVAR_NOMES = ["SILAS"];
 
 function semAcento(v: string | null | undefined): string {
   return String(v ?? "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toUpperCase();
@@ -71,10 +72,11 @@ async function levantar() {
   };
 
   const usuarioPorEfetivo = new Map<string, { id: string; login: string }>();
+  const efetivoAdmin = new Set<string>();  // efetivos que ja tem conta ADMIN — nunca migrar
   let naoPolicial = 0;
   for (const u of usuarios) {
     const ehPol = (u.perfil || "").toLowerCase() === "policial" || (u.perfil || "") === "";
-    if (!ehPol) { naoPolicial++; continue; }
+    if (!ehPol) { naoPolicial++; if (u.refEfetivo) efetivoAdmin.add(u.refEfetivo); continue; }
     if (u.refEfetivo) usuarioPorEfetivo.set(u.refEfetivo, { id: u.id, login: u.login });
   }
 
@@ -84,8 +86,9 @@ async function levantar() {
   let preservados = 0;
 
   for (const m of efetivo) {
-    // Ten Silas / Danilo (e a lista configurada): preserva a senha, nao migra.
-    if (ehPreservado(m)) { preservados++; continue; }
+    // Ten Silas (e a lista configurada) + qualquer ADMIN: preserva a senha, nao
+    // migra e nao cria login policial duplicado (protege a conta do admin).
+    if (ehPreservado(m) || efetivoAdmin.has(m.id)) { preservados++; continue; }
 
     const login = soDigitos(m.id);   // login = ID PMMA
     const senha = "12345678";        // senha inicial padrao (troca obrigatoria no 1o acesso)

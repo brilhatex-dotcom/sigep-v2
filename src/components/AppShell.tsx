@@ -406,7 +406,7 @@ export default function AppShell({
               />
             </div>
 
-            <RelogioInatividade />
+            <RelogioInatividade minutos={admin ? 60 : 30} />
 
             <Link
               href="/trocar-senha"

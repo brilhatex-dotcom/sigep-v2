@@ -156,8 +156,8 @@ export default function GerarLoginsClient() {
         <div style={{ fontSize: 14, fontWeight: 700, color: "#D4AF37", marginBottom: 4 }}>Padronizar logins (login = ID · senha 12345678)</div>
         <p style={{ fontSize: 12, color: "#94A3B8", margin: "0 0 12px" }}>
           Cada policial passa a logar pelo <b>ID</b> com a senha inicial <b>12345678</b> e, no primeiro acesso,
-          é obrigado a criar uma senha nova e assinar o termo LGPD. Contas do Ten Silas e do Danilo (e a lista
-          preservada) mantêm a senha atual e não são alteradas.
+          é obrigado a criar uma senha nova e assinar o termo LGPD. A conta do Ten Silas e as contas de
+          administrador mantêm a senha atual e não são alteradas.
         </p>
 
         {erro && <div style={box("#3a1414", "#7a1f1f", "#ffb3b3")}>{erro}</div>}
@@ -168,7 +168,7 @@ export default function GerarLoginsClient() {
             <Num v={previa.totalEfetivo} l="militares no efetivo" />
             <Num v={previa.aCorrigir} l="logins a corrigir" destaque />
             <Num v={previa.aCriar} l="logins a criar" destaque />
-            <Num v={previa.preservados ?? 0} l="preservados (Silas/Danilo)" />
+            <Num v={previa.preservados ?? 0} l="preservados (Silas + admins)" />
           </div>
         )}
 
