@@ -92,11 +92,21 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.login || !credentials?.senha) return null;
 
-        // Login agora e a MATRICULA (ou o Login textual antigo do admin):
-        // busca por login, sem diferenciar maiusculas/minusculas.
-        const usuario = await prisma.usuario.findFirst({
-          where: { login: { equals: credentials.login.trim(), mode: "insensitive" } },
-        });
+        // Login agora e o ID PMMA (ex.: 849988). Aceita TAMBEM a matricula/login
+        // textual — assim quem ja tinha acesso (Ten Silas, Danilo) entra pelos
+        // dois. Busca por: refEfetivo (id PMMA), Login e ID do usuario, com e sem
+        // pontuacao, sem diferenciar maiusculas/minusculas.
+        const termo = credentials.login.trim();
+        const soDig = termo.replace(/\D/g, "");
+        const orBusca: any[] = [
+          { login: { equals: termo, mode: "insensitive" } },
+          { refEfetivo: termo },
+          { id: termo },
+        ];
+        if (soDig && soDig !== termo) {
+          orBusca.push({ login: { equals: soDig, mode: "insensitive" } }, { refEfetivo: soDig }, { id: soDig });
+        }
+        const usuario = await prisma.usuario.findFirst({ where: { OR: orBusca } });
         // bcrypt embute o sal, entao "salt" so e exigido para hash legado
         if (!usuario || !usuario.senhaHash) return null;
 

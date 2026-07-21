@@ -47,6 +47,31 @@ export function validarSenhaSimples(senha: string, refs: (string | null | undefi
   return null;
 }
 
+/* Política PADRÃO do SIGEP (troca de senha de todos): mínimo 8 caracteres,
+   obrigando MISTURA de letras com números OU símbolos (maiúsculas/minúsculas à
+   vontade). Bloqueia repetição, sequências óbvias (inclui a inicial 12345678) e
+   qualquer senha que contenha/seja o login, matrícula ou id do próprio usuário. */
+export function validarSenhaPadrao(senha: string, refs: (string | null | undefined)[] = []): string | null {
+  const s = (senha || "");
+  if (s.length < 8) return "A senha deve ter ao menos 8 caracteres.";
+  if (/^(.)\1+$/.test(s)) return "A senha não pode ser um único caractere repetido.";
+  const temLetra = /[a-zA-ZÀ-ÿ]/.test(s);
+  const temNumOuSimbolo = /[^a-zA-ZÀ-ÿ]/.test(s);
+  if (!temLetra || !temNumOuSimbolo) {
+    return "Misture letras com números ou símbolos (ex.: Sigep@2026).";
+  }
+  const low = s.toLowerCase();
+  const seqs = ["01234567", "12345678", "23456789", "34567890", "abcdefgh", "qwertyui"];
+  if (seqs.some((q) => low.includes(q))) return "A senha não pode ser uma sequência óbvia (ex.: 12345678).";
+  for (const r of refs) {
+    const rr = String(r ?? "").trim().toLowerCase();
+    if (rr && rr.length >= 3 && (low === rr || low.includes(rr))) {
+      return "A senha não pode conter seu login, matrícula ou id.";
+    }
+  }
+  return null;
+}
+
 export function validarSenhaForte(senha: string, refs: (string | null | undefined)[] = []): string | null {
   const s = (senha || "");
   if (s.length < 8) return "A senha deve ter ao menos 8 caracteres.";

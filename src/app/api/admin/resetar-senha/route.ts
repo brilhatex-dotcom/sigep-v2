@@ -101,7 +101,8 @@ export async function POST(req: Request) {
     const idSimples = soDigitos(efetivoId);
     if (!idSimples) return NextResponse.json({ error: "ID do militar invalido para senha" }, { status: 400 });
 
-    const senhaHash = await gerarHash(idSimples);
+    // Senha inicial PADRAO do SIGEP: "12345678" (troca obrigatoria no proximo acesso).
+    const senhaHash = await gerarHash("12345678");
 
     await prisma.usuario.update({
       where: { id: usuario.id },
@@ -127,10 +128,10 @@ export async function POST(req: Request) {
       acao: "resetar_senha",
       alvo: efetivoId,
       alvoNome: nomeAlvo,
-      detalhe: "Senha redefinida para o ID; troca obrigatoria no proximo acesso",
+      detalhe: "Senha redefinida para 12345678; troca obrigatoria no proximo acesso",
     });
 
-    return NextResponse.json({ ok: true, idSimples });
+    return NextResponse.json({ ok: true, senhaInicial: "12345678", idSimples });
   } catch (err) {
     console.error("[POST resetar-senha]", err);
     return NextResponse.json({ error: "Falha ao resetar" }, { status: 500 });

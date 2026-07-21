@@ -25,14 +25,17 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
     if (!precisaTrocar && senhaAtual.length < 4) {
       return 'Informe sua senha atual.';
     }
-    if (novaSenha.length < 4) {
-      return 'A nova senha deve ter no mínimo 4 caracteres.';
+    if (novaSenha.length < 8) {
+      return 'A nova senha deve ter no mínimo 8 caracteres.';
     }
     if (/^(.)\1+$/.test(novaSenha)) {
-      return 'A senha não pode ser um único caractere repetido (ex.: 1111).';
+      return 'A senha não pode ser um único caractere repetido (ex.: 11111111).';
     }
-    if (novaSenha === '123456') {
-      return 'Por segurança, escolha uma senha diferente da padrão.';
+    if (!/[a-zA-ZÀ-ÿ]/.test(novaSenha) || !/[^a-zA-ZÀ-ÿ]/.test(novaSenha)) {
+      return 'Misture letras com números ou símbolos (ex.: Sigep@2026).';
+    }
+    if (/12345678|01234567|abcdefgh|qwertyui/i.test(novaSenha)) {
+      return 'A senha não pode ser uma sequência óbvia (ex.: 12345678).';
     }
     if (novaSenha !== confirmar) {
       return 'A confirmacao nao confere com a nova senha.';
@@ -136,7 +139,7 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
 
       <div>
         <label className="block text-sm font-medium text-[#E8EEF6] mb-1">
-          Nova senha <span className="text-[#E8EEF6]/50 font-normal">(mínimo 4 caracteres — pode usar letras e números)</span>
+          Nova senha <span className="text-[#E8EEF6]/50 font-normal">(mínimo 8 caracteres — misture letras com números ou símbolos)</span>
         </label>
         <input
           type={mostrar ? 'text' : 'password'}

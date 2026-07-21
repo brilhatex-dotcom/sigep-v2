@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import EncargosManager from "@/components/EncargosManager";
 
-type Previa = { totalEfetivo: number; aCorrigir: number; aCriar: number; semMatricula: number; adminsPreservados: number };
-type Resultado = { ok: boolean; corrigidos: number; criados: number; semMatricula: number; adminsPreservados: number; erros?: string[] };
+type Previa = { totalEfetivo: number; aCorrigir: number; aCriar: number; semMatricula: number; adminsPreservados: number; preservados?: number };
+type Resultado = { ok: boolean; corrigidos: number; criados: number; semMatricula: number; adminsPreservados: number; preservados?: number; erros?: string[] };
 type Militar = {
   efetivoId: string; postoGrad: string | null; numeroBarra: string | null;
   nome: string | null; nomeGuerra: string | null; matricula: string | null;
@@ -125,7 +125,7 @@ export default function GerarLoginsClient() {
   };
 
   const resetar = async (m: Militar) => {
-    if (!confirm(`Resetar a senha de ${nomeMil(m)} para o ID (${m.idSimples})? Ele tera que criar uma senha nova no proximo acesso.`)) return;
+    if (!confirm(`Resetar a senha de ${nomeMil(m)} para 12345678? Ele tera que criar uma senha nova (e assinar o termo LGPD) no proximo acesso.`)) return;
     setResetando(m.efetivoId);
     setMsgReset(null);
     try {
@@ -136,7 +136,7 @@ export default function GerarLoginsClient() {
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { setMsgReset(d.error || "Falha ao resetar."); return; }
-      setMsgReset(`Senha de ${nomeMil(m)} resetada para o ID ${d.idSimples}. Avise para ele entrar com a matricula e esse ID.`);
+      setMsgReset(`Senha de ${nomeMil(m)} resetada para 12345678. Avise para ele entrar com o ID ${m.idSimples} e a senha 12345678.`);
     } finally {
       setResetando(null);
     }
@@ -153,7 +153,12 @@ export default function GerarLoginsClient() {
 
       {/* ===== BLOCO 1: padronizacao ===== */}
       <div style={{ background: "#0F1B2D", border: "1px solid #1d2c44", borderRadius: 12, padding: 18, marginBottom: 22 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: "#D4AF37", marginBottom: 12 }}>Padronizar logins (matricula / ID)</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#D4AF37", marginBottom: 4 }}>Padronizar logins (login = ID · senha 12345678)</div>
+        <p style={{ fontSize: 12, color: "#94A3B8", margin: "0 0 12px" }}>
+          Cada policial passa a logar pelo <b>ID</b> com a senha inicial <b>12345678</b> e, no primeiro acesso,
+          é obrigado a criar uma senha nova e assinar o termo LGPD. Contas do Ten Silas e do Danilo (e a lista
+          preservada) mantêm a senha atual e não são alteradas.
+        </p>
 
         {erro && <div style={box("#3a1414", "#7a1f1f", "#ffb3b3")}>{erro}</div>}
         {carregando && <div style={box("#16243a", "#2b3f63", "#9fb0c7")}>Carregando previa...</div>}
@@ -163,7 +168,7 @@ export default function GerarLoginsClient() {
             <Num v={previa.totalEfetivo} l="militares no efetivo" />
             <Num v={previa.aCorrigir} l="logins a corrigir" destaque />
             <Num v={previa.aCriar} l="logins a criar" destaque />
-            <Num v={previa.semMatricula} l="sem matricula" alerta={previa.semMatricula > 0} />
+            <Num v={previa.preservados ?? 0} l="preservados (Silas/Danilo)" />
           </div>
         )}
 
@@ -177,7 +182,7 @@ export default function GerarLoginsClient() {
           confirmando ? (
             <div style={{ background: "#2a2410", border: "1px solid #6b5320", borderRadius: 10, padding: 14 }}>
               <p style={{ fontSize: 13, color: "#f3df9d", margin: "0 0 10px" }}>
-                Confirmar padronizacao de <b>{totalAcao}</b> logins? Senhas voltam ao ID e exigem troca.
+                Confirmar padronizacao de <b>{totalAcao}</b> logins? Login vira o ID, senha vira <b>12345678</b> e exige troca + termo LGPD no proximo acesso.
               </p>
               <div style={{ display: "flex", gap: 8 }}>
                 <button style={btn("#D4AF37", "#0a1020")} disabled={gerando} onClick={aplicar}>
@@ -199,7 +204,7 @@ export default function GerarLoginsClient() {
       <div style={{ background: "#0F1B2D", border: "1px solid #1d2c44", borderRadius: 12, padding: 18 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: "#D4AF37", marginBottom: 4 }}>Resetar senha de um policial</div>
         <p style={{ fontSize: 12, color: "#94A3B8", margin: "0 0 12px" }}>
-          Quando alguem esquecer a senha. A senha volta a ser o ID e ele cria uma nova no proximo acesso.
+          Quando alguem esquecer a senha. A senha volta a ser 12345678 e ele cria uma nova (e assina o termo LGPD) no proximo acesso.
         </p>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
@@ -329,7 +334,7 @@ export default function GerarLoginsClient() {
       </div>
 
       <p style={{ fontSize: 12, color: "#6f82a0", marginTop: 18, lineHeight: 1.5 }}>
-        Instrucao: &quot;Seu login e sua matricula e sua senha e o seu ID. No primeiro acesso o sistema pede para criar uma senha nova.&quot;
+        Instrucao para a tropa: &quot;Seu login e o seu ID e a senha inicial e 12345678. No primeiro acesso o sistema pede para criar uma senha nova (minimo 8 caracteres, misturando letras com numeros ou simbolos) e assinar o termo LGPD.&quot;
       </p>
     </div>
   );

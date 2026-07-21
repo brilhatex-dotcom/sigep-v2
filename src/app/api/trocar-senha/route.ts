@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { conferirSenha, gerarHash, validarSenhaSimples } from '@/lib/senha';
+import { conferirSenha, gerarHash, validarSenhaPadrao } from '@/lib/senha';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ erro: 'É necessário aceitar o Termo de Consentimento (LGPD).' }, { status: 400 });
   }
 
-  const fraca = validarSenhaSimples(String(novaSenha ?? ""), [login]);
+  const fraca = validarSenhaPadrao(String(novaSenha ?? ""), [login]);
   if (fraca) return NextResponse.json({ erro: fraca }, { status: 400 });
 
   const usuario = await prisma.usuario.findFirst({

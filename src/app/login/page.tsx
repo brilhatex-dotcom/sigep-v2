@@ -200,13 +200,13 @@ export default function LoginPage() {
                 <h3 className="text-base font-bold">Acesso ao Sistema</h3>
               </div>
 
-              <label className="mb-1 block text-xs font-medium text-white/80">Login</label>
+              <label className="mb-1 block text-xs font-medium text-white/80">Login (seu ID)</label>
               <div className="mb-4 flex items-center gap-2 rounded-lg border border-white/15 bg-black/30 px-3">
                 <User className="h-4 w-4 text-white/50" />
                 <input
                   value={login}
                   onChange={(e) => setLogin(e.target.value)}
-                  placeholder="Digite seu usuário"
+                  placeholder="Digite seu ID (ex.: 849988)"
                   className="w-full bg-transparent py-2.5 text-sm text-white placeholder-white/40 outline-none"
                 />
               </div>
