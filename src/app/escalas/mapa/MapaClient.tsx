@@ -950,6 +950,21 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     return null;
   };
 
+  // ROTEM é equipe FIXA com vários militares. Quando um sai (férias/etc.), os
+  // outros continuam na célula, então aqui listamos QUEM saiu para a etiqueta.
+  const rotemVagas = (iso: string): { nome: string; tipo: string }[] => {
+    const eq = equipeRotem(iso, cadEff.rotemEquipes, cadEff.refRotemISO);
+    if (!eq) return [];
+    const out: { nome: string; tipo: string }[] = [];
+    for (const id of eq.militares) {
+      if (afastado(id, iso, cadEff.afastamentos)) {
+        const tp = afastamentoDe(id, iso, cadEff.afastamentos);
+        out.push({ nome: nomeDe(id), tipo: AF_LABEL[(tp || "outro") as TipoAfastamento] || "Afastado" });
+      }
+    }
+    return out;
+  };
+
   const assign = useMemo(() => {
     const out: Record<string, Assign> = {};
     for (const iso of dias) {
@@ -1314,6 +1329,11 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                             </div>
                           );
                         })}
+                        {srv.key === "rotem" && rotemVagas(iso).map((v, i) => (
+                          <div key={`v${i}`} className="mp-vaga-af" title={`${sobrenome(v.nome)} de ${v.tipo} — vaga a cobrir`}>
+                            {sobrenome(v.nome)} · {v.tipo}
+                          </div>
+                        ))}
                       </td>
                     );
                   })}
