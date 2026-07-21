@@ -1828,6 +1828,46 @@ export default function EscalaClient() {
     return { ...cad, afastamentos: [...(cad.afastamentos || []), ...extra] };
   }, [cad, feriasAvulsas]);
 
+  // Auto-preenche na FOLHA os campos vindos do QUADRO (FT, RP, Guarda,
+  // Inteligência) que estão VAZIOS, para os dias de HOJE em diante já salvos.
+  // Assim, ao INSERIR um novo componente no quadro (ex.: FT-Armeiro/Patrulheiro
+  // de amanhã), ele entra sozinho na escala diária — sem sobrescrever o que já
+  // está preenchido nem o que você editou à mão. Usa o MESMO motor da prévia
+  // (novaEscala), então não há divergência de equipe do dia.
+  useEffect(() => {
+    if (!ready) return;
+    const hj = toISO(new Date());
+    const vazioSlot = (sl: any) => !semTags(sl?.titular || "").trim();
+    const vaziaLista = (arr: any) =>
+      !Array.isArray(arr) || arr.length === 0 || arr.every((x: any) => !semTags(x?.titular || "").trim());
+    const CAMPOS_UM: (keyof Escala)[] = ["ftGraduado", "ftMotorista", "rpAdjunto", "rpMotorista"];
+    const CAMPOS_LISTA: (keyof Escala)[] = ["ftPatrulheiro", "rpPatrulheiro", "guardaPermanente", "inteligencia"];
+    setEscalas((prev) => {
+      let mudou = false;
+      const next: Record<string, Escala> = { ...prev };
+      for (const iso of Object.keys(prev)) {
+        if (iso < hj) continue;
+        const base = novaEscala(iso, cadEff, nomeDe);
+        let dia = prev[iso];
+        let diaMud = false;
+        for (const k of CAMPOS_UM) {
+          if (vazioSlot((dia as any)[k]) && !vazioSlot((base as any)[k])) {
+            if (!diaMud) { dia = { ...dia }; diaMud = true; }
+            (dia as any)[k] = (base as any)[k];
+          }
+        }
+        for (const k of CAMPOS_LISTA) {
+          if (vaziaLista((dia as any)[k]) && !vaziaLista((base as any)[k])) {
+            if (!diaMud) { dia = { ...dia }; diaMud = true; }
+            (dia as any)[k] = (base as any)[k];
+          }
+        }
+        if (diaMud) { next[iso] = dia; mudou = true; }
+      }
+      return mudou ? next : prev;
+    });
+  }, [ready, cadEff, nomeDe]);
+
   // Semente de um dia AINDA NAO salvo: gera o dia pelo motor (rodizio 24/72,
   // CPU, RP, FT, ROTEM avançam sozinhos) e HERDA o EXPEDIENTE (P1/P3/P4/Ronda/
   // Patrulha + Cmt/Subcmt) do ULTIMO dia salvo — assim o admin nao refaz todo
