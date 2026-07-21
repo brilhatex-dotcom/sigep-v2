@@ -19,14 +19,18 @@ function codigoDe(txt: string): string {
 }
 
 export default function CarimboSigep({
-  nome, cargo, data, largura = "70mm", assinatura,
+  nome, cargo, data, largura = "70mm", assinatura, escala = 1,
 }: {
   nome: string;
   cargo: string;
   data?: string;
   largura?: string;
   assinatura?: { id: string; token: string } | null;
+  escala?: number;
 }) {
+  const e = escala > 0 ? escala : 1;
+  const pt = (v: number) => `${(v * e).toFixed(2)}pt`;
+  const mm = (v: number) => `${(v * e).toFixed(2)}mm`;
   const quando = data && /^\d{4}-\d{2}-\d{2}/.test(data)
     ? `${data.slice(8, 10)}/${data.slice(5, 7)}/${data.slice(0, 4)}`
     : (data || new Date().toLocaleDateString("pt-BR"));
@@ -37,13 +41,13 @@ export default function CarimboSigep({
   return (
     <div style={{
       width: largura, margin: "0 auto", border: "1px solid #1351b4", borderRadius: 3,
-      padding: "1.5mm 2mm", fontFamily: "Arial, Helvetica, sans-serif", fontSize: "7.2pt",
+      padding: `${mm(1.5)} ${mm(2)}`, fontFamily: "Arial, Helvetica, sans-serif", fontSize: pt(7.2),
       lineHeight: 1.25, color: "#111", textAlign: "left", background: "#fff",
-      display: "flex", gap: "2mm", alignItems: "center",
+      display: "flex", gap: mm(2), alignItems: "center",
     }}>
-      {assinatura && qrUrl ? <div style={{ flexShrink: 0 }}><QrCode url={qrUrl} size={52} /></div> : null}
+      {assinatura && qrUrl ? <div style={{ flexShrink: 0 }}><QrCode url={qrUrl} size={Math.round(52 * e)} /></div> : null}
       <div>
-        <div style={{ fontWeight: "bold", fontSize: "7.4pt", marginBottom: "0.5mm", color: "#1351b4" }}>
+        <div style={{ fontWeight: "bold", fontSize: pt(7.4), marginBottom: mm(0.5), color: "#1351b4" }}>
           ✔ Assinado eletronicamente — SIGEP · 18º BPM
         </div>
         <div style={{ fontWeight: "bold" }}>{(nome || "").toUpperCase()}</div>

@@ -2313,9 +2313,9 @@ export default function EscalaClient() {
                 <div className="visto-side">
                   <div className="visto">VISTO</div>
                   {assEscala.cmt
-                    ? <CarimboSigep nome={assEscala.cmt.nome} cargo="Cmt. do 18º BPM" data={data} largura="58mm" assinatura={{ id: assEscala.cmt.id, token: assEscala.cmt.token }} />
+                    ? <CarimboSigep nome={assEscala.cmt.nome} cargo="Cmt. do 18º BPM" data={data} largura="46mm" escala={0.8} assinatura={{ id: assEscala.cmt.id, token: assEscala.cmt.token }} />
                     : (chefe.cmtModo || "sigep") === "sigep"
-                    ? <CarimboSigep nome={chefe.comandante || ""} cargo="Cmt. do 18º BPM" data={data} largura="58mm" />
+                    ? <CarimboSigep nome={chefe.comandante || ""} cargo="Cmt. do 18º BPM" data={data} largura="46mm" escala={0.8} />
                     : (chefe.cmtModo || "sigep") === "gov"
                     ? <div className="visto-esp" />
                     : (chefe.cmtAssinatura
