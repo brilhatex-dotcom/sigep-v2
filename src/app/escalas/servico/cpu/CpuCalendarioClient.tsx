@@ -244,7 +244,7 @@ export default function CpuCalendarioClient() {
               <div style={{ width: "26mm", height: "24mm", display: "flex", alignItems: "center", justifyContent: "center" }}>{brasoes.pmma ? <img src={brasoes.pmma} alt="" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : null}</div>
               <div style={{ flex: 1, textAlign: "center" }}>
                 {brasoes.ma ? <img src={brasoes.ma} alt="" style={{ height: "17mm", objectFit: "contain", display: "block", margin: "0 auto" }} /> : null}
-                {ORG.map((l, i) => <div key={i} style={{ fontSize: i >= 5 ? 9 : 11, fontWeight: i >= 5 ? 400 : 700 }}>{l}</div>)}
+                {ORG.map((l, i) => <div key={i} style={{ fontSize: i >= 5 ? 10.5 : 13, fontWeight: i >= 5 ? 400 : 700, lineHeight: 1.28 }}>{l}</div>)}
               </div>
               <div style={{ width: "26mm", height: "24mm", display: "flex", alignItems: "center", justifyContent: "center" }}>{brasoes.bpm ? <img src={brasoes.bpm} alt="" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : null}</div>
             </div>
@@ -288,6 +288,7 @@ export default function CpuCalendarioClient() {
             @media print {
               body > *:not(#cpuprev-overlay){ display:none !important; }
               #cpuprev-overlay{ position:static !important; overflow:visible !important; background:#fff !important; }
+              #cpuprev-overlay .no-print{ display:none !important; }
               #cpuprev-sheet{ box-shadow:none !important; margin:0 !important; width:100% !important; padding:8mm !important; }
               @page{ size:A4 landscape; margin:8mm; }
             }
