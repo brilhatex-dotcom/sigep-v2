@@ -5,6 +5,7 @@ import {
   AlignmentType, WidthType, BorderStyle, VerticalAlign,
 } from "docx";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { compararAntiguidade } from "@/lib/patentes";
 
 /* =========================================================================
    Escala de Servico diaria -> Word (.docx) e PDF, IGUAL ao modelo impresso:
@@ -28,6 +29,8 @@ export type EscalaDia = {
   ftGraduado?: Slot; ftMotorista?: Slot; ftPatrulheiro?: Slot;
   rotemHorarios?: string[]; rotemMilitares?: Slot[];
   extraOperacao?: string; extraLocal?: string; extraHorario?: string; extraUniforme?: string;
+  extraReforco?: { postoGrad?: string; nome?: string }[];
+  observacao?: string;
 };
 type Brasoes = { pmma?: string; ma?: string; bpm?: string };
 type Chefe = { nome?: string; funcao?: string; assinatura?: string; assinarGov?: boolean; cmtAssinatura?: string };
@@ -130,6 +133,38 @@ function expedienteDocx(e: EscalaDia): Table | null {
   return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: rowsExp });
 }
 
+// Ordena o REFORÇO por antiguidade (posto -> barra -> nome). Sem data de
+// promoção aqui (o export só tem POST/GRAD + nome); a barra do POST/GRAD basta.
+function reforcoOrdenado(linhas?: { postoGrad?: string; nome?: string }[]) {
+  const barraDe = (s?: string) => (String(s || "").match(/\d+\s*\/\s*\d+/) || [])[0] || "";
+  return (linhas || [])
+    .filter((l) => limpa(l.postoGrad) || limpa(l.nome))
+    .map((l, i) => ({ l, i }))
+    .sort((a, b) => {
+      const c = compararAntiguidade(
+        { postoGrad: a.l.postoGrad || "", numeroBarra: barraDe(a.l.postoGrad), nome: a.l.nome || "" },
+        { postoGrad: b.l.postoGrad || "", numeroBarra: barraDe(b.l.postoGrad), nome: b.l.nome || "" },
+      );
+      return c !== 0 ? c : a.i - b.i;
+    })
+    .map((x) => x.l);
+}
+
+function reforcoDocx(e: EscalaDia): Table {
+  const rows: TableRow[] = [
+    celFaixa("REFORÇO SEDE", 3),
+    new TableRow({ children: [celRotulo("ORD", 12), celRotulo("POST/GRAD", 44), celRotulo("NOME", 44)] }),
+  ];
+  reforcoOrdenado(e.extraReforco).forEach((l, i) => {
+    rows.push(new TableRow({ children: [
+      celValor(String(i + 1).padStart(2, "0"), 12, true),
+      celValor(limpa(l.postoGrad), 44, true),
+      celValor(limpa(l.nome), 44, true),
+    ] }));
+  });
+  return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows });
+}
+
 function servicosDocx(e: EscalaDia): Table {
   const L = 30, V = 70;
   const rowDado = (lbl: string, valor: string) => new TableRow({ children: [celRotulo(lbl, L), celValor(valor, V)] });
@@ -191,22 +226,34 @@ export async function gerarEscalaDocx(input: EscalaExportInput): Promise<Buffer>
     ] })],
   });
 
+  const ehExtraord = e.tipo === "extraordinaria";
   const corpo: (Paragraph | Table)[] = [
     cabecalho,
     vistoTitulo,
     linhaP(`PARA O DIA ${extensoUpper(e.data)} (${diaSemana(e.data)})`, { bold: true, size: 18, underline: true }),
-    linhaP(`SERVIÇO - ${limpa(e.servicoHoras) || "24 HORAS"} (APRESENTAÇÃO ÀS ${limpa(e.apresentacao) || "08H"})`, { bold: true, size: 15, underline: true }),
-    new Paragraph({ text: "", spacing: { after: 40 } }),
   ];
+  // A extraordinária não é serviço de 24h — não sai a linha "SERVIÇO - 24 HORAS".
+  if (!ehExtraord) {
+    corpo.push(linhaP(`SERVIÇO - ${limpa(e.servicoHoras) || "24 HORAS"} (APRESENTAÇÃO ÀS ${limpa(e.apresentacao) || "08H"})`, { bold: true, size: 15, underline: true }));
+  }
+  corpo.push(new Paragraph({ text: "", spacing: { after: 40 } }));
 
   if (extra) {
     const linhaCampo = (lbl: string, v?: string) => new Paragraph({ children: [run(lbl + " ", { bold: true }), run(limpa(v))] });
     corpo.push(linhaCampo("OPERAÇÃO:", e.extraOperacao), linhaCampo("LOCAL:", e.extraLocal), linhaCampo("HORÁRIO:", e.extraHorario), linhaCampo("UNIFORME:", e.extraUniforme));
+    corpo.push(new Paragraph({ text: "", spacing: { after: 30 } }));
+    if (ehExtraord) corpo.push(reforcoDocx(e)); // REFORÇO SEDE (nomes) — faltava no export
+    corpo.push(linhaP(`Quartel do 18º BPM, em ${CIDADE}, ${extensoLow(e.dataConfeccao || e.data)}.`, { size: 14, align: AlignmentType.RIGHT }));
   } else {
     const exp = expedienteDocx(e);
     if (exp) { corpo.push(exp, new Paragraph({ text: "", spacing: { after: 30 } })); }
     corpo.push(servicosDocx(e));
     corpo.push(linhaP(`Quartel do 18º BPM, em ${CIDADE}, ${extensoLow(e.dataConfeccao || e.data)}.`, { size: 14, align: AlignmentType.RIGHT }));
+  }
+
+  // OBSERVAÇÃO (opcional) — só sai quando preenchida.
+  if (limpa(e.observacao)) {
+    corpo.push(new Paragraph({ spacing: { before: 80 }, children: [run("OBSERVAÇÃO: ", { bold: true, size: 14 }), run(limpa(e.observacao), { size: 14, italics: true })] }));
   }
 
   // assinatura do chefe
@@ -288,7 +335,10 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
   page.drawLine({ start: { x: (W - titW) / 2, y: tituloY - 33 }, end: { x: (W + titW) / 2, y: tituloY - 33 }, thickness: 0.9, color: rgb(0, 0, 0) });
   y = tituloY - 52;
   centro(`PARA O DIA ${extensoUpper(e.data)} (${diaSemana(e.data)})`, 10, bold, 2, true);
-  centro(`SERVIÇO - ${limpa(e.servicoHoras) || "24 HORAS"} (APRESENTAÇÃO ÀS ${limpa(e.apresentacao) || "08H"})`, 9, bold, 4, true);
+  // A extraordinária não é serviço de 24h — não sai a linha "SERVIÇO - 24 HORAS".
+  if (e.tipo !== "extraordinaria") {
+    centro(`SERVIÇO - ${limpa(e.servicoHoras) || "24 HORAS"} (APRESENTAÇÃO ÀS ${limpa(e.apresentacao) || "08H"})`, 9, bold, 4, true);
+  }
 
   // ---- desenho de tabela generico ----
   type Cel = { text: string; w: number; bold?: boolean; center?: boolean; fill?: boolean };
@@ -332,6 +382,16 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
     const campo = (lbl: string, v?: string) => { garante(16); page.drawText(safe(lbl + " ") + safe(limpa(v)), { x: MX, y: y - 12, size: 11, font, color: rgb(0, 0, 0) }); y -= 18; };
     y -= 4;
     campo("OPERACAO:", e.extraOperacao); campo("LOCAL:", e.extraLocal); campo("HORARIO:", e.extraHorario); campo("UNIFORME:", e.extraUniforme);
+    if (e.tipo === "extraordinaria") {
+      y -= 6;
+      faixa("REFORÇO SEDE"); // faltava no export — agora sai com os nomes
+      drawLinha([{ text: "ORD", w: 0.12, bold: true, center: true, fill: true }, { text: "POST/GRAD", w: 0.44, bold: true, center: true, fill: true }, { text: "NOME", w: 0.44, bold: true, center: true, fill: true }], true);
+      reforcoOrdenado(e.extraReforco).forEach((l, i) => {
+        drawLinha([{ text: String(i + 1).padStart(2, "0"), w: 0.12, center: true }, { text: limpa(l.postoGrad), w: 0.44, center: true }, { text: limpa(l.nome), w: 0.44, center: true }]);
+      });
+      y -= 12;
+      centro(`Quartel do 18º BPM, em ${CIDADE}, ${extensoLow(e.dataConfeccao || e.data)}.`, 9.5, font, 4);
+    }
   } else {
     // Expediente
     if (!fimDeSemana(e.data) && e.tipo !== "extraordinaria" && e.tipo !== "joe") {
@@ -370,6 +430,13 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
 
     y -= 12;
     centro(`Quartel do 18º BPM, em ${CIDADE}, ${extensoLow(e.dataConfeccao || e.data)}.`, 9.5, font, 4);
+  }
+
+  // OBSERVAÇÃO (opcional) — só sai quando preenchida.
+  if (limpa(e.observacao)) {
+    y -= 8;
+    const linhas = quebra("OBSERVAÇÃO: " + limpa(e.observacao), 9, font, usable - 10);
+    for (const l of linhas) { garante(12); page.drawText(safe(l), { x: MX, y: y - 10, size: 9, font, color: rgb(0, 0, 0) }); y -= 12; }
   }
 
   // assinatura

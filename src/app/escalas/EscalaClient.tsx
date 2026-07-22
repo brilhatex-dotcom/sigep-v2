@@ -80,6 +80,8 @@ type Escala = {
   // ---- Escala da JOE/RENE (tipo "joe", print 4, paisagem) ----
   joeId?: string;
   joeRows?: JoeEscalaLinha[];
+  // Observação/nota livre no rodapé (opcional; só aparece/imprime se preenchida).
+  observacao?: string;
 };
 
 type TipoAfastamento =
@@ -504,6 +506,7 @@ function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
     extraReforco: [{ postoGrad: "", nome: "" }],
     joeId: "",
     joeRows: [],
+    observacao: "",
   };
 }
 
@@ -744,6 +747,34 @@ function BrasaoSlot({
   );
 }
 
+/* Ordena o REFORÇO por ANTIGUIDADE (posto -> data de promoção -> barra -> nome),
+   o mesmo critério da escala diária. Resolve a ficha do efetivo pela barra do
+   POST/GRAD (ex.: "2º Sgt PM nº 312/10") ou pelo nome. Linhas vazias vão ao fim. */
+function ordenaReforco(linhas: ReforcoLinha[], efetivo: Militar[]): ReforcoLinha[] {
+  const barraDe = (s: string) => (s.match(/\d+\s*\/\s*\d+/) || [])[0]?.replace(/\s/g, "") || "";
+  const fichaDe = (l: ReforcoLinha): Militar | undefined => {
+    const b = barraDe(l.postoGrad);
+    if (b) { const m = efetivo.find((x) => (x.numeroBarra || "").replace(/\s/g, "") === b); if (m) return m; }
+    const n = (l.nome || "").trim().toLowerCase();
+    return n ? efetivo.find((x) => (x.nomeGuerra || "").toLowerCase() === n || (x.nome || "").toLowerCase() === n) : undefined;
+  };
+  return linhas
+    .map((l, i) => ({ l, i }))
+    .sort((a, b) => {
+      const va = !a.l.postoGrad.trim() && !a.l.nome.trim();
+      const vb = !b.l.postoGrad.trim() && !b.l.nome.trim();
+      if (va && vb) return a.i - b.i;
+      if (va) return 1; if (vb) return -1;
+      const fa = fichaDe(a.l), fb = fichaDe(b.l);
+      const c = compararAntiguidade(
+        { postoGrad: fa?.postoGrad ?? a.l.postoGrad, dataPromocao: fa?.dataPromocao, numeroBarra: fa?.numeroBarra ?? barraDe(a.l.postoGrad), nome: fa?.nome ?? a.l.nome },
+        { postoGrad: fb?.postoGrad ?? b.l.postoGrad, dataPromocao: fb?.dataPromocao, numeroBarra: fb?.numeroBarra ?? barraDe(b.l.postoGrad), nome: fb?.nome ?? b.l.nome },
+      );
+      return c !== 0 ? c : a.i - b.i;
+    })
+    .map((x) => x.l);
+}
+
 /* Tabela REFORÇO SEDE da escala extraordinaria (print 3): ORD | POST/GRAD | NOME.
    Celulas editaveis; busca no efetivo preenche uma linha automaticamente. */
 function ReforcoTabela({
@@ -762,8 +793,8 @@ function ReforcoTabela({
     if (!m) return;
     const p = fmtMilitarPartes(m);
     const iVazia = linhas.findIndex((l) => !l.postoGrad.trim() && !l.nome.trim());
-    if (iVazia >= 0) upd(iVazia, p);
-    else onChange([...linhas, p]);
+    const novo = iVazia >= 0 ? linhas.map((l, j) => (j === iVazia ? p : l)) : [...linhas, p];
+    onChange(ordenaReforco(novo, efetivo)); // sobe o mais antigo sozinho
   };
 
   return (
@@ -2433,6 +2464,13 @@ export default function EscalaClient() {
               <div className="rodape-local">Quartel do 18º BPM, em Presidente Dutra-MA, {extensoLow(e.dataConfeccao)}.</div>
               </>)}
 
+              {/* OBSERVAÇÃO (nota livre): na tela sempre dá para digitar; na
+                  impressão/Word/PDF só aparece se estiver preenchida. */}
+              <div className={"obs-rodape" + (semTags(e.observacao || "").trim() ? "" : " vazio-noprint")}>
+                <span className="obs-lbl">OBSERVAÇÃO:</span>{" "}
+                <Editable value={e.observacao || ""} placeholder="opcional — ex.: a ROTEM deverá operar em São Domingos das 19h até o término do evento" onChange={(v) => editE((d) => { d.observacao = v; })} />
+              </div>
+
               <div className="assinatura">
                 {assEscala.chefe_p1 ? (
                   <div style={{ display: "flex", justifyContent: "center", marginBottom: 2 }}>
@@ -2721,6 +2759,9 @@ const CSS = `
 .slot{ display:inline; } .perm{ font-weight:700; }
 
 .rodape-local{ text-align:center; font-size:15px; margin-top:10px; }
+.obs-rodape{ margin-top:8px; font-size:14px; text-align:left; line-height:1.3; }
+.obs-rodape .obs-lbl{ font-weight:bold; }
+.obs-rodape.vazio-noprint{ opacity:.6; }
 .assinatura{ text-align:center; margin-top:14px; }
 .ass-img{ max-height:50px; max-width:240px; object-fit:contain; display:block; margin:0 auto 2px; }
 .ass-gov-espaco{ height:50px; }
@@ -2761,6 +2802,7 @@ const CSS = `
   body *{ visibility:hidden !important; }
   .doc-paper, .doc-paper *{ visibility:visible !important; }
   .doc-paper{ position:absolute; left:0; top:0; width:100% !important; max-width:none !important; box-shadow:none !important; padding:0 !important; }
+  .obs-rodape.vazio-noprint{ display:none !important; }
   .no-print{ display:none !important; }
   .editavel:empty:before{ content:"" !important; }
   .editavel:hover, .editavel:focus{ background:transparent !important; }
