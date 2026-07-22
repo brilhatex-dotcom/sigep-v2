@@ -14,6 +14,7 @@ type Afastamento = { militar: string; tipo: string; inicio: string; fim: string 
 type Cadastro = { cpu: string[]; afastamentos: Afastamento[]; refCpuISO: string; cpuOverrides?: Record<string, string> };
 type Militar = { id: string; postoGrad: string; numeroBarra: string; nome: string; nomeGuerra: string; telefone?: string; quadro?: string };
 type Chefe = { nome: string; funcao: string; assinatura?: string; assinarGov?: boolean; cmtAssinatura?: string; cmtModo?: "imagem" | "sigep" | "gov"; comandante?: string };
+type AssRec = { id: string; token: string; nome: string; cargo: string; em: string };
 type Override = { nome?: string; fone?: string; permuta?: string };
 type Brasoes = { pmma: string; ma: string; bpm: string };
 
@@ -144,6 +145,14 @@ export default function CpuSemanalClient() {
   const [drag, setDrag] = useState<string | null>(null);
   const [editCpu, setEditCpu] = useState<string | null>(null);
   const [buscaCpu, setBuscaCpu] = useState("");
+  // Visto do Cmt pela assinatura avançada SIGEP (lote, por semana). assCmt é
+  // indexado pela TERÇA (início) de cada semana.
+  const [assCmt, setAssCmt] = useState<Record<string, AssRec>>({});
+  const [assinarAberto, setAssinarAberto] = useState(false);
+  const [selSem, setSelSem] = useState<Set<string>>(new Set());
+  const [senhaAss, setSenhaAss] = useState("");
+  const [assinando, setAssinando] = useState(false);
+  const [assMsg, setAssMsg] = useState("");
   const salvarTimer = useRef<any>(null);
   const brasoesTimer = useRef<any>(null);
   const cadTimer = useRef<any>(null);
@@ -268,6 +277,49 @@ export default function CpuSemanalClient() {
   );
 
   const semanas = useMemo(() => [0, 1, 2, 3].map((w) => Array.from({ length: 7 }, (_, i) => somaDias(inicio, w * 7 + i))), [inicio]);
+  const inicioSemanas = useMemo(() => semanas.map((s) => s[0]), [semanas]);
+
+  // Carrega o visto do Cmt (avançada SIGEP) de cada semana visível.
+  const carregarAssCmt = useMemo(() => async () => {
+    const out: Record<string, AssRec> = {};
+    await Promise.all(inicioSemanas.map(async (ini) => {
+      try {
+        const r = await fetch(`/api/assinatura-sigep?tipo=cpu_semanal&ref=${encodeURIComponent(ini)}`);
+        if (!r.ok) return;
+        const d = await r.json();
+        const cmt = (d?.assinaturas || []).find((a: any) => a.papel === "cmt");
+        if (cmt) out[ini] = cmt;
+      } catch { /* ignore */ }
+    }));
+    setAssCmt(out);
+  }, [inicioSemanas]);
+  useEffect(() => { carregarAssCmt(); }, [carregarAssCmt]);
+
+  const rotuloSemana = (ini: string) => `${brData(ini)} a ${brData(somaDias(ini, 6))}`;
+  const abrirAssinar = () => { setSelSem(new Set(inicioSemanas)); setSenhaAss(""); setAssMsg(""); setAssinarAberto(true); };
+  const assinarCmt = async () => {
+    const alvos = inicioSemanas.filter((i) => selSem.has(i));
+    if (!alvos.length) { setAssMsg("Selecione ao menos uma semana."); return; }
+    if (!senhaAss) { setAssMsg("Digite sua senha para assinar."); return; }
+    setAssinando(true); setAssMsg("");
+    try {
+      const itens = alvos.map((ini) => ({
+        tipo: "cpu_semanal", ref: ini,
+        conteudo: JSON.stringify({ semana: ini, fim: somaDias(ini, 6) }),
+        resumo: `Escala Semanal CPU · ${rotuloSemana(ini)}`,
+      }));
+      const r = await fetch("/api/assinatura-sigep", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ papel: "cmt", senha: senhaAss, itens }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setAssMsg(d?.error || "Falha ao assinar."); setAssinando(false); return; }
+      setAssMsg(`✅ ${d.assinaturas?.length || alvos.length} semana(s) assinada(s) pela avançada SIGEP.`);
+      setSenhaAss("");
+      await carregarAssCmt();
+    } catch { setAssMsg("Falha ao assinar."); }
+    finally { setAssinando(false); }
+  };
 
   const Pagina = ({ dias, ultima }: { dias: string[]; ultima: boolean }) => (
     <div className={"cpuw-paper" + (ultima ? "" : " quebra")}>
@@ -283,7 +335,9 @@ export default function CpuSemanalClient() {
       <div className="cpuw-titw">
         <div className="cpuw-visto">
           <div className="cpuw-visto-t">VISTO</div>
-          {(chefe.cmtModo || "sigep") === "sigep"
+          {assCmt[dias[0]]
+            ? <CarimboSigep nome={assCmt[dias[0]].nome} cargo="Cmt. do 18º BPM" largura="46mm" escala={0.8} assinatura={{ id: assCmt[dias[0]].id, token: assCmt[dias[0]].token }} />
+            : (chefe.cmtModo || "sigep") === "sigep"
             ? <CarimboSigep nome={chefe.comandante || ""} cargo="Cmt. do 18º BPM" largura="56mm" />
             : (chefe.cmtModo || "sigep") === "gov"
             ? <div className="cpuw-visto-esp" />
@@ -343,8 +397,44 @@ export default function CpuSemanalClient() {
         </label>
         <span className="cpuw-spacer" />
         <span className="cpuw-hint">Arraste o ⠿ para mover o oficial entre os dias · tudo salva sozinho</span>
+        <button className="cpuw-btn" onClick={abrirAssinar} title="Assinar o VISTO como Comandante (avançada SIGEP, com QR) — em lote por semana">🔏 Visto Cmt{Object.keys(assCmt).length ? ` ✅ (${Object.keys(assCmt).length})` : ""}</button>
         <button className="cpuw-btn primary" onClick={() => window.print()}>🖨 Imprimir / PDF</button>
       </div>
+
+      {/* Assinar VISTO do Cmt (avançada SIGEP) — seleciona as semanas, uma senha */}
+      {assinarAberto && (
+        <div className="no-print" onClick={() => !assinando && setAssinarAberto(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 16, overflow: "auto" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 40, width: "100%", maxWidth: 460, background: "#0F1B2D", border: "1px solid #2b3f63", borderRadius: 14, padding: 18 }}>
+            <h3 style={{ color: "#fff", fontWeight: 700, margin: "0 0 4px" }}>🔏 Visto do Comandante — Escala Semanal CPU</h3>
+            <p style={{ color: "#94A3B8", fontSize: 12, margin: "0 0 10px" }}>Assinatura <b>avançada SIGEP</b> (com sua senha). Marque as semanas que deseja assinar — sai um carimbo com QR verificável em cada uma.</p>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#94A3B8", marginBottom: 6 }}>
+              <span>{selSem.size} de {inicioSemanas.length} selecionadas</span>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="cpuw-btn" onClick={() => setSelSem(new Set(inicioSemanas))}>Todas</button>
+                <button className="cpuw-btn" onClick={() => setSelSem(new Set())}>Nenhuma</button>
+              </div>
+            </div>
+            <div style={{ border: "1px solid #28395a", borderRadius: 8, overflow: "hidden", marginBottom: 10 }}>
+              {inicioSemanas.map((ini) => (
+                <label key={ini} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderBottom: "1px solid rgba(255,255,255,.06)", color: "#E8EEF6", fontSize: 13, cursor: "pointer" }}>
+                  <input type="checkbox" checked={selSem.has(ini)}
+                    onChange={(ev) => setSelSem((s) => { const n = new Set(s); if (ev.target.checked) n.add(ini); else n.delete(ini); return n; })} />
+                  <span>{rotuloSemana(ini)}</span>
+                  {assCmt[ini] && <span style={{ marginLeft: "auto", color: "#9fe6bd", fontSize: 11 }}>já assinada</span>}
+                </label>
+              ))}
+            </div>
+            <input type="password" value={senhaAss} onChange={(ev) => setSenhaAss(ev.target.value)} placeholder="Sua senha"
+              style={{ width: "100%", boxSizing: "border-box", background: "#0a1626", color: "#E8EEF6", border: "1px solid #28395a", borderRadius: 8, padding: "9px 11px", fontSize: 14 }} />
+            {assMsg && <div style={{ color: assMsg.startsWith("✅") ? "#9fe6bd" : "#ffb3b3", fontSize: 12, marginTop: 8 }}>{assMsg}</div>}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+              <button className="cpuw-btn" onClick={() => setAssinarAberto(false)} disabled={assinando}>Fechar</button>
+              <button className="cpuw-btn primary" onClick={assinarCmt} disabled={assinando || !senhaAss || selSem.size === 0}>{assinando ? "Assinando…" : `Assinar (${selSem.size})`}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {semanas.map((dias, wi) => <Pagina key={wi} dias={dias} ultima={wi === semanas.length - 1} />)}
 

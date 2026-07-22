@@ -224,11 +224,17 @@ function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe, tipoAs
   const ehLicenca = variante === "licenca";
   // Assinatura AVANÇADA do Chefe do P/1 (SIGEP) para ESTE memorando, se houver.
   const [assP1, setAssP1] = useState<{ id: string; token: string; nome: string; cargo: string; em: string } | null>(null);
+  // Visto AVANÇADO do Comandante (SIGEP) para ESTE memorando, se houver.
+  const [assCmt, setAssCmt] = useState<{ id: string; token: string; nome: string; cargo: string; em: string } | null>(null);
   useEffect(() => {
     if (!tipoAssinatura || !refAssinatura) return;
     fetch(`/api/assinatura-sigep?tipo=${encodeURIComponent(tipoAssinatura)}&ref=${encodeURIComponent(refAssinatura)}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { const a = (d?.assinaturas || []).find((x: any) => x.papel === "chefe_p1"); if (a) setAssP1(a); })
+      .then((d) => {
+        const arr = d?.assinaturas || [];
+        const a = arr.find((x: any) => x.papel === "chefe_p1"); if (a) setAssP1(a);
+        const c = arr.find((x: any) => x.papel === "cmt"); if (c) setAssCmt(c);
+      })
       .catch(() => {});
   }, [tipoAssinatura, refAssinatura]);
   const prazoLic = (dados.prazoTexto && dados.prazoTexto.trim()) || "3 (três) meses";
@@ -415,9 +421,14 @@ function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe, tipoAs
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
             </div>
             <p style={{ fontWeight: "bold", margin: "0 0 1mm 0" }}>VISTO</p>
-            {/* Visto do Cmt conforme o modo salvo na config (imagem / carimbo
-                SIGEP / em branco p/ Gov.br) — mesma fonte da escala. */}
-            {(chefe?.cmtModo || "sigep") === "sigep" ? (
+            {/* Visto do Cmt: se ASSINADO pela avançada SIGEP (com senha), sai o
+                carimbo com QR; senão, conforme o modo salvo na config (imagem /
+                carimbo SIGEP visual / em branco p/ Gov.br) — mesma fonte da escala. */}
+            {assCmt ? (
+              <div style={{ marginBottom: "1mm" }}>
+                <CarimboSigep nome={assCmt.nome} cargo="Cmt. do 18º BPM" data={assCmt.em} largura="40mm" escala={0.82} assinatura={{ id: assCmt.id, token: assCmt.token }} />
+              </div>
+            ) : (chefe?.cmtModo || "sigep") === "sigep" ? (
               <div style={{ marginBottom: "1mm" }}>
                 <CarimboSigep nome={chefe?.comandante || ""} cargo="Cmt. do 18º BPM" largura="36mm" />
               </div>

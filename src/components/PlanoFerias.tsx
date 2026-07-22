@@ -124,8 +124,10 @@ export default function PlanoFerias({
   const [salvandoPermuta, setSalvandoPermuta] = useState(false);
   const [memorando, setMemorando] = useState<DadosMemorando | null>(null);
   const [memInfo, setMemInfo] = useState<{ efetivoId: string } | null>(null);
-  // Assinatura em lote dos memorandos da equipe (Chefe do P/1, senha única)
+  // Assinatura em lote dos memorandos da equipe (senha única). O papel define
+  // quem assina: Chefe do P/1 (emissor) ou Comandante (VISTO).
   const [assinarLote, setAssinarLote] = useState(false);
+  const [papelAss, setPapelAss] = useState<"chefe_p1" | "cmt">("chefe_p1");
   const [selAss, setSelAss] = useState<Set<string>>(new Set());
   const [senhaAss, setSenhaAss] = useState("");
   const [assinando, setAssinando] = useState(false);
@@ -268,7 +270,8 @@ export default function PlanoFerias({
     });
   }
 
-  function abrirAssinarLote(e: EquipeView) {
+  function abrirAssinarLote(e: EquipeView, papel: "chefe_p1" | "cmt" = "chefe_p1") {
+    setPapelAss(papel);
     setSelAss(new Set(filtrarMembros(e.membros).map((m) => m.efetivoId)));
     setSenhaAss(""); setAssMsg(""); setAssinarLote(true);
   }
@@ -288,11 +291,11 @@ export default function PlanoFerias({
       }));
       const r = await fetch("/api/assinatura-sigep", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ papel: "chefe_p1", senha: senhaAss, itens }),
+        body: JSON.stringify({ papel: papelAss, senha: senhaAss, itens }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { setAssMsg(d?.error || "Falha ao assinar."); setAssinando(false); return; }
-      setAssMsg(`✅ ${d.assinaturas?.length || 0} memorando(s) assinados pela avançada SIGEP.`);
+      setAssMsg(`✅ ${d.assinaturas?.length || 0} memorando(s) assinados como ${papelAss === "cmt" ? "Comandante (VISTO)" : "Chefe do P/1"}.`);
       setSenhaAss("");
     } catch { setAssMsg("Falha ao assinar."); }
     finally { setAssinando(false); }
@@ -614,10 +617,16 @@ export default function PlanoFerias({
               </div>
               <div className="flex items-center gap-2">
                 {isAdmin && filtrarMembros(aberta.membros).length > 0 && (
-                  <button onClick={() => abrirAssinarLote(aberta)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-3 py-1.5 text-xs font-medium text-[#f3df9d] hover:bg-[#D4AF37]/20">
-                    <ShieldCheck className="h-4 w-4" /> Assinar memorandos (SIGEP)
-                  </button>
+                  <>
+                    <button onClick={() => abrirAssinarLote(aberta, "chefe_p1")}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-3 py-1.5 text-xs font-medium text-[#f3df9d] hover:bg-[#D4AF37]/20">
+                      <ShieldCheck className="h-4 w-4" /> Assinar P/1
+                    </button>
+                    <button onClick={() => abrirAssinarLote(aberta, "cmt")}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-sky-400/40 bg-sky-400/10 px-3 py-1.5 text-xs font-medium text-sky-200 hover:bg-sky-400/20">
+                      <ShieldCheck className="h-4 w-4" /> Visto Cmt
+                    </button>
+                  </>
                 )}
                 <button onClick={() => setAberta(null)} aria-label="Fechar" className="text-[#94A3B8] hover:text-white">
                   <X className="h-5 w-5" />
@@ -761,11 +770,11 @@ export default function PlanoFerias({
         <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/60 p-4" onClick={() => !assinando && setAssinarLote(false)}>
           <div className="mt-10 w-full max-w-lg rounded-xl border border-[#D4AF37]/30 bg-[#0F1B2D] shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 text-white">
-              <h3 className="flex items-center gap-2 font-bold"><ShieldCheck className="h-5 w-5 text-[#D4AF37]" /> Assinar memorandos — Equipe {aberta.numeroEquipe}</h3>
+              <h3 className="flex items-center gap-2 font-bold"><ShieldCheck className="h-5 w-5 text-[#D4AF37]" /> {papelAss === "cmt" ? "Visto do Comandante" : "Assinar memorandos (P/1)"} — Equipe {aberta.numeroEquipe}</h3>
               <button onClick={() => !assinando && setAssinarLote(false)} className="text-[#94A3B8] hover:text-white"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-3 p-5">
-              <p className="text-xs text-[#94A3B8]">Assinatura <b>avançada SIGEP</b> (com sua senha) do Chefe do P/1. Marque quem assinar — todos vêm marcados. Cada memorando recebe um carimbo com QR verificável.</p>
+              <p className="text-xs text-[#94A3B8]">Assinatura <b>avançada SIGEP</b> (com sua senha) {papelAss === "cmt" ? "do Comandante (VISTO)" : "do Chefe do P/1"}. Marque quem assinar — todos vêm marcados. Cada memorando recebe um carimbo com QR verificável.</p>
               <div className="flex items-center justify-between text-xs text-[#94A3B8]">
                 <span>{selAss.size} de {filtrarMembros(aberta.membros).length} selecionados</span>
                 <div className="flex gap-2">
