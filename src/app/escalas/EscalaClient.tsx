@@ -2461,15 +2461,15 @@ export default function EscalaClient() {
                 </tr>
               </tbody></table>
 
-              <div className="rodape-local">Quartel do 18º BPM, em Presidente Dutra-MA, {extensoLow(e.dataConfeccao)}.</div>
-              </>)}
-
-              {/* OBSERVAÇÃO (nota livre): na tela sempre dá para digitar; na
-                  impressão/Word/PDF só aparece se estiver preenchida. */}
+              {/* OBSERVAÇÃO logo após a ROTEM/escala; "Quartel + data" abaixo dela.
+                  Na tela sempre dá para digitar; na impressão/Word/PDF só sai se preenchida. */}
               <div className={"obs-rodape" + (semTags(e.observacao || "").trim() ? "" : " vazio-noprint")}>
                 <span className="obs-lbl">OBSERVAÇÃO:</span>{" "}
                 <Editable value={e.observacao || ""} placeholder="opcional — ex.: a ROTEM deverá operar em São Domingos das 19h até o término do evento" onChange={(v) => editE((d) => { d.observacao = v; })} />
               </div>
+
+              <div className="rodape-local">Quartel do 18º BPM, em Presidente Dutra-MA, {extensoLow(e.dataConfeccao)}.</div>
+              </>)}
 
               <div className="assinatura">
                 {assEscala.chefe_p1 ? (

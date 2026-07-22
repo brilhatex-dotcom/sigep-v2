@@ -238,22 +238,25 @@ export async function gerarEscalaDocx(input: EscalaExportInput): Promise<Buffer>
   }
   corpo.push(new Paragraph({ text: "", spacing: { after: 40 } }));
 
+  let temQuartel = false;
   if (extra) {
     const linhaCampo = (lbl: string, v?: string) => new Paragraph({ children: [run(lbl + " ", { bold: true }), run(limpa(v))] });
     corpo.push(linhaCampo("OPERAÇÃO:", e.extraOperacao), linhaCampo("LOCAL:", e.extraLocal), linhaCampo("HORÁRIO:", e.extraHorario), linhaCampo("UNIFORME:", e.extraUniforme));
     corpo.push(new Paragraph({ text: "", spacing: { after: 30 } }));
-    if (ehExtraord) corpo.push(reforcoDocx(e)); // REFORÇO SEDE (nomes) — faltava no export
-    corpo.push(linhaP(`Quartel do 18º BPM, em ${CIDADE}, ${extensoLow(e.dataConfeccao || e.data)}.`, { size: 14, align: AlignmentType.RIGHT }));
+    if (ehExtraord) { corpo.push(reforcoDocx(e)); temQuartel = true; } // REFORÇO SEDE (nomes) — faltava no export
   } else {
     const exp = expedienteDocx(e);
     if (exp) { corpo.push(exp, new Paragraph({ text: "", spacing: { after: 30 } })); }
     corpo.push(servicosDocx(e));
-    corpo.push(linhaP(`Quartel do 18º BPM, em ${CIDADE}, ${extensoLow(e.dataConfeccao || e.data)}.`, { size: 14, align: AlignmentType.RIGHT }));
+    temQuartel = true;
   }
 
-  // OBSERVAÇÃO (opcional) — só sai quando preenchida.
+  // Ordem pedida: ...escala/ROTEM -> OBSERVAÇÃO -> "Quartel local + data".
   if (limpa(e.observacao)) {
     corpo.push(new Paragraph({ spacing: { before: 80 }, children: [run("OBSERVAÇÃO: ", { bold: true, size: 14 }), run(limpa(e.observacao), { size: 14, italics: true })] }));
+  }
+  if (temQuartel) {
+    corpo.push(linhaP(`Quartel do 18º BPM, em ${CIDADE}, ${extensoLow(e.dataConfeccao || e.data)}.`, { size: 14, align: AlignmentType.RIGHT }));
   }
 
   // assinatura do chefe
@@ -378,6 +381,7 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
   };
   const faixa = (txt: string) => drawLinha([{ text: txt, w: 1, bold: true, center: true, fill: true }], true);
 
+  let temQuartel = false;
   if (extra) {
     const campo = (lbl: string, v?: string) => { garante(16); page.drawText(safe(lbl + " ") + safe(limpa(v)), { x: MX, y: y - 12, size: 11, font, color: rgb(0, 0, 0) }); y -= 18; };
     y -= 4;
@@ -389,8 +393,7 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
       reforcoOrdenado(e.extraReforco).forEach((l, i) => {
         drawLinha([{ text: String(i + 1).padStart(2, "0"), w: 0.12, center: true }, { text: limpa(l.postoGrad), w: 0.44, center: true }, { text: limpa(l.nome), w: 0.44, center: true }]);
       });
-      y -= 12;
-      centro(`Quartel do 18º BPM, em ${CIDADE}, ${extensoLow(e.dataConfeccao || e.data)}.`, 9.5, font, 4);
+      temQuartel = true;
     }
   } else {
     // Expediente
@@ -427,16 +430,18 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
     d2("PATRULHEIRO", nomeSlot(e.ftPatrulheiro));
     faixa("ROTEM");
     drawLinha([{ text: (e.rotemHorarios || []).filter(Boolean).join("\n"), w: 0.3, bold: true, center: true, fill: true }, { text: lista(e.rotemMilitares), w: 0.7 }]);
-
-    y -= 12;
-    centro(`Quartel do 18º BPM, em ${CIDADE}, ${extensoLow(e.dataConfeccao || e.data)}.`, 9.5, font, 4);
+    temQuartel = true;
   }
 
-  // OBSERVAÇÃO (opcional) — só sai quando preenchida.
+  // Ordem pedida: ...escala/ROTEM -> OBSERVAÇÃO -> "Quartel local + data".
   if (limpa(e.observacao)) {
     y -= 8;
     const linhas = quebra("OBSERVAÇÃO: " + limpa(e.observacao), 9, font, usable - 10);
     for (const l of linhas) { garante(12); page.drawText(safe(l), { x: MX, y: y - 10, size: 9, font, color: rgb(0, 0, 0) }); y -= 12; }
+  }
+  if (temQuartel) {
+    y -= 12;
+    centro(`Quartel do 18º BPM, em ${CIDADE}, ${extensoLow(e.dataConfeccao || e.data)}.`, 9.5, font, 4);
   }
 
   // assinatura
