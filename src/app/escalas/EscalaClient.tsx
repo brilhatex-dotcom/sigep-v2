@@ -73,6 +73,7 @@ type Escala = {
   rotemMilitares: Slot[];
   // ---- Escala Extraordinaria (tipo "extraordinaria", print 3) ----
   extraOperacao?: string;
+  extraCmtOperacao?: string;
   extraLocal?: string;
   extraHorario?: string;
   extraUniforme?: string;
@@ -500,6 +501,7 @@ function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
     rotemHorarios: eq ? eq.turnos.slice() : ["07h \u00e0s 12h", "18h \u00e0s 23h"],
     rotemMilitares: eq ? sList(nmList(eq.militares.filter((id) => !afastado(id, iso, cad.afastamentos)))) : [s(), s(), s()],
     extraOperacao: "",
+    extraCmtOperacao: "",
     extraLocal: "",
     extraHorario: "",
     extraUniforme: "4\u00aaA (ARMADO E EQUIPADO)",
@@ -2377,6 +2379,7 @@ export default function EscalaClient() {
 
                   <div className="extra-campos">
                     <div className="extra-linha"><span className="extra-lbl">OPERAÇÃO:</span> <Editable value={e.extraOperacao || ""} placeholder="ex: ANIVERSÁRIO DA CIDADE..." onChange={(v) => editE((d) => { d.extraOperacao = v; })} /></div>
+                    <div className="extra-linha"><span className="extra-lbl">CMT DA OPERAÇÃO:</span> <Editable value={e.extraCmtOperacao || ""} placeholder="ex: 1º TEN QOEM SILAS" onChange={(v) => editE((d) => { d.extraCmtOperacao = v; })} /></div>
                     <div className="extra-linha"><span className="extra-lbl">LOCAL:</span> <Editable value={e.extraLocal || ""} placeholder="ex: PRESIDENTE DUTRA-MA" onChange={(v) => editE((d) => { d.extraLocal = v; })} /></div>
                     <div className="extra-linha"><span className="extra-lbl">HORÁRIO:</span> <Editable value={e.extraHorario || ""} placeholder="ex: 21H NA SEDE DO 18º BPM" onChange={(v) => editE((d) => { d.extraHorario = v; })} /></div>
                     <div className="extra-linha"><span className="extra-lbl">UNIFORME:</span> <Editable value={e.extraUniforme || ""} placeholder="ex: 4ªA (ARMADO E EQUIPADO)" onChange={(v) => editE((d) => { d.extraUniforme = v; })} /></div>

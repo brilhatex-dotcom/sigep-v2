@@ -28,7 +28,7 @@ export type EscalaDia = {
   inteligencia?: Slot[];
   ftGraduado?: Slot; ftMotorista?: Slot; ftPatrulheiro?: Slot;
   rotemHorarios?: string[]; rotemMilitares?: Slot[];
-  extraOperacao?: string; extraLocal?: string; extraHorario?: string; extraUniforme?: string;
+  extraOperacao?: string; extraCmtOperacao?: string; extraLocal?: string; extraHorario?: string; extraUniforme?: string;
   extraReforco?: { postoGrad?: string; nome?: string }[];
   observacao?: string;
 };
@@ -241,7 +241,7 @@ export async function gerarEscalaDocx(input: EscalaExportInput): Promise<Buffer>
   let temQuartel = false;
   if (extra) {
     const linhaCampo = (lbl: string, v?: string) => new Paragraph({ children: [run(lbl + " ", { bold: true }), run(limpa(v))] });
-    corpo.push(linhaCampo("OPERAÇÃO:", e.extraOperacao), linhaCampo("LOCAL:", e.extraLocal), linhaCampo("HORÁRIO:", e.extraHorario), linhaCampo("UNIFORME:", e.extraUniforme));
+    corpo.push(linhaCampo("OPERAÇÃO:", e.extraOperacao), linhaCampo("CMT DA OPERAÇÃO:", e.extraCmtOperacao), linhaCampo("LOCAL:", e.extraLocal), linhaCampo("HORÁRIO:", e.extraHorario), linhaCampo("UNIFORME:", e.extraUniforme));
     corpo.push(new Paragraph({ text: "", spacing: { after: 30 } }));
     if (ehExtraord) { corpo.push(reforcoDocx(e)); temQuartel = true; } // REFORÇO SEDE (nomes) — faltava no export
   } else {
@@ -385,7 +385,7 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
   if (extra) {
     const campo = (lbl: string, v?: string) => { garante(16); page.drawText(safe(lbl + " ") + safe(limpa(v)), { x: MX, y: y - 12, size: 11, font, color: rgb(0, 0, 0) }); y -= 18; };
     y -= 4;
-    campo("OPERACAO:", e.extraOperacao); campo("LOCAL:", e.extraLocal); campo("HORARIO:", e.extraHorario); campo("UNIFORME:", e.extraUniforme);
+    campo("OPERACAO:", e.extraOperacao); campo("CMT DA OPERACAO:", e.extraCmtOperacao); campo("LOCAL:", e.extraLocal); campo("HORARIO:", e.extraHorario); campo("UNIFORME:", e.extraUniforme);
     if (e.tipo === "extraordinaria") {
       y -= 6;
       faixa("REFORÇO SEDE"); // faltava no export — agora sai com os nomes
