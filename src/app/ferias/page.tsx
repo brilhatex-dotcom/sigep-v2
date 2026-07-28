@@ -139,6 +139,15 @@ export default async function FeriasPage({
   const isAdmin = (session.user.perfil ?? "").toLowerCase() === "admin";
   const resumoFer = await resumoFerias();
 
+  // Militares que postergaram / não vão gozar férias agora (só controle; não
+  // gera afastamento nem remove de nada). Guardado em Config "ferias_postergados".
+  let postergadosIniciais: { idPmma: string; nome: string; motivo: string; data: string }[] = [];
+  try {
+    const row = await prisma.config.findUnique({ where: { chave: "ferias_postergados" } });
+    const lista = row?.valor ? JSON.parse(row.valor) : [];
+    if (Array.isArray(lista)) postergadosIniciais = lista;
+  } catch {}
+
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-5xl">
@@ -164,6 +173,7 @@ export default async function FeriasPage({
             totalOficiais={totalOficiais}
             totalPracas={totalPracas}
             isAdmin={isAdmin}
+            postergadosIniciais={postergadosIniciais}
           />
         )}
 

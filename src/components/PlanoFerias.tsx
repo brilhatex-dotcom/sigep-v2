@@ -13,6 +13,7 @@ import {
   Loader2,
   Calendar,
   ShieldCheck,
+  Clock,
 } from "lucide-react";
 import MemorandoFerias, { DadosMemorando } from "@/components/MemorandoFerias";
 
@@ -106,6 +107,7 @@ export default function PlanoFerias({
   totalPracas,
   isAdmin,
   onTrocarAno,
+  postergadosIniciais = [],
 }: {
   anos: string[];
   anoSelecionado: string;
@@ -115,8 +117,38 @@ export default function PlanoFerias({
   totalPracas: number;
   isAdmin: boolean;
   onTrocarAno: (ano: string) => void;
+  postergadosIniciais?: { idPmma: string; nome: string; motivo: string; data: string }[];
 }) {
   const router = useRouter();
+  // Militares que POSTERGARAM / não vão gozar férias agora (só controle: não
+  // gera afastamento nem remove de nada). Mapa idPmma -> motivo.
+  const [postergados, setPostergados] = useState<Map<string, string>>(
+    () => new Map(postergadosIniciais.map((p) => [p.idPmma, p.motivo || ""]))
+  );
+  const [salvandoPosterg, setSalvandoPosterg] = useState<string | null>(null);
+  async function togglePostergar(m: MembroEquipe) {
+    const jaTem = postergados.has(m.efetivoId);
+    let motivo = "";
+    if (!jaTem) {
+      motivo = (window.prompt("Motivo/observação da postergação (opcional):", "") || "").trim();
+    } else if (!window.confirm(`Remover a marca de POSTERGADO de ${m.nomeGuerra || m.nome || "este militar"}?`)) {
+      return;
+    }
+    setSalvandoPosterg(m.efetivoId);
+    try {
+      const r = await fetch("/api/ferias/postergados", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idPmma: m.efetivoId, nome: m.nome || m.nomeGuerra || "", motivo, postergado: !jaTem }),
+      });
+      if (!r.ok) { alert("Falha ao salvar."); return; }
+      setPostergados((prev) => {
+        const n = new Map(prev);
+        if (jaTem) n.delete(m.efetivoId); else n.set(m.efetivoId, motivo);
+        return n;
+      });
+    } catch { alert("Falha ao salvar."); }
+    finally { setSalvandoPosterg(null); }
+  }
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [aberta, setAberta] = useState<EquipeView | null>(null);
   const [permuta, setPermuta] = useState<MembroEquipe | null>(null);
@@ -345,9 +377,13 @@ export default function PlanoFerias({
       (a, b) => Number(a.numeroEquipe) - Number(b.numeroEquipe)
     );
     const blocos = equipesOrdenadas.map((e) => {
-      const linhas = e.membros.map((m, i) =>
-        `<tr>${[i + 1, m.postoGrad, m.numeroBarra, m.nome, m.nomeGuerra, m.matricula].map((v) => `<td>${esc(v)}</td>`).join("")}</tr>`
-      ).join("");
+      const linhas = e.membros.map((m, i) => {
+        const post = postergados.has(m.efetivoId)
+          ? ` <b style="color:#b45309">(POSTERGADO${postergados.get(m.efetivoId) ? ": " + esc(postergados.get(m.efetivoId)) : ""})</b>`
+          : "";
+        const nomeCel = `<td>${esc(m.nome)}${post}</td>`;
+        return `<tr><td>${i + 1}</td><td>${esc(m.postoGrad)}</td><td>${esc(m.numeroBarra)}</td>${nomeCel}<td>${esc(m.nomeGuerra)}</td><td>${esc(m.matricula)}</td></tr>`;
+      }).join("");
       const periodos = e.periodos.length
         ? e.periodos.map((p) => {
             const rot = e.periodos.length > 1 ? `${esc(p.rotulo)}: ` : "";
@@ -670,6 +706,14 @@ export default function PlanoFerias({
                         <td className="px-3 py-2">
                           <span className="font-medium text-white">{m.nome ?? "—"}</span>
                           {m.nomeGuerra && <span className="ml-1 text-xs text-[#94A3B8]">({m.nomeGuerra})</span>}
+                          {postergados.has(m.efetivoId) && (
+                            <span
+                              title={postergados.get(m.efetivoId) ? `Postergado · ${postergados.get(m.efetivoId)}` : "Férias postergadas (não vai gozar agora)"}
+                              className="ml-2 inline-flex items-center rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300"
+                            >
+                              Postergado
+                            </span>
+                          )}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.matricula ?? "—"}</td>
                         {isAdmin && (
@@ -686,6 +730,22 @@ export default function PlanoFerias({
                                 className="inline-flex items-center gap-1 rounded border border-[#D4AF37]/30 px-2 py-1 text-xs text-[#D4AF37] hover:bg-[#D4AF37] hover:text-[#1a1205]"
                               >
                                 <Pencil className="h-3.5 w-3.5" /> Editar
+                              </button>
+                              <button
+                                onClick={() => togglePostergar(m)}
+                                disabled={salvandoPosterg === m.efetivoId}
+                                title="Marca que o militar vai postergar / não gozar as férias agora (apenas controle; não o remove de nada)"
+                                className={
+                                  "inline-flex items-center gap-1 rounded border px-2 py-1 text-xs disabled:opacity-50 " +
+                                  (postergados.has(m.efetivoId)
+                                    ? "border-amber-400/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25"
+                                    : "border-white/10 text-[#94A3B8] hover:border-amber-400/40 hover:text-amber-300")
+                                }
+                              >
+                                {salvandoPosterg === m.efetivoId
+                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  : <Clock className="h-3.5 w-3.5" />}
+                                {postergados.has(m.efetivoId) ? "Postergado" : "Postergar"}
                               </button>
                             </div>
                           </td>
