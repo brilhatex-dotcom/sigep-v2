@@ -47,10 +47,19 @@ async function lugarDaLotacao(refEfetivo: string | null | undefined): Promise<st
     lotacao = ef?.lotacao ?? null;
   } catch { return null; }
   if (!lotacao) return null;
+
+  /* A palavra SEDE na lotação decide sozinha (ex.: "1ª CIA - SEDE"). */
+  const norm = lotacao.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  if (norm.includes("sede")) return null;
+
   const maisEspecificoPrimeiro = [...LUGARES_COMANDO].sort((a, b) => b.id.length - a.id.length);
   for (const l of maisEspecificoPrimeiro) {
     const no = acharNo(l.id, ORGANOGRAMA);
-    if (no && pertenceAoNo(lotacao, no)) return l.id;
+    if (no && pertenceAoNo(lotacao, no)) {
+      // A 1ª CIA É a sede — mesma unidade, mesmo quartel, mesma escala.
+      // Quem é lotado nela lê a folha da sede, não uma escala separada.
+      return l.id === "1cia" ? null : l.id;
+    }
   }
   return null; // sede
 }

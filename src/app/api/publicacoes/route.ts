@@ -73,6 +73,16 @@ export async function GET(req: Request) {
   const id = new URL(req.url).searchParams.get("id");
   const row = await prisma.config.findUnique({ where: { chave: ctx.chave } });
   let lista = ler(row?.valor);
+
+  /* Rede de segurança: se a unidade do militar não tem nenhuma escala
+     publicada, mostra a da SEDE em vez de uma tela vazia. Acontece quando o
+     destacamento ainda não começou a publicar a própria folha — a tropa
+     continua vendo a escala que vale para ela. Só para leitor comum. */
+  if (ctx.restrito && ctx.escopo && lista.length === 0) {
+    const sede = await prisma.config.findUnique({ where: { chave: CHAVE } });
+    lista = ler(sede?.valor);
+  }
+
   // Leitor comum só enxerga o que já foi AUTORIZADO (publicado de fato).
   if (ctx.restrito) lista = lista.filter((r) => (r.status || "autorizada") === "autorizada");
 
