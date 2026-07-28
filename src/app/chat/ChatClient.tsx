@@ -196,7 +196,9 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
       const d1 = await r1.json();
       if (!r1.ok) { setErro(d1?.error || "Falha ao preparar o envio."); setSubindo(null); return; }
 
-      // 2) manda o arquivo DIRETO para o R2 (com barra de progresso)
+      // 2) manda o arquivo DIRETO para o R2 (com barra de progresso).
+      //    Aqui é onde o CORS do bucket entra em jogo: sem ele o navegador
+      //    bloqueia antes de sair, e o erro chega como status 0.
       await new Promise<void>((ok, falha) => {
         const x = new XMLHttpRequest();
         x.open("PUT", d1.url, true);
@@ -204,8 +206,14 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
         x.upload.onprogress = (e) => {
           if (e.lengthComputable) setSubindo({ nome: f.name, pct: Math.round((e.loaded / e.total) * 100) });
         };
-        x.onload = () => (x.status >= 200 && x.status < 300 ? ok() : falha(new Error("HTTP " + x.status)));
-        x.onerror = () => falha(new Error("rede"));
+        x.onload = () => {
+          if (x.status >= 200 && x.status < 300) return ok();
+          // o R2 devolve o motivo em XML; mostra o essencial
+          const det = (x.responseText || "").replace(/<[^>]+>/g, " ").trim().slice(0, 160);
+          falha(new Error("O armazenamento recusou (código " + x.status + ")." + (det ? " " + det : "")));
+        };
+        x.onerror = () => falha(new Error("__CORS__"));
+        x.ontimeout = () => falha(new Error("Tempo esgotado no envio. Verifique a conexão."));
         x.send(f);
       });
 
@@ -222,8 +230,20 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
       setMsgs((m) => [...m, d2.mensagem]);
       ultimaRef.current = d2.mensagem.em;
       puxarContatos();
-    } catch {
-      setErro("Falha ao enviar o arquivo. Verifique a conexão e tente de novo.");
+    } catch (e: any) {
+      const m = String(e?.message || "");
+      if (m === "__CORS__") {
+        // status 0 = o navegador barrou antes de sair. Quase sempre é o CORS
+        // do bucket ainda não liberado para este endereço.
+        setErro(
+          "O navegador bloqueou o envio ao armazenamento. Isso acontece quando o CORS do bucket R2 " +
+          "ainda não autoriza este endereço (" + window.location.origin + "). " +
+          "Confira em Cloudflare → R2 → sigep-documentos → Settings → CORS Policy se a origem está " +
+          "exatamente assim, sem barra no final. Se acabou de configurar, aguarde 1 a 2 minutos e recarregue com Ctrl+F5."
+        );
+      } else {
+        setErro(m || "Falha ao enviar o arquivo. Verifique a conexão e tente de novo.");
+      }
     } finally {
       setSubindo(null);
       if (arquivoRef.current) arquivoRef.current.value = "";
