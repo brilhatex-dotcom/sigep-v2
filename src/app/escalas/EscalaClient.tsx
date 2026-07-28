@@ -68,7 +68,7 @@ type Escala = {
   inteligencia: Slot[];
   ftGraduado: Slot;
   ftMotorista: Slot;
-  ftPatrulheiro: Slot;
+  ftPatrulheiro: Slot[];
   rotemHorarios: string[];
   rotemMilitares: Slot[];
   // ---- Escala Extraordinaria (tipo "extraordinaria", print 3) ----
@@ -423,6 +423,14 @@ function s(titular = ""): Slot {
 function sList(nomes: string[]): Slot[] {
   return nomes.length ? nomes.map((n) => s(n)) : [s()];
 }
+// Coage um campo que pode ser Slot (formato antigo) OU Slot[] (novo) para lista.
+// Usado no ftPatrulheiro, que virou lista (permite acrescentar patrulheiros na
+// folha, igual à Rádio Patrulha) — dias salvos antigos guardam um Slot único.
+function asSlots(v: any): Slot[] {
+  if (Array.isArray(v)) return v;
+  if (v && typeof v === "object" && "titular" in v) return [v as Slot];
+  return [];
+}
 
 function expedientePadrao(): Expediente {
   return {
@@ -497,7 +505,7 @@ function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
     inteligencia: sList(dqNomes("inteligencia")),
     ftGraduado: s(dqNome("ftGraduado")),
     ftMotorista: s(dqNome("ftMotorista")),
-    ftPatrulheiro: s(dqNome("ftPatrulheiro")),
+    ftPatrulheiro: sList(dqNomes("ftPatrulheiro")),
     rotemHorarios: eq ? eq.turnos.slice() : ["07h \u00e0s 12h", "18h \u00e0s 23h"],
     rotemMilitares: eq ? sList(nmList(eq.militares.filter((id) => !afastado(id, iso, cad.afastamentos)))) : [s(), s(), s()],
     extraOperacao: "",
@@ -544,7 +552,7 @@ function tituloDaEscala(e: any, key: PoolKey): string {
     case "inteligencia": return first(e?.inteligencia);
     case "ftGraduado": return one(e?.ftGraduado);
     case "ftMotorista": return one(e?.ftMotorista);
-    case "ftPatrulheiro": return one(e?.ftPatrulheiro);
+    case "ftPatrulheiro": return first(e?.ftPatrulheiro);
     default: return "";
   }
 }
@@ -1883,9 +1891,10 @@ export default function EscalaClient() {
     const vazioSlot = (sl: any) => !semTags(sl?.titular || "").trim();
     const vaziaLista = (arr: any) =>
       !Array.isArray(arr) || arr.length === 0 || arr.every((x: any) => !semTags(x?.titular || "").trim());
-    // ftPatrulheiro é campo ÚNICO na folha (Slot), não lista — por isso vai em UM.
-    const CAMPOS_UM: (keyof Escala)[] = ["ftGraduado", "ftMotorista", "ftPatrulheiro", "rpAdjunto", "rpMotorista"];
-    const CAMPOS_LISTA: (keyof Escala)[] = ["rpPatrulheiro", "guardaPermanente", "inteligencia"];
+    const CAMPOS_UM: (keyof Escala)[] = ["ftGraduado", "ftMotorista", "rpAdjunto", "rpMotorista"];
+    // ftPatrulheiro agora é lista (permite acrescentar patrulheiros na folha).
+    const CAMPOS_LISTA: (keyof Escala)[] = ["ftPatrulheiro", "rpPatrulheiro", "guardaPermanente", "inteligencia"];
+    const EXP_LISTAS: (keyof Expediente)[] = ["p1", "p3", "p4", "rondaEscolar", "patrulha"];
     setEscalas((prev) => {
       let mudou = false;
       const next: Record<string, Escala> = { ...prev };
@@ -1894,23 +1903,52 @@ export default function EscalaClient() {
         const base = novaEscala(iso, cadEff, nomeDe);
         let dia = prev[iso];
         let diaMud = false;
+        const clonar = () => { if (!diaMud) { dia = JSON.parse(JSON.stringify(dia)); diaMud = true; } };
+        // O titular do slot entrou de FÉRIAS/afastamento depois de o dia ser salvo?
+        // (se há permuta ativa, quem cobre é o permutado — mantém o slot).
+        const afastNoDia = (sl: any) => {
+          const n = semTags(sl?.titular || "").trim();
+          if (!n) return false;
+          if (sl?.permuta && semTags(String(sl.permuta)).trim()) return false;
+          const id = nameToId[n] || n;
+          return afastado(id, iso, cadEff.afastamentos);
+        };
         for (const k of CAMPOS_UM) {
-          if (vazioSlot((dia as any)[k]) && !vazioSlot((base as any)[k])) {
-            if (!diaMud) { dia = { ...dia }; diaMud = true; }
-            (dia as any)[k] = (base as any)[k];
+          const cur = (dia as any)[k];
+          if (vazioSlot(cur) && !vazioSlot((base as any)[k])) {
+            clonar(); (dia as any)[k] = (base as any)[k];
+          } else if (afastNoDia(cur)) {
+            // saiu de férias/LP: substitui pelo do quadro (que já exclui ausentes).
+            clonar(); (dia as any)[k] = (base as any)[k];
           }
         }
         for (const k of CAMPOS_LISTA) {
-          if (vaziaLista((dia as any)[k]) && !vaziaLista((base as any)[k])) {
-            if (!diaMud) { dia = { ...dia }; diaMud = true; }
-            (dia as any)[k] = (base as any)[k];
+          const cur = asSlots((dia as any)[k]);
+          if (vaziaLista(cur) && !vaziaLista((base as any)[k])) {
+            clonar(); (dia as any)[k] = (base as any)[k];
+          } else {
+            const semAf = cur.filter((sl) => !afastNoDia(sl));
+            if (semAf.length !== cur.length) {
+              clonar(); (dia as any)[k] = semAf.length ? semAf : (base as any)[k];
+            } else if (!Array.isArray((dia as any)[k])) {
+              clonar(); (dia as any)[k] = cur; // normaliza Slot antigo -> lista
+            }
+          }
+        }
+        // Expediente: remove quem entrou de férias das listas (P1/P3/P4/Ronda/Patrulha).
+        for (const k of EXP_LISTAS) {
+          const cur: Slot[] = ((dia.expediente as any)?.[k]) || [];
+          if (Array.isArray(cur) && cur.some(afastNoDia)) {
+            clonar();
+            const f = cur.filter((sl) => !afastNoDia(sl));
+            (dia.expediente as any)[k] = f.length ? f : [s()];
           }
         }
         if (diaMud) { next[iso] = dia; mudou = true; }
       }
       return mudou ? next : prev;
     });
-  }, [ready, cadEff, nomeDe]);
+  }, [ready, cadEff, nomeDe, nameToId]);
 
   // Semente de um dia AINDA NAO salvo: gera o dia pelo motor (rodizio 24/72,
   // CPU, RP, FT, ROTEM avançam sozinhos) e HERDA o EXPEDIENTE (P1/P3/P4/Ronda/
@@ -1940,7 +1978,11 @@ export default function EscalaClient() {
     return base;
   };
 
-  const eBase: Escala = escalas[data] ?? escalaSeed(data);
+  const eBaseRaw: Escala = escalas[data] ?? escalaSeed(data);
+  // Normaliza o ftPatrulheiro para lista (dias salvos antigos guardam Slot único).
+  const eBase: Escala = Array.isArray(eBaseRaw.ftPatrulheiro)
+    ? eBaseRaw
+    : { ...eBaseRaw, ftPatrulheiro: asSlots(eBaseRaw.ftPatrulheiro) };
   // Excecao do CPU editada na linha do Mapa vale tambem para dias ja salvos,
   // mantendo Mapa e escala diaria consistentes.
   const ovrCpuDia = cad.cpuOverrides?.[data];
@@ -2024,7 +2066,8 @@ export default function EscalaClient() {
       if (afastado(id, data, cadEff.afastamentos) && !nomes.includes(n)) nomes.push(n);
     };
     checa(e.cpuDeDia); checa(e.rpAdjunto); checa(e.rpMotorista);
-    checa(e.ftGraduado); checa(e.ftMotorista); checa(e.ftPatrulheiro);
+    checa(e.ftGraduado); checa(e.ftMotorista);
+    asSlots(e.ftPatrulheiro).forEach(checa);
     e.guardaPermanente.forEach(checa); e.rpPatrulheiro.forEach(checa);
     e.inteligencia.forEach(checa); e.rotemMilitares.forEach(checa);
     // tambem confere as seções do expediente (P1/P3/P4/Ronda/Patrulha)
@@ -2455,7 +2498,7 @@ export default function EscalaClient() {
                 <tr><td className="hd" colSpan={2}>FORÇA TÁTICA</td></tr>
                 <tr><td className="lbl w-cpu">GRADUADO</td><td className="val"><SlotInline slot={e.ftGraduado} onChange={(ns) => editE((d) => { d.ftGraduado = ns; })} /></td></tr>
                 <tr><td className="lbl w-cpu">MOTORISTA</td><td className="val"><SlotInline slot={e.ftMotorista} onChange={(ns) => editE((d) => { d.ftMotorista = ns; })} /></td></tr>
-                <tr><td className="lbl w-cpu">PATRULHEIRO</td><td className="val"><SlotInline slot={e.ftPatrulheiro} onChange={(ns) => editE((d) => { d.ftPatrulheiro = ns; })} /></td></tr>
+                <tr><td className="lbl w-cpu">PATRULHEIRO</td><td className="val"><SlotList efetivo={efetivo} slots={e.ftPatrulheiro} onChange={(arr) => editE((d) => { d.ftPatrulheiro = arr; })} /></td></tr>
 
                 <tr><td className="hd" colSpan={2}>ROTEM</td></tr>
                 <tr>

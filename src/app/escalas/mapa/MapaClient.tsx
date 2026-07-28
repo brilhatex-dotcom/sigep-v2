@@ -178,12 +178,13 @@ function assignDia(iso: string, cad: Cadastro, escalas: Record<string, any>, idD
     // Dias salvos guardam NOMES na folha; normalizamos para ID quando possivel
     // para casar com pools/afastamentos (que sao IDs).
     const t = (s: any) => (s && s.titular ? idDe(semTags(String(s.titular))) : "");
-    const lst = (arr: any[]) => (arr || []).map(t).filter(Boolean);
+    const arr1 = (v: any) => (Array.isArray(v) ? v : v ? [v] : []); // Slot antigo -> lista
+    const lst = (arr: any[]) => arr1(arr).map(t).filter(Boolean);
     return {
       cpu: [t(e.cpuDeDia)].filter(Boolean),
       ftGraduado: semAfast([t(e.ftGraduado)].filter(Boolean)),
       ftMotorista: semAfast([t(e.ftMotorista)].filter(Boolean)),
-      ftPatrulheiro: semAfast([t(e.ftPatrulheiro)].filter(Boolean)),
+      ftPatrulheiro: semAfast(lst(e.ftPatrulheiro)),
       rpAdjunto: semAfast([t(e.rpAdjunto)].filter(Boolean)),
       rpMotorista: semAfast([t(e.rpMotorista)].filter(Boolean)),
       rpPatrulheiro: semAfast(lst(e.rpPatrulheiro)),
@@ -994,9 +995,9 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     const alvos = Object.keys(escalasAtual).filter((iso) => iso >= hj);
     if (!alvos.length) { if (!silent) alert("Não há dias já salvos a partir de hoje para atualizar."); return; }
     if (!silent && !confirm(`Aplicar o quadro atual (equipes) a ${alvos.length} dia(s) já salvo(s) a partir de hoje?\n\nAs permutas são preservadas; o expediente e o restante do dia não mudam.`)) return;
-    // ftPatrulheiro é campo ÚNICO na folha (Slot), não lista — por isso vai em UM.
-    const CAMPOS_UM = ["ftGraduado", "ftMotorista", "ftPatrulheiro", "rpAdjunto", "rpMotorista"] as const;
-    const CAMPOS_LISTA = ["rpPatrulheiro", "guardaPermanente", "inteligencia"] as const;
+    // ftPatrulheiro agora é lista na folha (permite acrescentar patrulheiros).
+    const CAMPOS_UM = ["ftGraduado", "ftMotorista", "rpAdjunto", "rpMotorista"] as const;
+    const CAMPOS_LISTA = ["ftPatrulheiro", "rpPatrulheiro", "guardaPermanente", "inteligencia"] as const;
     const nm = (id: string) => (id ? nomeDe(id) : "");
     const novo: Record<string, any> = { ...escalasAtual };
     let mudou = false;

@@ -25,7 +25,7 @@ const CAMPOS: { campo: string; label: string; lista: boolean }[] = [
   { campo: "rpPatrulheiro", label: "RP · Patrulheiro", lista: true },
   { campo: "ftGraduado", label: "FT · Graduado", lista: false },
   { campo: "ftMotorista", label: "FT · Motorista", lista: false },
-  { campo: "ftPatrulheiro", label: "FT · Armeiro/Patrulheiro", lista: false },
+  { campo: "ftPatrulheiro", label: "FT · Armeiro/Patrulheiro", lista: true },
   { campo: "guardaPermanente", label: "Permanência", lista: true },
   { campo: "inteligencia", label: "Inteligência", lista: true },
   { campo: "rotemMilitares", label: "ROTEM", lista: true },
@@ -60,7 +60,8 @@ export async function GET() {
       for (const { campo, label, lista } of CAMPOS) {
         const val = (esc as any)[campo];
         if (lista) {
-          const arr: Slot[] = Array.isArray(val) ? val : [];
+          // ftPatrulheiro virou lista; dias salvos antigos podem ter Slot único.
+          const arr: Slot[] = Array.isArray(val) ? val : (val && typeof val === "object" ? [val] : []);
           arr.forEach((sl, idx) => {
             if (temSubstituto(sl)) permutas.push(mkLinha(data, campo, idx, label, sl));
           });
@@ -107,7 +108,10 @@ export async function POST(req: Request) {
     const dia = escalas[data];
     if (!dia) return NextResponse.json({ error: "Dia nao encontrado" }, { status: 404 });
 
-    const alvo: Slot | undefined = idx >= 0 ? (Array.isArray(dia[campo]) ? dia[campo][idx] : undefined) : dia[campo];
+    const campoVal = dia[campo];
+    const alvo: Slot | undefined = idx >= 0
+      ? (Array.isArray(campoVal) ? campoVal[idx] : (campoVal && typeof campoVal === "object" && idx === 0 ? campoVal : undefined))
+      : campoVal;
     if (!temSubstituto(alvo)) {
       return NextResponse.json({ error: "Permuta nao encontrada" }, { status: 404 });
     }

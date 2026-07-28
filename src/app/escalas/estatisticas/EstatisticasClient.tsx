@@ -18,7 +18,7 @@ const CAMPOS: { campo: string; label: string; lista: boolean }[] = [
   { campo: "inteligencia", label: "Inteligência", lista: true },
   { campo: "ftGraduado", label: "FT · Graduado", lista: false },
   { campo: "ftMotorista", label: "FT · Motorista", lista: false },
-  { campo: "ftPatrulheiro", label: "FT · Patrulheiro", lista: false },
+  { campo: "ftPatrulheiro", label: "FT · Patrulheiro", lista: true },
   { campo: "rotemMilitares", label: "ROTEM", lista: true },
 ];
 
@@ -57,7 +57,7 @@ export default function EstatisticasClient() {
       diasComEscala++;
       for (const { campo, label, lista } of CAMPOS) {
         const val = (e as any)[campo];
-        const slots: Slot[] = lista ? (Array.isArray(val) ? val : []) : (val ? [val] : []);
+        const slots: Slot[] = lista ? (Array.isArray(val) ? val : (val ? [val] : [])) : (val ? [val] : []);
         for (const sl of slots) {
           const nome = limpa(sl?.titular);
           if (!nome) continue;

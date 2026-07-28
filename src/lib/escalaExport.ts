@@ -26,7 +26,7 @@ export type EscalaDia = {
   cpuDeDia?: Slot; guardaPermanente?: Slot[];
   rpAdjunto?: Slot; rpMotorista?: Slot; rpPatrulheiro?: Slot[];
   inteligencia?: Slot[];
-  ftGraduado?: Slot; ftMotorista?: Slot; ftPatrulheiro?: Slot;
+  ftGraduado?: Slot; ftMotorista?: Slot; ftPatrulheiro?: Slot | Slot[];
   rotemHorarios?: string[]; rotemMilitares?: Slot[];
   extraOperacao?: string; extraCmtOperacao?: string; extraLocal?: string; extraHorario?: string; extraUniforme?: string;
   extraReforco?: { postoGrad?: string; nome?: string }[];
@@ -62,6 +62,8 @@ function nomeSlot(sl?: Slot | null): string {
   return perm ? `${base}  (PERMUTA- ${perm})` : base;
 }
 function lista(arr?: Slot[]): string { return (arr || []).map(nomeSlot).filter(Boolean).join("\n"); }
+// ftPatrulheiro pode vir como Slot (folhas antigas) ou Slot[] (novo) — coage p/ lista.
+function listaOuSlot(v?: Slot | Slot[] | null): string { return lista(Array.isArray(v) ? v : v ? [v] : []); }
 
 // Resolve imagem: data URL (base64) ou arquivo em public/.
 function resolverImagem(valor?: string | null): { data: Buffer; kind: "png" | "jpg" } | null {
@@ -181,7 +183,7 @@ function servicosDocx(e: EscalaDia): Table {
     celFaixa("FORÇA TÁTICA", 2),
     rowDado("GRADUADO", nomeSlot(e.ftGraduado)),
     rowDado("MOTORISTA", nomeSlot(e.ftMotorista)),
-    rowDado("PATRULHEIRO", nomeSlot(e.ftPatrulheiro)),
+    rowDado("PATRULHEIRO", listaOuSlot(e.ftPatrulheiro)),
     celFaixa("ROTEM", 2),
     new TableRow({ children: [celValor((e.rotemHorarios || []).filter(Boolean).join("\n"), L, true), celValor(lista(e.rotemMilitares), V)] }),
   ];
@@ -427,7 +429,7 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
     faixa("FORÇA TÁTICA");
     d2("GRADUADO", nomeSlot(e.ftGraduado));
     d2("MOTORISTA", nomeSlot(e.ftMotorista));
-    d2("PATRULHEIRO", nomeSlot(e.ftPatrulheiro));
+    d2("PATRULHEIRO", listaOuSlot(e.ftPatrulheiro));
     faixa("ROTEM");
     drawLinha([{ text: (e.rotemHorarios || []).filter(Boolean).join("\n"), w: 0.3, bold: true, center: true, fill: true }, { text: lista(e.rotemMilitares), w: 0.7 }]);
     temQuartel = true;

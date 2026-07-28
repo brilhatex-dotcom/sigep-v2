@@ -208,7 +208,7 @@ const CAMPOS_ESCALA: { campo: string; lista: boolean }[] = [
   { campo: "rpPatrulheiro", lista: true },
   { campo: "ftGraduado", lista: false },
   { campo: "ftMotorista", lista: false },
-  { campo: "ftPatrulheiro", lista: false },
+  { campo: "ftPatrulheiro", lista: true },
   { campo: "guardaPermanente", lista: true },
   { campo: "inteligencia", lista: true },
   { campo: "rotemMilitares", lista: true },
@@ -253,7 +253,9 @@ function lancarNoDia(dia: any, ficha: FichaMin, substituto: string): boolean {
   if (!dia || typeof dia !== "object") return false;
   for (const { campo, lista } of CAMPOS_ESCALA) {
     const val = dia[campo];
-    const arr: SlotEsc[] = lista ? (Array.isArray(val) ? val : []) : (val && typeof val === "object" ? [val] : []);
+    const arr: SlotEsc[] = lista
+      ? (Array.isArray(val) ? val : (val && typeof val === "object" ? [val] : []))
+      : (val && typeof val === "object" ? [val] : []);
     for (const sl of arr) {
       if (sl && titularEhDoMilitar(sl.titular || "", ficha) && !(sl.permuta && String(sl.permuta).trim())) {
         sl.permuta = substituto;

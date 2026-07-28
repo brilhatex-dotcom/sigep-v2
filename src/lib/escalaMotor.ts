@@ -99,12 +99,13 @@ export function assignDia(iso: string, cad: Cadastro, escalas: Record<string, an
   const e = escalas ? escalas[iso] : null;
   if (e) {
     const t = (s: any) => (s && s.titular ? idDe(semTags(String(s.titular))) : "");
-    const lst = (arr: any[]) => (arr || []).map(t).filter(Boolean);
+    const arr1 = (v: any) => (Array.isArray(v) ? v : v ? [v] : []); // Slot antigo -> lista
+    const lst = (arr: any[]) => arr1(arr).map(t).filter(Boolean);
     return {
       cpu: [t(e.cpuDeDia)].filter(Boolean),
       ftGraduado: [t(e.ftGraduado)].filter(Boolean),
       ftMotorista: [t(e.ftMotorista)].filter(Boolean),
-      ftPatrulheiro: [t(e.ftPatrulheiro)].filter(Boolean),
+      ftPatrulheiro: lst(e.ftPatrulheiro),
       rpAdjunto: [t(e.rpAdjunto)].filter(Boolean),
       rpMotorista: [t(e.rpMotorista)].filter(Boolean),
       rpPatrulheiro: lst(e.rpPatrulheiro),
