@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import Chuva from "@/components/Chuva";
 import "./login.css";
+import IntroSplash from "@/components/IntroSplash";
 
 const RECURSOS = [
   { Icone: CalendarDays, texto: "Escalas e Serviços" },
@@ -97,6 +98,9 @@ export default function LoginPage() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#05070f] text-white">
+      {/* Abertura institucional: roda uma vez por dia em cada aparelho. */}
+      <IntroSplash />
+
       {/* fundo: viatura (esq) + sala de operacoes (dir) */}
       <div className="absolute inset-0">
         <div className="absolute inset-y-0 left-0 hidden w-1/2 lg:block">
