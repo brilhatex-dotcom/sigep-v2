@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 /* Arquivo das escalas publicadas (Fase 4). Lista o historico do que foi emitido,
    agrupado por mes, e permite rebaixar a versao exata (Word/PDF). */
 
-type Meta = { id: string; dataEscala: string; tipo: string; publicadoEm: string; publicadoPor: string };
+type Meta = { id: string; dataEscala: string; tipo: string; publicadoEm: string; publicadoPor: string; versao?: number; vigente?: boolean };
 
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 const DSEM = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
@@ -26,6 +26,8 @@ export default function PublicacoesClient({ isAdmin }: { isAdmin: boolean }) {
   const [itens, setItens] = useState<Meta[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [baixando, setBaixando] = useState<string | null>(null);
+  // Versões substituídas (republicação do mesmo dia) ficam escondidas por padrão.
+  const [verAnteriores, setVerAnteriores] = useState(false);
 
   const carregar = useCallback(() => {
     setCarregando(true);
@@ -37,17 +39,23 @@ export default function PublicacoesClient({ isAdmin }: { isAdmin: boolean }) {
   }, []);
   useEffect(() => { carregar(); }, [carregar]);
 
+  // Quantas versões foram substituídas (para oferecer o "ver anteriores").
+  const nSubstituidas = useMemo(() => itens.filter((p) => p.vigente === false).length, [itens]);
+
   const porMes = useMemo(() => {
+    const visiveis = verAnteriores ? itens : itens.filter((p) => p.vigente !== false);
     const map = new Map<string, Meta[]>();
-    for (const p of itens) {
+    for (const p of visiveis) {
       const chave = (p.dataEscala || "").slice(0, 7);
       if (!map.has(chave)) map.set(chave, []);
       map.get(chave)!.push(p);
     }
     return Array.from(map.keys()).sort((a, b) => b.localeCompare(a)).map((mes) => ({
-      mes, itens: map.get(mes)!.sort((a, b) => b.dataEscala.localeCompare(a.dataEscala)),
+      mes,
+      itens: map.get(mes)!.sort((a, b) =>
+        b.dataEscala.localeCompare(a.dataEscala) || (b.versao || 1) - (a.versao || 1)),
     }));
-  }, [itens]);
+  }, [itens, verAnteriores]);
 
   const baixar = async (id: string, fmt: "docx" | "pdf") => {
     setBaixando(`${id}-${fmt}`);
@@ -89,7 +97,16 @@ export default function PublicacoesClient({ isAdmin }: { isAdmin: boolean }) {
           <h1 className="pub-tit">📄 Publicações</h1>
           <p className="pub-sub">Arquivo das escalas emitidas. Publique na Escala Diária (botão “Publicar”) e o histórico oficial fica aqui.</p>
         </div>
-        <button className="pub-refresh" onClick={carregar} title="Atualizar">⟳</button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {nSubstituidas > 0 && (
+            <button className="pub-refresh" style={{ width: "auto", padding: "0 10px", fontSize: 12 }}
+              onClick={() => setVerAnteriores((v) => !v)}
+              title="Quando a escala do mesmo dia é publicada de novo, vale a última; as anteriores ficam guardadas">
+              {verAnteriores ? "ocultar" : `ver`} versões anteriores ({nSubstituidas})
+            </button>
+          )}
+          <button className="pub-refresh" onClick={carregar} title="Atualizar">⟳</button>
+        </div>
       </div>
 
       {carregando ? (
@@ -103,10 +120,14 @@ export default function PublicacoesClient({ isAdmin }: { isAdmin: boolean }) {
               <h3 className="pub-mes">{MESES[Number(g.mes.slice(5, 7)) - 1]} de {g.mes.slice(0, 4)}<span>{g.itens.length}</span></h3>
               <ul>
                 {g.itens.map((p) => (
-                  <li key={p.id} className="pub-item">
+                  <li key={p.id} className={"pub-item" + (p.vigente === false ? " velha" : "")}>
                     <div className="pub-info">
                       <span className="pub-data">{brData(p.dataEscala)}</span>
                       <span className="pub-tag">{TIPO_LABEL[p.tipo] || p.tipo}</span>
+                      {(p.versao || 1) > 1 && <span className="pub-ver">v{p.versao}</span>}
+                      {p.vigente === false
+                        ? <span className="pub-velha" title="Foi republicada depois; vale a versão mais recente deste dia">substituída</span>
+                        : (p.versao || 1) > 1 && <span className="pub-vig" title="É a última publicada deste dia — é a que vale">vigente</span>}
                       <span className="pub-meta">publicado {brDataHora(p.publicadoEm)} por {p.publicadoPor}</span>
                     </div>
                     <div className="pub-btns">
@@ -142,6 +163,10 @@ const CSS = `
 .pub-data{ font-weight:700; color:#e7eefb; }
 .pub-tag{ font-size:11px; background:#12351f; color:#9fe6bd; border-radius:999px; padding:1px 9px; }
 .pub-meta{ font-size:11.5px; color:#8fa3bf; }
+.pub-ver{ font-size:11px; background:#1b2a44; color:#9fc4ea; border-radius:999px; padding:1px 8px; font-weight:700; }
+.pub-vig{ font-size:11px; background:#12351f; color:#9fe6bd; border:1px solid #2e6b45; border-radius:999px; padding:1px 9px; font-weight:700; text-transform:uppercase; }
+.pub-velha{ font-size:11px; background:#3a2410; color:#f0bd8a; border-radius:999px; padding:1px 9px; }
+.pub-item.velha{ opacity:.62; }
 .pub-btns{ display:flex; gap:6px; }
 .pub-btns button{ background:#16243a; color:#E8EEF6; border:1px solid #2b3f63; border-radius:8px; padding:6px 11px; font-size:12.5px; cursor:pointer; }
 .pub-btns button:hover{ border-color:#D4AF37; }

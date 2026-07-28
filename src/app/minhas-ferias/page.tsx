@@ -19,6 +19,12 @@ function dBR(iso: string | null): string {
 }
 
 type Periodo = { rotulo: string; inicio: string | null; fim: string | null; apres: string | null; origem: "plano" | "avulsa" };
+type Colega = { id: string; postoGrad: string | null; nome: string | null; nomeGuerra: string | null; eu: boolean; postergado: boolean };
+type MinhaEquipe = {
+  numeroEquipe: string; anoGozo: string;
+  periodos: { rotulo: string; inicio: string | null; fim: string | null; apres: string | null }[];
+  colegas: Colega[];
+};
 
 export default async function MinhasFeriasPage() {
   const session = await getServerSession(authOptions);
@@ -26,6 +32,15 @@ export default async function MinhasFeriasPage() {
   const meuId = session.user.refEfetivo;
 
   const periodos: Periodo[] = [];
+  const minhasEquipes: MinhaEquipe[] = [];
+
+  // Quem postergou / não vai gozar agora (só marcador de controle).
+  let postergados = new Set<string>();
+  try {
+    const row = await prisma.config.findUnique({ where: { chave: "ferias_postergados" } });
+    const lista = row?.valor ? JSON.parse(row.valor) : [];
+    if (Array.isArray(lista)) postergados = new Set(lista.map((p: any) => String(p?.idPmma || "")));
+  } catch { /* ignora */ }
 
   if (meuId) {
     // férias do PLANO (equipes onde o militar é membro)
@@ -33,6 +48,36 @@ export default async function MinhasFeriasPage() {
     for (const m of membros) {
       const eq = await prisma.equipeFerias.findFirst({ where: { numeroEquipe: m.numeroEquipe, anoGozo: m.anoGozo } });
       if (!eq) continue;
+
+      // Plano da MINHA equipe: os colegas que saem de férias junto comigo.
+      const doGrupo = await prisma.membroFerias.findMany({ where: { numeroEquipe: m.numeroEquipe, anoGozo: m.anoGozo } });
+      const fichas = await prisma.efetivo.findMany({
+        where: { id: { in: doGrupo.map((x) => x.idPmma) } },
+        select: { id: true, postoGrad: true, nome: true, nomeGuerra: true },
+      });
+      const porId = new Map(fichas.map((f) => [f.id, f]));
+      const pers: MinhaEquipe["periodos"] = [];
+      if (eq.periodo1Inicio || eq.periodo1Fim) pers.push({ rotulo: "1º período", inicio: eq.periodo1Inicio, fim: eq.periodo1Fim, apres: eq.periodo1Apres });
+      if (eq.periodo2Inicio || eq.periodo2Fim) pers.push({ rotulo: "2º período", inicio: eq.periodo2Inicio, fim: eq.periodo2Fim, apres: eq.periodo2Apres });
+      minhasEquipes.push({
+        numeroEquipe: m.numeroEquipe,
+        anoGozo: m.anoGozo,
+        periodos: pers,
+        colegas: doGrupo
+          .map((x) => {
+            const f = porId.get(x.idPmma);
+            return {
+              id: x.idPmma,
+              postoGrad: f?.postoGrad ?? null,
+              nome: f?.nome ?? null,
+              nomeGuerra: f?.nomeGuerra ?? null,
+              eu: x.idPmma === meuId,
+              postergado: postergados.has(x.idPmma),
+            };
+          })
+          .sort((a, b) => (a.nome ?? "").localeCompare(b.nome ?? "")),
+      });
+
       if (eq.periodo1Inicio || eq.periodo1Fim) periodos.push({ rotulo: `Plano ${m.anoGozo} · Equipe ${m.numeroEquipe} · 1º período`, inicio: eq.periodo1Inicio, fim: eq.periodo1Fim, apres: eq.periodo1Apres, origem: "plano" });
       if (eq.periodo2Inicio || eq.periodo2Fim) periodos.push({ rotulo: `Plano ${m.anoGozo} · Equipe ${m.numeroEquipe} · 2º período`, inicio: eq.periodo2Inicio, fim: eq.periodo2Fim, apres: eq.periodo2Apres, origem: "plano" });
     }
@@ -78,6 +123,51 @@ export default async function MinhasFeriasPage() {
               </li>
             ))}
           </ul>
+        )}
+
+        {/* Plano de férias da MINHA equipe — quem sai junto comigo. */}
+        {minhasEquipes.length > 0 && (
+          <div className="mt-8">
+            <h2 className="mb-1 text-lg font-bold text-white">Plano de férias da minha equipe</h2>
+            <p className="mb-4 text-sm text-[#94A3B8]">A equipe em que você está lotado no plano e os militares que saem no mesmo período.</p>
+            {minhasEquipes.map((eq, i) => (
+              <div key={i} className="mb-4 rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-4">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-bold text-white">Equipe {eq.numeroEquipe}</span>
+                  <span className="rounded-full bg-teal-950/60 px-2 py-0.5 text-[10px] font-bold uppercase text-teal-300">ano {eq.anoGozo}</span>
+                  <span className="text-xs text-[#94A3B8]">{eq.colegas.length} militar(es)</span>
+                </div>
+                {eq.periodos.length > 0 && (
+                  <ul className="mb-3 space-y-1">
+                    {eq.periodos.map((p, j) => (
+                      <li key={j} className="text-sm text-[#cdd9ea]">
+                        <span className="text-[#94A3B8]">{p.rotulo}:</span> <b>{dBR(p.inicio)}</b> a <b>{dBR(p.fim)}</b>
+                        {p.apres ? <span className="text-[#94A3B8]"> · apresentação: {dBR(p.apres)}</span> : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="flex flex-wrap gap-1.5">
+                  {eq.colegas.map((c) => (
+                    <span
+                      key={c.id}
+                      title={c.postergado ? "Postergou as férias (não vai gozar agora)" : undefined}
+                      className={
+                        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs " +
+                        (c.eu
+                          ? "border-[#D4AF37]/50 bg-[#D4AF37]/10 font-bold text-[#D4AF37]"
+                          : "border-white/10 bg-white/5 text-[#cdd9ea]")
+                      }
+                    >
+                      {[c.postoGrad, c.nomeGuerra || c.nome].filter(Boolean).join(" ") || "—"}
+                      {c.eu && <span className="text-[10px] uppercase">(você)</span>}
+                      {c.postergado && <span className="rounded bg-amber-500/20 px-1 text-[9px] font-bold uppercase text-amber-300">postergado</span>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </AppShell>
