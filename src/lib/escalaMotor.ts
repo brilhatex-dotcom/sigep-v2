@@ -21,7 +21,19 @@ export type Cadastro = {
   linhasExtras?: Record<string, number>;
   cpuOverrides?: Record<string, string>;
   padraoEscala?: string;   // ex.: "3 por 6" (3 trab / 6 folga). Vazio = 24/72 (sede).
+  // Reducao judicial: idPmma -> percentual MAXIMO de servicos no mes (ex.: 50).
+  reducaoJudicial?: Record<string, number>;
 };
+
+const inicioMesISO = (iso: string) => `${iso.slice(0, 7)}-01`;
+// Deve o militar entrar neste "slot de dia" da sua equipe, respeitando o teto
+// mensal da reducao judicial? Distribui o percentual de forma uniforme pelos
+// dias da equipe no mes (nunca ultrapassa o teto). Sem reducao valida => true.
+export function incluiComReducao(pct: number | undefined, ordNoMes: number): boolean {
+  if (!pct || pct <= 0 || pct >= 100) return true;
+  const f = pct / 100;
+  return Math.floor((ordNoMes + 1) * f) > Math.floor(ordNoMes * f);
+}
 
 /* Interpreta o padrão digitado ("3 por 6", "3x6", "1/3"...) em dias de trabalho
    e de folga, e quantas equipes cobrem o ciclo. Sem padrão = 24/72 (sede):
@@ -122,10 +134,21 @@ export function assignDia(iso: string, cad: Cadastro, escalas: Record<string, an
   const team = EQUIPES_ABCD[timeDoDia(diasEntre(r, iso), padrao) % EQUIPES_ABCD.length];
   const q = cad.quadroEquipes || {};
   const nExtra = (fk: string) => cad.linhasExtras?.[fk] || 0;
+  // Reducao judicial: quantos dias da equipe deste dia ja passaram no mes (para
+  // distribuir o teto). Depois pula o militar capado nos dias fora da cota.
+  const rj = cad.reducaoJudicial || {};
+  const teamDoDia = (d: string) => EQUIPES_ABCD[timeDoDia(diasEntre(r, d), padrao) % EQUIPES_ABCD.length];
+  const ordEquipeMes = (d: string, tm: string) => { let n = -1; for (let x = inicioMesISO(d); x <= d; x = proxDia(x)) if (teamDoDia(x) === tm) n++; return n; };
   const dq = (fk: string) => {
     const ids: string[] = [];
-    const b = q[team]?.[fk] || ""; if (b) ids.push(b);
-    for (let k = 2; k <= nExtra(fk) + 1; k++) { const id = q[team]?.[`${fk}#${k}`] || ""; if (id) ids.push(id); }
+    const push1 = (id: string) => {
+      if (!id) return;
+      const pct = rj[id];
+      if (pct && !incluiComReducao(pct, ordEquipeMes(iso, team))) return; // teto judicial do mes
+      ids.push(id);
+    };
+    push1(q[team]?.[fk] || "");
+    for (let k = 2; k <= nExtra(fk) + 1; k++) push1(q[team]?.[`${fk}#${k}`] || "");
     return ids;
   };
   const ovrCpu = cad.cpuOverrides?.[iso];

@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { padronizarBrasao } from "@/lib/imagem";
 import CarimboSigep from "@/components/CarimboSigep";
 import { compararAntiguidade } from "@/lib/patentes";
+import { incluiComReducao } from "@/lib/escalaMotor";
 
 /* =========================================================================
    SIGEP-18BPM  ·  MODULO DE ESCALAS  (Escala de Servico diaria)  ·  v2 UX
@@ -124,6 +125,8 @@ type Cadastro = {
   linhasExtras?: Record<string, number>;
   // Excecao do CPU por dia (editada na linha do Mapa): cpuOverrides[iso] = ID ou "__FOLGA__".
   cpuOverrides?: Record<string, string>;
+  // Reducao judicial: idPmma -> percentual MAXIMO de servicos no mes (ex.: 50).
+  reducaoJudicial?: Record<string, number>;
 };
 
 type Brasoes = {
@@ -330,6 +333,7 @@ function diasEntre(a: string, b: string): number {
 function proxDia(iso: string): string {
   return toISO(new Date(parseISO(iso).getTime() + DAY));
 }
+function inicioMesISO(iso: string): string { return `${iso.slice(0, 7)}-01`; }
 function diaAnteriorISO(iso: string): string {
   return toISO(new Date(parseISO(iso).getTime() - DAY));
 }
@@ -477,15 +481,20 @@ function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
   // O quadro A/B/C/D e a FONTE: a equipe do dia (ciclo 24/72) cobre cada funcao.
   const team = ["A", "B", "C", "D"][(((diasEntre(r, iso) % 4) + 4) % 4)];
   const q = cad.quadroEquipes || {};
+  // Reducao judicial: pula o militar capado nos dias fora da cota do mes.
+  const rj = cad.reducaoJudicial || {};
+  const teamDoDia = (d: string) => ["A", "B", "C", "D"][(((diasEntre(r, d) % 4) + 4) % 4)];
+  const ordEquipeMes = (d: string, tm: string) => { let n = -1; for (let x = inicioMesISO(d); x <= d; x = proxDia(x)) if (teamDoDia(x) === tm) n++; return n; };
+  const capadoHoje = (id: string) => { const pct = rj[id]; return pct ? !incluiComReducao(pct, ordEquipeMes(iso, team)) : false; };
   // Pula quem está AFASTADO (férias/LP/etc.) no dia — o ausente sai da escala a
   // partir da data, deixando a vaga em branco para o escalante cobrir.
-  const dqNome = (fk: string) => { const id = q[team]?.[fk] || ""; return id && !afastado(id, iso, cad.afastamentos) ? nm(id) : ""; };
+  const dqNome = (fk: string) => { const id = q[team]?.[fk] || ""; return id && !afastado(id, iso, cad.afastamentos) && !capadoHoje(id) ? nm(id) : ""; };
   // Titular + linhas extras (ex.: 2o patrulheiro) definidas no Mapa.
   const dqNomes = (fk: string) => {
     const out: string[] = [];
     const b = dqNome(fk); if (b) out.push(b);
     const n = cad.linhasExtras?.[fk] || 0;
-    for (let k = 2; k <= n + 1; k++) { const id = q[team]?.[`${fk}#${k}`] || ""; if (id && !afastado(id, iso, cad.afastamentos)) out.push(nm(id)); }
+    for (let k = 2; k <= n + 1; k++) { const id = q[team]?.[`${fk}#${k}`] || ""; if (id && !afastado(id, iso, cad.afastamentos) && !capadoHoje(id)) out.push(nm(id)); }
     return out;
   };
 
@@ -593,6 +602,8 @@ function Editable({
 
 // Leva o efetivo ate os SlotInline (autocomplete de permuta) sem prop-drilling.
 const EfetivoCtx = createContext<Militar[]>([]);
+// Redução judicial (idPmma -> %/mês) para avisar ao escalar manualmente.
+const ReducaoCtx = createContext<Record<string, number>>({});
 
 /* Autocomplete do substituto da permuta: digita e sugere policiais do efetivo,
    guardando o NOME formatado. Na tela mostra input + sugestoes; na impressao,
@@ -697,6 +708,7 @@ function ordenaPorPatente(slots: Slot[], efetivo?: Militar[]): Slot[] {
 function SlotList({
   slots, onChange, center, centro, semPermuta, efetivo, ordenar,
 }: { slots: Slot[]; onChange: (s: Slot[]) => void; center?: boolean; centro?: boolean; semPermuta?: boolean; efetivo?: Militar[]; ordenar?: boolean }) {
+  const reducoes = useContext(ReducaoCtx);
   const upd = (i: number, ns: Slot) => { const a = slots.slice(); a[i] = ns; onChange(a); };
   const rm = (i: number) => onChange(slots.filter((_, j) => j !== i));
   const add = () => onChange([...slots, s()]);
@@ -705,6 +717,9 @@ function SlotList({
   // recem-adicionado sobe para a posicao da patente (maior antiguidade no topo).
   const addMilitar = (id: string) => {
     const m = efetivo?.find((x) => x.id === id); if (!m) return;
+    const pct = reducoes[id];
+    if (pct && pct > 0 && pct < 100 &&
+        !window.confirm(`⚠️ ${fmtMilitar(m)} tem REDUÇÃO JUDICIAL de ${pct}% dos serviços no mês.\n\nEscalar mesmo assim?`)) return;
     const nome = fmtMilitar(m);
     const iVazia = slots.findIndex((sl) => !semTags(sl.titular || "").trim());
     let novo: Slot[];
@@ -1512,6 +1527,8 @@ export default function EscalaClient() {
   const [escalas, setEscalas] = useState<Record<string, Escala>>({});
   // Afastamentos do PLANO (férias/LP das equipes) — o motor remove o ausente.
   const [planoAfast, setPlanoAfast] = useState<Afastamento[]>([]);
+  // Reducao judicial (idPmma -> percentual/mes) — mesclado no cadEff em memoria.
+  const [reducaoJudicial, setReducaoJudicial] = useState<Record<string, number>>({});
   const [data, setData] = useState<string>(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -1572,6 +1589,16 @@ export default function EscalaClient() {
     fetch("/api/escala/afastamentos-plano")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (Array.isArray(d?.afastamentos)) setPlanoAfast(d.afastamentos as Afastamento[]); })
+      .catch(() => {});
+    fetch("/api/escala/reducao-judicial")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (Array.isArray(d?.reducoes)) {
+          const m: Record<string, number> = {};
+          for (const x of d.reducoes) if (x?.idPmma && x?.percentual) m[String(x.idPmma)] = Number(x.percentual);
+          setReducaoJudicial(m);
+        }
+      })
       .catch(() => {});
     // Dias salvos vem do servidor (migra o localStorage antigo se preciso).
     (async () => {
@@ -1875,9 +1902,14 @@ export default function EscalaClient() {
       .filter((a) => a.idPmma && a.inicio && a.fim)
       .map((a) => ({ militar: a.idPmma, tipo: "ferias", inicio: a.inicio, fim: a.fim }));
     const todos = [...extra, ...planoAfast];
-    if (todos.length === 0) return cad;
-    return { ...cad, afastamentos: [...(cad.afastamentos || []), ...todos] };
-  }, [cad, feriasAvulsas, planoAfast]);
+    const temRj = Object.keys(reducaoJudicial).length > 0;
+    if (todos.length === 0 && !temRj) return cad;
+    return {
+      ...cad,
+      afastamentos: [...(cad.afastamentos || []), ...todos],
+      ...(temRj ? { reducaoJudicial } : {}),
+    };
+  }, [cad, feriasAvulsas, planoAfast, reducaoJudicial]);
 
   // Auto-preenche na FOLHA os campos vindos do QUADRO (FT, RP, Guarda,
   // Inteligência) que estão VAZIOS, para os dias de HOJE em diante já salvos.
@@ -2160,6 +2192,7 @@ export default function EscalaClient() {
 
   return (
     <EfetivoCtx.Provider value={efetivo}>
+    <ReducaoCtx.Provider value={reducaoJudicial}>
     <div className="app-shell">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <BarraFormatacao />
@@ -2537,6 +2570,7 @@ export default function EscalaClient() {
         </>
       )}
     </div>
+    </ReducaoCtx.Provider>
     </EfetivoCtx.Provider>
   );
 }
