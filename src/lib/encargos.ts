@@ -36,7 +36,11 @@ function coletarLugares(no: NoOrg, acc: { id: string; rotulo: string }[]): void 
   // separado: a CIA já cobre o 1º Pel (um só Cmt, uma só escala). Os demais
   // pelotões (2º, 3º...) continuam como lugares próprios.
   const eh1PelDaCia = /^\d+cia-p1$/.test(no.id);
-  if ((ehCia || ehPelotao) && !eh1PelDaCia) acc.push({ id: no.id, rotulo: no.rotulo });
+  // A 1ª CIA É a sede (mesmo quartel, mesma escala, mesmo comando). Não entra
+  // como lugar: não tem Cmt/Sargenteante próprios nem escala separada — quem
+  // conduz é o P/1, pela folha da sede.
+  const ehSede = no.id === "1cia";
+  if ((ehCia || ehPelotao) && !eh1PelDaCia && !ehSede) acc.push({ id: no.id, rotulo: no.rotulo });
   for (const f of no.filhos ?? []) coletarLugares(f, acc);
 }
 export const LUGARES_COMANDO: { id: string; rotulo: string }[] = (() => {
@@ -60,6 +64,8 @@ export const ENCARGOS_SARG_LUGAR: Encargo[] = LUGARES_COMANDO.map((l) => ({
 export function lugarDoEncargo(encargoId: string): string | null {
   if (!encargoId) return null;
   const resto = encargoId.startsWith("cmt_") ? encargoId.slice(4) : encargoId.startsWith("sarg_") ? encargoId.slice(5) : "";
+  // "1cia" nao e lugar: a 1a CIA e a propria sede (ver coletarLugares).
+  if (resto === "1cia") return null;
   return /^\d+cia(-p\d+)?$/.test(resto) ? resto : null;
 }
 // É um encargo de comando/sargenteante de LUGAR (não os do Comando/Seções)?

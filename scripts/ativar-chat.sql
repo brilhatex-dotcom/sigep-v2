@@ -40,3 +40,27 @@ CREATE INDEX IF NOT EXISTS "chat_mensagens_De_Para_CriadoEm_idx"
 
 CREATE INDEX IF NOT EXISTS "chat_mensagens_Para_LidaEm_idx"
     ON "chat_mensagens" ("Para", "LidaEm");
+
+-- =========================================================================
+--  LIGAÇÃO E CHAMADA DE VÍDEO  (rode junto, ou depois — é seguro repetir)
+--
+--  Guarda só a "negociação" da chamada. O áudio e o vídeo NÃO passam por
+--  aqui: vão direto de um aparelho ao outro.
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS "chat_chamadas" (
+    "id"       TEXT NOT NULL,
+    "De"       TEXT NOT NULL,
+    "Para"     TEXT NOT NULL,
+    "Video"    BOOLEAN NOT NULL DEFAULT false,
+    "Estado"   TEXT NOT NULL DEFAULT 'chamando',
+    "Oferta"   TEXT,
+    "Resposta" TEXT,
+    "IceDe"    TEXT,
+    "IcePara"  TEXT,
+    "CriadoEm" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "MudouEm"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "chat_chamadas_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "chat_chamadas_Para_Estado_idx" ON "chat_chamadas" ("Para", "Estado");
+CREATE INDEX IF NOT EXISTS "chat_chamadas_De_Estado_idx"   ON "chat_chamadas" ("De", "Estado");

@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MessageSquare, Search, Paperclip, Send, X, Download, FileText, Loader2, ArrowLeft } from "lucide-react";
+import { MessageSquare, Search, Paperclip, Send, X, Download, FileText, Loader2, ArrowLeft, Phone, Video } from "lucide-react";
+import Chamada from "@/components/Chamada";
 
 /* =========================================================================
    Chat interno do SIGEP — todos com todos.
@@ -84,6 +85,8 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
   const [instalado, setInstalado] = useState(true);
   // URL temporaria de cada imagem, para mostrar a foto dentro do balao
   const [previas, setPrevias] = useState<Record<string, string>>({});
+  // quando preenchido, dispara a ligacao/chamada de video
+  const [ligarPara, setLigarPara] = useState<{ para: string; video: boolean } | null>(null);
 
   const fim = useRef<HTMLDivElement | null>(null);
   const abertoRef = useRef<Contato | null>(null); abertoRef.current = aberto;
@@ -315,8 +318,19 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
   const totalNaoLidas = contatos.reduce((a, c) => a + c.naoLidas, 0);
 
   /* ---------------- render ---------------- */
+  const nomePorLogin = useCallback(
+    (login: string) => contatos.find((c) => c.login === login)?.nome || login,
+    [contatos]
+  );
+
   return (
     <div className="mx-auto max-w-6xl">
+      <Chamada
+        eu={eu}
+        nomeDe={nomePorLogin}
+        chamarAgora={ligarPara}
+        aoFechar={() => setLigarPara(null)}
+      />
       <h1 className="mb-1 flex items-center gap-2 text-2xl font-bold text-white">
         <MessageSquare className="h-6 w-6 text-[#D4AF37]" /> Chat
         {totalNaoLidas > 0 && (
@@ -423,6 +437,22 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
                     {aberto.online ? <span className="text-emerald-400">● online agora</span> : "offline"}
                     {aberto.lotacao ? " · " + aberto.lotacao : ""}
                   </p>
+                </div>
+                <div className="ml-auto flex items-center gap-1.5">
+                  <button
+                    onClick={() => setLigarPara({ para: aberto.login, video: false })}
+                    title="Ligar (voz)"
+                    className="rounded-lg border border-white/10 p-2 text-[#94A3B8] transition hover:border-emerald-400 hover:text-emerald-300"
+                  >
+                    <Phone className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setLigarPara({ para: aberto.login, video: true })}
+                    title="Chamada de vídeo"
+                    className="rounded-lg border border-white/10 p-2 text-[#94A3B8] transition hover:border-[#D4AF37] hover:text-[#D4AF37]"
+                  >
+                    <Video className="h-4 w-4" />
+                  </button>
                 </div>
               </header>
 

@@ -595,3 +595,27 @@ model ChatPresenca {
 
   @@map("chat_presenca")
 }
+
+// ----------------------------------------------------------
+//  Chamada de voz/vídeo do chat (WebRTC).
+//  O áudio e o vídeo vão DIRETO entre os dois aparelhos; o banco guarda
+//  só a "negociação" (quem chama quem, as ofertas SDP e os candidatos de
+//  rede). Por isso a conversa em si não passa pelo servidor.
+// ----------------------------------------------------------
+model ChatChamada {
+  id       String   @id @default(cuid())
+  de       String   @map("De") // login de quem ligou
+  para     String   @map("Para") // login de quem recebe
+  video    Boolean  @default(false) @map("Video")
+  estado   String   @default("chamando") @map("Estado") // chamando|aceita|recusada|encerrada|perdida
+  oferta   String?  @map("Oferta") // SDP de quem ligou
+  resposta String?  @map("Resposta") // SDP de quem atendeu
+  iceDe    String?  @map("IceDe") // candidatos de rede (JSON) do chamador
+  icePara  String?  @map("IcePara") // candidatos de rede (JSON) de quem atendeu
+  criadoEm DateTime @default(now()) @map("CriadoEm")
+  mudouEm  DateTime @updatedAt @map("MudouEm")
+
+  @@index([para, estado])
+  @@index([de, estado])
+  @@map("chat_chamadas")
+}

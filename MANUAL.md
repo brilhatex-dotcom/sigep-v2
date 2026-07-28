@@ -111,6 +111,10 @@ Conversa direta com **qualquer militar** do batalhão — policial com policial,
 
 O contador em vermelho no título mostra quantas mensagens você ainda não leu.
 
+**Ligação e chamada de vídeo.** Dentro de uma conversa, no alto à direita, há dois botões: 📞 para ligar por voz e 🎥 para chamada de vídeo. Quem recebe vê a tela de chamada com **Atender** e **Recusar**. Durante a chamada dá para desligar o microfone, desligar a câmera e encerrar.
+
+> A conversa vai **direto de um celular ao outro** — não passa pelo servidor. Isso deixa a chamada mais rápida e privada, mas depende da rede: **no Wi-Fi do quartel funciona bem**; quando os dois lados estão no 4G da rua, a conexão pode não completar, porque as operadoras bloqueiam ligação direta entre aparelhos. Se demorar a conectar, o sistema avisa na tela. Para funcionar sempre, é preciso contratar um servidor de retransmissão (TURN).
+
 ---
 
 # Parte 2 — Área do administrador
