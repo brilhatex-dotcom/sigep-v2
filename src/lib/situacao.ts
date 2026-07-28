@@ -80,7 +80,9 @@ export function montarIdsEmFerias(
     periodo2Fim: string | null;
   }[],
   membros: { idPmma: string; numeroEquipe: string; anoGozo: string }[],
-  hoje: Date
+  hoje: Date,
+  // Quem ADIOU as férias do plano não fica ausente: volta ao serviço normal.
+  adiados?: Set<string>
 ): Set<string> {
   const ano = String(hoje.getFullYear());
   const equipeEmFerias = new Set<string>();
@@ -98,6 +100,7 @@ export function montarIdsEmFerias(
   const ids = new Set<string>();
   membros
     .filter((m) => m.anoGozo === ano && equipeEmFerias.has(m.numeroEquipe))
+    .filter((m) => !adiados?.has(m.idPmma)) // adiou: não sai de férias
     .forEach((m) => ids.add(m.idPmma));
   return ids;
 }

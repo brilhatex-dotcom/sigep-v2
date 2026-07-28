@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { hojeLocal, montarIdsEmFerias } from "@/lib/situacao";
 import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
+import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
 
 /* Resumo de FÉRIAS para os painéis (Centro de Comando e aba Férias).
    Junta o plano por equipes E as férias avulsas (datas soltas). Mostra:
@@ -43,7 +44,9 @@ export async function resumoFerias(): Promise<ResumoFerias> {
   const membros = await prisma.membroFerias.findMany();
 
   // ---- equipe: quem está de férias HOJE + o período ativo ----
-  const idsEquipeHoje = montarIdsEmFerias(equipes, membros, hoje);
+  // Quem ADIOU as férias não entra na lista: continua no serviço normal.
+  const adiados = await idsFeriasAdiadas();
+  const idsEquipeHoje = montarIdsEmFerias(equipes, membros, hoje, adiados);
   // mapa equipe -> período ativo hoje (para exibir as datas)
   const periodoAtivo = new Map<string, { inicio: string; fim: string }>();
   for (const e of equipes.filter((x) => x.anoGozo === ano)) {

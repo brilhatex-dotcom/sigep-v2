@@ -73,7 +73,7 @@ Previsão dos **seus próximos serviços**: em que dias você entra e em qual fu
 ### Minhas Férias
 
 - **Suas férias**: os períodos do plano por equipe e as férias avulsas (datas soltas), com data de início, fim e apresentação.
-- **Plano de férias da minha equipe**: a equipe em que você está no plano, os períodos dela e **os colegas que saem junto com você**. Você aparece destacado com *(você)*. Quem optou por adiar as férias aparece marcado como **postergado**.
+- **Plano de férias da minha equipe**: a equipe em que você está no plano, os períodos dela e **os colegas que saem junto com você**. Você aparece destacado com *(você)*. Quem adiou as férias aparece marcado como **adiado** — esse militar não sai de férias e segue no serviço normal.
 
 ### Ficha Individual
 
@@ -209,15 +209,19 @@ Para remover a restrição, clique no **×** na linha dele.
 - **Memorando**: gera o memorando de concessão de férias do militar; dá para **assinar em lote** (Chefe P/1 ou Cmt).
 - **Imprimir**: relatório do plano inteiro.
 
-**Postergar férias.** Para o militar que **não vai gozar as férias agora**:
+**Adiar férias.** Para o militar que **não vai gozar as férias agora**:
 
 1. Abra a equipe dele.
-2. Na linha do militar, clique em **“Postergar”** (fica ao lado de *Memorando* e *Editar*).
-3. Informe o motivo, se quiser.
+2. Na linha do militar, clique em **“Adiar”** (fica ao lado de *Memorando* e *Editar*).
+3. Confirme e informe o motivo, se quiser.
 
-Ele passa a exibir a etiqueta **Postergado** na lista e no relatório impresso. **Importante:** isso é **só controle** — o militar **não é removido de nada**. Ele continua normalmente na escala, no organograma e em todas as telas. Para tirar a marca, clique de novo no botão.
+Ele passa a exibir a etiqueta **Adiado** na lista e no relatório impresso.
 
-> O botão **Postergar** só aparece para o **administrador**, dentro da equipe (clique na equipe primeiro). O policial vê a marca dele em “Minhas Férias”.
+**O que o “Adiado” faz:** o militar **não sai de férias**. Ele deixa de aparecer como ausente **em todas as telas** — escala de serviço, organograma, efetivo, lotação, antiguidade, dashboard e o painel “de férias hoje” — e **continua no serviço normal**, mesmo que a equipe dele esteja no período de férias.
+
+Para desfazer, clique de novo no botão: ele volta a sair de férias no período da equipe.
+
+> O botão **Adiar** só aparece para o **administrador**, dentro da equipe (clique no cartão da equipe primeiro). O policial vê a marca dele em “Minhas Férias”.
 
 **Férias avulsas.** No fim da mesma página: férias em datas soltas, fora do plano por equipes. Informe militar, início, fim e observação. Também removem o militar da escala no período.
 
@@ -303,7 +307,7 @@ Se for uma ausência que não está no plano (missão, curso, ROTAM, licença), 
 
 ### Registrar quem vai adiar as férias
 
-**Plano de Férias** → clique na equipe → **Postergar** na linha do militar. Ele fica marcado, **sem sair de nada**.
+**Plano de Férias** → clique na equipe → **Adiar** na linha do militar. Ele fica marcado como **Adiado** e **não sai de férias**: continua na escala e em todas as telas, mesmo com a equipe dele de férias.
 
 ### Cadastrar uma redução judicial
 
@@ -330,8 +334,11 @@ Ele entrou na **equipe** que você escolheu e só entra no **próximo dia daquel
 **“Militar de férias continua aparecendo.”**
 Confirme se as férias estão lançadas no **Plano de Férias**, em **Licença-Prêmio** ou em **férias avulsas**, e se as **datas** estão certas. Estando lançado, ele sai sozinho da escala e do expediente. Se for outro motivo, registre em **Afastamentos**.
 
-**“Não acho o botão Postergar.”**
+**“Não acho o botão Adiar.”**
 Ele fica **dentro da equipe**: Plano de Férias → clique no cartão da equipe → na linha do militar, ao lado de *Memorando* e *Editar*. Só aparece para **admin**.
+
+**“Marquei como Adiado mas o militar continua ausente.”**
+Depois de marcar, ele volta ao serviço na hora. Se ainda aparecer ausente, verifique se ele não tem também uma **férias avulsa** ou uma **Licença-Prêmio** lançada no mesmo período — essas são independentes do plano e precisam ser removidas à parte.
 
 **“Esqueci minha senha.”**
 Procure o P/1: **Administração → Gerenciar Acessos → Resetar senha**.
@@ -347,4 +354,4 @@ Corrija no **Cadastro de Efetivo** — todos os documentos puxam de lá. Depois 
 - **Mapa de Escala** define as equipes; **Escalas de Serviço** é a folha do dia.
 - **Nada existe para a tropa antes do 📢 Publicar.**
 - **Republicou? A última vale.**
-- Férias e afastamentos **removem sozinhos** da escala; **Postergar** só marca, não remove.
+- Férias e afastamentos **removem sozinhos** da escala; **Adiar** faz o contrário: devolve o militar ao serviço.

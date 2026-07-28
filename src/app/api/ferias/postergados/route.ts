@@ -6,10 +6,12 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 /* /api/ferias/postergados
-   Registro (controle) dos militares que optaram por POSTERGAR / NÃO gozar as
-   férias no momento. É apenas um marcador de gestão: NÃO gera afastamento e
-   NÃO remove o militar de nada (escala, organograma, etc.). Salvo na tabela
-   Config (chave "ferias_postergados").
+   Férias ADIADAS: militares que NÃO vão gozar as férias do plano agora.
+   Marcado aqui, o militar deixa de sair de férias — ele não entra como
+   ausente na escala, no organograma, no efetivo, na lotação, na antiguidade
+   nem no painel "de férias hoje" — e segue no serviço normal.
+   Salvo na tabela Config (chave "ferias_postergados", nome antigo mantido
+   para não perder o que já foi marcado; na tela aparece "Adiado").
      GET  -> { postergados: [{ idPmma, nome, motivo, data }] }
      POST (admin) { idPmma, nome?, motivo?, postergado } -> marca/desmarca */
 const CHAVE = "ferias_postergados";

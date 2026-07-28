@@ -41,6 +41,7 @@ export default async function MinhasFeriasPage() {
     const lista = row?.valor ? JSON.parse(row.valor) : [];
     if (Array.isArray(lista)) postergados = new Set(lista.map((p: any) => String(p?.idPmma || "")));
   } catch { /* ignora */ }
+  const euAdiei = !!meuId && postergados.has(meuId);
 
   if (meuId) {
     // férias do PLANO (equipes onde o militar é membro)
@@ -114,12 +115,20 @@ export default async function MinhasFeriasPage() {
               <li key={i} className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-4">
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <span className="text-sm font-bold text-white">{p.rotulo}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${p.origem === "avulsa" ? "bg-[#3a2f10] text-[#f3df9d]" : "bg-teal-950/60 text-teal-300"}`}>{p.origem}</span>
+                  <div className="flex items-center gap-1.5">
+                    {p.origem === "plano" && euAdiei && (
+                      <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-300">adiado</span>
+                    )}
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${p.origem === "avulsa" ? "bg-[#3a2f10] text-[#f3df9d]" : "bg-teal-950/60 text-teal-300"}`}>{p.origem}</span>
+                  </div>
                 </div>
                 <p className="text-sm text-[#cdd9ea]">
                   <b>{dBR(p.inicio)}</b> a <b>{dBR(p.fim)}</b>
                   {p.apres ? <span className="text-[#94A3B8]"> · apresentação: {dBR(p.apres)}</span> : null}
                 </p>
+                {p.origem === "plano" && euAdiei && (
+                  <p className="mt-1 text-xs text-amber-300/90">Você adiou estas férias — permanece no serviço normal neste período.</p>
+                )}
               </li>
             ))}
           </ul>
@@ -151,7 +160,7 @@ export default async function MinhasFeriasPage() {
                   {eq.colegas.map((c) => (
                     <span
                       key={c.id}
-                      title={c.postergado ? "Postergou as férias (não vai gozar agora)" : undefined}
+                      title={c.postergado ? "Férias adiadas — não sai de férias neste período" : undefined}
                       className={
                         "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs " +
                         (c.eu
@@ -161,7 +170,7 @@ export default async function MinhasFeriasPage() {
                     >
                       {[c.postoGrad, c.nomeGuerra || c.nome].filter(Boolean).join(" ") || "—"}
                       {c.eu && <span className="text-[10px] uppercase">(você)</span>}
-                      {c.postergado && <span className="rounded bg-amber-500/20 px-1 text-[9px] font-bold uppercase text-amber-300">postergado</span>}
+                      {c.postergado && <span className="rounded bg-amber-500/20 px-1 text-[9px] font-bold uppercase text-amber-300">adiado</span>}
                     </span>
                   ))}
                 </div>

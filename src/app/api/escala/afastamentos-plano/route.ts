@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
 
 export const dynamic = "force-dynamic";
 
@@ -86,9 +87,13 @@ export async function GET(req: Request) {
       if (p2i) arr.push({ inicio: p2i, fim: fimPeriodo(p2i, toISO(e.periodo2Fim), toISO(e.periodo2Apres)) });
       if (arr.length) { perFer.set(`${e.numeroEquipe}|${e.anoGozo}`, arr); perFer.set(String(e.numeroEquipe), arr); }
     }
-    for (const m of mbFer)
+    // Quem ADIOU as férias do plano NÃO é afastado: segue no serviço normal.
+    const adiados = await idsFeriasAdiadas();
+    for (const m of mbFer) {
+      if (adiados.has(m.idPmma)) continue;
       for (const p of (perFer.get(`${m.numeroEquipe}|${m.anoGozo}`) || perFer.get(String(m.numeroEquipe)) || []))
         afast.push({ militar: m.idPmma, tipo: "ferias", inicio: p.inicio, fim: p.fim });
+    }
 
     // Licença-prêmio — um período por equipe.
     const perLic = new Map<string, { inicio: string; fim: string }>();

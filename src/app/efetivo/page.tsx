@@ -4,6 +4,7 @@ import { exigirAdmin } from "@/lib/guard";
 import AppShell from "@/components/AppShell";
 import EfetivoLista from "@/components/EfetivoLista";
 import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
+import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
 import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
 import { idsInativos, semInativos } from "@/lib/inativos";
 
@@ -33,7 +34,7 @@ export default async function EfetivoPage({
   // ferias de hoje
   const equipes = await prisma.equipeFerias.findMany();
   const membros = await prisma.membroFerias.findMany();
-  const idsFerias = montarIdsEmFerias(equipes, membros, hoje);
+  const idsFerias = montarIdsEmFerias(equipes, membros, hoje, await idsFeriasAdiadas());
   for (const id of await idsFeriasAvulsasHoje(hoje)) idsFerias.add(id); // ferias em datas soltas
 
   // licenca-premio de hoje

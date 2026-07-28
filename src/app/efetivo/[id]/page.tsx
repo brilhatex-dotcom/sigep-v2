@@ -7,6 +7,7 @@ import AvatarUpload from "@/components/AvatarUpload";
 import CopiarDados from "./CopiarDados";
 import { ArrowLeft, Pencil } from "lucide-react";
 import { hojeLocal, montarIdsEmFerias, situacaoCalculada } from "@/lib/situacao";
+import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
 import { lugarDoUsuario } from "@/lib/lugarUsuario";
 import { pertenceAoNo } from "@/lib/organograma";
 
@@ -71,7 +72,7 @@ export default async function FichaEfetivoPage({
   const hoje = hojeLocal();
   const equipes = await prisma.equipeFerias.findMany();
   const membros = await prisma.membroFerias.findMany();
-  const idsFerias = montarIdsEmFerias(equipes, membros, hoje);
+  const idsFerias = montarIdsEmFerias(equipes, membros, hoje, await idsFeriasAdiadas());
   const sitCalc = situacaoCalculada(m, idsFerias, hoje);
   const sitDifere = sitCalc !== (m.situacao ?? "").trim() && sitCalc !== "—";
 

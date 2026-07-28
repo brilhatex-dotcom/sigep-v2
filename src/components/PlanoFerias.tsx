@@ -120,18 +120,20 @@ export default function PlanoFerias({
   postergadosIniciais?: { idPmma: string; nome: string; motivo: string; data: string }[];
 }) {
   const router = useRouter();
-  // Militares que POSTERGARAM / não vão gozar férias agora (só controle: não
-  // gera afastamento nem remove de nada). Mapa idPmma -> motivo.
+  // Militares que ADIARAM as férias do plano: NÃO saem de férias e seguem no
+  // serviço normal (some da escala como ausente). Mapa idPmma -> motivo.
   const [postergados, setPostergados] = useState<Map<string, string>>(
     () => new Map(postergadosIniciais.map((p) => [p.idPmma, p.motivo || ""]))
   );
   const [salvandoPosterg, setSalvandoPosterg] = useState<string | null>(null);
   async function togglePostergar(m: MembroEquipe) {
     const jaTem = postergados.has(m.efetivoId);
+    const quem = m.nomeGuerra || m.nome || "este militar";
     let motivo = "";
     if (!jaTem) {
-      motivo = (window.prompt("Motivo/observação da postergação (opcional):", "") || "").trim();
-    } else if (!window.confirm(`Remover a marca de POSTERGADO de ${m.nomeGuerra || m.nome || "este militar"}?`)) {
+      if (!window.confirm(`Marcar as férias de ${quem} como ADIADAS?\n\nEle NÃO sai de férias e volta ao serviço normal na escala.`)) return;
+      motivo = (window.prompt("Motivo/observação do adiamento (opcional):", "") || "").trim();
+    } else if (!window.confirm(`Remover a marca de ADIADO de ${quem}?\n\nEle volta a sair de férias no período da equipe.`)) {
       return;
     }
     setSalvandoPosterg(m.efetivoId);
@@ -379,7 +381,7 @@ export default function PlanoFerias({
     const blocos = equipesOrdenadas.map((e) => {
       const linhas = e.membros.map((m, i) => {
         const post = postergados.has(m.efetivoId)
-          ? ` <b style="color:#b45309">(POSTERGADO${postergados.get(m.efetivoId) ? ": " + esc(postergados.get(m.efetivoId)) : ""})</b>`
+          ? ` <b style="color:#b45309">(ADIADO${postergados.get(m.efetivoId) ? ": " + esc(postergados.get(m.efetivoId)) : ""})</b>`
           : "";
         const nomeCel = `<td>${esc(m.nome)}${post}</td>`;
         return `<tr><td>${i + 1}</td><td>${esc(m.postoGrad)}</td><td>${esc(m.numeroBarra)}</td>${nomeCel}<td>${esc(m.nomeGuerra)}</td><td>${esc(m.matricula)}</td></tr>`;
@@ -708,10 +710,10 @@ export default function PlanoFerias({
                           {m.nomeGuerra && <span className="ml-1 text-xs text-[#94A3B8]">({m.nomeGuerra})</span>}
                           {postergados.has(m.efetivoId) && (
                             <span
-                              title={postergados.get(m.efetivoId) ? `Postergado · ${postergados.get(m.efetivoId)}` : "Férias postergadas (não vai gozar agora)"}
+                              title={postergados.get(m.efetivoId) ? `Adiado · ${postergados.get(m.efetivoId)}` : "Férias adiadas — não sai de férias, segue no serviço normal"}
                               className="ml-2 inline-flex items-center rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300"
                             >
-                              Postergado
+                              Adiado
                             </span>
                           )}
                         </td>
@@ -734,7 +736,7 @@ export default function PlanoFerias({
                               <button
                                 onClick={() => togglePostergar(m)}
                                 disabled={salvandoPosterg === m.efetivoId}
-                                title="Marca que o militar vai postergar / não gozar as férias agora (apenas controle; não o remove de nada)"
+                                title="Adia as férias deste militar: ele NÃO sai de férias e continua no serviço normal (escala, organograma e demais telas)"
                                 className={
                                   "inline-flex items-center gap-1 rounded border px-2 py-1 text-xs disabled:opacity-50 " +
                                   (postergados.has(m.efetivoId)
@@ -745,7 +747,7 @@ export default function PlanoFerias({
                                 {salvandoPosterg === m.efetivoId
                                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                   : <Clock className="h-3.5 w-3.5" />}
-                                {postergados.has(m.efetivoId) ? "Postergado" : "Postergar"}
+                                {postergados.has(m.efetivoId) ? "Adiado" : "Adiar"}
                               </button>
                             </div>
                           </td>

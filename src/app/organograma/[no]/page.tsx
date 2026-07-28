@@ -7,6 +7,7 @@ import AppShell from "@/components/AppShell";
 import { classificarPatente } from "@/lib/patentes";
 import { acharNo, pertenceAoNo } from "@/lib/organograma";
 import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
+import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
 import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
 import { idsInativos, semInativos } from "@/lib/inativos";
 import { exigirAdminOuLugar } from "@/lib/guard";
@@ -50,7 +51,7 @@ export default async function NoOrganogramaPage({
 
   const equipes = await prisma.equipeFerias.findMany();
   const membros = await prisma.membroFerias.findMany();
-  const idsFerias = montarIdsEmFerias(equipes, membros, hoje);
+  const idsFerias = montarIdsEmFerias(equipes, membros, hoje, await idsFeriasAdiadas());
   for (const id of await idsFeriasAvulsasHoje(hoje)) idsFerias.add(id); // ferias em datas soltas
 
   // licenca-premio de hoje

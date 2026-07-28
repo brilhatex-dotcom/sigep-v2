@@ -6,6 +6,7 @@ import AppShell from "@/components/AppShell";
 import AntiguidadeTabela, { MilitarLinha } from "@/components/AntiguidadeTabela";
 import { classificarPatente } from "@/lib/patentes";
 import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
+import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
 import { idsInativos, semInativos } from "@/lib/inativos";
 
 export const dynamic = "force-dynamic";
@@ -100,7 +101,7 @@ export default async function AntiguidadePage({
 
   const equipes = await prisma.equipeFerias.findMany();
   const membros = await prisma.membroFerias.findMany();
-  const idsFerias = montarIdsEmFerias(equipes, membros, hoje);
+  const idsFerias = montarIdsEmFerias(equipes, membros, hoje, await idsFeriasAdiadas());
 
   // licenca-premio de hoje
   const equipesLicenca = await prisma.equipeLicencaPremio.findMany();

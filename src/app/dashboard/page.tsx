@@ -9,6 +9,7 @@ import FraseRotativa from "@/components/FraseRotativa";
 import JmsTabela, { LinhaJms } from "@/components/JmsTabela";
 import { classificarPatente } from "@/lib/patentes";
 import { montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
+import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
 import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
 import { idsInativos, semInativos } from "@/lib/inativos";
 import {
@@ -41,7 +42,7 @@ export default async function DashboardPage() {
   const equipesTodas = await prisma.equipeFerias.findMany();
   const membrosTodos = await prisma.membroFerias.findMany();
   const idsAvulsaHoje = await idsFeriasAvulsasHoje(hoje); // férias em datas soltas
-  const idsFerias = montarIdsEmFerias(equipesTodas, membrosTodos, hoje);
+  const idsFerias = montarIdsEmFerias(equipesTodas, membrosTodos, hoje, await idsFeriasAdiadas());
   for (const id of idsAvulsaHoje) idsFerias.add(id);
 
   // licenca-premio de hoje (mesma logica das ferias, 1 periodo por equipe)
