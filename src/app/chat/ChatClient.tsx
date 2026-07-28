@@ -82,6 +82,8 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
   const [carregando, setCarregando] = useState(true);
   // false enquanto as tabelas do chat nao existirem no banco
   const [instalado, setInstalado] = useState(true);
+  // URL temporaria de cada imagem, para mostrar a foto dentro do balao
+  const [previas, setPrevias] = useState<Record<string, string>>({});
 
   const fim = useRef<HTMLDivElement | null>(null);
   const abertoRef = useRef<Contato | null>(null); abertoRef.current = aberto;
@@ -158,6 +160,25 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
     const t = setInterval(puxar, 3000);
     return () => clearInterval(t);
   }, [aberto]);
+
+  // Busca a URL temporária das imagens recebidas, para exibir a miniatura.
+  useEffect(() => {
+    const faltando = msgs.filter(
+      (m) => m.arqKey && ehImagem(m.arqTipo) && !previas[m.arqKey]
+    );
+    if (faltando.length === 0) return;
+    let vivo = true;
+    (async () => {
+      for (const m of faltando.slice(0, 12)) {
+        try {
+          const r = await fetch("/api/chat/anexo?key=" + encodeURIComponent(m.arqKey!));
+          const d = await r.json();
+          if (vivo && r.ok && d?.url) setPrevias((p) => ({ ...p, [m.arqKey!]: d.url }));
+        } catch {}
+      }
+    })();
+    return () => { vivo = false; };
+  }, [msgs, previas]);
 
   // rola para o fim quando chega mensagem
   useEffect(() => {
@@ -425,11 +446,18 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
 
                           {m.arqKey && ehImagem(m.arqTipo) && (
                             <button onClick={() => abrirAnexo(m.arqKey!, false)}
+                              title={`${m.arqNome} · ${tamanhoBR(m.arqTam)} — abrir em tamanho real`}
                               className="mt-1 block w-full overflow-hidden rounded-lg border border-black/20">
-                              <span className={`flex items-center gap-2 px-2 py-6 text-xs ${m.minha ? "text-[#1a1205]/80" : "text-[#94A3B8]"}`}>
-                                🖼 <b className="truncate">{m.arqNome}</b>
-                                <span className="ml-auto shrink-0">{tamanhoBR(m.arqTam)}</span>
-                              </span>
+                              {previas[m.arqKey] ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={previas[m.arqKey]} alt={m.arqNome || "imagem"}
+                                  className="max-h-60 w-full object-cover" />
+                              ) : (
+                                <span className={`flex items-center gap-2 px-2 py-6 text-xs ${m.minha ? "text-[#1a1205]/80" : "text-[#94A3B8]"}`}>
+                                  🖼 <b className="truncate">{m.arqNome}</b>
+                                  <span className="ml-auto shrink-0">{tamanhoBR(m.arqTam)}</span>
+                                </span>
+                              )}
                             </button>
                           )}
 

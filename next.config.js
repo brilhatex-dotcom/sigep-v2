@@ -5,11 +5,15 @@
 // estilos/scripts inline do Next; da pra apertar com nonce depois.
 const csp = [
   "default-src 'self'",
-  "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com",
+  "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://*.r2.cloudflarestorage.com",
   "style-src 'self' 'unsafe-inline'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
   "font-src 'self' data:",
-  "connect-src 'self'",
+  // O chat envia o anexo do NAVEGADOR direto para o Cloudflare R2 (a Vercel
+  // corta requisicoes acima de ~4,5 MB). Sem liberar o R2 aqui, a propria
+  // politica do site bloqueia a conexao antes de sair - o erro no console e
+  // "violates ... connect-src 'self'". So o dominio do R2 entra na lista.
+  "connect-src 'self' https://*.r2.cloudflarestorage.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
