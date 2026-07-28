@@ -141,7 +141,7 @@ export default async function FeriasPage({
 
   // Militares que postergaram / não vão gozar férias agora (só controle; não
   // gera afastamento nem remove de nada). Guardado em Config "ferias_postergados".
-  let postergadosIniciais: { idPmma: string; nome: string; motivo: string; data: string }[] = [];
+  let postergadosIniciais: { idPmma: string; nome: string; motivo: string; data: string; exercicio?: string }[] = [];
   try {
     const row = await prisma.config.findUnique({ where: { chave: "ferias_postergados" } });
     const lista = row?.valor ? JSON.parse(row.valor) : [];

@@ -11,7 +11,7 @@ export default function PlanoFeriasClient(props: {
   totalOficiais: number;
   totalPracas: number;
   isAdmin: boolean;
-  postergadosIniciais?: { idPmma: string; nome: string; motivo: string; data: string }[];
+  postergadosIniciais?: { idPmma: string; nome: string; motivo: string; data: string; exercicio?: string }[];
 }) {
   const router = useRouter();
   return (

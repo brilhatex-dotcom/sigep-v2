@@ -12,11 +12,13 @@ export const dynamic = "force-dynamic";
    nem no painel "de férias hoje" — e segue no serviço normal.
    Salvo na tabela Config (chave "ferias_postergados", nome antigo mantido
    para não perder o que já foi marcado; na tela aparece "Adiado").
-     GET  -> { postergados: [{ idPmma, nome, motivo, data }] }
-     POST (admin) { idPmma, nome?, motivo?, postergado } -> marca/desmarca */
+   Guarda tambem o EXERCICIO (ano de gozo) a que se referem as ferias que o
+   militar ficou devendo — e o que alimenta o relatorio de ferias vencidas.
+     GET  -> { postergados: [{ idPmma, nome, motivo, data, exercicio }] }
+     POST (admin) { idPmma, nome?, motivo?, exercicio?, postergado } */
 const CHAVE = "ferias_postergados";
 
-type Postergado = { idPmma: string; nome: string; motivo: string; data: string };
+type Postergado = { idPmma: string; nome: string; motivo: string; data: string; exercicio?: string };
 
 function ehAdmin(perfil?: string | null): boolean {
   return (perfil || "").toLowerCase() === "admin";
@@ -57,6 +59,8 @@ export async function POST(req: Request) {
         nome: String(b?.nome || "").trim(),
         motivo: String(b?.motivo || "").trim(),
         data: new Date().toISOString().slice(0, 10),
+        // Exercicio das ferias que ficaram a gozar (ano de gozo do plano).
+        exercicio: String(b?.exercicio || "").trim() || String(new Date().getFullYear()),
       });
     }
     await salvar(lista);

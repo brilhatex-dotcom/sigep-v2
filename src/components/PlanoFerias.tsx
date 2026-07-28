@@ -117,21 +117,29 @@ export default function PlanoFerias({
   totalPracas: number;
   isAdmin: boolean;
   onTrocarAno: (ano: string) => void;
-  postergadosIniciais?: { idPmma: string; nome: string; motivo: string; data: string }[];
+  postergadosIniciais?: { idPmma: string; nome: string; motivo: string; data: string; exercicio?: string }[];
 }) {
   const router = useRouter();
   // Militares que ADIARAM as férias do plano: NÃO saem de férias e seguem no
-  // serviço normal (some da escala como ausente). Mapa idPmma -> motivo.
-  const [postergados, setPostergados] = useState<Map<string, string>>(
-    () => new Map(postergadosIniciais.map((p) => [p.idPmma, p.motivo || ""]))
+  // serviço normal (some da escala como ausente). Guarda o motivo e o
+  // EXERCÍCIO (ano de gozo) das férias que ficaram a gozar.
+  type Adiado = { motivo: string; exercicio: string; nome: string };
+  const [postergados, setPostergados] = useState<Map<string, Adiado>>(
+    () => new Map(postergadosIniciais.map((p) => [p.idPmma, { motivo: p.motivo || "", exercicio: p.exercicio || "", nome: p.nome || "" }]))
   );
   const [salvandoPosterg, setSalvandoPosterg] = useState<string | null>(null);
   async function togglePostergar(m: MembroEquipe) {
     const jaTem = postergados.has(m.efetivoId);
     const quem = m.nomeGuerra || m.nome || "este militar";
     let motivo = "";
+    let exercicio = anoSelecionado;
     if (!jaTem) {
       if (!window.confirm(`Marcar as férias de ${quem} como ADIADAS?\n\nEle NÃO sai de férias e volta ao serviço normal na escala.`)) return;
+      // Exercício = ano de gozo das férias que ficam A GOZAR (alimenta o
+      // relatório de férias vencidas). Vem do plano aberto, mas é editável.
+      const ex = (window.prompt("Exercício das férias a gozar (ano):", anoSelecionado) || "").trim();
+      if (!/^\d{4}$/.test(ex)) { alert("Informe o exercício com 4 dígitos (ex.: 2026)."); return; }
+      exercicio = ex;
       motivo = (window.prompt("Motivo/observação do adiamento (opcional):", "") || "").trim();
     } else if (!window.confirm(`Remover a marca de ADIADO de ${quem}?\n\nEle volta a sair de férias no período da equipe.`)) {
       return;
@@ -140,12 +148,13 @@ export default function PlanoFerias({
     try {
       const r = await fetch("/api/ferias/postergados", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idPmma: m.efetivoId, nome: m.nome || m.nomeGuerra || "", motivo, postergado: !jaTem }),
+        body: JSON.stringify({ idPmma: m.efetivoId, nome: m.nome || m.nomeGuerra || "", motivo, exercicio, postergado: !jaTem }),
       });
       if (!r.ok) { alert("Falha ao salvar."); return; }
       setPostergados((prev) => {
         const n = new Map(prev);
-        if (jaTem) n.delete(m.efetivoId); else n.set(m.efetivoId, motivo);
+        if (jaTem) n.delete(m.efetivoId);
+        else n.set(m.efetivoId, { motivo, exercicio, nome: m.nome || m.nomeGuerra || "" });
         return n;
       });
     } catch { alert("Falha ao salvar."); }
@@ -341,6 +350,66 @@ export default function PlanoFerias({
     return membros;
   }
 
+  /* ---------- Relatório: férias A GOZAR / VENCIDAS ----------
+     Fonte: os militares marcados como ADIADO — são os que ficaram devendo o
+     período. VENCIDA = o exercício já passou (ano anterior ao corrente); do
+     exercício corrente ainda dá para gozar dentro do ano. */
+  const anoCorrente = String(new Date().getFullYear());
+  const relatorioVencidas = useMemo(() => {
+    // posto/nome vêm do plano (o militar pode estar em qualquer equipe do ano)
+    const fichaDe = new Map<string, MembroEquipe>();
+    for (const eq of equipes) for (const m of eq.membros) fichaDe.set(m.efetivoId, m);
+    const linhas = Array.from(postergados.entries()).map(([id, ad]) => {
+      const f = fichaDe.get(id);
+      const exercicio = ad.exercicio || "";
+      return {
+        id,
+        postoGrad: f?.postoGrad ?? null,
+        nome: f?.nome ?? ad.nome ?? null,
+        nomeGuerra: f?.nomeGuerra ?? null,
+        exercicio,
+        motivo: ad.motivo,
+        vencida: !!exercicio && exercicio < anoCorrente,
+      };
+    });
+    linhas.sort((a, b) =>
+      Number(b.vencida) - Number(a.vencida) ||
+      (a.exercicio || "").localeCompare(b.exercicio || "") ||
+      (a.nome ?? "").localeCompare(b.nome ?? ""));
+    return linhas;
+  }, [postergados, equipes, anoCorrente]);
+  const totalVencidas = relatorioVencidas.filter((l) => l.vencida).length;
+
+  function imprimirVencidas() {
+    const esc = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const linhas = relatorioVencidas.map((l, i) => `<tr>
+      <td>${i + 1}</td><td>${esc(l.postoGrad)}</td><td>${esc(l.nome)}</td>
+      <td style="text-align:center">${esc(l.exercicio || "—")}</td>
+      <td style="text-align:center;font-weight:700;color:${l.vencida ? "#b91c1c" : "#b45309"}">${l.vencida ? "VENCIDA" : "A GOZAR"}</td>
+      <td>${esc(l.motivo)}</td></tr>`).join("");
+    const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+      <title>Férias vencidas / a gozar - 18 BPM</title>
+      <style>
+        body{font-family:Arial,Helvetica,sans-serif;color:#0b1f3a;padding:20px;}
+        .cab{text-align:center;border-bottom:2px solid #0b1f3a;padding-bottom:8px;margin-bottom:14px;}
+        .cab h1{font-size:15px;margin:0;text-transform:uppercase;}
+        .sub{font-size:11px;color:#555;margin:0 0 14px;}
+        table{width:100%;border-collapse:collapse;font-size:11px;}
+        th,td{border:1px solid #bbb;padding:4px 6px;text-align:left;}
+        th{background:#0b1f3a;color:#fff;}
+        .vazio{font-size:11px;color:#666;}
+      </style></head><body>
+      <div class="cab"><h1>Relatório de férias vencidas / a gozar</h1></div>
+      <p class="sub">18º BPM · emitido em ${new Date().toLocaleDateString("pt-BR")} · ${relatorioVencidas.length} militar(es), ${totalVencidas} com férias vencidas.</p>
+      ${relatorioVencidas.length
+        ? `<table><thead><tr><th>#</th><th>Posto/Grad</th><th>Nome</th><th>Exercício</th><th>Situação</th><th>Observação</th></tr></thead><tbody>${linhas}</tbody></table>`
+        : `<p class="vazio">Nenhum militar com férias a gozar registradas.</p>`}
+      </body></html>`;
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(html); w.document.close(); w.focus(); w.print();
+  }
+
   // Numeracao GLOBAL e continua do memorando: percorre todas as equipes em
   // ordem e atribui um numero sequencial a cada militar do plano inteiro,
   // sem reiniciar a contagem quando muda de equipe. As FERIAS ocupam a
@@ -380,8 +449,9 @@ export default function PlanoFerias({
     );
     const blocos = equipesOrdenadas.map((e) => {
       const linhas = e.membros.map((m, i) => {
-        const post = postergados.has(m.efetivoId)
-          ? ` <b style="color:#b45309">(ADIADO${postergados.get(m.efetivoId) ? ": " + esc(postergados.get(m.efetivoId)) : ""})</b>`
+        const ad = postergados.get(m.efetivoId);
+        const post = ad
+          ? ` <b style="color:#b45309">(ADIADO · exercício ${esc(ad.exercicio || "—")}${ad.motivo ? ": " + esc(ad.motivo) : ""})</b>`
           : "";
         const nomeCel = `<td>${esc(m.nome)}${post}</td>`;
         return `<tr><td>${i + 1}</td><td>${esc(m.postoGrad)}</td><td>${esc(m.numeroBarra)}</td>${nomeCel}<td>${esc(m.nomeGuerra)}</td><td>${esc(m.matricula)}</td></tr>`;
@@ -502,6 +572,70 @@ export default function PlanoFerias({
           <p className="text-2xl font-bold text-white">{totalMilitares}</p>
           <p className="text-xs text-[#94A3B8]">Total no plano</p>
         </div>
+      </div>
+
+      {/* Relatório: férias vencidas / a gozar (militares marcados como Adiado) */}
+      <div className="ui-card p-4">
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 text-base font-bold text-white">
+            <Clock className="h-5 w-5 text-amber-400" />
+            Férias vencidas / a gozar
+            {totalVencidas > 0 && (
+              <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-bold uppercase text-red-300">
+                {totalVencidas} vencida{totalVencidas > 1 ? "s" : ""}
+              </span>
+            )}
+          </h2>
+          {relatorioVencidas.length > 0 && (
+            <button onClick={imprimirVencidas}
+              className="rounded border border-white/15 px-2.5 py-1 text-xs text-[#94A3B8] hover:border-[#D4AF37] hover:text-white">
+              🖨 Imprimir relatório
+            </button>
+          )}
+        </div>
+        <p className="mb-3 text-xs text-[#94A3B8]">
+          Militares que <b>adiaram</b> as férias — continuam no serviço e ficaram com o período a gozar.
+          <b> Vencida</b> = o exercício já passou.
+        </p>
+        {relatorioVencidas.length === 0 ? (
+          <p className="rounded-lg bg-white/5 px-3 py-4 text-center text-sm text-[#94A3B8]">
+            Nenhum militar com férias a gozar. Use o botão <b>Adiar</b> dentro da equipe para registrar.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[520px] text-left text-sm">
+              <thead className="border-b border-white/10 text-xs uppercase text-[#94A3B8]">
+                <tr>
+                  <th className="px-2 py-2 font-semibold">Militar</th>
+                  <th className="px-2 py-2 font-semibold">Exercício</th>
+                  <th className="px-2 py-2 font-semibold">Situação</th>
+                  <th className="px-2 py-2 font-semibold">Observação</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {relatorioVencidas.map((l) => (
+                  <tr key={l.id} className="hover:bg-white/5">
+                    <td className="px-2 py-2">
+                      <span className="text-[#94A3B8]">{l.postoGrad ?? ""}</span>{" "}
+                      <span className="font-medium text-white">{l.nome ?? "—"}</span>
+                      {l.nomeGuerra && <span className="ml-1 text-xs text-[#94A3B8]">({l.nomeGuerra})</span>}
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-2 font-bold text-[#cdd9ea]">{l.exercicio || "—"}</td>
+                    <td className="whitespace-nowrap px-2 py-2">
+                      <span className={
+                        "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase " +
+                        (l.vencida ? "bg-red-500/20 text-red-300" : "bg-amber-500/20 text-amber-300")
+                      }>
+                        {l.vencida ? "vencida" : "a gozar"}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2 text-[#94A3B8]">{l.motivo || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* cartões das equipes */}
@@ -710,10 +844,10 @@ export default function PlanoFerias({
                           {m.nomeGuerra && <span className="ml-1 text-xs text-[#94A3B8]">({m.nomeGuerra})</span>}
                           {postergados.has(m.efetivoId) && (
                             <span
-                              title={postergados.get(m.efetivoId) ? `Adiado · ${postergados.get(m.efetivoId)}` : "Férias adiadas — não sai de férias, segue no serviço normal"}
+                              title={`Férias adiadas — não sai de férias, segue no serviço normal.${postergados.get(m.efetivoId)?.exercicio ? ` Exercício ${postergados.get(m.efetivoId)!.exercicio}.` : ""}${postergados.get(m.efetivoId)?.motivo ? ` Motivo: ${postergados.get(m.efetivoId)!.motivo}` : ""}`}
                               className="ml-2 inline-flex items-center rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300"
                             >
-                              Adiado
+                              Adiado{postergados.get(m.efetivoId)?.exercicio ? ` · ${postergados.get(m.efetivoId)!.exercicio}` : ""}
                             </span>
                           )}
                         </td>

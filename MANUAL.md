@@ -213,13 +213,28 @@ Para remover a restrição, clique no **×** na linha dele.
 
 1. Abra a equipe dele.
 2. Na linha do militar, clique em **“Adiar”** (fica ao lado de *Memorando* e *Editar*).
-3. Confirme e informe o motivo, se quiser.
+3. Confirme, informe o **exercício** (o ano das férias que ele fica devendo — já vem preenchido com o ano do plano aberto) e o motivo, se quiser.
 
 Ele passa a exibir a etiqueta **Adiado** na lista e no relatório impresso.
 
 **O que o “Adiado” faz:** o militar **não sai de férias**. Ele deixa de aparecer como ausente **em todas as telas** — escala de serviço, organograma, efetivo, lotação, antiguidade, dashboard e o painel “de férias hoje” — e **continua no serviço normal**, mesmo que a equipe dele esteja no período de férias.
 
 Para desfazer, clique de novo no botão: ele volta a sair de férias no período da equipe.
+
+### Relatório de férias vencidas / a gozar
+
+No alto da página do **Plano de Férias**, logo abaixo dos números, fica o painel **“Férias vencidas / a gozar”**. Ele lista todos os militares que **adiaram** as férias, mostrando:
+
+| Coluna | O que é |
+|---|---|
+| **Militar** | Posto/graduação e nome |
+| **Exercício** | O **ano** das férias que ele tem a gozar |
+| **Situação** | **VENCIDA** (vermelho) se o exercício já passou; **A GOZAR** (âmbar) se ainda é do ano corrente |
+| **Observação** | O motivo informado no adiamento |
+
+No topo do painel aparece o total de **vencidas**, e o botão **🖨 Imprimir relatório** gera a folha para levar ao Comando.
+
+> A conta é simples: exercício **anterior ao ano atual** = **vencida**. Exercício do **ano corrente** = ainda dá para gozar dentro do ano.
 
 > O botão **Adiar** só aparece para o **administrador**, dentro da equipe (clique no cartão da equipe primeiro). O policial vê a marca dele em “Minhas Férias”.
 
