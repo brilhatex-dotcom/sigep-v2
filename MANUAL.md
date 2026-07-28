@@ -57,7 +57,12 @@ O que aparece no seu menu:
 
 ### Escala de Serviço
 
-Mostra as escalas **publicadas** pelo P/1 — é o quadro oficial.
+A escala **abre já na tela**, pronta para ler — não precisa baixar nada nem abrir PDF.
+
+- Ao entrar, aparece a **escala de hoje**. Se ainda não houver a de hoje, aparece a **mais recente**.
+- Para ver outro dia: use o **calendário** no topo, as **setas ◀ ▶** (pulam de um dia publicado para o outro) ou os **atalhos** (Hoje, Ontem, e as datas anteriores).
+- A folha mostra tudo: expediente, CPU de dia, permanência, Rádio Patrulha, inteligência, Força Tática e ROTEM. Quem entrou por **permuta** aparece destacado em dourado, com o nome de quem saiu riscado.
+- Quiser o arquivo? Os botões **Baixar PDF** e **Baixar Word** continuam no rodapé.
 
 - Você vê a escala da **sua unidade**: quem é lotado na **sede** (Permanência, Força Tática, Rádio Patrulha, Inteligência, Administrativa, Ronda Escolar, Maria da Penha e demais funções do quartel) vê a **escala da sede**; quem é de CIA/Pelotão destacado vê a da sua unidade.
 - A escala aparece **assim que o administrador clica em “📢 Publicar”**. Antes disso ela não existe para você.
