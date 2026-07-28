@@ -42,7 +42,8 @@ export default async function DashboardPage() {
   const equipesTodas = await prisma.equipeFerias.findMany();
   const membrosTodos = await prisma.membroFerias.findMany();
   const idsAvulsaHoje = await idsFeriasAvulsasHoje(hoje); // férias em datas soltas
-  const idsFerias = montarIdsEmFerias(equipesTodas, membrosTodos, hoje, await idsFeriasAdiadas());
+  const idsAdiados = await idsFeriasAdiadas(); // quem adiou não sai de férias
+  const idsFerias = montarIdsEmFerias(equipesTodas, membrosTodos, hoje, idsAdiados);
   for (const id of idsAvulsaHoje) idsFerias.add(id);
 
   // licenca-premio de hoje (mesma logica das ferias, 1 periodo por equipe)
@@ -149,14 +150,23 @@ export default async function DashboardPage() {
   const mapaEquipe=new Map(equipes.map((e)=>[e.numeroEquipe,e]));
   const fichasMap=new Map(militares.map((m)=>[m.id,m]));
 
-  // conta quantos militares cada equipe tem (do plano do ano)
+  // conta quantos militares cada equipe tem (do plano do ano) e monta a LISTA
+  // NOMINAL de cada equipe — quem adiou as férias fica de fora (segue no serviço).
   const totalPorEquipe=new Map<string,number>();
-  membros.forEach((mb)=>{ totalPorEquipe.set(mb.numeroEquipe,(totalPorEquipe.get(mb.numeroEquipe)??0)+1); });
+  const nomesPorEquipe=new Map<string,string[]>();
+  membros.forEach((mb)=>{
+    if(idsAdiados.has(mb.idPmma)) return;
+    totalPorEquipe.set(mb.numeroEquipe,(totalPorEquipe.get(mb.numeroEquipe)??0)+1);
+    const f=fichasMap.get(mb.idPmma);
+    const nome=[f?.postoGrad, f?.nomeGuerra || f?.nome].filter(Boolean).join(" ").trim();
+    if(nome){ const arr=nomesPorEquipe.get(mb.numeroEquipe)??[]; arr.push(nome); nomesPorEquipe.set(mb.numeroEquipe,arr); }
+  });
+  nomesPorEquipe.forEach((arr)=>arr.sort((a,b)=>a.localeCompare(b)));
 
   // monta as equipes que estao de ferias HOJE (periodo 1 ou 2 engloba hoje)
   type EquipeFeriasItem={
     numero:string; periodo:1|2; inicioBR:string; fimBR:string;
-    restam:number; fimTime:number; qtd:number;
+    restam:number; fimTime:number; qtd:number; nomes:string[];
   };
   const equipesEmFerias:EquipeFeriasItem[]=[];
   equipes.forEach((e)=>{
@@ -174,6 +184,7 @@ export default async function DashboardPage() {
           restam:Math.max(0,diffDias(hoje,p.f)),
           fimTime:p.f.getTime(),
           qtd: totalPorEquipe.get(e.numeroEquipe) ?? 0,
+          nomes: nomesPorEquipe.get(e.numeroEquipe) ?? [],
         });
       }
     }
@@ -301,6 +312,14 @@ export default async function DashboardPage() {
                         <p className="text-[10px] text-[#94A3B8]">dias p/ voltar</p>
                       </div>
                     </div>
+                    {/* lista NOMINAL de quem está de férias nesta equipe */}
+                    {e.nomes.length>0 && (
+                      <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/5 pt-3">
+                        {e.nomes.map((n,j)=>(
+                          <span key={j} className="rounded-full bg-[#0a1626] px-2.5 py-1 text-[11px] text-[#cdd9ea]">{n}</span>
+                        ))}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -5,8 +5,6 @@ import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import PlanoFeriasClient from "@/components/PlanoFeriasClient";
 import FeriasAvulsas from "@/components/FeriasAvulsas";
-import FeriasHojePainel from "@/components/FeriasHojePainel";
-import { resumoFerias } from "@/lib/feriasHoje";
 import { classificarPatente } from "@/lib/patentes";
 import {
   paraData,
@@ -137,10 +135,9 @@ export default async function FeriasPage({
   const totalPracas = totalMilitares - totalOficiais;
 
   const isAdmin = (session.user.perfil ?? "").toLowerCase() === "admin";
-  const resumoFer = await resumoFerias();
 
-  // Militares que postergaram / não vão gozar férias agora (só controle; não
-  // gera afastamento nem remove de nada). Guardado em Config "ferias_postergados".
+  // Militares que ADIARAM as férias (não saem de férias; alimentam o relatório
+  // de férias vencidas). Guardado em Config "ferias_postergados".
   let postergadosIniciais: { idPmma: string; nome: string; motivo: string; data: string; exercicio?: string }[] = [];
   try {
     const row = await prisma.config.findUnique({ where: { chave: "ferias_postergados" } });
@@ -157,8 +154,6 @@ export default async function FeriasPage({
         <p className="mb-5 text-sm text-[#94A3B8]">
           {totalMilitares} militares em {equipesAno.length} equipes · ano de gozo {anoSelecionado}.
         </p>
-
-        <FeriasHojePainel resumo={resumoFer} />
 
         {anos.length === 0 ? (
           <div className="rounded-xl border border-white/10 bg-[#0F1B2D] p-8 text-center text-sm text-[#94A3B8]">

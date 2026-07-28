@@ -209,6 +209,8 @@ Para remover a restrição, clique no **×** na linha dele.
 - **Memorando**: gera o memorando de concessão de férias do militar; dá para **assinar em lote** (Chefe P/1 ou Cmt).
 - **Imprimir**: relatório do plano inteiro.
 
+> A **lista nominal de quem está de férias hoje** não fica aqui — ela está no **Dashboard**, no cartão *Efetivo em férias*, com os nomes de cada equipe e também os de férias avulsas.
+
 **Adiar férias.** Para o militar que **não vai gozar as férias agora**:
 
 1. Abra a equipe dele.
