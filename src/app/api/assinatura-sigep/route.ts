@@ -6,6 +6,7 @@ import { conferirSenha } from "@/lib/senha";
 import { podeComoEncargo, cargoDocDe, encargoDe } from "@/lib/encargos";
 import { criarAssinaturas, assinaturasDoDoc } from "@/lib/assinaturaSigep";
 import { registrar } from "@/lib/auditoria";
+import { enviarParaLogin } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +72,29 @@ export async function POST(req: Request) {
       acao: "assinatura_sigep",
       detalhe: `Assinou ${criadas.length} documento(s) como ${cargo} (assinatura avançada SIGEP).`,
     });
+
+    /* Fecha o ciclo do memorando: quando a SEÇÃO assina, o militar recebe o
+       aviso no celular de que o documento dele ficou pronto. A referência é
+       "<idPmma>:<ano>", então dá para achar o dono e o login dele. */
+    for (const it of limpos) {
+      if (it.tipo !== "memorando_ferias" && it.tipo !== "memorando_lp") continue;
+      const idPmma = String(it.ref).split(":")[0];
+      if (!idPmma) continue;
+      try {
+        const dono = await prisma.usuario.findFirst({
+          where: { refEfetivo: idPmma },
+          select: { login: true },
+        });
+        if (!dono?.login) continue;
+        await enviarParaLogin(dono.login, {
+          title: "Memorando assinado pela seção",
+          body: `Seu memorando de ${it.tipo === "memorando_lp" ? "licença-prêmio" : "férias"} foi assinado por ${cargo}. Já pode baixar.`,
+          url: "/minhas-ferias",
+          tag: "memo-ok-" + it.ref,
+        });
+      } catch { /* push é best-effort */ }
+    }
+
     return NextResponse.json({ ok: true, assinaturas: criadas });
   } catch (err) {
     console.error("[POST /api/assinatura-sigep]", err);

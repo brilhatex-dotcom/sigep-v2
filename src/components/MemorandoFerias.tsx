@@ -21,20 +21,20 @@ export type DadosMemorando = {
   prazoTexto?: string;       // Licença-Prêmio: texto do prazo (ex.: "3 (três) meses"); default "3 (três) meses"
 };
 
-const OBS_PADRAO =
+export const OBS_PADRAO =
   "OBS: O Policial Militar em tela deve devolver todos os materiais, equipamentos, armamentos e munições, pertencentes 18º BPM.";
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
-function hojeExtenso() {
+export function hojeExtenso() {
   const d = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
   const meses = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
   return `${pad2(d.getDate())} de ${meses[d.getMonth()]} de ${d.getFullYear()}`;
 }
 
-function dataExtenso(br: string): string {
+export function dataExtenso(br: string): string {
   const meses = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
   const m = br.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (!m) return br;
@@ -99,7 +99,7 @@ function destacaGuerra(nomeFormatado: string, guerra: string | undefined, caixaA
 
 // Linha do Ao (caixa-título). Praça: "Cb PM nº 438/14- Carlos César Santos Guimarães"
 // Oficial: "Cap. QOEM Rurik Ramos Trinta"
-function linhaAo(d: DadosMemorando): string {
+export function linhaAo(d: DadosMemorando): string {
   const nome = destacaGuerra(tituloNome(d.nome), d.nomeGuerra, false);
   if (d.ehOficial) {
     const posto = abreviaPosto(d.postoGrad, false);
@@ -115,7 +115,7 @@ function linhaAo(d: DadosMemorando): string {
 // Linha de assinatura do destinatário (CAIXA-ALTA).
 // Praça: "CB PM Nº 438/14- CARLOS CÉSAR SANTOS GUIMARÃES"
 // Oficial: "CAP. QOEM RURIK RAMOS TRINTA"
-function linhaAssinaturaDestino(d: DadosMemorando): string {
+export function linhaAssinaturaDestino(d: DadosMemorando): string {
   const nomeUp = (d.nome || "").toUpperCase();
   if (d.ehOficial) {
     const posto = abreviaPosto(d.postoGrad, true).toUpperCase();
@@ -187,6 +187,7 @@ export default function MemorandoFerias(props: {
   variante?: "ferias" | "licenca";
   tipoAssinatura?: string;   // ex.: "memorando_ferias"
   refAssinatura?: string;    // ex.: "849988:2026"
+  somenteLeitura?: boolean;  // area do policial: ve e baixa, mas nao edita o texto
 }) {
   const [chefe, setChefe] = useState<ChefeP1 | null>(null);
   const [carregado, setCarregado] = useState(false);
@@ -214,12 +215,13 @@ export default function MemorandoFerias(props: {
   return <MemorandoDoc {...props} chefe={chefe} />;
 }
 
-function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe, tipoAssinatura, refAssinatura }: {
+function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe, tipoAssinatura, refAssinatura, somenteLeitura = false }: {
   dados: DadosMemorando; ano: string; onFechar: () => void;
   variante?: "ferias" | "licenca";
   chefe: ChefeP1 | null;
   tipoAssinatura?: string;
   refAssinatura?: string;
+  somenteLeitura?: boolean;
 }) {
   const ehLicenca = variante === "licenca";
   // Assinatura AVANÇADA do Chefe do P/1 (SIGEP) para ESTE memorando, se houver.
@@ -357,7 +359,7 @@ function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe, tipoAs
       {/* BARRA DE FERRAMENTAS */}
       <div className="sticky top-0 z-10 flex flex-wrap items-center gap-1 bg-[#0b1626] px-3 py-2 shadow print:hidden">
 
-        <div className="flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 px-2 py-1">
+        <div className={`items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 px-2 py-1 ${somenteLeitura ? "hidden" : "flex"}`}>
           <button onMouseDown={(e) => { e.preventDefault(); fmt("bold"); }} title="Negrito (Ctrl+B)"
             className="rounded p-1.5 text-white hover:bg-white/20"><Bold className="h-4 w-4" /></button>
           <button onMouseDown={(e) => { e.preventDefault(); fmt("italic"); }} title="Itálico (Ctrl+I)"
@@ -380,11 +382,13 @@ function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe, tipoAs
         </div>
 
         <div className="ml-auto flex gap-2">
-          <button onClick={() => setEditando((v) => !v)}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-              editando ? "bg-emerald-600 hover:bg-emerald-700" : "bg-amber-500 hover:bg-amber-600"}`}>
-            {editando ? <><Check className="h-4 w-4" /> Pronto</> : <><Pencil className="h-4 w-4" /> Editar</>}
-          </button>
+          {!somenteLeitura && (
+            <button onClick={() => setEditando((v) => !v)}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                editando ? "bg-emerald-600 hover:bg-emerald-700" : "bg-amber-500 hover:bg-amber-600"}`}>
+              {editando ? <><Check className="h-4 w-4" /> Pronto</> : <><Pencil className="h-4 w-4" /> Editar</>}
+            </button>
+          )}
           <button onClick={() => window.print()}
             className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium hover:bg-blue-700">
             <Printer className="h-4 w-4" /> Imprimir / PDF

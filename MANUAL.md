@@ -79,6 +79,31 @@ Previsão dos **seus próximos serviços**: em que dias você entra e em qual fu
 
 - **Suas férias**: os períodos do plano por equipe e as férias avulsas (datas soltas), com data de início, fim e apresentação.
 - **Plano de férias da minha equipe**: a equipe em que você está no plano, os períodos dela e **os colegas que saem junto com você**. Você aparece destacado com *(você)*. Quem adiou as férias aparece marcado como **adiado** — esse militar não sai de férias e segue no serviço normal.
+- **Meus memorandos**: o memorando de férias e o de licença-prêmio, para **ver, assinar e baixar** (veja abaixo).
+
+#### Assinar o memorando de férias
+
+Quando a sua equipe de férias se aproxima, o memorando aparece no alto da tela **Minhas Férias**, no painel **Meus memorandos**. A etiqueta do cartão diz em que passo o documento está:
+
+| Etiqueta | Significa |
+|---|---|
+| **Falta a sua assinatura** | O documento está esperando você. |
+| **Aguardando a seção** | Você já assinou; o P/1 foi avisado e o chefe da seção vai assinar. |
+| **Assinado pelos dois** | Documento pronto — é só baixar. |
+
+Os três botões, disponíveis **antes e depois** de assinar:
+
+- **Ver memorando (sem baixar)** — abre o documento oficial na tela, do jeito que ele sai impresso, com os carimbos de assinatura. Dá para imprimir/salvar em PDF pela própria barra. Nada é baixado se você não quiser.
+- **Assinar memorando** — confirma com a **sua senha do SIGEP** e registra a assinatura eletrônica avançada.
+- **Baixar memorando** — gera o arquivo **Word (.docx)** do documento.
+
+Abaixo dos botões fica o **andamento**: quem assinou, em que dia e hora, e o código de verificação de cada assinatura.
+
+**A dinâmica completa, em três passos:**
+
+1. **O militar assina.** Na tela Minhas Férias, confere os dados e clica em *Assinar memorando*, confirmando a senha.
+2. **A seção é avisada na hora.** O **P/1 e os auxiliares** recebem a notificação no celular (push) e no **sininho**. O chefe da seção assina pelo **Plano de Férias → Assinar memorandos**.
+3. **O militar é avisado de volta.** Assim que a seção assina, chega no celular do policial o aviso de que o memorando ficou pronto — e o cartão passa para **Assinado pelos dois**.
 
 ### Ficha Individual
 
@@ -238,6 +263,7 @@ Para remover a restrição, clique no **×** na linha dele.
 - **Novo plano**: cria o plano do ano seguinte copiando os militares do ano atual — depois é só ajustar as datas.
 - **Permuta de equipe**: move um militar de uma equipe para outra.
 - **Memorando**: gera o memorando de concessão de férias do militar; dá para **assinar em lote** (Chefe P/1 ou Cmt).
+- **Memorandos que o militar já assinou**: quando o policial assina o memorando dele em *Minhas Férias*, o P/1 e os auxiliares recebem o aviso no **sininho** e no celular. Basta abrir a equipe, clicar em **Assinar memorandos** e confirmar a senha — o militar é avisado automaticamente de que ficou pronto.
 - **Imprimir**: relatório do plano inteiro.
 
 > A **lista nominal de quem está de férias hoje** não fica aqui — ela está no **Dashboard**, no cartão *Efetivo em férias*, com os nomes de cada equipe e também os de férias avulsas.

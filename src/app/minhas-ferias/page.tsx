@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
+import MeusMemorandos from "@/components/MeusMemorandos";
 import { Palmtree } from "lucide-react";
 import { dataBR } from "@/lib/datas";
 
@@ -103,6 +104,10 @@ export default async function MinhasFeriasPage() {
           <Palmtree className="h-6 w-6 text-teal-300" /> Minhas Férias
         </h1>
         <p className="mb-5 text-sm text-[#94A3B8]">Suas férias registradas — plano por equipe e datas soltas. Você vê apenas as suas.</p>
+
+        {/* Memorandos: assinar / ver na tela / baixar. Fica no topo porque é o
+            que exige ação do militar; some sozinho quando não há nenhum. */}
+        <MeusMemorandos />
 
         {!meuId ? (
           <div className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-6 text-center text-sm text-[#94A3B8]">Seu login não está vinculado a uma ficha. Procure o P/1.</div>
