@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, ArrowLeftRight, Check } from "lucide-react";
+import { Bell, ArrowLeftRight, Check, MessageSquare } from "lucide-react";
 
-type Notificacao = { id: string; texto: string; em: string };
+type Notificacao = { id: string; texto: string; em: string; href?: string };
 const CHAVE_VISTAS = "sigep_notif_vistas";
 
 function lerVistas(): Set<string> {
@@ -34,12 +34,17 @@ export default function SinoNotificacoes() {
 
   async function buscar() {
     try {
-      // Permutas (todos) + alertas de segurança (só admin; vazio p/ os demais).
-      const [rp, rs] = await Promise.all([
+      // Permutas (todos) + alertas de segurança (só admin) + chat (todos).
+      const [rp, rs, rc] = await Promise.all([
         fetch("/api/permutas/notificacoes").then((r) => r.json()).catch(() => ({ notificacoes: [] })),
         fetch("/api/seguranca/alertas").then((r) => r.json()).catch(() => ({ notificacoes: [] })),
+        fetch("/api/chat/notificacoes").then((r) => r.json()).catch(() => ({ notificacoes: [] })),
       ]);
-      const lista: Notificacao[] = [...(rs.notificacoes || []), ...(rp.notificacoes || [])];
+      const lista: Notificacao[] = [
+        ...(rs.notificacoes || []),
+        ...(rc.notificacoes || []),
+        ...(rp.notificacoes || []),
+      ];
       setNots(lista);
       // limpa das "vistas" ids que nao existem mais (permutas ja resolvidas),
       // para nao crescer sem limite
@@ -107,10 +112,12 @@ export default function SinoNotificacoes() {
                   {nots.map((n) => (
                     <li key={n.id}>
                       <button
-                        onClick={() => { setAberto(false); router.push("/permutas"); }}
+                        onClick={() => { setAberto(false); router.push(n.href || "/permutas"); }}
                         className="flex w-full items-start gap-2 px-4 py-3 text-left transition hover:bg-white/5"
                       >
-                        <ArrowLeftRight className="mt-0.5 h-4 w-4 shrink-0 text-[#D4AF37]" />
+                        {n.id.startsWith("chat:")
+                          ? <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-[#D4AF37]" />
+                          : <ArrowLeftRight className="mt-0.5 h-4 w-4 shrink-0 text-[#D4AF37]" />}
                         <span className="min-w-0">
                           <span className="block text-sm text-white">{n.texto}</span>
                           <span className="block text-[11px] text-[#94A3B8]">{quando(n.em)}</span>

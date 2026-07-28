@@ -18,11 +18,12 @@ import { MessageSquare, Search, Paperclip, Send, X, Download, FileText, Loader2,
 type Contato = {
   login: string; nome: string; postoGrad: string | null; lotacao: string | null;
   admin: boolean; online: boolean; naoLidas: number; previa: string; em: string | null;
+  foto?: string | null;
 };
 type Msg = {
   id: string; minha: boolean; texto: string | null;
   arqKey: string | null; arqNome: string | null; arqTipo: string | null; arqTam: number | null;
-  em: string; lida: boolean;
+  em: string; lida: boolean; lidaEm?: string | null;
 };
 
 const LIMITE = 20 * 1024 * 1024;
@@ -48,6 +49,26 @@ function diaBR(iso: string): string {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 const ehImagem = (t: string | null) => !!t && t.startsWith("image/");
+
+/* Avatar: foto do militar quando existe; iniciais quando não tem. */
+function Avatar({ c, tam = 36 }: { c: { nome: string; foto?: string | null }; tam?: number }) {
+  const [falhou, setFalhou] = useState(false);
+  const estilo = { width: tam, height: tam };
+  if (c.foto && !falhou) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={c.foto} alt={c.nome} style={estilo} onError={() => setFalhou(true)}
+        className="rounded-full object-cover"
+      />
+    );
+  }
+  return (
+    <span style={estilo} className="grid place-items-center rounded-full bg-[#16243a] text-[11px] font-bold text-[#D4AF37]">
+      {c.nome.slice(0, 2).toUpperCase()}
+    </span>
+  );
+}
 
 export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: string }) {
   const [contatos, setContatos] = useState<Contato[]>([]);
@@ -330,9 +351,7 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
                   aberto?.login === c.login ? "bg-white/[.07]" : ""}`}
               >
                 <span className="relative shrink-0">
-                  <span className="grid h-9 w-9 place-items-center rounded-full bg-[#16243a] text-[11px] font-bold text-[#D4AF37]">
-                    {c.nome.slice(0, 2).toUpperCase()}
-                  </span>
+                  <Avatar c={c} tam={36} />
                   <span
                     title={c.online ? "Online" : "Offline"}
                     className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#0F1B2D] ${
@@ -371,9 +390,7 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
                   <ArrowLeft className="h-4 w-4" />
                 </button>
                 <span className="relative">
-                  <span className="grid h-9 w-9 place-items-center rounded-full bg-[#16243a] text-[11px] font-bold text-[#D4AF37]">
-                    {aberto.nome.slice(0, 2).toUpperCase()}
-                  </span>
+                  <Avatar c={aberto} tam={36} />
                   <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#0F1B2D] ${
                     aberto.online ? "bg-emerald-400" : "bg-slate-600"}`} />
                 </span>
@@ -428,7 +445,10 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
                           )}
 
                           <p className={`mt-0.5 text-right text-[10px] ${m.minha ? "text-[#1a1205]/60" : "text-[#94A3B8]"}`}>
-                            {horaBR(m.em)}{m.minha && (m.lida ? " · lida" : " · enviada")}
+                            {horaBR(m.em)}
+                            {m.minha && (m.lida
+                              ? " · lida" + (m.lidaEm ? " " + horaBR(m.lidaEm) : "")
+                              : " · enviada")}
                           </p>
                         </div>
                       </div>

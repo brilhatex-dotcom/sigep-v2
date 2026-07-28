@@ -60,6 +60,7 @@ export async function GET(req: Request) {
         arqTam: m.arqTam,
         em: m.criadoEm.toISOString(),
         lida: !!m.lidaEm,
+        lidaEm: m.lidaEm ? m.lidaEm.toISOString() : null,
       })),
     });
   } catch (err) {
@@ -114,7 +115,7 @@ export async function POST(req: Request) {
       mensagem: {
         id: msg.id, minha: true, texto: msg.texto,
         arqKey: msg.arqKey, arqNome: msg.arqNome, arqTipo: msg.arqTipo, arqTam: msg.arqTam,
-        em: msg.criadoEm.toISOString(), lida: false,
+        em: msg.criadoEm.toISOString(), lida: false, lidaEm: null,
       },
     });
   } catch (err) {

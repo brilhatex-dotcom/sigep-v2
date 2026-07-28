@@ -35,7 +35,7 @@ export async function GET() {
     const fichas = ids.length
       ? await prisma.efetivo.findMany({
           where: { id: { in: ids } },
-          select: { id: true, postoGrad: true, nome: true, nomeGuerra: true, lotacao: true },
+          select: { id: true, postoGrad: true, nome: true, nomeGuerra: true, lotacao: true, fotoURL: true },
         })
       : [];
     const ficha = new Map(fichas.map((f) => [f.id, f]));
@@ -84,6 +84,8 @@ export async function GET() {
         postoGrad: f?.postoGrad ?? null,
         lotacao: f?.lotacao ?? null,
         admin: (u.perfil ?? "").toLowerCase() === "admin",
+        // avatar só quando o militar tem foto cadastrada
+        foto: f?.fotoURL && u.refEfetivo ? `/api/foto/${encodeURIComponent(u.refEfetivo)}?avatar=1` : null,
         online: online.has(u.login),
         naoLidas: mapaNaoLidas.get(u.login) ?? 0,
         previa: ult?.previa ?? "",

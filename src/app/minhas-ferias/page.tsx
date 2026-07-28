@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import { Palmtree } from "lucide-react";
+import { dataBR } from "@/lib/datas";
 
 export const dynamic = "force-dynamic";
 
@@ -11,12 +12,10 @@ export const dynamic = "force-dynamic";
    militar (equipe onde ele é membro + avulsas dele). LGPD: minimização — ele
    não vê as férias dos outros. */
 
-function dBR(iso: string | null): string {
-  const m = (iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
-  const br = (iso || "").match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-  return br ? `${br[1]}/${br[2]}/${br[3]}` : (iso || "—");
-}
+// Usa o formatador padrão do SIGEP (dd/mm/aaaa). O banco guarda datas em
+// formatos variados — inclusive o texto longo do JavaScript — e o dataBR
+// resolve todos; antes o valor cru vazava para a tela.
+const dBR = (v: string | null) => dataBR(v);
 
 type Periodo = { rotulo: string; inicio: string | null; fim: string | null; apres: string | null; origem: "plano" | "avulsa" };
 type Colega = { id: string; postoGrad: string | null; nome: string | null; nomeGuerra: string | null; eu: boolean; postergado: boolean };

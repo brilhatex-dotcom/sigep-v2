@@ -30,8 +30,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const admin = ehAdmin((session.user as any).perfil);
   const meuEfetivo = (session.user as any).refEfetivo as string | undefined;
 
-  // so dono ou admin
-  if (!admin && efetivoId !== meuEfetivo) {
+  // Dono, admin — ou qualquer militar logado quando a foto é pedida como
+  // AVATAR do chat (?avatar=1). No chat todos falam com todos, então cada um
+  // precisa ver o rosto de quem está do outro lado da conversa. Fora daí a
+  // regra continua a de sempre: só o dono e o admin.
+  const comoAvatar = new URL(_req.url).searchParams.get("avatar") === "1";
+  if (!admin && efetivoId !== meuEfetivo && !comoAvatar) {
     return NextResponse.json({ error: "Sem permissao" }, { status: 403 });
   }
 
