@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import SinoNotificacoes from "@/components/SinoNotificacoes";
+import ChatFlutuante from "@/components/ChatFlutuante";
 import RelogioInatividade from "@/components/RelogioInatividade";
 import {
   LayoutDashboard,
@@ -432,6 +433,9 @@ export default function AppShell({
 
         <main className="flex-1 p-4 md:p-6">{children}</main>
       </div>
+
+      {/* Chat flutuante: acompanha o usuário em qualquer tela do sistema. */}
+      <ChatFlutuante />
     </div>
   );
 }

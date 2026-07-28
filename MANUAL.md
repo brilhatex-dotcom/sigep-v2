@@ -101,6 +101,16 @@ Confere se um documento emitido pelo SIGEP é autêntico — pelo **QR Code** ou
 
 ### Chat
 
+**A bolha do canto.** Em qualquer tela do sistema, no canto inferior direito, fica uma bolha mostrando **quantos militares estão online agora**. Clique nela e o chat abre ali mesmo, sem sair da página em que você está:
+
+- **Online / Todos** — alterna entre ver só quem está conectado ou a tropa inteira.
+- **Buscar militar pelo nome** — encontra qualquer um, online ou não.
+- Clique num nome para conversar; a setinha ⬅ volta para a lista.
+- O ícone ⛶ abre o chat em **tela cheia**.
+- O **–** minimiza de volta para a bolha (a conversa continua onde parou).
+
+A bolha mostra um número **vermelho** quando há mensagem não lida.
+
 Conversa direta com **qualquer militar** do batalhão — policial com policial, policial com o P/1, todo mundo com todo mundo.
 
 - **Bolinha verde** ao lado do nome = a pessoa está online agora.
