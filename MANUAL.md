@@ -369,6 +369,14 @@ Ele fica **dentro da equipe**: Plano de Férias → clique no cartão da equipe 
 **“Marquei como Adiado mas o militar continua ausente.”**
 Depois de marcar, ele volta ao serviço na hora. Se ainda aparecer ausente, verifique se ele não tem também uma **férias avulsa** ou uma **Licença-Prêmio** lançada no mesmo período — essas são independentes do plano e precisam ser removidas à parte.
 
+**“O chat diz que não foi ativado.”**
+Falta criar as tabelas no banco. Quem administra roda `npm run db:push` uma vez e o chat liga.
+
+**“No chat o texto vai, mas o anexo falha.”**
+Falta liberar o CORS do bucket R2 — o anexo sai do navegador direto para o Cloudflare e ele
+precisa autorizar o endereço do sistema. Rode uma vez:
+`node scripts/configurar-cors-r2.mjs https://endereco-do-sistema`
+
 **“Esqueci minha senha.”**
 Procure o P/1: **Administração → Gerenciar Acessos → Resetar senha**.
 

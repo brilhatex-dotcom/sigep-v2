@@ -59,6 +59,8 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
   const [subindo, setSubindo] = useState<{ nome: string; pct: number } | null>(null);
   const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(true);
+  // false enquanto as tabelas do chat nao existirem no banco
+  const [instalado, setInstalado] = useState(true);
 
   const fim = useRef<HTMLDivElement | null>(null);
   const abertoRef = useRef<Contato | null>(null); abertoRef.current = aberto;
@@ -84,6 +86,8 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
       const r = await fetch("/api/chat/contatos");
       if (!r.ok) return;
       const d = await r.json();
+      if (d?.instalado === false) { setInstalado(false); return; }
+      setInstalado(true);
       if (Array.isArray(d?.contatos)) setContatos(d.contatos);
     } catch {}
     finally { setCarregando(false); }
@@ -270,7 +274,18 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
         </div>
       )}
 
-      <div className="grid gap-3 md:grid-cols-[280px_1fr]">
+      {!instalado && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-950/25 p-5 text-sm text-amber-100">
+          <p className="mb-1 font-bold text-amber-200">Chat ainda não ativado</p>
+          <p className="text-amber-100/85">
+            As tabelas do chat ainda não foram criadas no banco. Quem administra o sistema
+            precisa rodar <code className="rounded bg-black/30 px-1.5 py-0.5">npm run db:push</code> uma
+            única vez. Depois é só recarregar esta página.
+          </p>
+        </div>
+      )}
+
+      <div className={`grid gap-3 md:grid-cols-[280px_1fr] ${instalado ? "" : "hidden"}`}>
         {/* ---------- lista de contatos ---------- */}
         <aside className={`rounded-xl border border-[#1d2c44] bg-[#0F1B2D] ${aberto ? "hidden md:block" : ""}`}>
           <div className="border-b border-white/5 p-2.5">

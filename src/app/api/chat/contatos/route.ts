@@ -99,9 +99,14 @@ export async function GET() {
       return a.nome.localeCompare(b.nome);
     });
 
-    return NextResponse.json({ contatos, eu });
-  } catch (err) {
+    return NextResponse.json({ contatos, eu, instalado: true });
+  } catch (err: any) {
+    // P2021 = a tabela ainda nao existe (falta rodar "npm run db:push").
+    // Devolve um aviso claro em vez de uma lista vazia sem explicacao.
+    if (err?.code === "P2021") {
+      return NextResponse.json({ contatos: [], instalado: false });
+    }
     console.error("[GET /api/chat/contatos]", err);
-    return NextResponse.json({ contatos: [] });
+    return NextResponse.json({ contatos: [], instalado: true });
   }
 }
