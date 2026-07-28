@@ -99,6 +99,18 @@ Cursos que você tem registrados.
 
 Confere se um documento emitido pelo SIGEP é autêntico — pelo **QR Code** ou pelo código do documento.
 
+### Chat
+
+Conversa direta com **qualquer militar** do batalhão — policial com policial, policial com o P/1, todo mundo com todo mundo.
+
+- **Bolinha verde** ao lado do nome = a pessoa está online agora.
+- **Buscar militar** no topo da lista, por nome, posto ou lotação.
+- **Enviar arquivo ou foto**: clique no 📎. Aceita qualquer formato — foto, PDF, Word, áudio, vídeo — **até 20 MB** por arquivo. Aparece uma barra mostrando o envio.
+- **Aviso no celular**: quando chega mensagem nova, você recebe a notificação mesmo com o sistema fechado (se tiver autorizado as notificações no aparelho).
+- **Enter** envia; **Shift+Enter** pula linha.
+
+O contador em vermelho no título mostra quantas mensagens você ainda não leu.
+
 ---
 
 # Parte 2 — Área do administrador

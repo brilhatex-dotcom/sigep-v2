@@ -38,6 +38,7 @@ import {
   History,
   ArrowLeftRight,
   DoorOpen,
+  MessageSquare,
 } from "lucide-react";
 import Relogio from "@/components/Relogio";
 import BuscaGlobal from "@/components/BuscaGlobal";
@@ -66,6 +67,8 @@ const NAV: Secao[] = [
     itens: [
       { rotulo: "Dashboard", href: "/dashboard", Icone: LayoutDashboard, disponivel: true, adminOnly: true },
       { rotulo: "Avisos", href: "/avisos", Icone: Bell, disponivel: true, adminOnly: true },
+      // Chat interno: todo mundo fala com todo mundo (admin e policial).
+      { rotulo: "Chat", href: "/chat", Icone: MessageSquare, disponivel: true },
     ],
   },
   {

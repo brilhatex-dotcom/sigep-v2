@@ -56,6 +56,21 @@ export async function urlAssinada(key: string, segundos = 600): Promise<string> 
   );
 }
 
+/* URL temporaria para o NAVEGADOR enviar o arquivo DIRETO ao R2 (PUT).
+   E o unico caminho para anexos grandes: a Vercel corta requisicoes acima
+   de ~4,5 MB, entao o arquivo nunca pode passar pela API. */
+export async function urlAssinadaUpload(
+  key: string,
+  contentType: string,
+  segundos = 900
+): Promise<string> {
+  return getSignedUrl(
+    r2,
+    new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, ContentType: contentType }),
+    { expiresIn: segundos }
+  );
+}
+
 /** Remove um objeto do R2. */
 export async function removerDoR2(key: string): Promise<void> {
   await r2.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));

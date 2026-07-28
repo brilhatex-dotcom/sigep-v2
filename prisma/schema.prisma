@@ -35,9 +35,9 @@ model Usuario {
   perfil       String? @map("Perfil")
   refEfetivo   String? @map("RefEfetivo")
 
-  precisaTrocar Boolean? @default(true) @map("PrecisaTrocar")    // NOVO
-  tentativas    Int?     @default(0)    @map("Tentativas")        // NOVO
-  bloqueadoAte  String?                 @map("BloqueadoAte")      // NOVO
+  precisaTrocar Boolean? @default(true) @map("PrecisaTrocar") // NOVO
+  tentativas    Int?     @default(0) @map("Tentativas") // NOVO
+  bloqueadoAte  String?  @map("BloqueadoAte") // NOVO
 
   efetivo Efetivo? @relation(fields: [refEfetivo], references: [id])
 
@@ -174,6 +174,7 @@ model Documento {
 
   @@map("documentos")
 }
+
 // ==========================================================
 //  >>> ANEXAR ESTE BLOCO AO FINAL DO seu prisma/schema.prisma <<<
 //
@@ -184,11 +185,11 @@ model Documento {
 
 // Periodo de promocao (ex.: "Promocao 01/08/2026").
 model PeriodoPromocao {
-  id         String   @id @default(cuid())
-  nome       String
-  dataAlvo   String?  @map("data_alvo")   // ex.: "2026-08-01"
-  ativo      Boolean  @default(true)
-  criadoEm   DateTime @default(now()) @map("criado_em")
+  id       String   @id @default(cuid())
+  nome     String
+  dataAlvo String?  @map("data_alvo") // ex.: "2026-08-01"
+  ativo    Boolean  @default(true)
+  criadoEm DateTime @default(now()) @map("criado_em")
 
   participantes ParticipantePromocao[]
 
@@ -198,14 +199,14 @@ model PeriodoPromocao {
 // Militar que entrou em um periodo (todo efetivo pode; na pratica
 // poucos enviam). O progresso e calculado pelas certidoes enviadas.
 model ParticipantePromocao {
-  id            String   @id @default(cuid())
-  periodoId     String   @map("periodo_id")
-  efetivoId     String   @map("efetivo_id")     // ID PMMA do militar
-  pdfUnificado  String?  @map("pdf_unificado")  // chave do PDF unico no R2
-  geradoEm      DateTime? @map("gerado_em")
-  criadoEm      DateTime @default(now()) @map("criado_em")
+  id           String    @id @default(cuid())
+  periodoId    String    @map("periodo_id")
+  efetivoId    String    @map("efetivo_id") // ID PMMA do militar
+  pdfUnificado String?   @map("pdf_unificado") // chave do PDF unico no R2
+  geradoEm     DateTime? @map("gerado_em")
+  criadoEm     DateTime  @default(now()) @map("criado_em")
 
-  periodo   PeriodoPromocao @relation(fields: [periodoId], references: [id], onDelete: Cascade)
+  periodo   PeriodoPromocao   @relation(fields: [periodoId], references: [id], onDelete: Cascade)
   certidoes CertidaoEnviada[]
 
   @@unique([periodoId, efetivoId])
@@ -216,17 +217,18 @@ model ParticipantePromocao {
 model CertidaoEnviada {
   id             String   @id @default(cuid())
   participanteId String   @map("participante_id")
-  ordem          Int                                   // 1..8 (ordem oficial)
-  r2Key          String   @map("r2_key")               // caminho do PDF no R2
+  ordem          Int // 1..8 (ordem oficial)
+  r2Key          String   @map("r2_key") // caminho do PDF no R2
   nomeArquivo    String?  @map("nome_arquivo")
   tamanhoBytes   Int?     @map("tamanho_bytes")
   enviadaEm      DateTime @default(now()) @map("enviada_em")
 
   participante ParticipantePromocao @relation(fields: [participanteId], references: [id], onDelete: Cascade)
 
-  @@unique([participanteId, ordem])  // 1 arquivo por posicao
+  @@unique([participanteId, ordem]) // 1 arquivo por posicao
   @@map("certidoes_enviadas")
 }
+
 // ==========================================================
 //  >>> ANEXAR AO FINAL DO prisma/schema.prisma <<<
 //  Guarda quais alertas ja foram dispensados (para nao
@@ -234,14 +236,15 @@ model CertidaoEnviada {
 // ==========================================================
 
 model AlertaDispensado {
-  id          String   @id @default(cuid())
-  chave       String   @unique   // identificador unico do alerta, ex: "jms:849988" ou "ferias2v:849988"
-  tipo        String              // "jms_vencendo" | "ferias_vencidas"
-  dispensadoPor String? @map("dispensado_por")
+  id            String   @id @default(cuid())
+  chave         String   @unique // identificador unico do alerta, ex: "jms:849988" ou "ferias2v:849988"
+  tipo          String // "jms_vencendo" | "ferias_vencidas"
+  dispensadoPor String?  @map("dispensado_por")
   dispensadoEm  DateTime @default(now()) @map("dispensado_em")
 
   @@map("alertas_dispensados")
 }
+
 // ==========================================================
 //  >>> ANEXAR AO FINAL DO prisma/schema.prisma <<<
 //  Avisos manuais (lembretes) criados pelo admin, exibidos
@@ -250,15 +253,16 @@ model AlertaDispensado {
 // ==========================================================
 
 model Aviso {
-  id         String   @id @default(cuid())
-  texto      String
-  cor        String   @default("info")   // "critico" | "atencao" | "info"
-  validade   String?  @map("validade")   // "aaaa-mm-dd"; vazio = sem expirar
-  criadoPor  String?  @map("criado_por")
-  criadoEm   DateTime @default(now()) @map("criado_em")
+  id        String   @id @default(cuid())
+  texto     String
+  cor       String   @default("info") // "critico" | "atencao" | "info"
+  validade  String?  @map("validade") // "aaaa-mm-dd"; vazio = sem expirar
+  criadoPor String?  @map("criado_por")
+  criadoEm  DateTime @default(now()) @map("criado_em")
 
   @@map("avisos")
 }
+
 // ==========================================================
 //  >>> ANEXAR AO FINAL DO prisma/schema.prisma <<<
 //  JOE — Jornada Operacional Extraordinaria (servico extra
@@ -268,35 +272,35 @@ model Aviso {
 // ==========================================================
 
 model Joe {
-  id          String   @id @default(cuid())
-  evento      String                                  // OPERAÇÃO (nome) — usado como "OPERAÇÃO:" na RENE
-  local       String?
-  data        String                                  // "aaaa-mm-dd" — vira "DATA:" na RENE
-  horaInicio  String   @map("hora_inicio")
-  horaFim     String   @map("hora_fim")
-  vagas       Int      @default(1)
-  valor       Float    @default(0)
-  observacao  String?
-  status      String   @default("aberta")             // "aberta" | "encerrada"
-  criadoPor   String?  @map("criado_por")
-  criadoEm    DateTime @default(now()) @map("criado_em")
+  id         String   @id @default(cuid())
+  evento     String // OPERAÇÃO (nome) — usado como "OPERAÇÃO:" na RENE
+  local      String?
+  data       String // "aaaa-mm-dd" — vira "DATA:" na RENE
+  horaInicio String   @map("hora_inicio")
+  horaFim    String   @map("hora_fim")
+  vagas      Int      @default(1)
+  valor      Float    @default(0)
+  observacao String?
+  status     String   @default("aberta") // "aberta" | "encerrada"
+  criadoPor  String?  @map("criado_por")
+  criadoEm   DateTime @default(now()) @map("criado_em")
 
   // ---- campos da RENE (novos) ----
-  comandanteOp String? @map("comandante_op")          // COMANDANTE DA OPERAÇÃO
-  horario      String? @map("horario_rene")           // HORÁRIO ex.: "20h às 02h"
-  areaAtuacao  String? @map("area_atuacao")           // ÁREA DE ATUAÇÃO
-  processoSei  String? @map("processo_sei")           // Nº PROCESSO SEI – AUTORIZAÇÃO
-  reneKey      String? @map("rene_key")               // chave do DOCX da RENE no R2
+  comandanteOp String? @map("comandante_op") // COMANDANTE DA OPERAÇÃO
+  horario      String? @map("horario_rene") // HORÁRIO ex.: "20h às 02h"
+  areaAtuacao  String? @map("area_atuacao") // ÁREA DE ATUAÇÃO
+  processoSei  String? @map("processo_sei") // Nº PROCESSO SEI – AUTORIZAÇÃO
+  reneKey      String? @map("rene_key") // chave do DOCX da RENE no R2
 
-  inscricoes  JoeInscricao[]
+  inscricoes JoeInscricao[]
 
   @@map("joe")
 }
 
 model JoeInscricao {
-  id          String   @id @default(cuid())
-  joeId       String   @map("joe_id")
-  efetivoId   String?  @map("efetivo_id")   // opcional: null = militar de fora do 18
+  id        String  @id @default(cuid())
+  joeId     String  @map("joe_id")
+  efetivoId String? @map("efetivo_id") // opcional: null = militar de fora do 18
 
   // dados manuais (usados quando efetivoId e null, militar de outra OPM)
   extNome      String? @map("ext_nome")
@@ -304,16 +308,17 @@ model JoeInscricao {
   extPostoGrad String? @map("ext_posto_grad")
   extUnidade   String? @map("ext_unidade")
 
-  origem      String   @default("auto")     // "auto" = policial se inscreveu | "p1" = P/1 inscreveu
-  status      String   @default("pendente")
-  inscritoEm  DateTime @default(now()) @map("inscrito_em")
+  origem      String    @default("auto") // "auto" = policial se inscreveu | "p1" = P/1 inscreveu
+  status      String    @default("pendente")
+  inscritoEm  DateTime  @default(now()) @map("inscrito_em")
   decididoEm  DateTime? @map("decidido_em")
-  decididoPor String?  @map("decidido_por")
+  decididoPor String?   @map("decidido_por")
 
-  joe         Joe      @relation(fields: [joeId], references: [id], onDelete: Cascade)
+  joe Joe @relation(fields: [joeId], references: [id], onDelete: Cascade)
 
   @@map("joe_inscricoes")
 }
+
 // ==========================================================
 //  >>> ANEXAR AO FINAL do prisma/schema.prisma <<<
 //  Cursos: o admin abre um curso; policiais demonstram
@@ -322,98 +327,101 @@ model JoeInscricao {
 // ==========================================================
 
 model Curso {
-  id          String   @id @default(cuid())
-  nome        String                                   // ex: "Curso de Formacao de Sargentos"
-  local       String?                                  // onde sera
-  vagas       Int      @default(0)                     // 0 = nao informado
-  prazo       String?  @map("prazo")                   // "aaaa-mm-dd" limite de inscricao
-  descricao   String?                                  // detalhes livres
-  status      String   @default("aberto")              // "aberto" | "encerrado"
-  criadoPor   String?  @map("criado_por")              // login do admin que abriu
-  criadoEm    DateTime @default(now()) @map("criado_em")
+  id        String   @id @default(cuid())
+  nome      String // ex: "Curso de Formacao de Sargentos"
+  local     String? // onde sera
+  vagas     Int      @default(0) // 0 = nao informado
+  prazo     String?  @map("prazo") // "aaaa-mm-dd" limite de inscricao
+  descricao String? // detalhes livres
+  status    String   @default("aberto") // "aberto" | "encerrado"
+  criadoPor String?  @map("criado_por") // login do admin que abriu
+  criadoEm  DateTime @default(now()) @map("criado_em")
 
-  inscricoes  CursoInscricao[]
+  inscricoes CursoInscricao[]
 
   @@map("cursos")
 }
 
 model CursoInscricao {
-  id          String   @id @default(cuid())
-  cursoId     String   @map("curso_id")
-  efetivoId   String   @map("efetivo_id")              // ID PMMA do interessado
-  inscritoEm  DateTime @default(now()) @map("inscrito_em")
+  id         String   @id @default(cuid())
+  cursoId    String   @map("curso_id")
+  efetivoId  String   @map("efetivo_id") // ID PMMA do interessado
+  inscritoEm DateTime @default(now()) @map("inscrito_em")
 
-  curso       Curso    @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  curso Curso @relation(fields: [cursoId], references: [id], onDelete: Cascade)
 
-  @@unique([cursoId, efetivoId])                        // 1 interesse por militar por curso
+  @@unique([cursoId, efetivoId]) // 1 interesse por militar por curso
   @@map("curso_inscricoes")
 }
+
 // ============================================================
 // ADICIONAR ESTE MODEL AO SEU prisma/schema.prisma
 // Depois rodar: npx prisma migrate dev --name add_cfs2026
 // ============================================================
 
 model RequerimentoCFS2026 {
-  id              String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Dados do PM
-  matricula       String   @unique
-  idPmma          String?  // ID PMMA opcional para vincular ao cadastro
-  nomeCompleto    String
-  nomeGuerra      String?
-  graduacao       String   // SD PM, CB PM, 3 SGT PM, 2 SGT PM, 1 SGT PM
-  dataNascimento  DateTime
-  cpf             String?
-  rg              String?
-  
+  matricula      String   @unique
+  idPmma         String? // ID PMMA opcional para vincular ao cadastro
+  nomeCompleto   String
+  nomeGuerra     String?
+  graduacao      String // SD PM, CB PM, 3 SGT PM, 2 SGT PM, 1 SGT PM
+  dataNascimento DateTime
+  cpf            String?
+  rg             String?
+
   // Contato
-  email           String
-  telefone        String
-  
+  email    String
+  telefone String
+
   // Lotacao
-  lotacao         String   // Ex: 1 CIA, 2 CIA, ROTEM, P1, P2, P3, P4
-  funcaoAtual     String?
-  
+  lotacao     String // Ex: 1 CIA, 2 CIA, ROTEM, P1, P2, P3, P4
+  funcaoAtual String?
+
   // Inscricao
-  dataInscricao   DateTime @default(now())
-  status          String   @default("PENDENTE") // PENDENTE, VALIDADO, REJEITADO
-  observacoes     String?
-  validadoPor     String?
-  validadoEm      DateTime?
-  
+  dataInscricao DateTime  @default(now())
+  status        String    @default("PENDENTE") // PENDENTE, VALIDADO, REJEITADO
+  observacoes   String?
+  validadoPor   String?
+  validadoEm    DateTime?
+
   // Auditoria
-  ipOrigem        String?
-  userAgent       String?
-  fonteOrigem     String   @default("GOOGLE_FORMS") // GOOGLE_FORMS, MANUAL, IMPORT
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
+  ipOrigem    String?
+  userAgent   String?
+  fonteOrigem String  @default("GOOGLE_FORMS") // GOOGLE_FORMS, MANUAL, IMPORT
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([status])
   @@index([graduacao])
   @@index([lotacao])
   @@map("requerimentos_cfs_2026")
 }
+
 model Auditoria {
-  id         String   @id @default(cuid())
-  quando     DateTime @default(now()) @map("Quando")
-  autorLogin String?  @map("AutorLogin")
-  autorNome  String?  @map("AutorNome")
-  acao       String   @map("Acao")
-  alvo       String?  @map("Alvo")
-  alvoNome   String?  @map("AlvoNome")
-  detalhe    String?  @map("Detalhe")
-  antes      String?  @map("Antes")
-  depois     String?  @map("Depois")
-  ip         String?  @map("Ip")
-  dispositivo   String? @map("Dispositivo")    // celular/computador + SO + navegador
-  hash          String? @map("Hash")           // lacre: sha256(hashAnterior + conteudo)
-  hashAnterior  String? @map("HashAnterior")   // encadeia com o registro anterior
+  id           String   @id @default(cuid())
+  quando       DateTime @default(now()) @map("Quando")
+  autorLogin   String?  @map("AutorLogin")
+  autorNome    String?  @map("AutorNome")
+  acao         String   @map("Acao")
+  alvo         String?  @map("Alvo")
+  alvoNome     String?  @map("AlvoNome")
+  detalhe      String?  @map("Detalhe")
+  antes        String?  @map("Antes")
+  depois       String?  @map("Depois")
+  ip           String?  @map("Ip")
+  dispositivo  String?  @map("Dispositivo") // celular/computador + SO + navegador
+  hash         String?  @map("Hash") // lacre: sha256(hashAnterior + conteudo)
+  hashAnterior String?  @map("HashAnterior") // encadeia com o registro anterior
 
   @@index([quando])
   @@index([autorLogin])
   @@map("auditoria")
 }
+
 // ==========================================================
 //  >>> ANEXAR AO FINAL DO prisma/schema.prisma <<<
 //  Modulo de Requerimentos. O policial preenche e envia; o
@@ -422,62 +430,62 @@ model Auditoria {
 // ==========================================================
 
 model Requerimento {
-  id          String   @id @default(cuid())
+  id String @id @default(cuid())
 
   // quem fez
-  efetivoId   String   @map("efetivo_id")            // ID PMMA do requerente
+  efetivoId String @map("efetivo_id") // ID PMMA do requerente
 
   // tipo
-  modelo      String                                 // "comum" | "cursos"
-  modalidade  String                                 // ex: "SALÁRIO FAMÍLIA", "CFS", "OUTROS"
+  modelo           String // "comum" | "cursos"
+  modalidade       String // ex: "SALÁRIO FAMÍLIA", "CFS", "OUTROS"
   modalidadeOutros String? @map("modalidade_outros") // texto quando modalidade = OUTROS
 
   // dados pessoais (snapshot no momento do envio; tudo editavel pelo policial)
-  nomeCompleto String? @map("nome_completo")
-  endereco     String?
-  complemento  String?
-  bairro       String?
-  municipio    String?
-  fone         String?
-  dataNasc     String? @map("data_nasc")
-  dataInclusao String? @map("data_inclusao")
-  matricula    String?
-  idPmmaTxt    String? @map("id_pmma_txt")            // o "ID" que aparece no modelo cursos
-  postoGrad    String? @map("posto_grad")
-  numeroPm     String? @map("numero_pm")
-  tempoServico String? @map("tempo_servico")
-  cargoFuncao  String? @map("cargo_funcao")
-  estadoCivil  String? @map("estado_civil")
+  nomeCompleto    String? @map("nome_completo")
+  endereco        String?
+  complemento     String?
+  bairro          String?
+  municipio       String?
+  fone            String?
+  dataNasc        String? @map("data_nasc")
+  dataInclusao    String? @map("data_inclusao")
+  matricula       String?
+  idPmmaTxt       String? @map("id_pmma_txt") // o "ID" que aparece no modelo cursos
+  postoGrad       String? @map("posto_grad")
+  numeroPm        String? @map("numero_pm")
+  tempoServico    String? @map("tempo_servico")
+  cargoFuncao     String? @map("cargo_funcao")
+  estadoCivil     String? @map("estado_civil")
   opmClassificado String? @map("opm_classificado")
   opmExercicio    String? @map("opm_exercicio")
 
   // so cursos
-  cpf          String?
-  email        String?
+  cpf   String?
+  email String?
 
   // corpo
-  amparoLegal  String? @map("amparo_legal")
+  amparoLegal   String? @map("amparo_legal")
   infoAdicional String? @map("info_adicional")
 
   // pagina 2 (policial sugere, admin confirma)
-  p2Conceito      String? @map("p2_conceito")         // Comportamento/Conceito militar
-  p2SituacaoJur   String? @map("p2_situacao_jur")     // Situacao juridica
-  p2Complementares String? @map("p2_complementares")  // os 6 itens (texto)
+  p2Conceito       String? @map("p2_conceito") // Comportamento/Conceito militar
+  p2SituacaoJur    String? @map("p2_situacao_jur") // Situacao juridica
+  p2Complementares String? @map("p2_complementares") // os 6 itens (texto)
   p2UltimaPromocao String? @map("p2_ultima_promocao")
   p2DataInclusao   String? @map("p2_data_inclusao")
 
   // fluxo
-  status      String   @default("rascunho")           // rascunho | enviado | deferido | indeferido
-  parecer     String?                                 // parecer do admin
-  analisadoPor String? @map("analisado_por")
+  status       String    @default("rascunho") // rascunho | enviado | deferido | indeferido
+  parecer      String? // parecer do admin
+  analisadoPor String?   @map("analisado_por")
   analisadoEm  DateTime? @map("analisado_em")
 
   // arquivos gerados (chaves no R2)
-  docxKey     String?  @map("docx_key")
-  pdfKey      String?  @map("pdf_key")
-  assinado    Boolean  @default(false)                // se ja foi assinado no sistema
+  docxKey  String? @map("docx_key")
+  pdfKey   String? @map("pdf_key")
+  assinado Boolean @default(false) // se ja foi assinado no sistema
 
-  criadoEm    DateTime @default(now()) @map("criado_em")
+  criadoEm     DateTime @default(now()) @map("criado_em")
   atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
   @@index([efetivoId])
@@ -488,22 +496,23 @@ model Requerimento {
 // Perfil de dados do requerente, salvo para reuso (preenche uma vez,
 // reaproveita nos proximos requerimentos). 1 por efetivo.
 model PerfilRequerente {
-  efetivoId    String  @id @map("efetivo_id")
-  endereco     String?
-  complemento  String?
-  bairro       String?
-  municipio    String?
-  fone         String?
-  cargoFuncao  String? @map("cargo_funcao")
-  estadoCivil  String? @map("estado_civil")
-  opmClassificado String? @map("opm_classificado")
-  opmExercicio    String? @map("opm_exercicio")
-  cpf          String?
-  email        String?
-  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+  efetivoId       String   @id @map("efetivo_id")
+  endereco        String?
+  complemento     String?
+  bairro          String?
+  municipio       String?
+  fone            String?
+  cargoFuncao     String?  @map("cargo_funcao")
+  estadoCivil     String?  @map("estado_civil")
+  opmClassificado String?  @map("opm_classificado")
+  opmExercicio    String?  @map("opm_exercicio")
+  cpf             String?
+  email           String?
+  atualizadoEm    DateTime @updatedAt @map("atualizado_em")
 
   @@map("perfis_requerente")
 }
+
 // ==========================================================
 //  >>> ANEXAR AO FINAL DO prisma/schema.prisma <
 //  Inscricoes de Web Push: cada navegador/dispositivo que
@@ -513,17 +522,18 @@ model PerfilRequerente {
 // ==========================================================
 
 model PushSubscription {
-  id         String   @id @default(cuid())
-  login      String   @map("login")            // login do usuario dono da inscricao
-  endpoint   String   @unique @map("endpoint")  // URL unica do navegador
-  p256dh     String   @map("p256dh")            // chave publica do cliente
-  auth       String   @map("auth")              // segredo do cliente
-  userAgent  String?  @map("user_agent")
-  criadoEm   DateTime @default(now()) @map("criado_em")
+  id        String   @id @default(cuid())
+  login     String   @map("login") // login do usuario dono da inscricao
+  endpoint  String   @unique @map("endpoint") // URL unica do navegador
+  p256dh    String   @map("p256dh") // chave publica do cliente
+  auth      String   @map("auth") // segredo do cliente
+  userAgent String?  @map("user_agent")
+  criadoEm  DateTime @default(now()) @map("criado_em")
 
   @@index([login])
   @@map("push_subscriptions")
 }
+
 // ==========================================================
 //  >>> ANEXAR AO FINAL DO prisma/schema.prisma <
 //  Licenca-Premio: mesma logica das Equipes de Ferias, porem
@@ -554,4 +564,34 @@ model MembroLicencaPremio {
 
   @@unique([idPmma, anoGozo])
   @@map("membros_licenca_premio")
+}
+
+// ----------------------------------------------------------
+//  CHAT interno — conversa direta entre quaisquer dois usuários
+//  (admins e policiais). Anexos ficam no R2; aqui guardamos só
+//  a chave do objeto. Sem trilha de auditoria, por decisão do P/1.
+// ----------------------------------------------------------
+model ChatMensagem {
+  id       String    @id @default(cuid())
+  de       String    @map("De") // login de quem enviou
+  para     String    @map("Para") // login de quem recebe
+  texto    String?   @map("Texto")
+  arqKey   String?   @map("ArqKey") // chave do anexo no R2
+  arqNome  String?   @map("ArqNome")
+  arqTipo  String?   @map("ArqTipo")
+  arqTam   Int?      @map("ArqTam")
+  criadoEm DateTime  @default(now()) @map("CriadoEm")
+  lidaEm   DateTime? @map("LidaEm")
+
+  @@index([de, para, criadoEm])
+  @@index([para, lidaEm])
+  @@map("chat_mensagens")
+}
+
+// Batida de presença: quem apareceu há menos de ~1 min está online.
+model ChatPresenca {
+  login String   @id @map("Login")
+  visto DateTime @map("Visto")
+
+  @@map("chat_presenca")
 }
