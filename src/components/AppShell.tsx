@@ -40,6 +40,7 @@ import {
   ArrowLeftRight,
   DoorOpen,
   MessageSquare,
+  HeartPulse,
 } from "lucide-react";
 import Relogio from "@/components/Relogio";
 import BuscaGlobal from "@/components/BuscaGlobal";
@@ -136,6 +137,7 @@ const NAV: Secao[] = [
   {
     titulo: "Próximas versões",
     itens: [
+      { rotulo: "Guia JMS e Ofício", Icone: HeartPulse, adminOnly: true },
       { rotulo: "Histórico Policial Militar", Icone: History, adminOnly: true },
       { rotulo: "Motoristas / CNH", Icone: Car, adminOnly: true },
       { rotulo: "Telefones", Icone: Phone, adminOnly: true },
