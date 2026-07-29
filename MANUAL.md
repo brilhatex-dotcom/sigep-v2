@@ -238,6 +238,20 @@ Para remover a restrição, clique no **×** na linha dele.
 
 **Republicar o mesmo dia.** Se precisar corrigir depois de publicado, corrija e **publique de novo**. O sistema cria uma nova versão (v2, v3…) e **a última passa a valer**, tanto para você quanto para os policiais. As anteriores ficam no arquivo marcadas como *substituída* — nada se perde.
 
+### Horário da ROTEM
+
+O horário da ROTEM **já vem preenchido conforme o dia da semana** — não precisa digitar todo dia:
+
+| Dia | Horário |
+|---|---|
+| Segunda a quinta | **07h às 12h** e **18h às 23h** |
+| Sexta e sábado | **19h30min às 02h** |
+| Domingo | **16h às 00h** |
+
+- É só o ponto de partida: na folha do dia o horário **continua editável** — clique em cima e mude, acrescente ou remova turnos à vontade.
+- Para mudar o padrão de vez, vá em **Escalas de Serviço → aba Configuração → ROTEM · horário por dia da semana**. Ali dá para editar cada dia, acrescentar turnos e voltar ao padrão do batalhão pelo botão **↺**.
+- Quem vai de serviço (os militares da ROTEM) continua vindo das **equipes fixas**, logo abaixo, pelo rodízio de 3 em 3 dias ou pelos dias da semana marcados em cada equipe.
+
 ### Demais telas de escala
 
 - **Publicações** — o arquivo de tudo que já foi publicado, por mês, com download em PDF/Word. É o histórico oficial.

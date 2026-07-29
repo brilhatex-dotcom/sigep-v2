@@ -1595,7 +1595,14 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
             ) : (
               cad.rotemEquipes.map((eq, i) => (
                 <div key={i} className="mp-eq-rotem">
-                  <div className="mp-eq-sub">{eq.nome} · {eq.turnos.join(" / ")}</div>
+                  {/* O horário da ROTEM é por dia da semana (configurado na
+                      Escala de Serviço); aqui mostramos os dias que a equipe cobre. */}
+                  <div className="mp-eq-sub">
+                    {eq.nome}
+                    {eq.diasSemana?.length
+                      ? " · " + eq.diasSemana.map((d) => ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][d]).join(", ")
+                      : " · rodízio de 3 em 3 dias"}
+                  </div>
                   <PoolMini ids={eq.militares} onChange={(v) => setRotemMil(i, v)} efetivo={efetivo} nomeDe={nomeDe} />
                 </div>
               ))

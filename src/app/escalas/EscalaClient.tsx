@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { padronizarBrasao } from "@/lib/imagem";
 import CarimboSigep from "@/components/CarimboSigep";
 import { compararAntiguidade } from "@/lib/patentes";
-import { incluiComReducao } from "@/lib/escalaMotor";
+import { incluiComReducao, ROTEM_HORARIOS_PADRAO, horariosRotemDoDia } from "@/lib/escalaMotor";
 
 /* =========================================================================
    SIGEP-18BPM  ·  MODULO DE ESCALAS  (Escala de Servico diaria)  ·  v2 UX
@@ -127,6 +127,8 @@ type Cadastro = {
   cpuOverrides?: Record<string, string>;
   // Reducao judicial: idPmma -> percentual MAXIMO de servicos no mes (ex.: 50).
   reducaoJudicial?: Record<string, number>;
+  // ROTEM: horario padrao por dia da semana (0=domingo ... 6=sabado).
+  rotemHorariosPadrao?: string[][];
 };
 
 type Brasoes = {
@@ -308,6 +310,7 @@ const SEED_CADASTRO: Cadastro = {
     { nome: "Equipe B", turnos: ["19h30min \u00e0s 02h"], militares: [] },
     { nome: "Equipe C", turnos: ["07h \u00e0s 12h", "18h \u00e0s 23h"], militares: [] },
   ],
+  rotemHorariosPadrao: ROTEM_HORARIOS_PADRAO.map((t) => t.slice()),
   afastamentos: [],
   refRodizioISO: "2026-06-01",
   refCpuISO: "2026-06-01",
@@ -515,7 +518,9 @@ function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
     ftGraduado: s(dqNome("ftGraduado")),
     ftMotorista: s(dqNome("ftMotorista")),
     ftPatrulheiro: sList(dqNomes("ftPatrulheiro")),
-    rotemHorarios: eq ? eq.turnos.slice() : ["07h \u00e0s 12h", "18h \u00e0s 23h"],
+    // Horario da ROTEM: vem pre-ajustado pelo dia da semana (seg-qui em dois
+    // turnos, sex/sab a noite, domingo a tarde) e continua editavel na folha.
+    rotemHorarios: horariosRotemDoDia(iso, cad),
     rotemMilitares: eq ? sList(nmList(eq.militares.filter((id) => !afastado(id, iso, cad.afastamentos)))) : [s(), s(), s()],
     extraOperacao: "",
     extraCmtOperacao: "",
@@ -1058,6 +1063,46 @@ function PoolCard({
   );
 }
 
+/* Horario padrao da ROTEM por dia da semana. E so o ponto de partida: ao
+   gerar a escala do dia o horario ja vem preenchido conforme esta tabela, e
+   na folha continua editavel linha a linha. */
+function HorariosRotemPadrao({
+  tabela, onChange,
+}: { tabela: string[][]; onChange: (t: string[][]) => void }) {
+  const DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+  const set = (dia: number, i: number, v: string) =>
+    onChange(tabela.map((t, d) => (d === dia ? t.map((x, j) => (j === i ? v : x)) : t)));
+  const add = (dia: number) =>
+    onChange(tabela.map((t, d) => (d === dia ? [...t, ""] : t)));
+  const rm = (dia: number, i: number) =>
+    onChange(tabela.map((t, d) => (d === dia ? t.filter((_, j) => j !== i) : t)));
+
+  return (
+    <div className="rot-pad">
+      {DIAS.map((nome, dia) => (
+        <div key={dia} className="rot-pad-dia">
+          <span className="rot-pad-nome">{nome}</span>
+          <div className="rot-pad-turnos">
+            {(tabela[dia] || []).map((t, i) => (
+              <span key={i} className="rot-pad-turno">
+                <input value={t} placeholder="00h às 00h" onChange={(ev) => set(dia, i, ev.target.value)} />
+                {(tabela[dia] || []).length > 1 && (
+                  <button className="btn danger" title="remover turno" onClick={() => rm(dia, i)}>×</button>
+                )}
+              </span>
+            ))}
+            <button className="btn" onClick={() => add(dia)}>+ turno</button>
+          </div>
+        </div>
+      ))}
+      <button className="btn" style={{ marginTop: 8 }}
+        onClick={() => onChange(ROTEM_HORARIOS_PADRAO.map((t) => t.slice()))}>
+        ↺ voltar ao padrão do batalhão
+      </button>
+    </div>
+  );
+}
+
 function EquipeRotemCard({
   eq, ativaHoje, onChange, onRemove, efetivo, nomeDe, efMap, afastamentos, dataRef,
 }: {
@@ -1071,12 +1116,6 @@ function EquipeRotemCard({
   afastamentos: Afastamento[];
   dataRef: string;
 }) {
-  const updTurno = (i: number, v: string) => {
-    const a = eq.turnos.slice(); a[i] = v; onChange({ turnos: a });
-  };
-  const rmTurno = (i: number) => onChange({ turnos: eq.turnos.filter((_, j) => j !== i) });
-  const addTurno = () => onChange({ turnos: [...eq.turnos, "07h às 12h"] });
-
   return (
     <div className={"eq-card" + (ativaHoje ? " hoje" : "")}>
       <div className="eq-top">
@@ -1086,15 +1125,7 @@ function EquipeRotemCard({
       </div>
       <div className="eq-body">
         <div className="eq-col">
-          <label>Turnos</label>
-          {eq.turnos.map((t, i) => (
-            <div key={i} className="eq-turno">
-              <input value={t} placeholder="00h às 00h" onChange={(e) => updTurno(i, e.target.value)} />
-              {eq.turnos.length > 1 && <button className="btn danger" onClick={() => rmTurno(i)}>×</button>}
-            </div>
-          ))}
-          <button className="btn" onClick={addTurno}>+ turno</button>
-          <label style={{ marginTop: 8 }}>Dias da semana</label>
+          <label>Dias da semana</label>
           <div className="eq-dias">
             {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d, idx) => {
               const on = (eq.diasSemana || []).includes(idx);
@@ -1283,6 +1314,19 @@ function ConfigMotor({
             </div>
           );
         })}
+      </div>
+
+      {/* ---- ROTEM: horário padrão por dia da semana ---- */}
+      <div className="cfg-sec">
+        <div className="cfg-sec-titulo">ROTEM · horário por dia da semana</div>
+        <div className="cfg-sec-sub">
+          Ao gerar a escala, o horário da ROTEM já entra preenchido conforme este quadro —
+          e continua editável na folha do dia, linha a linha.
+        </div>
+        <HorariosRotemPadrao
+          tabela={cad.rotemHorariosPadrao || ROTEM_HORARIOS_PADRAO.map((t) => t.slice())}
+          onChange={(t) => up({ rotemHorariosPadrao: t })}
+        />
       </div>
 
       {/* ---- ROTEM ---- */}
@@ -2722,6 +2766,17 @@ const CSS = `
 .eq-dias-hint{ font-size:10px; color:#6b7f9c; }
 .eq-turno{ display:flex; gap:6px; }
 .eq-turno input{ flex:1; background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:8px; padding:7px 9px; font-size:12.5px; }
+
+/* ROTEM: horario padrao por dia da semana */
+.rot-pad{ display:flex; flex-direction:column; gap:6px; }
+.rot-pad-dia{ display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  background:#0d1830; border:1px solid #1d2c44; border-radius:9px; padding:7px 10px; }
+.rot-pad-nome{ width:78px; flex-shrink:0; font-size:12px; font-weight:700; color:#D4AF37; }
+.rot-pad-turnos{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; flex:1; }
+.rot-pad-turno{ display:inline-flex; align-items:center; gap:4px; }
+.rot-pad-turno input{ width:150px; background:#0a1626; color:#E8EEF6; border:1px solid #28395a;
+  border-radius:8px; padding:6px 9px; font-size:12.5px; }
+.rot-pad-turno input:focus{ outline:none; border-color:#D4AF37; }
 
 .af-wrap{ display:flex; flex-direction:column; gap:6px; }
 .af-head{ display:flex; gap:8px; font-size:11px; color:#6f82a0; padding:0 2px; }

@@ -23,7 +23,32 @@ export type Cadastro = {
   padraoEscala?: string;   // ex.: "3 por 6" (3 trab / 6 folga). Vazio = 24/72 (sede).
   // Reducao judicial: idPmma -> percentual MAXIMO de servicos no mes (ex.: 50).
   reducaoJudicial?: Record<string, number>;
+  // ROTEM: horario padrao por dia da semana (0=domingo ... 6=sabado). E so o
+  // ponto de partida — na folha do dia o horario continua editavel.
+  rotemHorariosPadrao?: string[][];
 };
+
+/* Horario padrao da ROTEM, por dia da semana (0=domingo ... 6=sabado):
+   segunda a quinta em dois turnos, sexta e sabado a noite, domingo a tarde. */
+export const ROTEM_HORARIOS_PADRAO: string[][] = [
+  ["16h às 00h"],                     // domingo
+  ["07h às 12h", "18h às 23h"],       // segunda
+  ["07h às 12h", "18h às 23h"],       // terça
+  ["07h às 12h", "18h às 23h"],       // quarta
+  ["07h às 12h", "18h às 23h"],       // quinta
+  ["19h30min às 02h"],                // sexta
+  ["19h30min às 02h"],                // sábado
+];
+
+/** Horario da ROTEM para a data, respeitando o padrao configurado. */
+export function horariosRotemDoDia(iso: string, cad?: Pick<Cadastro, "rotemHorariosPadrao">): string[] {
+  const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const dow = m ? new Date(+m[1], +m[2] - 1, +m[3]).getDay() : 1;
+  const tabela = cad?.rotemHorariosPadrao;
+  const doDia = Array.isArray(tabela?.[dow]) ? tabela![dow] : ROTEM_HORARIOS_PADRAO[dow];
+  const limpos = doDia.filter((h) => String(h || "").trim());
+  return limpos.length ? limpos.slice() : ROTEM_HORARIOS_PADRAO[dow].slice();
+}
 
 const inicioMesISO = (iso: string) => `${iso.slice(0, 7)}-01`;
 // Deve o militar entrar neste "slot de dia" da sua equipe, respeitando o teto
