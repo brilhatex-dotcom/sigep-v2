@@ -59,9 +59,12 @@ O que aparece no seu menu:
 
 A escala **abre já na tela**, pronta para ler — não precisa baixar nada nem abrir PDF.
 
+- É a **folha branca, igual ao documento original** da escala diária da sede: os mesmos brasões, o cabeçalho do órgão, o **VISTO** do Comandante, as tabelas com borda e a assinatura do Chefe do P/1 no rodapé. O que você vê na tela é exatamente o que sai no papel.
 - Ao entrar, aparece a **escala de hoje**. Se ainda não houver a de hoje, aparece a **mais recente**.
 - Para ver outro dia: use o **calendário** no topo, as **setas ◀ ▶** (pulam de um dia publicado para o outro) ou os **atalhos** (Hoje, Ontem, e as datas anteriores).
-- A folha mostra tudo: expediente, CPU de dia, permanência, Rádio Patrulha, inteligência, Força Tática e ROTEM. Quem entrou por **permuta** aparece destacado em dourado, com o nome de quem saiu riscado.
+- No celular a folha entra **reduzida para caber na tela**. Use os botões no alto da folha: **−** e **+** para aproximar, **⛶** para voltar a caber na tela e **🖨** para imprimir ou salvar em PDF.
+- A folha mostra tudo: expediente, CPU de dia, permanência, Rádio Patrulha, inteligência, Força Tática e ROTEM. Quem entrou por **permuta** aparece do jeito oficial: `NOME (PERMUTA- SUBSTITUTO)`.
+- Se a escala já tiver sido **assinada eletronicamente** pelo Chefe do P/1 ou recebido o **VISTO** do Comandante, os carimbos com QR Code aparecem na folha — dá para conferir pelo celular.
 - Quiser o arquivo? Os botões **Baixar PDF** e **Baixar Word** continuam no rodapé.
 
 - Você vê a escala da **sua unidade**: quem é lotado na **sede** (Permanência, Força Tática, Rádio Patrulha, Inteligência, Administrativa, Ronda Escolar, Maria da Penha e demais funções do quartel) vê a **escala da sede**; quem é de CIA/Pelotão destacado vê a da sua unidade.

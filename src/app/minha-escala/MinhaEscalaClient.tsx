@@ -202,7 +202,13 @@ export default function MinhaEscalaClient() {
         </div>
       ) : pub ? (
         <>
-          <FolhaEscalaView escala={pub.escala} publicadoEm={pub.publicadoEm} publicadoPor={pub.publicadoPor} />
+          <FolhaEscalaView
+            escala={pub.escala}
+            brasoes={pub.brasoes}
+            chefe={pub.chefe}
+            publicadoEm={pub.publicadoEm}
+            publicadoPor={pub.publicadoPor}
+          />
 
           <div className="mt-3 flex flex-wrap justify-center gap-2">
             <button
