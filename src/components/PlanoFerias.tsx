@@ -14,6 +14,8 @@ import {
   Calendar,
   ShieldCheck,
   Clock,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import MemorandoFerias, { DadosMemorando } from "@/components/MemorandoFerias";
 
@@ -380,9 +382,37 @@ export default function PlanoFerias({
   }, [postergados, equipes, anoCorrente]);
   const totalVencidas = relatorioVencidas.filter((l) => l.vencida).length;
 
+  /* Exercícios presentes no relatório, do mais novo para o mais antigo. Quem
+     foi marcado antes do campo existir cai em "sem exercício". */
+  const exerciciosVencidas = useMemo(() => {
+    const anos = new Set<string>();
+    let semAno = false;
+    for (const l of relatorioVencidas) {
+      if (l.exercicio) anos.add(l.exercicio);
+      else semAno = true;
+    }
+    const lista = [...anos].sort((a, b) => b.localeCompare(a));
+    return { anos: lista, semAno };
+  }, [relatorioVencidas]);
+
+  // Recolhido por padrão: a lista só abre quando o usuário pede.
+  const [vencidasAberto, setVencidasAberto] = useState(false);
+  const [exercicioSel, setExercicioSel] = useState<string>("todos");
+
+  const vencidasFiltradas = useMemo(() => {
+    if (exercicioSel === "todos") return relatorioVencidas;
+    if (exercicioSel === "sem") return relatorioVencidas.filter((l) => !l.exercicio);
+    return relatorioVencidas.filter((l) => l.exercicio === exercicioSel);
+  }, [relatorioVencidas, exercicioSel]);
+
+  const rotuloExercicio =
+    exercicioSel === "todos" ? "todos os exercícios"
+    : exercicioSel === "sem" ? "sem exercício informado"
+    : `exercício ${exercicioSel}`;
+
   function imprimirVencidas() {
     const esc = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const linhas = relatorioVencidas.map((l, i) => `<tr>
+    const linhas = vencidasFiltradas.map((l, i) => `<tr>
       <td>${i + 1}</td><td>${esc(l.postoGrad)}</td><td>${esc(l.nome)}</td>
       <td style="text-align:center">${esc(l.exercicio || "—")}</td>
       <td style="text-align:center;font-weight:700;color:${l.vencida ? "#b91c1c" : "#b45309"}">${l.vencida ? "VENCIDA" : "A GOZAR"}</td>
@@ -400,8 +430,8 @@ export default function PlanoFerias({
         .vazio{font-size:11px;color:#666;}
       </style></head><body>
       <div class="cab"><h1>Relatório de férias vencidas / a gozar</h1></div>
-      <p class="sub">18º BPM · emitido em ${new Date().toLocaleDateString("pt-BR")} · ${relatorioVencidas.length} militar(es), ${totalVencidas} com férias vencidas.</p>
-      ${relatorioVencidas.length
+      <p class="sub">18º BPM · emitido em ${new Date().toLocaleDateString("pt-BR")} · ${esc(rotuloExercicio)} · ${vencidasFiltradas.length} militar(es), ${vencidasFiltradas.filter((l) => l.vencida).length} com férias vencidas.</p>
+      ${vencidasFiltradas.length
         ? `<table><thead><tr><th>#</th><th>Posto/Grad</th><th>Nome</th><th>Exercício</th><th>Situação</th><th>Observação</th></tr></thead><tbody>${linhas}</tbody></table>`
         : `<p class="vazio">Nenhum militar com férias a gozar registradas.</p>`}
       </body></html>`;
@@ -574,66 +604,118 @@ export default function PlanoFerias({
         </div>
       </div>
 
-      {/* Relatório: férias vencidas / a gozar (militares marcados como Adiado) */}
+      {/* Relatório: férias vencidas / a gozar (militares marcados como Adiado).
+          Fica RECOLHIDO — o cabeçalho é um botão que abre a lista. */}
       <div className="ui-card p-4">
-        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 text-base font-bold text-white">
-            <Clock className="h-5 w-5 text-amber-400" />
-            Férias vencidas / a gozar
-            {totalVencidas > 0 && (
-              <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-bold uppercase text-red-300">
-                {totalVencidas} vencida{totalVencidas > 1 ? "s" : ""}
-              </span>
-            )}
-          </h2>
-          {relatorioVencidas.length > 0 && (
-            <button onClick={imprimirVencidas}
-              className="rounded border border-white/15 px-2.5 py-1 text-xs text-[#94A3B8] hover:border-[#D4AF37] hover:text-white">
-              🖨 Imprimir relatório
-            </button>
+        <button
+          onClick={() => setVencidasAberto((v) => !v)}
+          aria-expanded={vencidasAberto}
+          className="flex w-full flex-wrap items-center gap-2 text-left"
+        >
+          {vencidasAberto
+            ? <ChevronDown className="h-4 w-4 shrink-0 text-[#D4AF37]" />
+            : <ChevronRight className="h-4 w-4 shrink-0 text-[#D4AF37]" />}
+          <Clock className="h-5 w-5 shrink-0 text-amber-400" />
+          <span className="text-base font-bold text-white">Férias vencidas / a gozar</span>
+          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-bold text-[#cdd9ea]">
+            {relatorioVencidas.length}
+          </span>
+          {totalVencidas > 0 && (
+            <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-bold uppercase text-red-300">
+              {totalVencidas} vencida{totalVencidas > 1 ? "s" : ""}
+            </span>
           )}
-        </div>
-        <p className="mb-3 text-xs text-[#94A3B8]">
-          Militares que <b>adiaram</b> as férias — continuam no serviço e ficaram com o período a gozar.
-          <b> Vencida</b> = o exercício já passou.
-        </p>
-        {relatorioVencidas.length === 0 ? (
-          <p className="rounded-lg bg-white/5 px-3 py-4 text-center text-sm text-[#94A3B8]">
-            Nenhum militar com férias a gozar. Use o botão <b>Adiar</b> dentro da equipe para registrar.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] text-left text-sm">
-              <thead className="border-b border-white/10 text-xs uppercase text-[#94A3B8]">
-                <tr>
-                  <th className="px-2 py-2 font-semibold">Militar</th>
-                  <th className="px-2 py-2 font-semibold">Exercício</th>
-                  <th className="px-2 py-2 font-semibold">Situação</th>
-                  <th className="px-2 py-2 font-semibold">Observação</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {relatorioVencidas.map((l) => (
-                  <tr key={l.id} className="hover:bg-white/5">
-                    <td className="px-2 py-2">
-                      <span className="text-[#94A3B8]">{l.postoGrad ?? ""}</span>{" "}
-                      <span className="font-medium text-white">{l.nome ?? "—"}</span>
-                      {l.nomeGuerra && <span className="ml-1 text-xs text-[#94A3B8]">({l.nomeGuerra})</span>}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-2 font-bold text-[#cdd9ea]">{l.exercicio || "—"}</td>
-                    <td className="whitespace-nowrap px-2 py-2">
-                      <span className={
-                        "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase " +
-                        (l.vencida ? "bg-red-500/20 text-red-300" : "bg-amber-500/20 text-amber-300")
-                      }>
-                        {l.vencida ? "vencida" : "a gozar"}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2 text-[#94A3B8]">{l.motivo || "—"}</td>
-                  </tr>
+          <span className="ml-auto text-xs font-medium text-[#D4AF37]">
+            {vencidasAberto ? "ocultar lista" : "ver lista"}
+          </span>
+        </button>
+
+        {vencidasAberto && (
+          <div className="mt-3 border-t border-white/10 pt-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-[#94A3B8]">
+                Militares que <b>adiaram</b> as férias — continuam no serviço e ficaram com o período a gozar.
+                <b> Vencida</b> = o exercício já passou.
+              </p>
+              {vencidasFiltradas.length > 0 && (
+                <button onClick={imprimirVencidas}
+                  className="shrink-0 rounded border border-white/15 px-2.5 py-1 text-xs text-[#94A3B8] hover:border-[#D4AF37] hover:text-white">
+                  🖨 Imprimir relatório
+                </button>
+              )}
+            </div>
+
+            {/* filtro por exercício — separa por ano conforme o sistema avança */}
+            {(exerciciosVencidas.anos.length > 0 || exerciciosVencidas.semAno) && (
+              <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] uppercase tracking-wide text-[#94A3B8]">Exercício:</span>
+                {[
+                  { v: "todos", r: "Todos", n: relatorioVencidas.length },
+                  ...exerciciosVencidas.anos.map((a) => ({
+                    v: a, r: a, n: relatorioVencidas.filter((l) => l.exercicio === a).length,
+                  })),
+                  ...(exerciciosVencidas.semAno
+                    ? [{ v: "sem", r: "Sem exercício", n: relatorioVencidas.filter((l) => !l.exercicio).length }]
+                    : []),
+                ].map((op) => (
+                  <button
+                    key={op.v}
+                    onClick={() => setExercicioSel(op.v)}
+                    className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
+                      exercicioSel === op.v
+                        ? "bg-[#D4AF37] text-[#1a1205]"
+                        : "bg-white/5 text-[#94A3B8] hover:bg-white/10 hover:text-white"
+                    }`}
+                  >
+                    {op.r} <span className="opacity-70">({op.n})</span>
+                  </button>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            )}
+
+            {relatorioVencidas.length === 0 ? (
+              <p className="rounded-lg bg-white/5 px-3 py-4 text-center text-sm text-[#94A3B8]">
+                Nenhum militar com férias a gozar. Use o botão <b>Adiar</b> dentro da equipe para registrar.
+              </p>
+            ) : vencidasFiltradas.length === 0 ? (
+              <p className="rounded-lg bg-white/5 px-3 py-4 text-center text-sm text-[#94A3B8]">
+                Nenhum militar neste exercício.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[520px] text-left text-sm">
+                  <thead className="border-b border-white/10 text-xs uppercase text-[#94A3B8]">
+                    <tr>
+                      <th className="px-2 py-2 font-semibold">Militar</th>
+                      <th className="px-2 py-2 font-semibold">Exercício</th>
+                      <th className="px-2 py-2 font-semibold">Situação</th>
+                      <th className="px-2 py-2 font-semibold">Observação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {vencidasFiltradas.map((l) => (
+                      <tr key={l.id} className="hover:bg-white/5">
+                        <td className="px-2 py-2">
+                          <span className="text-[#94A3B8]">{l.postoGrad ?? ""}</span>{" "}
+                          <span className="font-medium text-white">{l.nome ?? "—"}</span>
+                          {l.nomeGuerra && <span className="ml-1 text-xs text-[#94A3B8]">({l.nomeGuerra})</span>}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-2 font-bold text-[#cdd9ea]">{l.exercicio || "—"}</td>
+                        <td className="whitespace-nowrap px-2 py-2">
+                          <span className={
+                            "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase " +
+                            (l.vencida ? "bg-red-500/20 text-red-300" : "bg-amber-500/20 text-amber-300")
+                          }>
+                            {l.vencida ? "vencida" : "a gozar"}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 text-[#94A3B8]">{l.motivo || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -299,7 +299,11 @@ Para desfazer, clique de novo no botão: ele volta a sair de férias no período
 
 ### Relatório de férias vencidas / a gozar
 
-No alto da página do **Plano de Férias**, logo abaixo dos números, fica o painel **“Férias vencidas / a gozar”**. Ele lista todos os militares que **adiaram** as férias, mostrando:
+No alto da página do **Plano de Férias**, logo abaixo dos números, fica o painel **“Férias vencidas / a gozar”**. Ele começa **fechado**, mostrando só o total e quantas estão vencidas — clique na barra (**ver lista**) para abrir.
+
+Aberto, ele traz os filtros de **exercício**: **Todos**, cada **ano** que aparece no relatório e **Sem exercício** (para quem foi marcado antes desse campo existir). Cada botão mostra quantos militares tem. O que estiver selecionado é o que sai no **🖨 Imprimir relatório**.
+
+A lista mostra:
 
 | Coluna | O que é |
 |---|---|
@@ -308,7 +312,7 @@ No alto da página do **Plano de Férias**, logo abaixo dos números, fica o pai
 | **Situação** | **VENCIDA** (vermelho) se o exercício já passou; **A GOZAR** (âmbar) se ainda é do ano corrente |
 | **Observação** | O motivo informado no adiamento |
 
-No topo do painel aparece o total de **vencidas**, e o botão **🖨 Imprimir relatório** gera a folha para levar ao Comando.
+O botão **🖨 Imprimir relatório** gera a folha para levar ao Comando, já com o exercício escolhido no cabeçalho.
 
 > A conta é simples: exercício **anterior ao ano atual** = **vencida**. Exercício do **ano corrente** = ainda dá para gozar dentro do ano.
 
@@ -340,7 +344,7 @@ Módulos de **FATD**, **Sindicância**, **IPS** e **IPM**. Em cada um você inst
 
 ## Centro de Comando
 
-**Controle de Entrada e Saída** — registro de movimentação, para o controle do quartel.
+**Controle de Entrada e Saída** — registro de movimentação, para o controle do quartel. Só isso: a lista de quem está **de férias hoje** fica no **Dashboard**, no cartão *Efetivo em férias*.
 
 ---
 
