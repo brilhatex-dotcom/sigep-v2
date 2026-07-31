@@ -5,7 +5,12 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import RequerimentoForm from "@/components/RequerimentoForm";
-import { modeloDaModalidade, AMPARO_PADRAO } from "@/lib/requerimentos";
+import {
+  modeloDaModalidade,
+  amparoDaModalidade,
+  especificacaoDaModalidade,
+  infoPadraoDaModalidade,
+} from "@/lib/requerimentos";
 import { ArrowLeft } from "lucide-react";
 
 // Normaliza qualquer data para dd/mm/aaaa SEM deslocar o dia por fuso horario.
@@ -76,9 +81,10 @@ export default async function NovoRequerimentoPage({
     opmExercicio: perfil?.opmExercicio || "18º BPM",
     cpf: perfil?.cpf || m.cpf || "",
     email: perfil?.email || m.email || "",
-    amparoLegal: AMPARO_PADRAO[modalidade] || "",
-    infoAdicional: "",
-    modalidadeOutros: "",
+    amparoLegal: amparoDaModalidade(modalidade),
+    // pedidos de armamento/colete ja vem com o texto padrao do protocolo
+    infoAdicional: infoPadraoDaModalidade(modalidade),
+    modalidadeOutros: especificacaoDaModalidade(modalidade),
     p2Conceito: "",
     p2SituacaoJur: "",
     p2Complementares: "",

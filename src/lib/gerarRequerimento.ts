@@ -44,11 +44,17 @@ const CHAVE_X: Record<string, string> = {
   "TRANSLADO DE BAGAGEM": "translado",
   "TRANSFERÊNCIA PARA A RESERVA REMUNERADA": "transferencia",
   "OUTROS": "outros",
+  // Armamento/material belico: a folha oficial nao tem quadrinho proprio,
+  // entao marcam o "OUTROS" e a especificacao sai entre parenteses ao lado.
+  "CAUTELA DE ARMA DE FOGO (ACAF)": "outros",
+  "CAUTELA DE COLETE BALÍSTICO": "outros",
+  "AUTORIZAÇÃO DE PERMANÊNCIA DE ARMAMENTO": "outros",
 };
 
 type DadosReq = {
   modelo: string;
   modalidade: string;
+  modalidadeOutros?: string | null;
   nomeCompleto?: string | null;
   endereco?: string | null;
   bairro?: string | null;
@@ -162,6 +168,11 @@ export function gerarRequerimentoDocx(d: DadosReq): Buffer {
   for (const chave of Object.values(CHAVE_X)) dados[chave] = false;
   const chaveEscolhida = CHAVE_X[d.modalidade.trim().toUpperCase()];
   if (chaveEscolhida) dados[chaveEscolhida] = true;
+
+  // especificacao do "OUTROS": sai no mesmo quadro do formulario, entre
+  // parenteses (ex.: OUTROS (CAUTELA DE COLETE BALISTICO)). Vazio = nada muda.
+  const especificacao = s(d.modalidadeOutros).trim();
+  dados.outrostxt = chaveEscolhida === "outros" && especificacao ? ` (${especificacao})` : "";
 
   doc.render(dados);
   return doc.getZip().generate({ type: "nodebuffer" });

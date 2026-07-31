@@ -36,7 +36,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
     const buffer = gerarRequerimentoDocx({
       modelo: r.modelo,
-      modalidade: r.modalidade === "OUTROS" && r.modalidadeOutros ? r.modalidade : r.modalidade,
+      modalidade: r.modalidade,
+      modalidadeOutros: r.modalidadeOutros,
       nomeCompleto: r.nomeCompleto,
       endereco: r.endereco,
       bairro: r.bairro,
