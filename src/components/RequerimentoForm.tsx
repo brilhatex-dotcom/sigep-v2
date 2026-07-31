@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Save, Send } from "lucide-react";
+import { usaQuadrinhoOutros } from "@/lib/requerimentos";
 
 type Dados = Record<string, string>;
 
@@ -40,7 +41,8 @@ export default function RequerimentoForm({
   const [erro, setErro] = useState("");
 
   const ehCursos = modelo === "cursos";
-  const ehOutros = modalidade.toUpperCase() === "OUTROS";
+  // "OUTROS" puro ou modalidade que cai no quadrinho OUTROS (arma, colete...)
+  const ehOutros = usaQuadrinhoOutros(modalidade);
 
   function set(k: string, v: string) {
     setF((o) => ({ ...o, [k]: v }));
@@ -125,6 +127,9 @@ export default function RequerimentoForm({
           <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
             <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Especifique a modalidade (Outros)
           </h2>
+          <p className="mb-3 text-[12px] text-[#94A3B8]">
+            Sai entre parênteses no documento, ao lado do quadrinho “OUTROS”.
+          </p>
           <input type="text" value={f.modalidadeOutros ?? ""} onChange={(e) => set("modalidadeOutros", e.target.value)}
             placeholder="Ex: INSCRIÇÃO NO CAP PM"
             className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />

@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import {
   FileText, Plus, Clock, CheckCircle2, XCircle, FileEdit, X, Search, ArrowDownUp,
 } from "lucide-react";
-import { MODALIDADES_COMUM, MODALIDADES_CURSOS, modeloDaModalidade } from "@/lib/requerimentos";
+import {
+  MODALIDADES_COMUM,
+  MODALIDADES_CURSOS,
+  MODALIDADES_MATERIAL,
+  modeloDaModalidade,
+} from "@/lib/requerimentos";
 
 type Item = {
   id: string;
@@ -280,6 +285,21 @@ export default function RequerimentosClient({
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">Requerimentos comuns</p>
             <div className="mb-5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
               {MODALIDADES_COMUM.map((m) => (
+                <button
+                  key={m}
+                  onClick={() => novo(m)}
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-[#E8EEF6] transition hover:border-[#D4AF37]/40 hover:bg-[#D4AF37]/10"
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
+              Armamento e material bélico
+            </p>
+            <div className="mb-5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              {MODALIDADES_MATERIAL.map((m) => (
                 <button
                   key={m}
                   onClick={() => novo(m)}
