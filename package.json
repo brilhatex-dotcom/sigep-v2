@@ -12,7 +12,7 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "importar": "node scripts/importar-csv.mjs",
-    "dossie": "node scripts/gerar-dossie-docx.mjs && node scripts/gerar-dossie-pdf.mjs"
+    "dossie": "node scripts/gerar-dossie-docx.mjs && node scripts/gerar-dossie-pdf.mjs && node scripts/gerar-dossie-docx.mjs RESUMO-COMANDO.md && node scripts/gerar-dossie-pdf.mjs RESUMO-COMANDO.md"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.620.0",

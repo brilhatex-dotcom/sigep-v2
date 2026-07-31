@@ -21,8 +21,17 @@ import {
 } from "docx";
 
 const RAIZ = process.cwd();
-const ENTRADA = path.join(RAIZ, "DOSSIE-COMANDO.md");
-const SAIDA = path.join(RAIZ, "DOSSIE-COMANDO.docx");
+/* Aceita outro documento como argumento:
+     node scripts/gerar-dossie-docx.mjs RESUMO-COMANDO.md          */
+const BASE = (process.argv[2] || "DOSSIE-COMANDO.md").replace(/\.md$/i, "");
+const ENTRADA = path.join(RAIZ, `${BASE}.md`);
+const SAIDA = path.join(RAIZ, `${BASE}.docx`);
+
+/* O nome que vai no rodapé e nas propriedades sai do próprio documento:
+   a primeira linha "## ..." é o subtítulo. */
+const FONTE_MD = fs.readFileSync(ENTRADA, "utf8");
+const SUBTITULO = (FONTE_MD.split("\n").find((l) => l.startsWith("## ")) || "## Documento")
+  .slice(3).trim();
 
 const AZUL = "0B1F3A";      // azul-marinho institucional
 const DOURADO = "8A6D1F";   // dourado sóbrio, legível no papel
@@ -142,7 +151,7 @@ function rodape() {
         alignment: AlignmentType.CENTER,
         border: { top: { style: BorderStyle.SINGLE, size: 6, color: "CCCCCC", space: 6 } },
         children: [
-          new TextRun({ text: "SIGEP · 18º BPM — Dossiê técnico para o Comando · página ", size: 15, color: CINZA }),
+          new TextRun({ text: `SIGEP · 18º BPM — ${SUBTITULO} · página `, size: 15, color: CINZA }),
           new TextRun({ children: [PageNumber.CURRENT], size: 15, color: CINZA }),
           new TextRun({ text: " de ", size: 15, color: CINZA }),
           new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 15, color: CINZA }),
@@ -343,12 +352,12 @@ function converter(md) {
 }
 
 /* ------------------------------------------------------------------ main */
-const md = fs.readFileSync(ENTRADA, "utf8");
+const md = FONTE_MD;
 
 const doc = new Document({
   creator: "SIGEP · 18º BPM",
-  title: "SIGEP — Dossiê técnico para o Comando",
-  description: "Arquitetura, segurança, LGPD e pontos de atenção do SIGEP do 18º BPM",
+  title: `SIGEP — ${SUBTITULO}`,
+  description: `${SUBTITULO} — SIGEP do 18º BPM`,
   styles: { default: { document: { run: { font: "Calibri", size: 21 } } } },
   sections: [{
     properties: {

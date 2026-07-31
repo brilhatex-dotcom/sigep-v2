@@ -16,8 +16,11 @@ import path from "node:path";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 const RAIZ = process.cwd();
-const ENTRADA = path.join(RAIZ, "DOSSIE-COMANDO.md");
-const SAIDA = path.join(RAIZ, "DOSSIE-COMANDO.pdf");
+/* Aceita outro documento como argumento:
+     node scripts/gerar-dossie-pdf.mjs RESUMO-COMANDO.md          */
+const BASE = (process.argv[2] || "DOSSIE-COMANDO.md").replace(/\.md$/i, "");
+const ENTRADA = path.join(RAIZ, `${BASE}.md`);
+const SAIDA = path.join(RAIZ, `${BASE}.pdf`);
 
 /* ---------------------------------------------------------------- página */
 const A4 = { w: 595.28, h: 841.89 };
@@ -89,11 +92,17 @@ function inline(txt) {
   return out.length ? out : [{ t: "" }];
 }
 
+/* O nome que vai no rodapé e nas propriedades sai do próprio documento:
+   a primeira linha "## ..." é o subtítulo. */
+const FONTE_MD = fs.readFileSync(ENTRADA, "utf8");
+const SUBTITULO = (FONTE_MD.split("\n").find((l) => l.startsWith("## ")) || "## Documento")
+  .slice(3).trim();
+
 /* ============================================================== gerador */
 const pdf = await PDFDocument.create();
-pdf.setTitle("SIGEP - Dossie tecnico para o Comando");
+pdf.setTitle(limpar(`SIGEP - 18º BPM - ${SUBTITULO}`));
 pdf.setAuthor("SIGEP - 18º BPM");
-pdf.setSubject("Arquitetura, seguranca, LGPD e pontos de atencao");
+pdf.setSubject(limpar(SUBTITULO));
 
 const F = {
   n: await pdf.embedFont(StandardFonts.Helvetica),
@@ -347,7 +356,7 @@ function tabela(bruto) {
 }
 
 /* ------------------------------------------------------ percorre o texto */
-const md = fs.readFileSync(ENTRADA, "utf8").split("\n");
+const md = FONTE_MD.split("\n");
 novaPagina();
 
 let i = 0;
@@ -398,9 +407,9 @@ while (i < md.length) {
 
 /* --------------------------------------------------------------- rodapé */
 const total = paginas.length;
-paginas.forEach((p, idx) => {
+if (total > 1) paginas.forEach((p, idx) => {
   p.drawRectangle({ x: MARGEM.esq, y: MARGEM.base - 16, width: LARGURA, height: 0.5, color: CINZA_CLARO });
-  const t = limpar(`SIGEP · 18º BPM — Dossiê técnico para o Comando · página ${idx + 1} de ${total}`);
+  const t = limpar(`SIGEP · 18º BPM — ${SUBTITULO} · página ${idx + 1} de ${total}`);
   const w = F.n.widthOfTextAtSize(t, 7);
   p.drawText(t, { x: A4.w / 2 - w / 2, y: MARGEM.base - 27, size: 7, font: F.n, color: CINZA });
 });

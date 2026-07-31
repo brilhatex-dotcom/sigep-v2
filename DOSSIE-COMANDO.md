@@ -280,4 +280,7 @@ O Word e o PDF timbrados nascem deste mesmo arquivo. Depois de editar o texto:
 npm run dossie
 ```
 
-Gera `DOSSIE-COMANDO.docx` e `DOSSIE-COMANDO.pdf` com o cabeçalho oficial em todas as páginas.
+Gera, com o cabeçalho oficial em todas as páginas:
+
+- `DOSSIE-COMANDO.docx` e `DOSSIE-COMANDO.pdf` — este documento completo;
+- `RESUMO-COMANDO.docx` e `RESUMO-COMANDO.pdf` — o resumo executivo de **uma página**, para leitura rápida antes da reunião (o texto dele fica em `RESUMO-COMANDO.md`).
