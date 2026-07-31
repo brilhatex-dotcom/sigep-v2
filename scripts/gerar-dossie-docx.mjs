@@ -37,6 +37,17 @@ const AZUL = "0B1F3A";      // azul-marinho institucional
 const DOURADO = "8A6D1F";   // dourado sóbrio, legível no papel
 const CINZA = "555555";
 
+/* Selos de situação: célula cujo conteúdo é só uma destas palavras sai como
+   etiqueta colorida, em vez de texto solto. Leitura imediata na tabela. */
+const SELOS = {
+  "IMPLANTADO":    { fundo: "D8EFE0", texto: "0F5932" },
+  "EM USO":        { fundo: "D8EFE0", texto: "0F5932" },
+  "PARCIAL":       { fundo: "FEECCD", texto: "734A05" },
+  "A IMPLANTAR":   { fundo: "FEECCD", texto: "734A05" },
+  "SE AUTORIZADO": { fundo: "DDE8F9", texto: "17407F" },
+};
+const selo = (txt) => SELOS[String(txt || "").replace(/\*/g, "").trim().toUpperCase()] || null;
+
 const ORG_TEXTO = [
   "ESTADO DO MARANHÃO",
   "SECRETARIA DE ESTADO DA SEGURANÇA PÚBLICA",
@@ -184,14 +195,22 @@ function tabelaDocx(linhas) {
   });
 
   const linhasCorpo = corpo.map((cols, i) => new TableRow({
-    children: cols.map((c) => new TableCell({
-      width: { size: larg, type: WidthType.PERCENTAGE },
-      borders: BORDAS,
-      shading: i % 2 ? { fill: "F4F6F9" } : undefined,
-      verticalAlign: VerticalAlign.CENTER,
-      margins: { top: 60, bottom: 60, left: 90, right: 90 },
-      children: [new Paragraph({ alignment: AlignmentType.LEFT, children: runs(c, { size: 18 }) })],
-    })),
+    children: cols.map((c) => {
+      const sl = selo(c);
+      return new TableCell({
+        width: { size: larg, type: WidthType.PERCENTAGE },
+        borders: BORDAS,
+        shading: sl ? { fill: sl.fundo } : i % 2 ? { fill: "F4F6F9" } : undefined,
+        verticalAlign: VerticalAlign.CENTER,
+        margins: { top: 60, bottom: 60, left: 90, right: 90 },
+        children: [new Paragraph({
+          alignment: sl ? AlignmentType.CENTER : AlignmentType.LEFT,
+          children: sl
+            ? [new TextRun({ text: c.replace(/\*/g, "").trim().toUpperCase(), bold: true, size: 16, color: sl.texto })]
+            : runs(c, { size: 18 }),
+        })],
+      });
+    }),
   }));
 
   return new Table({

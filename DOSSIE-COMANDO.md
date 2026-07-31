@@ -282,5 +282,10 @@ npm run dossie
 
 Gera, com o cabeçalho oficial em todas as páginas:
 
-- `DOSSIE-COMANDO.docx` e `DOSSIE-COMANDO.pdf` — este documento completo;
-- `RESUMO-COMANDO.docx` e `RESUMO-COMANDO.pdf` — o resumo executivo de **uma página**, para leitura rápida antes da reunião (o texto dele fica em `RESUMO-COMANDO.md`).
+| Arquivo | O que é | Fonte |
+|---|---|---|
+| `DOSSIE-COMANDO` | Este documento — o técnico completo | `DOSSIE-COMANDO.md` |
+| `RESUMO-COMANDO` | Resumo executivo de **uma página** | `RESUMO-COMANDO.md` |
+| `APRESENTACAO-COMANDO` | O que resolve, o que já está pronto e o que falta | `APRESENTACAO-COMANDO.md` |
+
+Nas tabelas, uma célula cujo conteúdo seja só **IMPLANTADO**, **PARCIAL**, **A IMPLANTAR** ou **SE AUTORIZADO** sai como etiqueta colorida.

@@ -39,6 +39,17 @@ const FUNDO_CODIGO = rgb(0.949, 0.957, 0.973);
 const FUNDO_CITACAO = rgb(0.984, 0.969, 0.918);
 const PRETO = rgb(0.10, 0.12, 0.16);
 
+/* Selos de situação: uma célula cujo conteúdo é só uma destas palavras sai
+   como etiqueta colorida, em vez de texto solto. Deixa a leitura imediata. */
+const SELOS = {
+  "IMPLANTADO":   { fundo: rgb(0.847, 0.937, 0.878), texto: rgb(0.06, 0.35, 0.20) },
+  "EM USO":       { fundo: rgb(0.847, 0.937, 0.878), texto: rgb(0.06, 0.35, 0.20) },
+  "PARCIAL":      { fundo: rgb(0.996, 0.925, 0.804), texto: rgb(0.45, 0.29, 0.02) },
+  "A IMPLANTAR":  { fundo: rgb(0.996, 0.925, 0.804), texto: rgb(0.45, 0.29, 0.02) },
+  "SE AUTORIZADO":{ fundo: rgb(0.867, 0.910, 0.976), texto: rgb(0.09, 0.25, 0.50) },
+};
+const selo = (txt) => SELOS[String(txt || "").replace(/\*/g, "").trim().toUpperCase()] || null;
+
 const ORG_TEXTO = [
   "ESTADO DO MARANHÃO",
   "SECRETARIA DE ESTADO DA SEGURANÇA PÚBLICA",
@@ -314,7 +325,10 @@ function tabela(bruto) {
   const peso = cab.map((_, c) => {
     let max = F.b.widthOfTextAtSize(limpar(cab[c]), tam);
     for (const l of corpo) {
-      max = Math.max(max, F.n.widthOfTextAtSize(limpar(l[c] ?? "").replace(/\*\*/g, ""), tam));
+      const cel = limpar(l[c] ?? "").replace(/\*\*/g, "");
+      // célula de selo precisa caber a etiqueta inteira, com a folga do chip
+      const w = selo(l[c]) ? F.b.widthOfTextAtSize(cel.toUpperCase(), tam - 0.6) + 26 : F.n.widthOfTextAtSize(cel, tam);
+      max = Math.max(max, w);
     }
     return Math.min(Math.max(max, 46), 250);
   });
@@ -322,6 +336,7 @@ function tabela(bruto) {
   const larguras = peso.map((p) => (p / soma) * LARGURA);
 
   const desenhaLinha = (cols, opt) => {
+    const selos = cols.map((c) => (opt.cab ? null : selo(c)));
     const blocos = cols.map((c, i) =>
       quebrar(inline(c).map((r) => ({ ...r, b: opt.cab ? true : r.b })), larguras[i] - pad * 2, tam));
     const altura = Math.max(...blocos.map((b) => b.length)) * altLinha + pad * 1.6;
@@ -337,12 +352,23 @@ function tabela(bruto) {
         color: opt.cab ? AZUL : opt.zebra ? FUNDO_ZEBRA : undefined,
         borderColor: CINZA_CLARO, borderWidth: 0.5,
       });
-      let ty = topo - pad - tam * 0.9;
-      for (const linha of blocos[i]) {
-        const guarda = y; y = ty;
-        escreverLinha(linha, x + pad, tam, opt.cab ? rgb(1, 1, 1) : PRETO);
-        y = guarda;
-        ty -= altLinha;
+      if (selos[i]) {
+        const rot = cols[i].replace(/\*/g, "").trim().toUpperCase();
+        const wr = F.b.widthOfTextAtSize(rot, tam - 0.6);
+        const cy = topo - altura / 2;
+        pagina.drawRectangle({
+          x: x + pad, y: cy - 6.4, width: wr + 12, height: 12.8,
+          color: selos[i].fundo, borderWidth: 0,
+        });
+        pagina.drawText(rot, { x: x + pad + 6, y: cy - 2.9, size: tam - 0.6, font: F.b, color: selos[i].texto });
+      } else {
+        let ty = topo - pad - tam * 0.9;
+        for (const linha of blocos[i]) {
+          const guarda = y; y = ty;
+          escreverLinha(linha, x + pad, tam, opt.cab ? rgb(1, 1, 1) : PRETO);
+          y = guarda;
+          ty -= altLinha;
+        }
       }
       x += larguras[i];
     });
