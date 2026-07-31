@@ -11,7 +11,8 @@
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "importar": "node scripts/importar-csv.mjs"
+    "importar": "node scripts/importar-csv.mjs",
+    "dossie": "node scripts/gerar-dossie-docx.mjs && node scripts/gerar-dossie-pdf.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.620.0",

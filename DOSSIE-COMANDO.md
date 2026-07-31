@@ -269,3 +269,15 @@ Nenhum sistema é perfeito. Estes são os pontos que o Comando deve conhecer, co
 
 *18º Batalhão de Polícia Militar · Presidente Dutra — MA*
 *Documento gerado a partir da inspeção do sistema em produção.*
+
+---
+
+### Como regerar este documento
+
+O Word e o PDF timbrados nascem deste mesmo arquivo. Depois de editar o texto:
+
+```
+npm run dossie
+```
+
+Gera `DOSSIE-COMANDO.docx` e `DOSSIE-COMANDO.pdf` com o cabeçalho oficial em todas as páginas.
