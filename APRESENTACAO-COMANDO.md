@@ -35,7 +35,7 @@ Documento didático para apreciação do Comando.
 | Escala no celular do policial | Abre na tela, na folha branca oficial, sem baixar nada | IMPLANTADO |
 | Unidades destacadas | Cada CIA/Pelotão com a sua escala e o seu comando | IMPLANTADO |
 | Permutas | Pedido, autorização e documento com QR de verificação | IMPLANTADO |
-| Redução judicial de escala | Percentual por militar, com confirmação para escalar assim mesmo | IMPLANTADO |
+| Restrições por militar | Só fim de semana (quem estuda) e/ou teto judicial de % do mês — combináveis | IMPLANTADO |
 | Estatísticas de carga | Quantos serviços cada militar fez — para equilibrar | IMPLANTADO |
 
 ### 2.2 Férias e Licença-Prêmio

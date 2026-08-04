@@ -207,13 +207,16 @@ Esta é a parte mais usada. Ela tem **duas telas que conversam entre si**:
 
 **Afastamentos.** No mesmo Mapa há o quadro **Afastamentos**: registre férias, missão, curso, ROTAM, licença etc. com data de saída e retorno. O motor **pula o militar afastado em todas as funções e em todas as telas**, e a vaga fica em branco para você cobrir. Férias lançadas no **Plano de Férias** e em **Licença-Prêmio** entram automaticamente aqui — não precisa lançar de novo.
 
-**Redução judicial de escala.** Quadro próprio, logo abaixo dos afastamentos. Para o militar que, por **determinação judicial**, só pode trabalhar parte do mês:
+**Restrições de escala por militar.** Quadro próprio, logo abaixo dos afastamentos. Para quem **não entra em qualquer dia**. São duas restrições, que valem sozinhas ou juntas:
 
-1. Busque o militar e informe o **percentual máximo do mês** (ex.: `50`).
-2. O motor passa a **distribuir automaticamente** os serviços dele até esse teto e o pula nos demais dias.
-3. Você **ainda pode escalá-lo manualmente** além do teto: ao colocá-lo numa função, o sistema avisa *“tem redução judicial de X%, escalar mesmo assim?”* — é só confirmar.
+1. **Dias da semana** — em quais dias ele pode entrar de serviço. Os sete botões **D S T Q Q S S**; dourado = pode. Ao cadastrar, o militar já entra como **só fim de semana**, que é o caso mais comum (quem estuda durante a semana). O atalho *“só fim de semana”* volta a esse arranjo a qualquer momento.
+2. **Teto do mês** — o **percentual máximo** de serviços (ex.: `50`), tipicamente por **determinação judicial**.
 
-Para remover a restrição, clique no **×** na linha dele.
+O motor **distribui sozinho** dentro da restrição e pula o militar nos demais dias. Quando as duas estão marcadas, **o percentual incide sobre os dias que sobraram** — fim de semana + 50% significa metade dos fins de semana da equipe dele no mês, e não metade do mês.
+
+Você **ainda pode escalá-lo manualmente** fora da restrição: ao colocá-lo numa função, o sistema avisa *“só pode ser escalado só fim de semana e tem REDUÇÃO de 50% dos serviços no mês. Escalar mesmo assim?”* — é só confirmar.
+
+A etiqueta ao lado do nome resume a situação: *“só fim de semana · máx. 50%/mês”*. Para remover a restrição, clique no **×** na linha dele.
 
 ### Escalas de Serviço — a folha do dia
 
@@ -404,9 +407,29 @@ Se for uma ausência que não está no plano (missão, curso, ROTAM, licença), 
 
 **Plano de Férias** → clique na equipe → **Adiar** na linha do militar. Ele fica marcado como **Adiado** e **não sai de férias**: continua na escala e em todas as telas, mesmo com a equipe dele de férias.
 
-### Cadastrar uma redução judicial
+### Restringir a escala de um militar (dias da semana e/ou % do mês)
 
-**Mapa de Escala** → quadro **Redução judicial de escala** → busque o militar → informe o **% do mês** (ex.: 50). O motor limita sozinho. Para escalar além do teto, é só confirmar o aviso.
+**Mapa de Escala** → quadro **Restrições de escala por militar**. Serve para dois casos que se combinam:
+
+| Caso | O que fazer |
+|---|---|
+| **Só é escalado no fim de semana** (militar que estuda, ou determinação nesse sentido) | Busque o militar — ele já entra como **só fim de semana**. Para outro arranjo, clique nos dias: **D S T Q Q S S**. Dourado = pode entrar. |
+| **Determinação judicial de trabalhar parte do mês** | No campo **teto**, informe o **% do mês** (ex.: 50). |
+| **Os dois juntos** — é o caso da Sd Lhais | Marque **só fim de semana** *e* teto de **50%**. |
+
+**Como a conta é feita quando são os dois.** O percentual incide **sobre os dias que sobraram**, não sobre o mês inteiro. Exemplo real, agosto/2026, equipe A:
+
+- a equipe A entra **7 vezes** no mês (rodízio 24/72);
+- dessas, só **2** caem em fim de semana;
+- com teto de 50%, a militar entra **1 vez** — metade dos fins de semana dela.
+
+Sem o teto, ela entraria nos 2. É essa a diferença entre as duas restrições: **os dias dizem *quando* ela pode; o percentual diz *quantas vezes*.**
+
+**Para escalar fora da restrição.** O motor respeita sozinho, mas o escalante continua com a palavra final: ao buscar o militar na folha do dia, aparece o aviso — *“só pode ser escalado só fim de semana e tem REDUÇÃO de 50% dos serviços no mês. Escalar mesmo assim?”* — e é só confirmar.
+
+**Para tirar a restrição**, clique no **×** na linha do militar.
+
+> A etiqueta ao lado do nome mostra a situação de relance: *“só fim de semana · máx. 50%/mês”*.
 
 ### Acrescentar um 2º patrulheiro na Força Tática
 

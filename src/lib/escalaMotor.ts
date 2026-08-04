@@ -23,6 +23,10 @@ export type Cadastro = {
   padraoEscala?: string;   // ex.: "3 por 6" (3 trab / 6 folga). Vazio = 24/72 (sede).
   // Reducao judicial: idPmma -> percentual MAXIMO de servicos no mes (ex.: 50).
   reducaoJudicial?: Record<string, number>;
+  // Dias da semana em que o militar PODE ser escalado (0=domingo ... 6=sabado).
+  // Ausente ou lista vazia = todos os dias. Ex.: [0,6] = so fim de semana, para
+  // quem estuda durante a semana ou tem determinacao nesse sentido.
+  diasPermitidos?: Record<string, number[]>;
   // ROTEM: horario padrao por dia da semana (0=domingo ... 6=sabado). E so o
   // ponto de partida — na folha do dia o horario continua editavel.
   rotemHorariosPadrao?: string[][];
@@ -58,6 +62,27 @@ export function incluiComReducao(pct: number | undefined, ordNoMes: number): boo
   if (!pct || pct <= 0 || pct >= 100) return true;
   const f = pct / 100;
   return Math.floor((ordNoMes + 1) * f) > Math.floor(ordNoMes * f);
+}
+
+/* O militar pode entrar de serviço NESTE dia da semana? Lista ausente ou
+   vazia = pode em qualquer dia (o caso da imensa maioria). Serve para quem só
+   é escalado no fim de semana — militar que estuda durante a semana, ou com
+   determinação nesse sentido. */
+export function podeNoDia(dias: number[] | undefined, iso: string): boolean {
+  if (!dias || dias.length === 0) return true;
+  const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return true;
+  return dias.includes(new Date(+m[1], +m[2] - 1, +m[3]).getDay());
+}
+
+/** Rótulo curto dos dias permitidos, para a tela e os avisos. */
+export function rotuloDias(dias?: number[]): string {
+  if (!dias || dias.length === 0 || dias.length === 7) return "todos os dias";
+  const nomes = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+  const ord = [...dias].sort((a, b) => a - b);
+  if (ord.length === 2 && ord[0] === 0 && ord[1] === 6) return "só fim de semana";
+  if (ord.length === 5 && ord.join() === "1,2,3,4,5") return "só dias úteis";
+  return "só " + ord.map((d) => nomes[d]).join(", ");
 }
 
 /* Interpreta o padrão digitado ("3 por 6", "3x6", "1/3"...) em dias de trabalho
@@ -162,14 +187,23 @@ export function assignDia(iso: string, cad: Cadastro, escalas: Record<string, an
   // Reducao judicial: quantos dias da equipe deste dia ja passaram no mes (para
   // distribuir o teto). Depois pula o militar capado nos dias fora da cota.
   const rj = cad.reducaoJudicial || {};
+  const dp = cad.diasPermitidos || {};
   const teamDoDia = (d: string) => EQUIPES_ABCD[timeDoDia(diasEntre(r, d), padrao) % EQUIPES_ABCD.length];
-  const ordEquipeMes = (d: string, tm: string) => { let n = -1; for (let x = inicioMesISO(d); x <= d; x = proxDia(x)) if (teamDoDia(x) === tm) n++; return n; };
+  // Conta só os dias da equipe em que o militar PODE entrar: assim o teto
+  // percentual incide sobre os dias que sobram, e não sobre o mês inteiro.
+  const ordEquipeMes = (d: string, tm: string, dias?: number[]) => {
+    let n = -1;
+    for (let x = inicioMesISO(d); x <= d; x = proxDia(x)) if (teamDoDia(x) === tm && podeNoDia(dias, x)) n++;
+    return n;
+  };
   const dq = (fk: string) => {
     const ids: string[] = [];
     const push1 = (id: string) => {
       if (!id) return;
+      const dias = dp[id];
+      if (!podeNoDia(dias, iso)) return;                                  // dia da semana não permitido
       const pct = rj[id];
-      if (pct && !incluiComReducao(pct, ordEquipeMes(iso, team))) return; // teto judicial do mes
+      if (pct && !incluiComReducao(pct, ordEquipeMes(iso, team, dias))) return; // teto judicial do mes
       ids.push(id);
     };
     push1(q[team]?.[fk] || "");

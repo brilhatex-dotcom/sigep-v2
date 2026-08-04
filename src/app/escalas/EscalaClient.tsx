@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { padronizarBrasao } from "@/lib/imagem";
 import CarimboSigep from "@/components/CarimboSigep";
 import { compararAntiguidade } from "@/lib/patentes";
-import { incluiComReducao, ROTEM_HORARIOS_PADRAO, horariosRotemDoDia } from "@/lib/escalaMotor";
+import { incluiComReducao, podeNoDia, rotuloDias, ROTEM_HORARIOS_PADRAO, horariosRotemDoDia } from "@/lib/escalaMotor";
 
 /* =========================================================================
    SIGEP-18BPM  ·  MODULO DE ESCALAS  (Escala de Servico diaria)  ·  v2 UX
@@ -129,6 +129,9 @@ type Cadastro = {
   reducaoJudicial?: Record<string, number>;
   // ROTEM: horario padrao por dia da semana (0=domingo ... 6=sabado).
   rotemHorariosPadrao?: string[][];
+  // Dias da semana em que o militar pode ser escalado (0=dom ... 6=sab).
+  // Ausente/vazio = todos. Ex.: [0,6] = so fim de semana (quem estuda).
+  diasPermitidos?: Record<string, number[]>;
 };
 
 type Brasoes = {
@@ -486,9 +489,21 @@ function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
   const q = cad.quadroEquipes || {};
   // Reducao judicial: pula o militar capado nos dias fora da cota do mes.
   const rj = cad.reducaoJudicial || {};
+  const dp = cad.diasPermitidos || {};
   const teamDoDia = (d: string) => ["A", "B", "C", "D"][(((diasEntre(r, d) % 4) + 4) % 4)];
-  const ordEquipeMes = (d: string, tm: string) => { let n = -1; for (let x = inicioMesISO(d); x <= d; x = proxDia(x)) if (teamDoDia(x) === tm) n++; return n; };
-  const capadoHoje = (id: string) => { const pct = rj[id]; return pct ? !incluiComReducao(pct, ordEquipeMes(iso, team)) : false; };
+  // Conta só os dias da equipe em que o militar PODE entrar: o teto percentual
+  // incide sobre os dias que sobram, não sobre o mês inteiro.
+  const ordEquipeMes = (d: string, tm: string, dias?: number[]) => {
+    let n = -1;
+    for (let x = inicioMesISO(d); x <= d; x = proxDia(x)) if (teamDoDia(x) === tm && podeNoDia(dias, x)) n++;
+    return n;
+  };
+  const capadoHoje = (id: string) => {
+    const dias = dp[id];
+    if (!podeNoDia(dias, iso)) return true;   // dia da semana não permitido
+    const pct = rj[id];
+    return pct ? !incluiComReducao(pct, ordEquipeMes(iso, team, dias)) : false;
+  };
   // Pula quem está AFASTADO (férias/LP/etc.) no dia — o ausente sai da escala a
   // partir da data, deixando a vaga em branco para o escalante cobrir.
   const dqNome = (fk: string) => { const id = q[team]?.[fk] || ""; return id && !afastado(id, iso, cad.afastamentos) && !capadoHoje(id) ? nm(id) : ""; };
@@ -608,7 +623,8 @@ function Editable({
 // Leva o efetivo ate os SlotInline (autocomplete de permuta) sem prop-drilling.
 const EfetivoCtx = createContext<Militar[]>([]);
 // Redução judicial (idPmma -> %/mês) para avisar ao escalar manualmente.
-const ReducaoCtx = createContext<Record<string, number>>({});
+type Restricoes = { pct: Record<string, number>; dias: Record<string, number[]>; data: string };
+const ReducaoCtx = createContext<Restricoes>({ pct: {}, dias: {}, data: "" });
 
 /* Autocomplete do substituto da permuta: digita e sugere policiais do efetivo,
    guardando o NOME formatado. Na tela mostra input + sugestoes; na impressao,
@@ -713,7 +729,7 @@ function ordenaPorPatente(slots: Slot[], efetivo?: Militar[]): Slot[] {
 function SlotList({
   slots, onChange, center, centro, semPermuta, efetivo, ordenar,
 }: { slots: Slot[]; onChange: (s: Slot[]) => void; center?: boolean; centro?: boolean; semPermuta?: boolean; efetivo?: Militar[]; ordenar?: boolean }) {
-  const reducoes = useContext(ReducaoCtx);
+  const restr = useContext(ReducaoCtx);
   const upd = (i: number, ns: Slot) => { const a = slots.slice(); a[i] = ns; onChange(a); };
   const rm = (i: number) => onChange(slots.filter((_, j) => j !== i));
   const add = () => onChange([...slots, s()]);
@@ -722,9 +738,14 @@ function SlotList({
   // recem-adicionado sobe para a posicao da patente (maior antiguidade no topo).
   const addMilitar = (id: string) => {
     const m = efetivo?.find((x) => x.id === id); if (!m) return;
-    const pct = reducoes[id];
-    if (pct && pct > 0 && pct < 100 &&
-        !window.confirm(`⚠️ ${fmtMilitar(m)} tem REDUÇÃO JUDICIAL de ${pct}% dos serviços no mês.\n\nEscalar mesmo assim?`)) return;
+    // Avisa quando o militar tem restrição — teto no mês e/ou dia da semana.
+    const pct = restr.pct[id];
+    const dias = restr.dias[id];
+    const avisos: string[] = [];
+    if (!podeNoDia(dias, restr.data)) avisos.push(`só pode ser escalado ${rotuloDias(dias)}`);
+    if (pct && pct > 0 && pct < 100) avisos.push(`tem REDUÇÃO de ${pct}% dos serviços no mês`);
+    if (avisos.length &&
+        !window.confirm(`⚠️ ${fmtMilitar(m)} ${avisos.join(" e ")}.\n\nEscalar mesmo assim?`)) return;
     const nome = fmtMilitar(m);
     const iVazia = slots.findIndex((sl) => !semTags(sl.titular || "").trim());
     let novo: Slot[];
@@ -1573,6 +1594,7 @@ export default function EscalaClient() {
   const [planoAfast, setPlanoAfast] = useState<Afastamento[]>([]);
   // Reducao judicial (idPmma -> percentual/mes) — mesclado no cadEff em memoria.
   const [reducaoJudicial, setReducaoJudicial] = useState<Record<string, number>>({});
+  const [diasPermitidos, setDiasPermitidos] = useState<Record<string, number[]>>({});
   const [data, setData] = useState<string>(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -1639,8 +1661,14 @@ export default function EscalaClient() {
       .then((d) => {
         if (Array.isArray(d?.reducoes)) {
           const m: Record<string, number> = {};
-          for (const x of d.reducoes) if (x?.idPmma && x?.percentual) m[String(x.idPmma)] = Number(x.percentual);
+          const dd: Record<string, number[]> = {};
+          for (const x of d.reducoes) {
+            if (!x?.idPmma) continue;
+            if (x.percentual) m[String(x.idPmma)] = Number(x.percentual);
+            if (Array.isArray(x.dias) && x.dias.length) dd[String(x.idPmma)] = x.dias.map(Number);
+          }
           setReducaoJudicial(m);
+          setDiasPermitidos(dd);
         }
       })
       .catch(() => {});
@@ -1947,13 +1975,15 @@ export default function EscalaClient() {
       .map((a) => ({ militar: a.idPmma, tipo: "ferias", inicio: a.inicio, fim: a.fim }));
     const todos = [...extra, ...planoAfast];
     const temRj = Object.keys(reducaoJudicial).length > 0;
+    const temDp = Object.keys(diasPermitidos).length > 0;
     if (todos.length === 0 && !temRj) return cad;
     return {
       ...cad,
       afastamentos: [...(cad.afastamentos || []), ...todos],
       ...(temRj ? { reducaoJudicial } : {}),
+      ...(temDp ? { diasPermitidos } : {}),
     };
-  }, [cad, feriasAvulsas, planoAfast, reducaoJudicial]);
+  }, [cad, feriasAvulsas, planoAfast, reducaoJudicial, diasPermitidos]);
 
   // Auto-preenche na FOLHA os campos vindos do QUADRO (FT, RP, Guarda,
   // Inteligência) que estão VAZIOS, para os dias de HOJE em diante já salvos.
@@ -2236,7 +2266,7 @@ export default function EscalaClient() {
 
   return (
     <EfetivoCtx.Provider value={efetivo}>
-    <ReducaoCtx.Provider value={reducaoJudicial}>
+    <ReducaoCtx.Provider value={{ pct: reducaoJudicial, dias: diasPermitidos, data }}>
     <div className="app-shell">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <BarraFormatacao />

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ORGANOGRAMA, acharNo, pertenceAoNo, type NoOrg } from "@/lib/organograma";
 import FolhaUnidadeRp from "@/components/FolhaUnidadeRp";
-import { parsePadrao, timeDoDia, incluiComReducao } from "@/lib/escalaMotor";
+import { parsePadrao, timeDoDia, incluiComReducao, podeNoDia, rotuloDias } from "@/lib/escalaMotor";
 
 /* Lugares selecionáveis (DPM/CIA/Pelotão/seções) para o botão "mudar de
    lotação" no quadro de equipes. Achatado do organograma (sem a raiz). */
@@ -56,6 +56,7 @@ type Cadastro = {
   padraoEscala?: string;   // como a escala desta unidade funciona (ex.: "3 por 6")
   // Reducao judicial: idPmma -> percentual MAXIMO de servicos no mes (ex.: 50).
   reducaoJudicial?: Record<string, number>;
+  diasPermitidos?: Record<string, number[]>;
 };
 
 type Militar = {
@@ -209,9 +210,19 @@ function assignDia(iso: string, cad: Cadastro, escalas: Record<string, any>, idD
   // Reducao judicial: distribui o teto mensal pulando o militar capado nos dias
   // fora da cota (conta os dias da mesma equipe ja passados no mes).
   const rj = cad.reducaoJudicial || {};
+  const dp = cad.diasPermitidos || {};
   const teamDoDia = (d: string) => times[timeDoDia(diasEntre(r, d), padrao) % times.length];
-  const ordEquipeMes = (d: string, tm: string) => { let n = -1; for (let x = inicioMesISO(d); x <= d; x = proxDia(x)) if (teamDoDia(x) === tm) n++; return n; };
-  const capadoHoje = (id: string) => { const pct = rj[id]; return pct ? !incluiComReducao(pct, ordEquipeMes(iso, team)) : false; };
+  const ordEquipeMes = (d: string, tm: string, dias?: number[]) => {
+    let n = -1;
+    for (let x = inicioMesISO(d); x <= d; x = proxDia(x)) if (teamDoDia(x) === tm && podeNoDia(dias, x)) n++;
+    return n;
+  };
+  const capadoHoje = (id: string) => {
+    const dias = dp[id];
+    if (!podeNoDia(dias, iso)) return true;   // dia da semana não permitido
+    const pct = rj[id];
+    return pct ? !incluiComReducao(pct, ordEquipeMes(iso, team, dias)) : false;
+  };
   // Pula quem está AFASTADO (férias/LP/etc.) no dia — o militar ausente sai da
   // escala a partir da data, deixando a vaga para o escalante cobrir.
   const dq = (fk: string) => {
@@ -497,93 +508,137 @@ function AfastamentosMini({
   );
 }
 
-/* Redução judicial: percentual MÁXIMO de serviços no mês por militar (ex.: 50%).
-   O motor distribui o teto automaticamente; o escalante ainda pode escalar além
-   (com confirmação). Salvo em Config "reducao_judicial" (fora do cad). */
-function ReducaoJudicialMini({
-  efetivo, nomeDe, reducoes, setReducoes,
+/* RESTRIÇÕES DE ESCALA por militar, num lugar só:
+     · teto percentual no mês (determinação judicial);
+     · dias da semana em que ele pode entrar (ex.: só fim de semana, para quem
+       estuda durante a semana).
+   As duas se combinam: fim de semana + 50% = metade dos fins de semana da
+   equipe dele no mês. O motor aplica sozinho; o escalante ainda pode escalar
+   além, com confirmação. Salvo em Config "reducao_judicial" (fora do cad). */
+const DIAS_CURTO = ["D", "S", "T", "Q", "Q", "S", "S"];
+const DIAS_NOME = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+
+function RestricoesEscalaMini({
+  efetivo, nomeDe, reducoes, setReducoes, dias, setDias,
 }: {
   efetivo: Militar[];
   nomeDe: (t: string) => string;
   reducoes: Record<string, number>;
   setReducoes: (updater: (m: Record<string, number>) => Record<string, number>) => void;
+  dias: Record<string, number[]>;
+  setDias: (updater: (m: Record<string, number[]>) => Record<string, number[]>) => void;
 }) {
   const [q, setQ] = useState("");
-  const [pct, setPct] = useState(50);
   const [salvando, setSalvando] = useState(false);
-  const ids = Object.keys(reducoes);
+  // Todo militar que tem alguma restrição (teto, dias, ou os dois).
+  const ids = useMemo(
+    () => [...new Set([...Object.keys(reducoes), ...Object.keys(dias)])]
+      .sort((a, b) => nomeDe(a).localeCompare(nomeDe(b))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [reducoes, dias],
+  );
   const jaTem = new Set(ids);
   const res = useMemo(() => {
     const t = q.trim().toLowerCase(); if (!t) return [];
     return efetivo.filter((m) => !jaTem.has(m.id))
       .filter((m) => (fmtMilitar(m) + " " + (m.matricula || "")).toLowerCase().includes(t)).slice(0, 6);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, efetivo, reducoes]);
+  }, [q, efetivo, reducoes, dias]);
 
-  const salvar = async (id: string, nome: string, percentual: number) => {
+  /* Grava no servidor e no estado. Campo omitido = mantém o que já estava. */
+  const salvar = async (id: string, nome: string, patch: { percentual?: number; dias?: number[] }) => {
     setSalvando(true);
     try {
       const r = await fetch("/api/escala/reducao-judicial", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idPmma: id, nome, percentual }),
+        body: JSON.stringify({ idPmma: id, nome, ...patch }),
       });
-      if (!r.ok) { alert("Falha ao salvar a redução."); return; }
+      const d = await r.json().catch(() => null);
+      if (!r.ok) { alert(d?.error || "Falha ao salvar a restrição."); return; }
       setReducoes((m) => {
         const n = { ...m };
-        if (percentual > 0 && percentual < 100) n[id] = percentual; else delete n[id];
+        const p = Number(d?.percentual) || 0;
+        if (p > 0 && p < 100) n[id] = p; else delete n[id];
         return n;
       });
-    } catch { alert("Falha ao salvar a redução."); }
+      setDias((m) => {
+        const n = { ...m };
+        const ds: number[] = Array.isArray(d?.dias) ? d.dias : [];
+        if (ds.length) n[id] = ds; else delete n[id];
+        return n;
+      });
+    } catch { alert("Falha ao salvar a restrição."); }
     finally { setSalvando(false); }
   };
-  const add = (m: Militar) => { const p = Math.max(1, Math.min(99, pct || 50)); salvar(m.id, fmtMilitar(m), p); setQ(""); };
+
+  const alternarDia = (id: string, dia: number) => {
+    const atual = dias[id] || [];
+    const cur = new Set(atual.length ? atual : [0, 1, 2, 3, 4, 5, 6]);
+    if (cur.has(dia)) cur.delete(dia); else cur.add(dia);
+    salvar(id, nomeDe(id), { dias: [...cur].sort((a, b) => a - b) });
+  };
 
   return (
     <div className="mp-afm no-print">
-      <div className="mp-afm-search" style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        <input value={q} placeholder="Buscar militar com redução judicial..." onChange={(e) => setQ(e.target.value)} style={{ flex: 1 }} />
-        <label style={{ fontSize: 12, color: "#9fb3c8", whiteSpace: "nowrap" }}>
-          %/mês
-          <input type="number" min={1} max={99} value={pct} onChange={(e) => setPct(Number(e.target.value))}
-            style={{ width: 56, marginLeft: 4 }} />
-        </label>
+      <div className="mp-afm-search">
+        <input value={q} placeholder="Buscar militar para restringir a escala..." onChange={(e) => setQ(e.target.value)} />
         {q.trim() !== "" && (
           <div className="mp-afm-res">
             {res.length === 0 ? <div className="mp-afm-vazio">nenhum (ou já cadastrado)</div>
-              : res.map((m) => <button key={m.id} onMouseDown={(e) => e.preventDefault()} onClick={() => add(m)}>{fmtMilitar(m)}</button>)}
+              : res.map((m) => (
+                <button key={m.id} onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => { salvar(m.id, fmtMilitar(m), { dias: [0, 6] }); setQ(""); }}>
+                  {fmtMilitar(m)}
+                </button>
+              ))}
           </div>
         )}
       </div>
+      {q.trim() !== "" && <div className="mp-rest-dica">Ao escolher, entra como <b>só fim de semana</b> — depois é só ajustar os dias e o teto abaixo.</div>}
+
       {ids.length > 0 && (
-        <div className="mp-afm-list">
-          {ids.map((id) => (
-            <div key={id} className="mp-afm-linha">
-              <span className="mp-afm-nome">{nomeDe(id)}</span>
-              <label style={{ fontSize: 12, color: "#9fb3c8" }}>
-                máx.
-                <input type="number" min={1} max={99} value={reducoes[id]} disabled={salvando}
-                  onChange={(e) => { const v = Math.max(1, Math.min(99, Number(e.target.value) || 0)); setReducoes((m) => ({ ...m, [id]: v })); }}
-                  onBlur={(e) => salvar(id, nomeDe(id), Math.max(1, Math.min(99, Number(e.target.value) || 0)))}
-                  style={{ width: 56, margin: "0 2px" }} />
-                % do mês
-              </label>
-              <button className="mp-afm-del" title="remover" disabled={salvando} onClick={() => salvar(id, nomeDe(id), 0)}>×</button>
-            </div>
-          ))}
+        <div className="mp-rest-lista">
+          {ids.map((id) => {
+            const ds = dias[id] || [];
+            const pct = reducoes[id] || 0;
+            return (
+              <div key={id} className="mp-rest-linha">
+                <div className="mp-rest-topo">
+                  <span className="mp-afm-nome">{nomeDe(id)}</span>
+                  <span className="mp-rest-tag">{rotuloDias(ds)}{pct ? ` · máx. ${pct}%/mês` : ""}</span>
+                  <button className="mp-afm-del" title="tirar a restrição" disabled={salvando}
+                    onClick={() => salvar(id, nomeDe(id), { percentual: 0, dias: [] })}>×</button>
+                </div>
+                <div className="mp-rest-controles">
+                  <span className="mp-rest-rot">Entra em</span>
+                  <div className="mp-rest-dias">
+                    {DIAS_CURTO.map((d, i) => {
+                      const on = ds.length === 0 || ds.includes(i);
+                      return (
+                        <button key={i} type="button" title={DIAS_NOME[i]} disabled={salvando}
+                          className={"mp-rest-dia" + (on ? " on" : "")}
+                          onClick={() => alternarDia(id, i)}>{d}</button>
+                      );
+                    })}
+                  </div>
+                  <button type="button" className="mp-rest-atalho" disabled={salvando}
+                    onClick={() => salvar(id, nomeDe(id), { dias: [0, 6] })}>só fim de semana</button>
+                  <label className="mp-rest-rot">
+                    teto
+                    <input type="number" min={0} max={99} value={pct} disabled={salvando}
+                      onChange={(e) => { const v = Math.max(0, Math.min(99, Number(e.target.value) || 0)); setReducoes((m) => ({ ...m, [id]: v })); }}
+                      onBlur={(e) => salvar(id, nomeDe(id), { percentual: Math.max(0, Math.min(99, Number(e.target.value) || 0)) })} />
+                    % do mês
+                  </label>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
-      <p style={{ fontSize: 11, color: "#7f93a8", marginTop: 4 }}>
-        O motor limita automaticamente os serviços no mês. Você ainda pode escalar
-        o militar manualmente além do teto (o sistema pede confirmação).
-      </p>
     </div>
   );
 }
-
-/* Quadro interativo de escala por equipes A/B/C/D. Cada celula = 1 militar
-   (funcao x equipe). Arrasta para mover entre celulas/colunas; adiciona por
-   busca; registra afastamento (motivo + datas) que vai para cad.afastamentos
-   (o mesmo do motor). Tudo salvo no servidor via cad. */
 function QuadroEquipes({
   cad, setCad, efetivo, nomeDe, teamDias, funcoes = FUNCOES_EQUIPE,
 }: {
@@ -880,6 +935,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
   const [planoAfast, setPlanoAfast] = useState<Afastamento[]>([]);
   // Reducao judicial (idPmma -> percentual/mes) — mesclado no cadEff em memoria.
   const [reducaoJudicial, setReducaoJudicial] = useState<Record<string, number>>({});
+  const [diasPermitidos, setDiasPermitidos] = useState<Record<string, number[]>>({});
   // Edicao do CPU direto na linha (excecao por dia).
   const [editCpu, setEditCpu] = useState<string | null>(null);
   const [buscaCpu, setBuscaCpu] = useState("");
@@ -1030,14 +1086,16 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
   const cadEff = useMemo<Cadastro>(
     () => {
       const temRj = Object.keys(reducaoJudicial).length > 0;
+      const temDp = Object.keys(diasPermitidos).length > 0;
       if (!planoAfast.length && !temRj) return cad;
       return {
         ...cad,
         afastamentos: [...(cad.afastamentos || []), ...planoAfast],
         ...(temRj ? { reducaoJudicial } : {}),
+        ...(temDp ? { diasPermitidos } : {}),
       };
     },
-    [cad, planoAfast, reducaoJudicial]
+    [cad, planoAfast, reducaoJudicial, diasPermitidos]
   );
 
   // Quando uma vaga do QUADRO fica vazia porque o militar do dia está afastado,
@@ -1097,6 +1155,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
   const escalasRef = useRef(escalas); escalasRef.current = escalas;
   const planoAfastRef = useRef(planoAfast); planoAfastRef.current = planoAfast;
   const reducaoJudRef = useRef(reducaoJudicial); reducaoJudRef.current = reducaoJudicial;
+  const diasPermRef = useRef(diasPermitidos); diasPermRef.current = diasPermitidos;
   const reaplicarQuadroCore = async (silent: boolean) => {
     const escalasAtual = escalasRef.current;
     const cadBase = cadRef.current;
@@ -1108,6 +1167,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
           ...cadBase,
           afastamentos: [...(cadBase.afastamentos || []), ...planoAfastRef.current],
           ...(temRj ? { reducaoJudicial: reducaoJudRef.current } : {}),
+          ...(Object.keys(diasPermRef.current).length ? { diasPermitidos: diasPermRef.current } : {}),
         }
       : cadBase;
     const hj = hoje || toISO(new Date());
@@ -1622,11 +1682,15 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
       </div>
 
       <div className="mp-equipes no-print" style={{ marginTop: 14 }}>
-        <div className="mp-equipes-tit">Redução judicial de escala</div>
+        <div className="mp-equipes-tit">Restrições de escala por militar</div>
         <div className="mp-equipes-sub">
-          Para o militar com <b>determinação judicial</b> de trabalhar só parte do mês (ex.: 50%). O motor limita automaticamente os serviços; você ainda pode escalá-lo além do teto (com confirmação).
+          Para quem <b>não entra em qualquer dia</b>: militar que estuda e só é escalado no fim de semana, ou com <b>determinação judicial</b> de trabalhar parte do mês (ex.: 50%). Dá para usar as duas coisas juntas — fim de semana <i>e</i> 50% = metade dos fins de semana da equipe dele. O motor aplica sozinho; você ainda pode escalá-lo fora disso, com confirmação.
         </div>
-        <ReducaoJudicialMini efetivo={efetivo} nomeDe={nomeDe} reducoes={reducaoJudicial} setReducoes={setReducaoJudicial} />
+        <RestricoesEscalaMini
+          efetivo={efetivo} nomeDe={nomeDe}
+          reducoes={reducaoJudicial} setReducoes={setReducaoJudicial}
+          dias={diasPermitidos} setDias={setDiasPermitidos}
+        />
       </div>
 
       <div className="mp-rodape no-print">
@@ -1837,6 +1901,26 @@ const CSS = `
 .mp-afm-list{ display:flex; flex-direction:column; gap:6px; }
 .mp-afm-linha{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .mp-afm-nome{ flex:1; min-width:200px; font-size:13px; color:#E8EEF6; }
+
+/* Restrições de escala por militar (dias da semana + teto no mês) */
+.mp-rest-dica{ font-size:11px; color:#9fb3c8; margin:6px 2px 0; }
+.mp-rest-lista{ display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+.mp-rest-linha{ background:#0d1830; border:1px solid #1d2c44; border-radius:10px; padding:9px 11px; }
+.mp-rest-topo{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.mp-rest-tag{ font-size:11px; color:#f3df9d; background:#3a2f10; border:1px solid #6b5320;
+  border-radius:999px; padding:2px 9px; white-space:nowrap; }
+.mp-rest-controles{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:8px; }
+.mp-rest-rot{ font-size:11px; color:#9fb3c8; display:inline-flex; align-items:center; gap:4px; }
+.mp-rest-rot input{ width:52px; background:#0a1626; color:#E8EEF6; border:1px solid #28395a;
+  border-radius:7px; padding:5px 7px; font-size:12px; }
+.mp-rest-dias{ display:flex; gap:3px; }
+.mp-rest-dia{ width:26px; height:26px; border-radius:7px; border:1px solid #28395a;
+  background:#0a1626; color:#5b6b85; font-size:11px; font-weight:700; cursor:pointer; }
+.mp-rest-dia.on{ background:#D4AF37; border-color:#D4AF37; color:#1a1205; }
+.mp-rest-dia:hover:not(.on){ border-color:#D4AF37; color:#9fb3c8; }
+.mp-rest-atalho{ font-size:11px; color:#9fb3c8; background:#16243a; border:1px solid #2b3f63;
+  border-radius:7px; padding:5px 9px; cursor:pointer; }
+.mp-rest-atalho:hover{ border-color:#D4AF37; color:#fff; }
 .mp-afm-linha select, .mp-afm-linha input{ background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:8px; padding:6px 9px; font-size:12.5px; }
 .mp-afm-del{ background:#0a1626; color:#9fb0c7; border:1px solid #28395a; border-radius:6px; width:28px; height:30px; cursor:pointer; }
 .mp-afm-del:hover{ border-color:#e06464; color:#ffb3b3; }
