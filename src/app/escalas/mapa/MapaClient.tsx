@@ -627,6 +627,9 @@ function RestricoesEscalaMini({
                     teto
                     <input type="number" min={0} max={99} value={pct} disabled={salvando}
                       onChange={(e) => { const v = Math.max(0, Math.min(99, Number(e.target.value) || 0)); setReducoes((m) => ({ ...m, [id]: v })); }}
+                      // salva ao sair do campo OU no Enter — assim ninguém perde
+                      // o que digitou por ter recarregado a página antes de clicar fora
+                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                       onBlur={(e) => salvar(id, nomeDe(id), { percentual: Math.max(0, Math.min(99, Number(e.target.value) || 0)) })} />
                     % do mês
                   </label>
@@ -958,8 +961,15 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
       .then((d) => {
         if (Array.isArray(d?.reducoes)) {
           const m: Record<string, number> = {};
-          for (const x of d.reducoes) if (x?.idPmma && x?.percentual) m[String(x.idPmma)] = Number(x.percentual);
+          const dd: Record<string, number[]> = {};
+          for (const x of d.reducoes) {
+            if (!x?.idPmma) continue;
+            if (x.percentual) m[String(x.idPmma)] = Number(x.percentual);
+            // sem esta linha os dias da semana sumiam ao recarregar a página
+            if (Array.isArray(x.dias) && x.dias.length) dd[String(x.idPmma)] = x.dias.map(Number);
+          }
           setReducaoJudicial(m);
+          setDiasPermitidos(dd);
         }
       })
       .catch(() => {});
