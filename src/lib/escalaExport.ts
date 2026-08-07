@@ -31,6 +31,9 @@ export type EscalaDia = {
   extraOperacao?: string; extraCmtOperacao?: string; extraLocal?: string; extraHorario?: string; extraUniforme?: string;
   extraReforco?: { postoGrad?: string; nome?: string }[];
   observacao?: string;
+  // Observação por seção: linha fina logo abaixo do bloco correspondente.
+  obsCpu?: string; obsGuarda?: string; obsRp?: string;
+  obsInteligencia?: string; obsFt?: string; obsRotem?: string; obsExpediente?: string;
 };
 type Brasoes = { pmma?: string; ma?: string; bpm?: string };
 type Chefe = { nome?: string; funcao?: string; assinatura?: string; assinarGov?: boolean; cmtAssinatura?: string };
@@ -132,6 +135,17 @@ function expedienteDocx(e: EscalaDia): Table | null {
     new TableRow({ children: [celRotulo("P1", 16), celValor(val("", ex.p1), 34, true), celRotulo("RONDA ESCOLAR", 16), celValor(val("", ex.rondaEscolar), 34, true)] }),
     new TableRow({ children: [celRotulo("P3", 16), celValor(val("", ex.p3), 34, true), celRotulo("PATRULHA MARIA DA PENHA", 16), celValor(val("", ex.patrulha), 34, true)] }),
   ];
+  if (limpa(e.obsExpediente || "")) {
+    rowsExp.push(new TableRow({
+      children: [new TableCell({
+        columnSpan: 4, borders: BORDAS, verticalAlign: VerticalAlign.CENTER,
+        children: [new Paragraph({
+          alignment: AlignmentType.LEFT,
+          children: [run("OBS: ", { bold: true, size: 12 }), run(limpa(e.obsExpediente || ""), { italics: true, size: 13 })],
+        })],
+      })],
+    }));
+  }
   return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: rowsExp });
 }
 
@@ -167,25 +181,47 @@ function reforcoDocx(e: EscalaDia): Table {
   return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows });
 }
 
+/* Linha fina de OBSERVAÇÃO logo abaixo do bloco. Vazia, nem entra na tabela —
+   é o que mantém a folha numa página só. */
+function celObs(txt?: string): TableRow[] {
+  const t = limpa(txt || "");
+  if (!t) return [];
+  return [new TableRow({
+    children: [new TableCell({
+      columnSpan: 2, borders: BORDAS, verticalAlign: VerticalAlign.CENTER,
+      children: [new Paragraph({
+        alignment: AlignmentType.LEFT,
+        children: [run("OBS: ", { bold: true, size: 12 }), run(t, { italics: true, size: 13 })],
+      })],
+    })],
+  })];
+}
+
 function servicosDocx(e: EscalaDia): Table {
   const L = 30, V = 70;
   const rowDado = (lbl: string, valor: string) => new TableRow({ children: [celRotulo(lbl, L), celValor(valor, V)] });
   const rows: TableRow[] = [
     rowDado("CPU DE DIA", nomeSlot(e.cpuDeDia)),
+    ...celObs(e.obsCpu),
     celFaixa("GUARDA DO QUARTEL", 2),
     rowDado("PERMANENTE", lista(e.guardaPermanente)),
+    ...celObs(e.obsGuarda),
     celFaixa("RÁDIO PATRULHA", 2),
     rowDado("ADJUNTO DE DIA", nomeSlot(e.rpAdjunto)),
     rowDado("MOTORISTA", nomeSlot(e.rpMotorista)),
     rowDado("PATRULHEIRO", lista(e.rpPatrulheiro)),
+    ...celObs(e.obsRp),
     celFaixa("SERVIÇO DE INTELIGÊNCIA 24 HRS", 2),
     new TableRow({ children: [new TableCell({ columnSpan: 2, borders: BORDAS, verticalAlign: VerticalAlign.CENTER, children: (lista(e.inteligencia) || " ").split("\n").map((l) => linhaP(l)) })] }),
+    ...celObs(e.obsInteligencia),
     celFaixa("FORÇA TÁTICA", 2),
     rowDado("GRADUADO", nomeSlot(e.ftGraduado)),
     rowDado("MOTORISTA", nomeSlot(e.ftMotorista)),
     rowDado("PATRULHEIRO", listaOuSlot(e.ftPatrulheiro)),
+    ...celObs(e.obsFt),
     celFaixa("ROTEM", 2),
     new TableRow({ children: [celValor((e.rotemHorarios || []).filter(Boolean).join("\n"), L, true), celValor(lista(e.rotemMilitares), V)] }),
+    ...celObs(e.obsRotem),
   ];
   return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows });
 }
@@ -413,25 +449,34 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
       r4("CMT FT", v(ex.cmtFt || ""), "P4", v("", ex.p4));
       r4("P1", v("", ex.p1), "RONDA ESCOLAR", v("", ex.rondaEscolar));
       r4("P3", v("", ex.p3), "PATRULHA M. DA PENHA", v("", ex.patrulha));
+      if (limpa(e.obsExpediente || "")) drawLinha([{ text: "OBS: " + limpa(e.obsExpediente || ""), w: 1 }]);
       y -= 6;
     }
     // Servicos
     const d2 = (lbl: string, valor: string, center = false) => drawLinha([{ text: lbl, w: 0.3, bold: true, center: true, fill: true }, { text: valor, w: 0.7, center }]);
+    // Observação da seção: só desenha quando preenchida (não rouba altura).
+    const obs = (txt?: string) => { const t = limpa(txt || ""); if (t) drawLinha([{ text: "OBS: " + t, w: 1 }]); };
     d2("CPU DE DIA", nomeSlot(e.cpuDeDia));
+    obs(e.obsCpu);
     faixa("GUARDA DO QUARTEL");
     d2("PERMANENTE", lista(e.guardaPermanente));
+    obs(e.obsGuarda);
     faixa("RÁDIO PATRULHA");
     d2("ADJUNTO DE DIA", nomeSlot(e.rpAdjunto));
     d2("MOTORISTA", nomeSlot(e.rpMotorista));
     d2("PATRULHEIRO", lista(e.rpPatrulheiro));
+    obs(e.obsRp);
     faixa("SERVIÇO DE INTELIGÊNCIA 24 HRS");
     drawLinha([{ text: lista(e.inteligencia), w: 1, center: true }]);
+    obs(e.obsInteligencia);
     faixa("FORÇA TÁTICA");
     d2("GRADUADO", nomeSlot(e.ftGraduado));
     d2("MOTORISTA", nomeSlot(e.ftMotorista));
     d2("PATRULHEIRO", listaOuSlot(e.ftPatrulheiro));
+    obs(e.obsFt);
     faixa("ROTEM");
     drawLinha([{ text: (e.rotemHorarios || []).filter(Boolean).join("\n"), w: 0.3, bold: true, center: true, fill: true }, { text: lista(e.rotemMilitares), w: 0.7 }]);
+    obs(e.obsRotem);
     temQuartel = true;
   }
 

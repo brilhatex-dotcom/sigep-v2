@@ -112,6 +112,14 @@ function ListaTexto({ valor, center, centro, semPermuta }: {
   );
 }
 
+/** Observação de uma seção: linha fina abaixo do bloco. Vazia, não aparece. */
+function ObsSecao({ texto }: { texto?: string }) {
+  if (!semTags(texto || "")) return null;
+  return (
+    <tr><td className="obs-sec" colSpan={2}><b>OBS:</b> <T html={texto} /></td></tr>
+  );
+}
+
 function Brasao({ src, w, h }: { src?: string; w: number; h: number }) {
   if (!src) return <div style={{ width: w, height: h }} />;
   return (
@@ -362,6 +370,9 @@ export default function FolhaEscalaView({
                     </tr>
                   </>
                 )}
+                {semTags(e.obsExpediente || "") && (
+                  <tr><td className="obs-sec" colSpan={4}><b>OBS:</b> <T html={e.obsExpediente} /></td></tr>
+                )}
               </tbody></table>
             )}
 
@@ -369,28 +380,34 @@ export default function FolhaEscalaView({
               <>
                 <table className="tbl mt"><tbody>
                   <tr><td className="lbl w-cpu">CPU DE DIA</td><td className="val"><SlotTexto slot={e.cpuDeDia || {}} /></td></tr>
+                  <ObsSecao texto={e.obsCpu} />
 
                   <tr><td className="hd" colSpan={2}>GUARDA DO QUARTEL</td></tr>
                   <tr><td className="lbl w-cpu">PERMANENTE</td><td className="val"><ListaTexto valor={e.guardaPermanente} /></td></tr>
+                  <ObsSecao texto={e.obsGuarda} />
 
                   <tr><td className="hd" colSpan={2}>RÁDIO PATRULHA</td></tr>
                   <tr><td className="lbl w-cpu">ADJUNTO DE DIA</td><td className="val"><SlotTexto slot={e.rpAdjunto || {}} /></td></tr>
                   <tr><td className="lbl w-cpu">MOTORISTA</td><td className="val"><SlotTexto slot={e.rpMotorista || {}} /></td></tr>
                   <tr><td className="lbl w-cpu">PATRULHEIRO</td><td className="val"><ListaTexto valor={e.rpPatrulheiro} /></td></tr>
+                  <ObsSecao texto={e.obsRp} />
 
                   <tr><td className="hd" colSpan={2}>SERVIÇO DE INTELIGÊNCIA 24 HRS</td></tr>
                   <tr><td className="val" colSpan={2}><ListaTexto valor={e.inteligencia} centro /></td></tr>
+                  <ObsSecao texto={e.obsInteligencia} />
 
                   <tr><td className="hd" colSpan={2}>FORÇA TÁTICA</td></tr>
                   <tr><td className="lbl w-cpu">GRADUADO</td><td className="val"><SlotTexto slot={e.ftGraduado || {}} /></td></tr>
                   <tr><td className="lbl w-cpu">MOTORISTA</td><td className="val"><SlotTexto slot={e.ftMotorista || {}} /></td></tr>
                   <tr><td className="lbl w-cpu">PATRULHEIRO</td><td className="val"><ListaTexto valor={e.ftPatrulheiro} /></td></tr>
+                  <ObsSecao texto={e.obsFt} />
 
                   <tr><td className="hd" colSpan={2}>ROTEM</td></tr>
                   <tr>
                     <td className="lbl w-cpu rotem-h">{(e.rotemHorarios || []).filter(Boolean).map((h: string, i: number) => <div key={i}>{h}</div>)}</td>
                     <td className="val"><ListaTexto valor={e.rotemMilitares} /></td>
                   </tr>
+                  <ObsSecao texto={e.obsRotem} />
                 </tbody></table>
 
                 {temObs && (
@@ -475,6 +492,8 @@ const CSS = `
 .fev-root .tbl .feriado{ text-align:center; font-style:italic; font-weight:700; vertical-align:middle; }
 .fev-root .w-cpu{ width:30%; }
 .fev-root .rotem-h{ font-style:italic; font-weight:700; vertical-align:middle; }
+.fev-root .tbl td.obs-sec{ font-size:12.5px; font-style:italic; padding:1px 6px; line-height:1.2; }
+.fev-root .tbl td.obs-sec b{ font-style:normal; font-size:11.5px; }
 
 .fev-root .extra{ margin-top:8px; }
 .fev-root .extra-campos{ margin:8px 0 10px; }

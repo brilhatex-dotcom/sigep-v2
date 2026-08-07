@@ -84,6 +84,16 @@ type Escala = {
   joeRows?: JoeEscalaLinha[];
   // Observação/nota livre no rodapé (opcional; só aparece/imprime se preenchida).
   observacao?: string;
+  // Observação POR SEÇÃO: sai numa linha fina logo abaixo do bloco a que se
+  // refere (ex.: uma nota da Rádio Patrulha fica embaixo da Rádio Patrulha).
+  // Só ocupa espaço quando preenchida — a folha continua cabendo numa página.
+  obsCpu?: string;
+  obsGuarda?: string;
+  obsRp?: string;
+  obsInteligencia?: string;
+  obsFt?: string;
+  obsRotem?: string;
+  obsExpediente?: string;
 };
 
 type TipoAfastamento =
@@ -768,6 +778,22 @@ function SlotList({
       )}
       <button className="no-print mini add" onClick={add}>+ linha em branco</button>
     </div>
+  );
+}
+
+/* Observação de UMA SEÇÃO da folha (Rádio Patrulha, Força Tática, ROTEM...).
+   Sai numa linha fina logo abaixo do bloco a que se refere. Vazia, some da
+   impressão e do Word/PDF — então não empurra a escala para a 2ª página; na
+   tela fica esmaecida, convidando a auxiliar a escrever ali. */
+function ObsSecao({ valor, onChange }: { valor?: string; onChange: (v: string) => void }) {
+  const vazia = !semTags(valor || "").trim();
+  return (
+    <tr className={vazia ? "obs-sec-tr vazio-noprint" : "obs-sec-tr"}>
+      <td className="obs-sec" colSpan={2}>
+        <span className="obs-sec-lbl">OBS:</span>{" "}
+        <Editable value={valor || ""} placeholder="observação desta seção (opcional)" onChange={onChange} />
+      </td>
+    </tr>
   );
 }
 
@@ -2583,6 +2609,7 @@ export default function EscalaClient() {
                       </tr>
                     </>
                   )}
+                  <ObsSecao valor={e.obsExpediente} onChange={(v) => editE((d) => { d.obsExpediente = v; })} />
                 </tbody></table>
               )}
 
@@ -2590,28 +2617,34 @@ export default function EscalaClient() {
               {/* SERVICO 24H */}
               <table className="tbl mt"><tbody>
                 <tr><td className="lbl w-cpu">CPU DE DIA</td><td className="val"><SlotInline slot={e.cpuDeDia} onChange={(ns) => editE((d) => { d.cpuDeDia = ns; })} /></td></tr>
+                <ObsSecao valor={e.obsCpu} onChange={(v) => editE((d) => { d.obsCpu = v; })} />
 
                 <tr><td className="hd" colSpan={2}>GUARDA DO QUARTEL</td></tr>
                 <tr><td className="lbl w-cpu">PERMANENTE</td><td className="val"><SlotList efetivo={efetivo} slots={e.guardaPermanente} onChange={(arr) => editE((d) => { d.guardaPermanente = arr; })} /></td></tr>
+                <ObsSecao valor={e.obsGuarda} onChange={(v) => editE((d) => { d.obsGuarda = v; })} />
 
                 <tr><td className="hd" colSpan={2}>RÁDIO PATRULHA</td></tr>
                 <tr><td className="lbl w-cpu">ADJUNTO DE DIA</td><td className="val"><SlotInline slot={e.rpAdjunto} onChange={(ns) => editE((d) => { d.rpAdjunto = ns; })} /></td></tr>
                 <tr><td className="lbl w-cpu">MOTORISTA</td><td className="val"><SlotInline slot={e.rpMotorista} onChange={(ns) => editE((d) => { d.rpMotorista = ns; })} /></td></tr>
                 <tr><td className="lbl w-cpu">PATRULHEIRO</td><td className="val"><SlotList efetivo={efetivo} slots={e.rpPatrulheiro} onChange={(arr) => editE((d) => { d.rpPatrulheiro = arr; })} /></td></tr>
+                <ObsSecao valor={e.obsRp} onChange={(v) => editE((d) => { d.obsRp = v; })} />
 
                 <tr><td className="hd" colSpan={2}>SERVIÇO DE INTELIGÊNCIA 24 HRS</td></tr>
                 <tr><td className="val" colSpan={2}><SlotList efetivo={efetivo} centro slots={e.inteligencia} onChange={(arr) => editE((d) => { d.inteligencia = arr; })} /></td></tr>
+                <ObsSecao valor={e.obsInteligencia} onChange={(v) => editE((d) => { d.obsInteligencia = v; })} />
 
                 <tr><td className="hd" colSpan={2}>FORÇA TÁTICA</td></tr>
                 <tr><td className="lbl w-cpu">GRADUADO</td><td className="val"><SlotInline slot={e.ftGraduado} onChange={(ns) => editE((d) => { d.ftGraduado = ns; })} /></td></tr>
                 <tr><td className="lbl w-cpu">MOTORISTA</td><td className="val"><SlotInline slot={e.ftMotorista} onChange={(ns) => editE((d) => { d.ftMotorista = ns; })} /></td></tr>
                 <tr><td className="lbl w-cpu">PATRULHEIRO</td><td className="val"><SlotList efetivo={efetivo} slots={e.ftPatrulheiro} onChange={(arr) => editE((d) => { d.ftPatrulheiro = arr; })} /></td></tr>
+                <ObsSecao valor={e.obsFt} onChange={(v) => editE((d) => { d.obsFt = v; })} />
 
                 <tr><td className="hd" colSpan={2}>ROTEM</td></tr>
                 <tr>
                   <td className="lbl w-cpu rotem-h"><HorarioList horarios={e.rotemHorarios} onChange={(arr) => editE((d) => { d.rotemHorarios = arr; })} /></td>
                   <td className="val"><SlotList efetivo={efetivo} slots={e.rotemMilitares} onChange={(arr) => editE((d) => { d.rotemMilitares = arr; })} /></td>
                 </tr>
+                <ObsSecao valor={e.obsRotem} onChange={(v) => editE((d) => { d.obsRotem = v; })} />
               </tbody></table>
 
               {/* OBSERVAÇÃO logo após a ROTEM/escala; "Quartel + data" abaixo dela.
@@ -2891,6 +2924,16 @@ const CSS = `
 .w-cpu{ width:30%; }
 .rotem-h{ font-style:italic; font-weight:700; vertical-align:middle; }
 
+/* Observação por seção: linha fina logo abaixo do bloco a que se refere.
+   Preenchida, sai no papel; vazia, some da impressão e fica discreta na tela,
+   só marcando o lugar para a auxiliar clicar. */
+.tbl td.obs-sec{ font-size:12.5px; font-style:italic; padding:1px 6px; line-height:1.2; }
+.obs-sec-lbl{ font-weight:700; font-style:normal; font-size:11.5px; }
+@media screen{
+  .obs-sec-tr.vazio-noprint td.obs-sec{ opacity:.3; font-size:10.5px; padding:0 6px; }
+  .obs-sec-tr.vazio-noprint:hover td.obs-sec{ opacity:.75; }
+}
+
 /* Escala extraordinaria (print 3) */
 .extra{ margin-top:8px; }
 .extra-campos{ margin:8px 0 10px; }
@@ -2968,6 +3011,7 @@ const CSS = `
   .doc-paper, .doc-paper *{ visibility:visible !important; }
   .doc-paper{ position:absolute; left:0; top:0; width:100% !important; max-width:none !important; box-shadow:none !important; padding:0 !important; }
   .obs-rodape.vazio-noprint{ display:none !important; }
+  .obs-sec-tr.vazio-noprint{ display:none !important; }
   .no-print{ display:none !important; }
   .editavel:empty:before{ content:"" !important; }
   .editavel:hover, .editavel:focus{ background:transparent !important; }

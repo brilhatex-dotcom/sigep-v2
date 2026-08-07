@@ -255,6 +255,18 @@ O horário da ROTEM **já vem preenchido conforme o dia da semana** — não pre
 - Para mudar o padrão de vez, vá em **Escalas de Serviço → aba Configuração → ROTEM · horário por dia da semana**. Ali dá para editar cada dia, acrescentar turnos e voltar ao padrão do batalhão pelo botão **↺**.
 - Quem vai de serviço (os militares da ROTEM) continua vindo das **equipes fixas**, logo abaixo, pelo rodízio de 3 em 3 dias ou pelos dias da semana marcados em cada equipe.
 
+### Observação por seção (Rádio Patrulha, Força Tática...)
+
+Cada bloco da folha tem a sua **linha de observação**, logo abaixo dele. Se a nota é da **Rádio Patrulha**, ela sai embaixo da Rádio Patrulha; se é da **Força Tática**, embaixo da Força Tática — e assim por diante. Tem uma para cada bloco:
+
+**Expediente · CPU de Dia · Guarda do Quartel · Rádio Patrulha · Inteligência · Força Tática · ROTEM**
+
+Como usar: na folha do dia, clique na linha cinza-clara **“OBS: observação desta seção”** logo abaixo do bloco e escreva. Pronto — salva sozinho, como o resto da folha.
+
+> **A folha continua numa página só.** A linha é fina e, quando está **vazia, não ocupa espaço nenhum** no papel, no Word nem no PDF — ela simplesmente não é impressa. Na tela ela aparece bem apagadinha, só para marcar o lugar; passando o mouse por cima, ela realça.
+
+A **OBSERVAÇÃO geral** continua onde sempre esteve, no rodapé, para o que vale para a escala inteira. Use a do bloco quando a nota for de um serviço específico — fica mais claro para quem lê.
+
 ### Demais telas de escala
 
 - **Publicações** — o arquivo de tudo que já foi publicado, por mês, com download em PDF/Word. É o histórico oficial.
