@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plane, Plus, Trash2, Search, FileText } from "lucide-react";
 import MemorandoFerias, { DadosMemorando } from "@/components/MemorandoFerias";
 import { classificarPatente } from "@/lib/patentes";
@@ -27,14 +28,16 @@ function diaSeguinteBR(fimIso: string): string {
   return `${String(b.getDate()).padStart(2, "0")}/${String(b.getMonth() + 1).padStart(2, "0")}/${b.getFullYear()}`;
 }
 function ehOficialPosto(posto?: string): boolean { return classificarPatente(posto ?? "").ordem <= 7; }
-// Numero do memorando: vem gravado da avulsa (serie propria por ano, atribuida
-// no cadastro e imutavel). Avulsa sem numero cai na linha em branco de antes.
+// Numero do memorando: calculado no servidor (lib/numeracaoMemorandos) e vem
+// pronto da API. O avulso entra na fila UNICA do plano, logo depois da equipe
+// que estava de ferias na data em que foi cadastrado — nao tem serie propria.
+// Sem numero (ex.: avulsa sem data de inicio) cai na linha em branco de antes.
 function numeroMemo(a: Avulsa): string {
   return typeof a.numero === "number" && a.numero > 0 ? String(a.numero).padStart(3, "0") : "____";
 }
-// Ano do memorando = ano de inicio das ferias, que e o ano da serie. Nao usa o
-// ano selecionado na tela: um periodo que vira o ano aparece nas duas listagens
-// mas o documento tem que sair sempre com o ano em que foi numerado.
+// Ano do memorando = ano de inicio das ferias, que e o ano do plano em que a
+// avulsa foi numerada. Nao usa o ano selecionado na tela: um periodo que vira o
+// ano aparece nas duas listagens mas o documento sai sempre com o ano da fila.
 function anoMemo(a: Avulsa, anoTela: string): string { return (a.inicio || "").slice(0, 4) || anoTela; }
 
 export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: boolean }) {
@@ -48,6 +51,7 @@ export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: 
   const [salvando, setSalvando] = useState(false);
   const [abrirForm, setAbrirForm] = useState(false);
   const [memo, setMemo] = useState<{ dados: DadosMemorando; ano: string } | null>(null);
+  const router = useRouter();
 
   const carregar = () => {
     fetch(`/api/ferias/avulsas?ano=${encodeURIComponent(ano)}`).then((r) => r.ok ? r.json() : null)
@@ -75,7 +79,10 @@ export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: 
       const d = await r.json();
       if (!r.ok) { alert(d.error || "Falha ao salvar."); return; }
       setSel(null); setBusca(""); setInicio(""); setFim(""); setObs(""); setAbrirForm(false);
+      // A avulsa entra no meio da fila: recarrega a lista E o plano acima, cujos
+      // numeros de memorando sobem a partir da equipe seguinte.
       carregar();
+      router.refresh();
     } catch { alert("Falha ao salvar."); }
     finally { setSalvando(false); }
   };
@@ -104,7 +111,9 @@ export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: 
     try {
       const r = await fetch(`/api/ferias/avulsas?id=${encodeURIComponent(id)}`, { method: "DELETE" });
       if (!r.ok) throw new Error();
-      setAvulsas((l) => l.filter((a) => a.id !== id));
+      // Remover tambem mexe na fila: os numeros seguintes descem um.
+      carregar();
+      router.refresh();
     } catch { alert("Falha ao remover."); }
   };
 
@@ -181,7 +190,7 @@ export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: 
               <div>
                 <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-white">
                   {a.nome || a.idPmma}
-                  <span className="rounded border border-[#D4AF37]/30 px-1.5 py-0.5 text-[10px] font-medium text-[#D4AF37]" title="Número do memorando (fixo, não muda ao reimprimir)">
+                  <span className="rounded border border-[#D4AF37]/30 px-1.5 py-0.5 text-[10px] font-medium text-[#D4AF37]" title="Número do memorando na numeração contínua do plano de férias">
                     Memo nº {numeroMemo(a)}/{anoMemo(a, ano)}
                   </span>
                 </p>

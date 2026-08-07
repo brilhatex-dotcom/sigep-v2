@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import LicencaPremioClient from "@/components/LicencaPremioClient";
 import { classificarPatente } from "@/lib/patentes";
+import { numeracaoDoAno } from "@/lib/numeracaoMemorandos";
 import { paraData, dataBR, hojeBR, diffDias } from "@/lib/ferias";
 
 export const dynamic = "force-dynamic";
@@ -136,13 +137,11 @@ export default async function LicencaPremioPage({
   ).length;
   const totalPracas = totalMilitares - totalOficiais;
 
-  // Numeracao CONTINUA dos memorandos: as ferias ocupam 1..N (N = total de
-  // militares do plano de ferias do mesmo ano); a Licenca-Premio segue logo
-  // em seguida (N+1 em diante — ex.: ferias terminando em 107, LP comeca em
-  // 108). Contamos os militares de ferias do ano para saber onde continuar.
-  const baseNumeroMemorando = await prisma.membroFerias.count({
-    where: { anoGozo: anoSelecionado },
-  });
+  // Numeracao CONTINUA dos memorandos: as ferias ocupam 1..N (militares do
+  // plano MAIS as ferias avulsas do ano, intercaladas na ordem em que foram
+  // cadastradas); a Licenca-Premio segue logo em seguida (N+1 em diante — ex.:
+  // ferias terminando em 108, LP comeca em 109).
+  const baseNumeroMemorando = (await numeracaoDoAno(anoSelecionado)).ultimo;
 
   const isAdmin = (session.user.perfil ?? "").toLowerCase() === "admin";
 
