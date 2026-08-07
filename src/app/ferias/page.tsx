@@ -6,6 +6,7 @@ import AppShell from "@/components/AppShell";
 import PlanoFeriasClient from "@/components/PlanoFeriasClient";
 import FeriasAvulsas from "@/components/FeriasAvulsas";
 import { classificarPatente } from "@/lib/patentes";
+import { numeracaoDoAno } from "@/lib/numeracaoMemorandos";
 import {
   paraData,
   dataBR,
@@ -136,6 +137,10 @@ export default async function FeriasPage({
 
   const isAdmin = (session.user.perfil ?? "").toLowerCase() === "admin";
 
+  // Numeração contínua dos memorandos do ano (plano + férias avulsas
+  // intercaladas). A LP continua a partir do último número.
+  const numeracao = await numeracaoDoAno(anoSelecionado);
+
   // Militares que ADIARAM as férias (não saem de férias; alimentam o relatório
   // de férias vencidas). Guardado em Config "ferias_postergados".
   let postergadosIniciais: { idPmma: string; nome: string; motivo: string; data: string; exercicio?: string }[] = [];
@@ -168,6 +173,7 @@ export default async function FeriasPage({
             totalOficiais={totalOficiais}
             totalPracas={totalPracas}
             isAdmin={isAdmin}
+            numerosMemorando={numeracao.militares}
             postergadosIniciais={postergadosIniciais}
           />
         )}

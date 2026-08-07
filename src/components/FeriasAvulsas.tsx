@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plane, Plus, Trash2, Search, FileText } from "lucide-react";
 import MemorandoFerias, { DadosMemorando } from "@/components/MemorandoFerias";
 import { classificarPatente } from "@/lib/patentes";
@@ -8,7 +9,7 @@ import { classificarPatente } from "@/lib/patentes";
 /* Férias em DATAS SOLTAS (individual), fora do plano por equipes.
    Conta como "Férias" na situacao (dashboard/lotacao/efetivo/organograma). */
 
-type Avulsa = { id: string; idPmma: string; nome: string; inicio: string; fim: string; obs: string };
+type Avulsa = { id: string; idPmma: string; nome: string; inicio: string; fim: string; obs: string; numero?: number };
 type Militar = { id: string; postoGrad?: string; numeroBarra?: string; nome?: string; nomeGuerra?: string; quadro?: string; matricula?: string };
 
 function brData(iso: string) { return iso && iso.length >= 10 ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : iso; }
@@ -27,6 +28,17 @@ function diaSeguinteBR(fimIso: string): string {
   return `${String(b.getDate()).padStart(2, "0")}/${String(b.getMonth() + 1).padStart(2, "0")}/${b.getFullYear()}`;
 }
 function ehOficialPosto(posto?: string): boolean { return classificarPatente(posto ?? "").ordem <= 7; }
+// Numero do memorando: calculado no servidor (lib/numeracaoMemorandos) e vem
+// pronto da API. O avulso entra na fila UNICA do plano, logo depois da equipe
+// que estava de ferias na data em que foi cadastrado — nao tem serie propria.
+// Sem numero (ex.: avulsa sem data de inicio) cai na linha em branco de antes.
+function numeroMemo(a: Avulsa): string {
+  return typeof a.numero === "number" && a.numero > 0 ? String(a.numero).padStart(3, "0") : "____";
+}
+// Ano do memorando = ano de inicio das ferias, que e o ano do plano em que a
+// avulsa foi numerada. Nao usa o ano selecionado na tela: um periodo que vira o
+// ano aparece nas duas listagens mas o documento sai sempre com o ano da fila.
+function anoMemo(a: Avulsa, anoTela: string): string { return (a.inicio || "").slice(0, 4) || anoTela; }
 
 export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: boolean }) {
   const [avulsas, setAvulsas] = useState<Avulsa[]>([]);
@@ -38,7 +50,8 @@ export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: 
   const [obs, setObs] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [abrirForm, setAbrirForm] = useState(false);
-  const [memo, setMemo] = useState<DadosMemorando | null>(null);
+  const [memo, setMemo] = useState<{ dados: DadosMemorando; ano: string } | null>(null);
+  const router = useRouter();
 
   const carregar = () => {
     fetch(`/api/ferias/avulsas?ano=${encodeURIComponent(ano)}`).then((r) => r.ok ? r.json() : null)
@@ -66,7 +79,10 @@ export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: 
       const d = await r.json();
       if (!r.ok) { alert(d.error || "Falha ao salvar."); return; }
       setSel(null); setBusca(""); setInicio(""); setFim(""); setObs(""); setAbrirForm(false);
+      // A avulsa entra no meio da fila: recarrega a lista E o plano acima, cujos
+      // numeros de memorando sobem a partir da equipe seguinte.
       carregar();
+      router.refresh();
     } catch { alert("Falha ao salvar."); }
     finally { setSalvando(false); }
   };
@@ -74,16 +90,19 @@ export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: 
     const f = efetivo.find((m) => m.id === a.idPmma);
     const posto = f?.postoGrad || "";
     setMemo({
-      numero: "____",
-      postoGrad: posto,
-      numeroBarra: f?.numeroBarra || "",
-      nome: f?.nome || a.nome || "",
-      quadro: f?.quadro || "",
-      ehOficial: ehOficialPosto(posto),
-      inicioBR: brData(a.inicio),
-      apresentacaoBR: diaSeguinteBR(a.fim),
-      diasFerias: diasInclusivo(a.inicio, a.fim),
-      nomeGuerra: f?.nomeGuerra || "",
+      ano: anoMemo(a, ano),
+      dados: {
+        numero: numeroMemo(a),
+        postoGrad: posto,
+        numeroBarra: f?.numeroBarra || "",
+        nome: f?.nome || a.nome || "",
+        quadro: f?.quadro || "",
+        ehOficial: ehOficialPosto(posto),
+        inicioBR: brData(a.inicio),
+        apresentacaoBR: diaSeguinteBR(a.fim),
+        diasFerias: diasInclusivo(a.inicio, a.fim),
+        nomeGuerra: f?.nomeGuerra || "",
+      },
     });
   };
 
@@ -92,7 +111,9 @@ export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: 
     try {
       const r = await fetch(`/api/ferias/avulsas?id=${encodeURIComponent(id)}`, { method: "DELETE" });
       if (!r.ok) throw new Error();
-      setAvulsas((l) => l.filter((a) => a.id !== id));
+      // Remover tambem mexe na fila: os numeros seguintes descem um.
+      carregar();
+      router.refresh();
     } catch { alert("Falha ao remover."); }
   };
 
@@ -167,7 +188,12 @@ export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: 
           {avulsas.map((a) => (
             <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/5 bg-white/5 px-4 py-2.5">
               <div>
-                <p className="text-sm font-semibold text-white">{a.nome || a.idPmma}</p>
+                <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-white">
+                  {a.nome || a.idPmma}
+                  <span className="rounded border border-[#D4AF37]/30 px-1.5 py-0.5 text-[10px] font-medium text-[#D4AF37]" title="Número do memorando na numeração contínua do plano de férias">
+                    Memo nº {numeroMemo(a)}/{anoMemo(a, ano)}
+                  </span>
+                </p>
                 <p className="text-xs text-[#94A3B8]">{brData(a.inicio)} a {brData(a.fim)}{a.obs ? ` · ${a.obs}` : ""}</p>
               </div>
               <div className="flex items-center gap-2">
@@ -179,7 +205,7 @@ export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: 
         </ul>
       )}
 
-      {memo && <MemorandoFerias dados={memo} ano={ano} onFechar={() => setMemo(null)} />}
+      {memo && <MemorandoFerias dados={memo.dados} ano={memo.ano} onFechar={() => setMemo(null)} />}
     </section>
   );
 }

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import crypto from "crypto";
+import { anoDaAvulsa, numeracaoDoAno, type AvulsaBruta } from "@/lib/numeracaoMemorandos";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
    GET ?ano=2026 -> { avulsas }     POST -> cria (admin)     DELETE ?id -> remove */
 const CHAVE = "ferias_avulsas";
 
-type Avulsa = { id: string; idPmma: string; nome: string; inicio: string; fim: string; obs: string };
+type Avulsa = AvulsaBruta;
 
 function ehAdmin(perfil?: string | null): boolean {
   return (perfil || "").toLowerCase() === "admin";
@@ -32,10 +33,21 @@ export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
   const ano = new URL(req.url).searchParams.get("ano") || "";
-  let lista = ler((await prisma.config.findUnique({ where: { chave: CHAVE } }))?.valor);
-  if (ano) lista = lista.filter((a) => (a.inicio || "").slice(0, 4) === ano || (a.fim || "").slice(0, 4) === ano);
-  lista.sort((a, b) => (a.inicio || "").localeCompare(b.inicio || ""));
-  return NextResponse.json({ avulsas: lista });
+  const lista = ler((await prisma.config.findUnique({ where: { chave: CHAVE } }))?.valor);
+  let saida = lista;
+  if (ano) saida = saida.filter((a) => (a.inicio || "").slice(0, 4) === ano || (a.fim || "").slice(0, 4) === ano);
+  saida = [...saida].sort((a, b) => (a.inicio || "").localeCompare(b.inicio || ""));
+
+  // O numero do memorando e derivado da fila do plano do ano a que a avulsa
+  // pertence (ano de inicio das ferias) — nao fica gravado. Uma avulsa que
+  // atravessa o reveillon aparece nas duas listagens, mas sai sempre com o
+  // numero e o ano do plano em que foi numerada.
+  const numeros: Record<string, number> = {};
+  for (const anoPlano of new Set(saida.map(anoDaAvulsa).filter(Boolean))) {
+    Object.assign(numeros, (await numeracaoDoAno(anoPlano)).avulsas);
+  }
+
+  return NextResponse.json({ avulsas: saida.map((a) => ({ ...a, numero: numeros[a.id] })) });
 }
 
 export async function POST(req: Request) {
@@ -53,7 +65,10 @@ export async function POST(req: Request) {
     }
     if (fim < inicio) return NextResponse.json({ error: "A data final deve ser após a inicial." }, { status: 400 });
     const lista = ler((await prisma.config.findUnique({ where: { chave: CHAVE } }))?.valor);
-    lista.push({ id: crypto.randomUUID(), idPmma, nome: String(b?.nome || "").trim(), inicio, fim, obs: String(b?.obs || "").trim() });
+    // `criadoEm` ancora a avulsa na fila: ela entra logo depois da equipe que
+    // estava de ferias nesta data. Gravado uma vez, no cadastro.
+    const criadoEm = new Date().toISOString().slice(0, 10);
+    lista.push({ id: crypto.randomUUID(), idPmma, nome: String(b?.nome || "").trim(), inicio, fim, obs: String(b?.obs || "").trim(), criadoEm });
     await salvar(lista);
     return NextResponse.json({ ok: true });
   } catch (err) {

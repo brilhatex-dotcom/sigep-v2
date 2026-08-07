@@ -108,6 +108,7 @@ export default function PlanoFerias({
   totalOficiais,
   totalPracas,
   isAdmin,
+  numerosMemorando,
   onTrocarAno,
   postergadosIniciais = [],
 }: {
@@ -118,6 +119,7 @@ export default function PlanoFerias({
   totalOficiais: number;
   totalPracas: number;
   isAdmin: boolean;
+  numerosMemorando: Record<string, number>;
   onTrocarAno: (ano: string) => void;
   postergadosIniciais?: { idPmma: string; nome: string; motivo: string; data: string; exercicio?: string }[];
 }) {
@@ -440,26 +442,16 @@ export default function PlanoFerias({
     w.document.write(html); w.document.close(); w.focus(); w.print();
   }
 
-  // Numeracao GLOBAL e continua do memorando: percorre todas as equipes em
-  // ordem e atribui um numero sequencial a cada militar do plano inteiro,
-  // sem reiniciar a contagem quando muda de equipe. As FERIAS ocupam a
-  // primeira parte da sequencia (1..N, terminando em ~107/2026); a
-  // Licenca-Premio CONTINUA logo em seguida (108/2026 em diante), formando
-  // uma unica listagem corrida entre os dois memorandos.
-  const mapaNumeroGlobal = useMemo(() => {
-    const mapa = new Map<string, number>();
-    let seq = 0;
-    const equipesOrdenadas = [...equipes].sort(
-      (a, b) => Number(a.numeroEquipe) - Number(b.numeroEquipe)
-    );
-    for (const eq of equipesOrdenadas) {
-      for (const m of eq.membros) {
-        seq += 1;
-        mapa.set(m.efetivoId, seq);
-      }
-    }
-    return mapa;
-  }, [equipes]);
+  // Numeracao GLOBAL e continua do memorando, calculada no servidor
+  // (lib/numeracaoMemorandos): percorre as equipes em ordem e atribui um numero
+  // sequencial a cada militar do plano inteiro, sem reiniciar quando muda de
+  // equipe, INTERCALANDO as ferias avulsas na altura em que foram cadastradas.
+  // As FERIAS ocupam a primeira parte da sequencia e a Licenca-Premio CONTINUA
+  // logo em seguida, formando uma unica listagem corrida entre os memorandos.
+  const mapaNumeroGlobal = useMemo(
+    () => new Map(Object.entries(numerosMemorando)),
+    [numerosMemorando]
+  );
 
   const cartoes = useMemo(() => {
     const comMilitares = equipes.filter((e) => e.membros.length > 0).length;
