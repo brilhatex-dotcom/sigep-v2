@@ -679,8 +679,29 @@ function PermutaBusca({ value, onPick }: { value: string; onPick: (nome: string)
   );
 }
 
-function SlotInline({ slot, onChange, semPermuta }: { slot: Slot; onChange: (s: Slot) => void; semPermuta?: boolean }) {
+/* Aviso de restricao (teto no mes e/ou dia da semana) antes de escalar alguem.
+   Vale tanto para as listas quanto para os campos de UM nome so (CMT, SUBCMT,
+   CMT FT). Retorna false quando a auxiliar desiste no aviso. */
+function confirmaRestricao(m: Militar, restr: Restricoes): boolean {
+  const pct = restr.pct[m.id];
+  const dias = restr.dias[m.id];
+  const avisos: string[] = [];
+  if (!podeNoDia(dias, restr.data)) avisos.push(`só pode ser escalado ${rotuloDias(dias)}`);
+  if (pct && pct > 0 && pct < 100) avisos.push(`tem REDUÇÃO de ${pct}% dos serviços no mês`);
+  if (!avisos.length) return true;
+  return window.confirm(`⚠️ ${fmtMilitar(m)} ${avisos.join(" e ")}.\n\nEscalar mesmo assim?`);
+}
+
+function SlotInline({ slot, onChange, semPermuta, efetivo }: { slot: Slot; onChange: (s: Slot) => void; semPermuta?: boolean; efetivo?: Militar[] }) {
+  const restr = useContext(ReducaoCtx);
   const ativo = slot.permuta !== null;
+  // Buscador do efetivo nos campos de UM nome so: escolher no buscador troca o
+  // titular pelo nome ja formatado, sem precisar digitar.
+  const escolher = (id: string) => {
+    const m = efetivo?.find((x) => x.id === id);
+    if (!m || !confirmaRestricao(m, restr)) return;
+    onChange({ ...slot, titular: fmtMilitar(m) });
+  };
   return (
     <span className="slot">
       <Editable value={slot.titular} placeholder="..." onChange={(v) => onChange({ ...slot, titular: v })} />
@@ -694,6 +715,11 @@ function SlotInline({ slot, onChange, semPermuta }: { slot: Slot; onChange: (s: 
       ) : (
         <button className="no-print mini add" title="adicionar permuta" onClick={() => onChange({ ...slot, permuta: "", status: "aprovada" })}>+ permuta</button>
       ))}
+      {efetivo && efetivo.length > 0 && (
+        <span className="no-print slotlist-busca slot-busca">
+          <SeletorMilitar efetivo={efetivo} exclude={[]} onPick={escolher} placeholder="🔎 buscar militar..." />
+        </span>
+      )}
     </span>
   );
 }
@@ -749,13 +775,7 @@ function SlotList({
   const addMilitar = (id: string) => {
     const m = efetivo?.find((x) => x.id === id); if (!m) return;
     // Avisa quando o militar tem restrição — teto no mês e/ou dia da semana.
-    const pct = restr.pct[id];
-    const dias = restr.dias[id];
-    const avisos: string[] = [];
-    if (!podeNoDia(dias, restr.data)) avisos.push(`só pode ser escalado ${rotuloDias(dias)}`);
-    if (pct && pct > 0 && pct < 100) avisos.push(`tem REDUÇÃO de ${pct}% dos serviços no mês`);
-    if (avisos.length &&
-        !window.confirm(`⚠️ ${fmtMilitar(m)} ${avisos.join(" e ")}.\n\nEscalar mesmo assim?`)) return;
+    if (!confirmaRestricao(m, restr)) return;
     const nome = fmtMilitar(m);
     const iVazia = slots.findIndex((sl) => !semTags(sl.titular || "").trim());
     let novo: Slot[];
@@ -2585,13 +2605,13 @@ export default function EscalaClient() {
                     <>
                       <tr>
                         <td className="lbl">CMT</td>
-                        <td className="val val-c"><SlotInline semPermuta slot={s2(e.expediente.cmt)} onChange={(ns) => editE((d) => { d.expediente.cmt = ns.titular; })} /></td>
+                        <td className="val val-c"><SlotInline efetivo={efetivo} semPermuta slot={s2(e.expediente.cmt)} onChange={(ns) => editE((d) => { d.expediente.cmt = ns.titular; })} /></td>
                         <td className="lbl">SUBCMT</td>
-                        <td className="val val-c"><SlotInline semPermuta slot={s2(e.expediente.subcmt)} onChange={(ns) => editE((d) => { d.expediente.subcmt = ns.titular; })} /></td>
+                        <td className="val val-c"><SlotInline efetivo={efetivo} semPermuta slot={s2(e.expediente.subcmt)} onChange={(ns) => editE((d) => { d.expediente.subcmt = ns.titular; })} /></td>
                       </tr>
                       <tr>
                         <td className="lbl">CMT FT</td>
-                        <td className="val val-c"><SlotInline semPermuta slot={s2(e.expediente.cmtFt)} onChange={(ns) => editE((d) => { d.expediente.cmtFt = ns.titular; })} /></td>
+                        <td className="val val-c"><SlotInline efetivo={efetivo} semPermuta slot={s2(e.expediente.cmtFt)} onChange={(ns) => editE((d) => { d.expediente.cmtFt = ns.titular; })} /></td>
                         <td className="lbl">P4</td>
                         <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.p4} ordenar onChange={(arr) => editE((d) => { d.expediente.p4 = arr; })} /></td>
                       </tr>
@@ -2766,6 +2786,9 @@ const CSS = `
 /* Busca DENTRO da folha branca (seções P1/P3/P4/Ronda/Patrulha): sem a barra
    preta — fica transparente e discreta, sem poluir a folha. */
 .slotlist-busca{ margin-top:2px; }
+/* Buscador dentro de um campo de UM nome so (CMT, SUBCMT, CMT FT): o .slot e
+   inline, entao o buscador precisa cair na linha de baixo. */
+.slot-busca{ display:block; }
 .slotlist-busca .sel-mil input{ background:transparent; color:#1a1a1a; border:1px dashed #cfcfcf; }
 .slotlist-busca .sel-mil input::placeholder{ color:#9aa0a6; }
 .slotlist-busca .sel-mil input:focus{ background:#fff; border-style:solid; border-color:#D4AF37; }
