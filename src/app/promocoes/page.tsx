@@ -1,6 +1,8 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
+import { FileUp, AlertTriangle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import PainelPromocoes from "@/components/PainelPromocoes";
@@ -18,15 +20,39 @@ export default async function PromocoesPage() {
   // policial vai direto para a propria tela de envio
   if (!ehAdmin) redirect("/promocoes/minhas-certidoes");
   const periodo = await periodoAtivo();
+
+  // O administrador tambem e militar e tambem concorre a promocao, entao
+  // tambem precisa mandar as PROPRIAS certidoes. Como o menu leva o admin
+  // para este painel do P/1 (e so o policial e desviado para a tela de
+  // envio), sem este atalho ele nao tinha por onde chegar na propria tela.
+  const temFicha = !!session.user.refEfetivo;
+
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-6xl">
         <h1 className="mb-1 text-2xl font-bold text-white">
           Promoções — Certidões
         </h1>
-        <p className="mb-5 text-sm text-[#94A3B8]">
+        <p className="mb-4 text-sm text-[#94A3B8]">
           Gestão das certidões enviadas pelos militares no período de promoção.
         </p>
+
+        {temFicha ? (
+          <Link
+            href="/promocoes/minhas-certidoes"
+            className="mb-5 inline-flex items-center gap-2 rounded-lg border border-[#D4AF37]/40 px-3 py-2 text-sm font-medium text-[#D4AF37] transition hover:bg-[#D4AF37]/10"
+          >
+            <FileUp className="h-4 w-4" />
+            Enviar as minhas certidões
+          </Link>
+        ) : (
+          <p className="mb-5 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            Seu usuário de administrador não está vinculado a uma ficha de
+            efetivo, então não dá para enviar certidões próprias por aqui.
+            Vincule a ficha em Usuários e logins.
+          </p>
+        )}
         {!periodo ? (
           <CriarPeriodo />
         ) : (

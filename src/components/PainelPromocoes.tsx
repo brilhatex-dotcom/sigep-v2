@@ -83,6 +83,32 @@ export default function PainelPromocoes({
     }
   }
 
+  /* Destrava o lote de um militar (ele enviou algo errado e precisa trocar).
+     Volta o status para "nao enviado", liberando upload e a geracao do PDF. */
+  async function reabrir(efetivoId: string, quem: string) {
+    if (!confirm(
+      `Reabrir as certidões de ${quem || "este militar"}?\n\n` +
+      "Ele volta a poder trocar arquivos e gerar o PDF unificado de novo, " +
+      "e precisará enviar ao P/1 outra vez."
+    )) return;
+    setConfirmandoP1(efetivoId);
+    try {
+      const r = await fetch("/api/promocoes/status-p1", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acao: "reabrir", efetivoId, periodoId }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        alert(j?.error || "Falha ao reabrir.");
+        return;
+      }
+      router.refresh();
+    } finally {
+      setConfirmandoP1(null);
+    }
+  }
+
   // controles de periodo
   const [menuAberto, setMenuAberto] = useState(false);
   const [modalNovo, setModalNovo] = useState(false);
@@ -388,6 +414,19 @@ export default function PainelPromocoes({
                         >
                           {confirmandoP1 === p.efetivoId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ClipboardCheck className="h-3.5 w-3.5" />}
                           Confirmar recebimento
+                        </button>
+                      )}
+                      {/* Destravar: enviado ao P/1 fecha o lote, e so o P/1
+                          reabre. Sem este botao o militar que enviasse um
+                          arquivo errado ficava sem saida. */}
+                      {p.enviadoP1Em && (
+                        <button
+                          onClick={() => reabrir(p.efetivoId, p.nomeGuerra || p.nome || "")}
+                          disabled={confirmandoP1 === p.efetivoId}
+                          title="Destrava as certidões para o militar trocar algum arquivo"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-2.5 py-1 text-xs font-medium text-[#94A3B8] transition hover:bg-white/5 hover:text-white disabled:opacity-60"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" /> Reabrir
                         </button>
                       )}
                     </div>

@@ -6,6 +6,7 @@ import { baixarDoR2, enviarParaR2 } from "@/lib/r2";
 import { unirPdfs } from "@/lib/pdf";
 import { periodoAtivo } from "@/lib/promocoes";
 import { TOTAL_CERTIDOES } from "@/lib/certidoes";
+import { statusP1 } from "@/lib/promocaoStatusP1";
 
 // POST: junta as 8 certidoes (ordem oficial) num PDF unico, salva no
 // R2 e guarda a chave no participante.
@@ -28,6 +29,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { erro: "Usuário sem ficha de efetivo vinculada." },
         { status: 400 }
+      );
+    }
+
+    // Mesma trava do upload: lote protocolado no P/1 nao se refaz sem
+    // reabertura, senao o PDF que o P/1 esta conferindo mudava por baixo.
+    const st = await statusP1(periodo.id, efetivoId);
+    if (st?.enviadoEm) {
+      return NextResponse.json(
+        { erro: "Estas certidões já foram enviadas ao P/1 e estão travadas. Peça ao P/1 para reabrir." },
+        { status: 409 }
       );
     }
 

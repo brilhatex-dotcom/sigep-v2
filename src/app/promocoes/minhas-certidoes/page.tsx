@@ -7,7 +7,8 @@ import MinhasCertidoes from "@/components/MinhasCertidoes";
 import { periodoAtivo } from "@/lib/promocoes";
 import { CERTIDOES_EXIGIDAS, TOTAL_CERTIDOES } from "@/lib/certidoes";
 import { statusP1 } from "@/lib/promocaoStatusP1";
-import { AlertTriangle } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export default async function MinhasCertidoesPage() {
   if (!session) redirect("/login");
 
   const efetivoId = session.user.refEfetivo;
+  const ehAdmin = (session.user.perfil ?? "").toLowerCase() === "admin";
 
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
@@ -23,6 +25,16 @@ export default async function MinhasCertidoesPage() {
         <h1 className="mb-1 text-2xl font-bold text-white">
           Minhas Certidões para Promoção
         </h1>
+        {/* O menu leva o admin para o painel do P/1, entao ele chega aqui pelo
+            atalho de la — este link e a volta, para nao ficar sem saida. */}
+        {ehAdmin && (
+          <Link
+            href="/promocoes"
+            className="mb-3 inline-flex items-center gap-1.5 text-sm text-[#D4AF37] hover:underline"
+          >
+            <ArrowLeft className="h-4 w-4" /> Voltar ao painel do P/1
+          </Link>
+        )}
         <Conteudo efetivoId={efetivoId} />
       </div>
     </AppShell>
