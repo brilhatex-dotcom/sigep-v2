@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Printer, Save, Loader2, RotateCcw } from "lucide-react";
 import { classificarPatente } from "@/lib/patentes";
-import { BuscaMilitar, Campo, Cabecalho, ESTILO_FOLHA, FOLHA_A4, type Militar } from "@/components/diarias/Comum";
+import { BuscaMilitar, Campo, Cabecalho, ESTILO_FOLHA, FOLHA_A4, type Militar } from "@/components/docs/Comum";
 
 /* FICHA DE CADASTRO DE CREDOR (área de Diárias)
 

@@ -97,6 +97,7 @@ const NAV: Secao[] = [
       { rotulo: "Meu Mapa de Escala", href: "/meu-mapa", Icone: Map, disponivel: true, policialOnly: true },
       { rotulo: "Minhas Férias", href: "/minhas-ferias", Icone: Palmtree, disponivel: true, policialOnly: true },
       { rotulo: "Diárias", href: "/diarias", Icone: FileText, disponivel: true, adminOnly: true },
+      { rotulo: "Guia JMS e Ofício", href: "/guia-jms", Icone: HeartPulse, disponivel: true, adminOnly: true },
       { rotulo: "Escalas de Serviço", href: "/escalas", Icone: ClipboardList, disponivel: true, adminOnly: true },
       { rotulo: "Mapa de Escala", href: "/escalas/mapa", Icone: Map, disponivel: true, adminOnly: true },
       { rotulo: "Escalas das Unidades", href: "/escalas/unidades", Icone: Building2, disponivel: true, adminOnly: true },
@@ -135,7 +136,6 @@ const NAV: Secao[] = [
   {
     titulo: "Próximas versões",
     itens: [
-      { rotulo: "Guia JMS e Ofício", Icone: HeartPulse, adminOnly: true },
       { rotulo: "Histórico Policial Militar", Icone: History, adminOnly: true },
       { rotulo: "Motoristas / CNH", Icone: Car, adminOnly: true },
       { rotulo: "Telefones", Icone: Phone, adminOnly: true },

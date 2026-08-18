@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Printer, Save, Loader2, Plus, Trash2, Pencil, Check } from "lucide-react";
-import CarimboSigep from "@/components/CarimboSigep";
-import { BuscaMilitar, Campo, Cabecalho, ESTILO_FOLHA, FOLHA_A4, type Militar } from "@/components/diarias/Comum";
+import {
+  BuscaMilitar, Campo, Cabecalho, BlocoAssinatura, SeletorAssinatura,
+  ESTILO_FOLHA, FOLHA_A4, dataPorExtenso, type Militar, type ModoAss,
+} from "@/components/docs/Comum";
 
 /* FICHA DE CONTROLE INDIVIDUAL DE DIÁRIAS (área de Diárias)
 
@@ -22,17 +24,11 @@ import { BuscaMilitar, Campo, Cabecalho, ESTILO_FOLHA, FOLHA_A4, type Militar } 
 
 type Viagem = { id: string; bgNota: string; processo: string; trajeto: string; periodo: string; qtd: string };
 type Pessoais = { nome: string; matricula: string; idPm: string; cpf: string; lotacao: string };
-type ModoAss = "branco" | "sigep" | "gov";
 
 const PESSOAIS_VAZIO: Pessoais = { nome: "", matricula: "", idPm: "", cpf: "", lotacao: "" };
 
 function novaViagem(): Viagem {
   return { id: `v-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, bgNota: "", processo: "", trajeto: "", periodo: "", qtd: "" };
-}
-
-const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
-function dataPorExtenso(d = new Date()) {
-  return `${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}`;
 }
 
 export default function FichaControleIndividual() {
@@ -136,13 +132,6 @@ export default function FichaControleIndividual() {
     return Array.from(base).filter(Boolean).sort().reverse();
   }, [anosComRegistro, anoAtual, ano]);
 
-  const BotaoAss = ({ id, rotulo }: { id: ModoAss; rotulo: string }) => (
-    <button onClick={() => setModoAss(id)}
-      className={`rounded px-2 py-1 text-xs transition ${modoAss === id ? "bg-[#D4AF37] text-[#1a1205]" : "border border-white/10 text-[#94A3B8] hover:text-white"}`}>
-      {rotulo}
-    </button>
-  );
-
   return (
     <>
       <div className="mb-4 rounded-xl border border-white/10 bg-[#0F1B2D] p-4 print:hidden">
@@ -179,11 +168,8 @@ export default function FichaControleIndividual() {
               </button>
             </div>
 
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="text-xs text-[#94A3B8]">Assinatura do Comandante:</span>
-              <BotaoAss id="branco" rotulo="Em branco" />
-              <BotaoAss id="sigep" rotulo="Carimbo SIGEP" />
-              <BotaoAss id="gov" rotulo="Espaço p/ Gov.br" />
+            <div className="mt-3">
+              <SeletorAssinatura modo={modoAss} onChange={setModoAss} opcoes={["branco", "sigep", "gov", "imagem"]} />
             </div>
 
             {editando && (
@@ -275,18 +261,8 @@ export default function FichaControleIndividual() {
 
           {/* Assinatura do Cmt: em branco por padrão; carimbo da avançada SIGEP
               ou espaço reservado para assinar depois no Gov.br. */}
-          <div style={{ textAlign: "center", marginTop: "6mm" }}>
-            {modoAss === "sigep" ? (
-              <div style={{ display: "flex", justifyContent: "center", marginBottom: "1mm" }}>
-                <CarimboSigep nome={comandante} cargo="Cmt. do 18º BPM" largura="52mm" />
-              </div>
-            ) : (
-              // "branco" e "gov" reservam a mesma altura: no Gov.br a assinatura
-              // é aplicada depois, no PDF, e precisa desse espaço livre.
-              <div style={{ height: modoAss === "gov" ? "22mm" : "16mm" }} />
-            )}
-            <p style={{ margin: 0, fontWeight: "bold" }}>{comandante}</p>
-            <p style={{ margin: 0, fontWeight: "bold" }}>CMT. DO 18º BPM</p>
+          <div style={{ marginTop: "6mm" }}>
+            <BlocoAssinatura modo={modoAss} nome={comandante} cargo="CMT. DO 18º BPM" />
           </div>
         </div>
       )}
