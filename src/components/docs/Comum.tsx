@@ -85,6 +85,68 @@ export function BuscaMilitar({
   );
 }
 
+/* Buscador de VÁRIOS militares ao mesmo tempo — para quando um grupo viaja
+   junto e a mesma viagem vale para todos. Cada escolha vira um "chip"
+   removível; a busca ignora quem já está selecionado. */
+export function BuscaMilitarMultiplo({
+  selecionados, onAdicionar, onRemover, rotulo = "Militares",
+}: {
+  selecionados: Militar[];
+  onAdicionar: (m: Militar) => void;
+  onRemover: (id: string) => void;
+  rotulo?: string;
+}) {
+  const [efetivo, setEfetivo] = useState<Militar[]>([]);
+  const [busca, setBusca] = useState("");
+
+  useEffect(() => {
+    fetch("/api/efetivo").then((r) => (r.ok ? r.json() : null))
+      .then((d) => setEfetivo((d?.efetivo || d || []) as Militar[])).catch(() => {});
+  }, []);
+
+  const idsSel = useMemo(() => new Set(selecionados.map((m) => m.id)), [selecionados]);
+  const resultados = useMemo(() => {
+    const t = busca.trim().toLowerCase();
+    if (!t) return [];
+    return efetivo
+      .filter((m) => !idsSel.has(m.id))
+      .filter((m) => (nomeBusca(m) + " " + (m.nome || "") + " " + (m.matricula || "")).toLowerCase().includes(t))
+      .slice(0, 8);
+  }, [busca, efetivo, idsSel]);
+
+  return (
+    <div className="relative">
+      <label className="mb-1 block text-xs text-[#94A3B8]">{rotulo}</label>
+      {selecionados.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {selecionados.map((m) => (
+            <span key={m.id} className="inline-flex items-center gap-1.5 rounded-full border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-2.5 py-1 text-xs text-white">
+              {nomeBusca(m)}
+              <button onClick={() => onRemover(m.id)} className="text-[#94A3B8] hover:text-red-300" title="remover">×</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+        <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Adicionar militar por nome ou matrícula..."
+          className="w-full rounded-lg border border-white/10 bg-[#0b1626] py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+      </div>
+      {busca.trim() !== "" && (
+        <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-white/10 bg-[#0b1626] shadow-xl">
+          {resultados.length === 0 ? <div className="px-3 py-2 text-xs text-[#94A3B8]">Nenhum militar.</div> :
+            resultados.map((m) => (
+              <button key={m.id} onClick={() => { setBusca(""); onAdicionar(m); }}
+                className="block w-full px-3 py-2 text-left text-sm text-white hover:bg-white/5">
+                {nomeBusca(m)} {m.matricula && <span className="text-xs text-[#94A3B8]">mat {m.matricula}</span>}
+              </button>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* Campo editável direto na folha. Guarda só o TEXTO (não HTML), porque o valor
    pode voltar para o cadastro do militar. O pontilhado marca onde clicar na
    tela e some na impressão. */

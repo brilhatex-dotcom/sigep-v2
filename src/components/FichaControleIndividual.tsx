@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Printer, Save, Loader2, Plus, Trash2, Pencil, Check } from "lucide-react";
+import { Printer, Save, Loader2, Plus, Trash2, Pencil, Check, Users, ChevronDown, ChevronUp } from "lucide-react";
 import {
-  BuscaMilitar, Campo, Cabecalho, BlocoAssinatura, SeletorAssinatura,
+  BuscaMilitar, BuscaMilitarMultiplo, Campo, Cabecalho, BlocoAssinatura, SeletorAssinatura,
   ESTILO_FOLHA, FOLHA_A4, dataPorExtenso, type Militar, type ModoAss,
 } from "@/components/docs/Comum";
 
@@ -45,6 +45,16 @@ export default function FichaControleIndividual() {
   const [carregando, setCarregando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState("");
+
+  // ---- Viagem em grupo: registra a MESMA viagem para vários militares de uma
+  // vez, sem precisar redigitar trajeto/processo para cada um. ----
+  const [grupoAberto, setGrupoAberto] = useState(false);
+  const [grupoSel, setGrupoSel] = useState<Militar[]>([]);
+  const [grupoAno, setGrupoAno] = useState(anoAtual);
+  const [grupoCampos, setGrupoCampos] = useState({ bgNota: "", processo: "", trajeto: "", periodo: "", qtd: "" });
+  const [grupoEnviando, setGrupoEnviando] = useState(false);
+  const [grupoMsg, setGrupoMsg] = useState("");
+  const setGC = (k: keyof typeof grupoCampos) => (v: string) => setGrupoCampos((c) => ({ ...c, [k]: v }));
 
   // Nome do Comandante: mesma fonte dos memorandos (config da Escala), então a
   // ficha acompanha se o comando mudar.
@@ -126,6 +136,29 @@ export default function FichaControleIndividual() {
     finally { setSalvando(false); }
   };
 
+  const registrarGrupo = async () => {
+    if (!grupoSel.length) return;
+    setGrupoEnviando(true); setGrupoMsg("");
+    try {
+      const r = await fetch("/api/diarias/viagens/grupo", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idsPmma: grupoSel.map((m) => m.id), ano: grupoAno, ...grupoCampos }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setGrupoMsg(d?.error || "Falha ao registrar a viagem em grupo."); return; }
+      setGrupoMsg(
+        `✅ Viagem registrada para ${d.adicionadas} militar(es) no exercício ${grupoAno}, com a mesma quantidade ` +
+        `de diárias para todos. Precisa de um valor diferente para algum deles? Abra a ficha individual e ajuste só aquela linha.`
+      );
+      // Se o militar aberto na tela faz parte do grupo e do mesmo ano, recarrega
+      // a ficha dele para já mostrar a viagem nova.
+      if (sel && ano === grupoAno && grupoSel.some((m) => m.id === sel.id)) await carregarViagens(sel.id, ano);
+      setGrupoSel([]);
+      setGrupoCampos({ bgNota: "", processo: "", trajeto: "", periodo: "", qtd: "" });
+    } catch { setGrupoMsg("Falha ao registrar a viagem em grupo."); }
+    finally { setGrupoEnviando(false); }
+  };
+
   // Anos oferecidos: os que já têm registro + o atual e o anterior.
   const anosOpcoes = useMemo(() => {
     const base = new Set([...anosComRegistro, anoAtual, String(Number(anoAtual) - 1), ano]);
@@ -134,6 +167,61 @@ export default function FichaControleIndividual() {
 
   return (
     <>
+      {/* Viagem em grupo: quando vários militares viajam juntos, evita
+          digitar o mesmo trajeto/processo uma vez para cada um. */}
+      <div className="mb-4 rounded-xl border border-white/10 bg-[#0F1B2D] p-4 print:hidden">
+        <button onClick={() => setGrupoAberto((v) => !v)}
+          className="flex w-full items-center justify-between text-left text-sm font-medium text-white">
+          <span className="inline-flex items-center gap-1.5"><Users className="h-4 w-4 text-[#D4AF37]" /> Viagem em grupo (vários militares de uma vez)</span>
+          {grupoAberto ? <ChevronUp className="h-4 w-4 text-[#94A3B8]" /> : <ChevronDown className="h-4 w-4 text-[#94A3B8]" />}
+        </button>
+
+        {grupoAberto && (
+          <div className="mt-3 space-y-3">
+            <p className="text-xs text-[#94A3B8]">
+              Selecione todos que viajaram juntos, preencha os dados da viagem uma vez e o sistema grava a mesma
+              linha na ficha de cada um. A quantidade de diárias sai igual para todos — se alguém precisar de valor
+              diferente, ajuste depois na ficha individual dele.
+            </p>
+
+            <BuscaMilitarMultiplo
+              selecionados={grupoSel}
+              onAdicionar={(m) => setGrupoSel((l) => [...l, m])}
+              onRemover={(id) => setGrupoSel((l) => l.filter((m) => m.id !== id))}
+              rotulo="Militares que viajaram juntos"
+            />
+
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-xs text-[#94A3B8]">Exercício</label>
+              <input value={grupoAno} onChange={(e) => setGrupoAno(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                className="w-20 rounded-lg border border-white/10 bg-[#0b1626] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <input value={grupoCampos.bgNota} onChange={(e) => setGC("bgNota")(e.target.value)} placeholder="BG/Nota nº"
+                className="rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+              <input value={grupoCampos.processo} onChange={(e) => setGC("processo")(e.target.value)} placeholder="Processo nº"
+                className="rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+              <input value={grupoCampos.trajeto} onChange={(e) => setGC("trajeto")(e.target.value)} placeholder="Trajeto"
+                className="rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50 sm:col-span-2" />
+              <input value={grupoCampos.periodo} onChange={(e) => setGC("periodo")(e.target.value)} placeholder="Período (ex.: 22/04/2026 a 24/04/2026)"
+                className="rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+              <input value={grupoCampos.qtd} onChange={(e) => setGC("qtd")(e.target.value)} placeholder="Qtd de diárias"
+                className="rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button onClick={registrarGrupo} disabled={grupoEnviando || !grupoSel.length}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-40">
+                {grupoEnviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+                {grupoSel.length ? `Registrar para ${grupoSel.length} militar(es)` : "Selecione os militares"}
+              </button>
+              {grupoMsg && <span className="text-xs text-[#94A3B8]">{grupoMsg}</span>}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="mb-4 rounded-xl border border-white/10 bg-[#0F1B2D] p-4 print:hidden">
         <BuscaMilitar sel={sel} onEscolher={escolher} onLimpar={limpar} rotulo="Militar" />
 
