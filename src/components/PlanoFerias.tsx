@@ -21,6 +21,7 @@ import {
   Search,
 } from "lucide-react";
 import MemorandoFerias, { DadosMemorando } from "@/components/MemorandoFerias";
+import { grupoDoMilitar, rotuloDoGrupo } from "@/lib/distribuirEquipes";
 
 export type MembroEquipe = {
   efetivoId: string;
@@ -31,6 +32,7 @@ export type MembroEquipe = {
   nomeGuerra: string | null;
   matricula: string | null;
   quadro: string | null;
+  lotacao: string | null;
   ehOficial: boolean;
 };
 
@@ -181,6 +183,50 @@ export default function PlanoFerias({
   const [addMsg, setAddMsg] = useState("");
   const [removendo, setRemovendo] = useState<string | null>(null);
   const [reequilibrando, setReequilibrando] = useState(false);
+  const [unidadesAberto, setUnidadesAberto] = useState(false);
+
+  /* Quantos militares de cada UNIDADE saem de férias em cada equipe.
+
+     É por aqui que se confere se o plano ficou equilibrado: numa unidade
+     pequena (um destacamento, a ROTEM) o ideal é 1 por equipe. Um número alto
+     numa linha significa que, quando aquela equipe sair, a unidade fica
+     desfalcada — e aí dá para mover alguém de equipe na mão. */
+  const distribuicaoPorUnidade = useMemo(() => {
+    const numerosEquipe = [...equipes]
+      .sort((a, b) => Number(a.numeroEquipe) - Number(b.numeroEquipe))
+      .map((e) => e.numeroEquipe);
+
+    const contagem = new Map<string, Map<string, number>>();
+    const totalPorUnidade = new Map<string, number>();
+
+    for (const eq of equipes) {
+      for (const m of eq.membros) {
+        const g = grupoDoMilitar(m.lotacao);
+        if (!contagem.has(g)) contagem.set(g, new Map());
+        const linha = contagem.get(g)!;
+        linha.set(eq.numeroEquipe, (linha.get(eq.numeroEquipe) ?? 0) + 1);
+        totalPorUnidade.set(g, (totalPorUnidade.get(g) ?? 0) + 1);
+      }
+    }
+
+    const linhas = Array.from(contagem.keys())
+      .map((g) => {
+        const linha = contagem.get(g)!;
+        const valores = numerosEquipe.map((n) => linha.get(n) ?? 0);
+        return {
+          grupo: g,
+          rotulo: rotuloDoGrupo(g),
+          total: totalPorUnidade.get(g) ?? 0,
+          valores,
+          pico: Math.max(0, ...valores),
+        };
+      })
+      // as unidades com maior desfalque simultâneo primeiro: é o que o P/1
+      // precisa olhar antes
+      .sort((a, b) => b.pico - a.pico || b.total - a.total || a.rotulo.localeCompare(b.rotulo, "pt-BR"));
+
+    return { numerosEquipe, linhas };
+  }, [equipes]);
 
   /* Refaz a distribuição de um plano JÁ EXISTENTE — para os planos criados
      antes do equilíbrio automático, ou quando o efetivo mudou muito. Não apaga
@@ -713,6 +759,82 @@ export default function PlanoFerias({
           <p className="text-xs text-[#94A3B8]">Total no plano</p>
         </div>
       </div>
+
+      {/* Distribuição por unidade: quantos de cada unidade saem de férias em
+          cada equipe. É onde se confere se o plano ficou equilibrado. */}
+      {distribuicaoPorUnidade.linhas.length > 0 && (
+        <div className="ui-card mb-4 p-4">
+          <button
+            onClick={() => setUnidadesAberto((v) => !v)}
+            aria-expanded={unidadesAberto}
+            className="flex w-full flex-wrap items-center gap-2 text-left"
+          >
+            {unidadesAberto
+              ? <ChevronDown className="h-4 w-4 shrink-0 text-[#D4AF37]" />
+              : <ChevronRight className="h-4 w-4 shrink-0 text-[#D4AF37]" />}
+            <Users className="h-5 w-5 shrink-0 text-emerald-400" />
+            <span className="text-base font-bold text-white">Distribuição por unidade</span>
+            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-bold text-[#cdd9ea]">
+              {distribuicaoPorUnidade.linhas.length}
+            </span>
+            <span className="text-xs text-[#94A3B8]">
+              · quantos de cada unidade saem de férias por equipe
+            </span>
+          </button>
+
+          {unidadesAberto && (
+            <div className="mt-3">
+              <p className="mb-3 text-xs text-[#94A3B8]">
+                Cada linha é uma unidade; cada coluna, uma equipe. O número é quanta gente daquela unidade
+                sai de férias quando aquela equipe sair. Em unidade pequena (um destacamento, a ROTEM),
+                <span className="text-emerald-300"> 1 por equipe</span> é o ideal;
+                <span className="text-amber-300"> números altos</span> significam desfalque — dá para
+                abrir a equipe e mover alguém.
+              </p>
+              <div className="overflow-x-auto rounded-lg border border-white/10">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-white/5">
+                    <tr className="text-xs uppercase tracking-wider text-[#94A3B8]">
+                      <th className="px-3 py-2 text-left font-semibold">Unidade</th>
+                      <th className="px-2 py-2 text-center font-semibold">Total</th>
+                      {distribuicaoPorUnidade.numerosEquipe.map((n) => (
+                        <th key={n} className="px-2 py-2 text-center font-semibold">{n}</th>
+                      ))}
+                      <th className="px-2 py-2 text-center font-semibold">Pior</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {distribuicaoPorUnidade.linhas.map((l) => (
+                      <tr key={l.grupo} className="hover:bg-white/5">
+                        <td className="whitespace-nowrap px-3 py-2 text-white">{l.rotulo}</td>
+                        <td className="px-2 py-2 text-center text-[#94A3B8]">{l.total}</td>
+                        {l.valores.map((v, i) => (
+                          <td
+                            key={i}
+                            className={
+                              "px-2 py-2 text-center " +
+                              (v === 0
+                                ? "text-[#475569]"
+                                : v === l.pico && l.pico > 1
+                                ? "font-bold text-amber-300"
+                                : "text-white")
+                            }
+                          >
+                            {v || "·"}
+                          </td>
+                        ))}
+                        <td className={"px-2 py-2 text-center font-bold " + (l.pico > 1 ? "text-amber-300" : "text-emerald-300")}>
+                          {l.pico}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Relatório: férias vencidas / a gozar (militares marcados como Adiado).
           Fica RECOLHIDO — o cabeçalho é um botão que abre a lista. */}

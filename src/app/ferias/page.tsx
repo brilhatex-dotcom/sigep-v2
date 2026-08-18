@@ -59,6 +59,9 @@ export default async function FeriasPage({
       nomeGuerra: true,
       matricula: true,
       quadro: true,
+      // usada no painel "Distribuição por unidade": mostra quantos de cada
+      // unidade saem de férias em cada equipe
+      lotacao: true,
     },
   });
   const mapaFicha = new Map(fichas.map((f) => [f.id, f]));
@@ -104,6 +107,7 @@ export default async function FeriasPage({
           nomeGuerra: f?.nomeGuerra ?? null,
           matricula: f?.matricula ?? null,
           quadro: f?.quadro ?? null,
+          lotacao: f?.lotacao ?? null,
           ehOficial: ehOficial(f?.postoGrad ?? null),
         };
       })
