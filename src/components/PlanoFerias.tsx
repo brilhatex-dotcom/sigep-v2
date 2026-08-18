@@ -183,7 +183,51 @@ export default function PlanoFerias({
   const [addMsg, setAddMsg] = useState("");
   const [removendo, setRemovendo] = useState<string | null>(null);
   const [reequilibrando, setReequilibrando] = useState(false);
+  const [rodiziando, setRodiziando] = useState(false);
   const [unidadesAberto, setUnidadesAberto] = useState(false);
+
+  // ano anterior que tenha plano — origem natural do rodízio
+  const anoAnterior = useMemo(() => {
+    const candidatos = anos
+      .map(Number)
+      .filter((n) => !isNaN(n) && n < Number(anoSelecionado))
+      .sort((a, b) => b - a);
+    return candidatos.length ? String(candidatos[0]) : null;
+  }, [anos, anoSelecionado]);
+
+  /* Refaz a composição do ano ATUAL a partir do rodízio do ano anterior.
+     Para planos criados antes desta regra — como o de 2027, que nasceu de uma
+     cópia crua. Não mexe nas datas nem cria/apaga equipes. */
+  async function aplicarRodizio() {
+    if (!anoAnterior) return;
+    const ok = window.confirm(
+      `Aplicar o rodízio de ${anoAnterior} no plano de ${anoSelecionado}?\n\n` +
+      `Cada equipe desce um número e a 2 dá a volta para a 9:\n` +
+      `2→9, 3→2, 4→3, 5→4, 6→5, 7→6, 8→7, 9→8.\n` +
+      `A EQUIPE 1 fica de fora, com os mesmos militares de ${anoAnterior}.\n\n` +
+      `As DATAS de ${anoSelecionado} não mudam. A composição atual de ${anoSelecionado} será substituída.`
+    );
+    if (!ok) return;
+    setRodiziando(true);
+    try {
+      const r = await fetch("/api/ferias/rodizio", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ anoDestino: anoSelecionado, anoOrigem: anoAnterior }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { alert(d?.erro || "Não foi possível aplicar o rodízio."); return; }
+      alert(
+        `Rodízio de ${anoAnterior} aplicado em ${anoSelecionado}.\n\n` +
+        `${d.resumo}\n\n` +
+        `${d.total} militares · ${d.equipe1} mantidos na equipe 1.\n` +
+        (d.movidosPorEquilibrio > 0
+          ? `${d.movidosPorEquilibrio} saíram do rodízio para equilibrar unidades concentradas.`
+          : `Nenhum ajuste extra foi preciso — ${anoAnterior} já estava equilibrado.`)
+      );
+      router.refresh();
+    } catch { alert("Falha ao aplicar o rodízio."); }
+    finally { setRodiziando(false); }
+  }
 
   /* Quantos militares de cada UNIDADE saem de férias em cada equipe.
 
@@ -336,10 +380,11 @@ export default function PlanoFerias({
     const sugestao = String(Math.max(new Date().getFullYear(), ...(anosNum.length ? anosNum : [0])) + 1);
     const ano = window.prompt(
       "Criar plano de férias para qual ano?\n\n" +
-      "A EQUIPE 1 repete os mesmos militares deste ano.\n" +
-      "As demais equipes são REDISTRIBUÍDAS para equilibrar o efetivo: cada unidade\n" +
-      "(ROTEM, Força Tática, ADM e cada destacamento) fica espalhada entre as equipes,\n" +
-      "para não sair muita gente da mesma unidade de uma vez.\n\n" +
+      "RODÍZIO: cada equipe desce um número e a 2 dá a volta para a 9\n" +
+      "(2→9, 3→2, 4→3, 5→4, 6→5, 7→6, 8→7, 9→8).\n" +
+      "Assim todo mundo reveza a época do ano. A EQUIPE 1 fica de fora,\n" +
+      "com os mesmos militares.\n\n" +
+      "Depois do rodízio, só é corrigido o que ficar desequilibrado por unidade.\n\n" +
       "As datas vêm em branco, e você pode adicionar, remover ou trocar de equipe depois.",
       sugestao
     );
@@ -354,11 +399,14 @@ export default function PlanoFerias({
       const d = await r.json();
       if (!r.ok) { alert(d.erro || "Não foi possível criar o plano."); return; }
       alert(
-        d.modo === "equilibrado"
+        d.modo === "rodizio"
           ? `Plano de ${dest} criado com ${d.membros || 0} militares.\n\n` +
-            `A equipe 1 manteve os mesmos de ${anoSelecionado}; as demais foram redistribuídas ` +
-            `equilibrando por unidade. Agora é só ajustar as datas de cada equipe — e, se precisar, ` +
-            `adicionar, remover ou trocar alguém de equipe.`
+            `Rodízio aplicado: ${d.resumo}\n` +
+            `A equipe 1 manteve os mesmos de ${anoSelecionado}.\n` +
+            (d.movidosPorEquilibrio > 0
+              ? `\n${d.movidosPorEquilibrio} militar(es) saíram do rodízio para equilibrar unidades que estavam concentradas numa equipe só.`
+              : `\nNenhum ajuste foi preciso — o plano de ${anoSelecionado} já estava equilibrado.`) +
+            `\n\nAgora é só ajustar as datas de cada equipe.`
           : `Plano de ${dest} criado! ${d.membros || 0} militares copiados do ano ${anoSelecionado}. Agora é só ajustar as datas de cada equipe.`
       );
       onTrocarAno(dest);
@@ -706,6 +754,17 @@ export default function PlanoFerias({
             className="rounded-lg border border-[#D4AF37]/40 px-3 py-1.5 text-sm font-medium text-[#D4AF37] transition hover:bg-[#D4AF37]/10"
           >
             + Novo plano
+          </button>
+        )}
+        {isAdmin && totalMilitares > 0 && anoAnterior && (
+          <button
+            onClick={aplicarRodizio}
+            disabled={rodiziando}
+            title={`Aplica em ${anoSelecionado} o rodízio do plano de ${anoAnterior}: cada equipe desce um número e a 2 vira 9. A equipe 1 e as datas não mudam.`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-sky-400/40 px-3 py-1.5 text-sm font-medium text-sky-300 transition hover:bg-sky-400/10 disabled:opacity-50"
+          >
+            {rodiziando ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
+            Rodízio de {anoAnterior}
           </button>
         )}
         {isAdmin && totalMilitares > 0 && (
