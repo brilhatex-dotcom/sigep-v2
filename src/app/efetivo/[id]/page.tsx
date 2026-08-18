@@ -6,7 +6,8 @@ import AppShell from "@/components/AppShell";
 import AvatarUpload from "@/components/AvatarUpload";
 import CopiarDados from "./CopiarDados";
 import { ArrowLeft, Pencil } from "lucide-react";
-import { hojeLocal, montarIdsEmFerias, situacaoCalculada } from "@/lib/situacao";
+import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
+import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
 import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
 import { lugarDoUsuario } from "@/lib/lugarUsuario";
 import { pertenceAoNo } from "@/lib/organograma";
@@ -68,12 +69,21 @@ export default async function FichaEfetivoPage({
   const ehDono = meuEfetivo === m.id;
   const podeEditar = ehAdmin || ehDono;
 
-  // situacao calculada
+  // Situacao calculada — mesma composicao da lista de efetivo, para a ficha
+  // nunca discordar dela: plano de ferias + ferias avulsas (datas soltas) +
+  // licenca-premio. Sem as duas ultimas, um militar de ferias avulsas ou em
+  // licenca-premio aparecia na ficha como se estivesse a disposicao.
   const hoje = hojeLocal();
   const equipes = await prisma.equipeFerias.findMany();
   const membros = await prisma.membroFerias.findMany();
   const idsFerias = montarIdsEmFerias(equipes, membros, hoje, await idsFeriasAdiadas());
-  const sitCalc = situacaoCalculada(m, idsFerias, hoje);
+  for (const id of await idsFeriasAvulsasHoje(hoje)) idsFerias.add(id);
+
+  const equipesLicenca = await prisma.equipeLicencaPremio.findMany();
+  const membrosLicenca = await prisma.membroLicencaPremio.findMany();
+  const idsLicencaPremio = montarIdsEmLicencaPremio(equipesLicenca, membrosLicenca, hoje);
+
+  const sitCalc = situacaoCalculada(m, idsFerias, hoje, idsLicencaPremio);
   const sitDifere = sitCalc !== (m.situacao ?? "").trim() && sitCalc !== "—";
 
   const blocos: Bloco[] = [
