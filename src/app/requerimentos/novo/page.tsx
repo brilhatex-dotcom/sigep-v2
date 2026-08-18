@@ -10,6 +10,11 @@ import {
   amparoDaModalidade,
   especificacaoDaModalidade,
   infoPadraoDaModalidade,
+  ehModalidadeConhecida,
+  infoAdicionalCurso,
+  especificacaoDoCurso,
+  amparoDoCurso,
+  MODALIDADES_CURSOS,
 } from "@/lib/requerimentos";
 import { ArrowLeft } from "lucide-react";
 
@@ -59,6 +64,48 @@ export default async function NovoRequerimentoPage({
   // perfil salvo (dados extras que ele ja preencheu antes)
   const perfil = await prisma.perfilRequerente.findUnique({ where: { efetivoId } });
 
+  // Amparo legal e texto do "OUTROS": comecam pelo padrao de fabrica; se for
+  // um curso (CAS/CFS/CFC), vem do EDITAL configurado pelo admin; se for uma
+  // modalidade que o admin cadastrou na hora (nao esta em nenhuma lista fixa),
+  // busca o amparo salvo com ela.
+  let amparoLegal = amparoDaModalidade(modalidade);
+  let infoAdicional = infoPadraoDaModalidade(modalidade);
+  let modalidadeOutros = especificacaoDaModalidade(modalidade);
+
+  const modalidadeUpper = modalidade.toUpperCase();
+  if (MODALIDADES_CURSOS.includes(modalidadeUpper) && modalidadeUpper !== "OUTROS") {
+    const row = await prisma.config.findUnique({ where: { chave: "requerimentos_editais_cursos" } });
+    let edital: { sigla: string; nomeCompleto: string; numero: string; data: string } | null = null;
+    try {
+      const todos = row?.valor ? JSON.parse(row.valor) : {};
+      if (todos && typeof todos[modalidadeUpper] === "object") edital = todos[modalidadeUpper];
+    } catch {}
+    if (edital?.nomeCompleto && edital?.numero) {
+      amparoLegal = amparoDoCurso(edital);
+      modalidadeOutros = especificacaoDoCurso(edital);
+      infoAdicional = infoAdicionalCurso(
+        edital,
+        m.matricula || "",
+        perfil?.cpf || m.cpf || "",
+        perfil?.email || m.email || ""
+      );
+    }
+    // edital sem numero configurado ainda: segue tudo em branco, o P/1
+    // preenche na mao — melhor que travar o militar de abrir o requerimento.
+  } else if (!ehModalidadeConhecida(modalidade)) {
+    // modalidade cadastrada pelo admin: busca o amparo salvo com ela e
+    // preenche o quadrinho "OUTROS" com o proprio nome dela.
+    const row = await prisma.config.findUnique({ where: { chave: "requerimentos_modalidades_custom" } });
+    try {
+      const lista = row?.valor ? JSON.parse(row.valor) : [];
+      const achada = Array.isArray(lista) ? lista.find((x: any) => (x?.nome || "").toUpperCase() === modalidadeUpper) : null;
+      if (achada) {
+        amparoLegal = achada.amparo || "";
+        modalidadeOutros = modalidade;
+      }
+    } catch {}
+  }
+
   // monta os valores iniciais: ficha + perfil (perfil tem prioridade no que ele ja ajustou)
   const inicial = {
     nomeCompleto: m.nome || "",
@@ -81,12 +128,13 @@ export default async function NovoRequerimentoPage({
     opmExercicio: perfil?.opmExercicio || "18º BPM",
     cpf: perfil?.cpf || m.cpf || "",
     email: perfil?.email || m.email || "",
-    amparoLegal: amparoDaModalidade(modalidade),
-    // pedidos de armamento/colete ja vem com o texto padrao do protocolo
-    infoAdicional: infoPadraoDaModalidade(modalidade),
-    modalidadeOutros: especificacaoDaModalidade(modalidade),
+    amparoLegal,
+    infoAdicional,
+    modalidadeOutros,
     p2Conceito: "",
-    p2SituacaoJur: "",
+    p2UltimaPromocao: "",
+    p2BgNumero: "",
+    p2BgData: "",
     p2Complementares: "",
   };
 

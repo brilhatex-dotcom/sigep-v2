@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText, Plus, Clock, CheckCircle2, XCircle, FileEdit, X, Search, ArrowDownUp,
+  Settings, Trash2, Loader2, Check,
 } from "lucide-react";
 import {
   MODALIDADES_COMUM,
@@ -11,6 +12,10 @@ import {
   MODALIDADES_MATERIAL,
   modeloDaModalidade,
 } from "@/lib/requerimentos";
+
+type ModalidadeCustom = { id: string; nome: string; amparo: string };
+type Edital = { sigla: string; nomeCompleto: string; numero: string; data: string };
+type Editais = Record<string, Edital>;
 
 type Item = {
   id: string;
@@ -70,6 +75,75 @@ export default function RequerimentosClient({
 }) {
   const router = useRouter();
   const [escolhendo, setEscolhendo] = useState(false);
+
+  // ---- modalidades personalizadas (cadastradas pelo admin na hora) ----
+  const [custom, setCustom] = useState<ModalidadeCustom[]>([]);
+  const [novaModalidade, setNovaModalidade] = useState(false);
+  const [nomeNovaMod, setNomeNovaMod] = useState("");
+  const [amparoNovaMod, setAmparoNovaMod] = useState("");
+  const [salvandoMod, setSalvandoMod] = useState(false);
+  const [msgMod, setMsgMod] = useState("");
+
+  // ---- edital atual de cada curso (CAS/CFS/CFC) ----
+  const [editais, setEditais] = useState<Editais | null>(null);
+  const [editandoCurso, setEditandoCurso] = useState<string | null>(null);
+  const [formEdital, setFormEdital] = useState<Edital>({ sigla: "", nomeCompleto: "", numero: "", data: "" });
+  const [salvandoEdital, setSalvandoEdital] = useState(false);
+
+  useEffect(() => {
+    if (!escolhendo) return;
+    fetch("/api/requerimentos/modalidades").then((r) => (r.ok ? r.json() : null))
+      .then((d) => setCustom(Array.isArray(d?.modalidades) ? d.modalidades : [])).catch(() => {});
+    fetch("/api/requerimentos/editais").then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.editais) setEditais(d.editais); }).catch(() => {});
+  }, [escolhendo]);
+
+  async function salvarNovaModalidade() {
+    const nome = nomeNovaMod.trim();
+    if (!nome) return;
+    setSalvandoMod(true); setMsgMod("");
+    try {
+      const r = await fetch("/api/requerimentos/modalidades", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome, amparo: amparoNovaMod.trim() }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsgMod(d?.error || "Falha ao salvar."); return; }
+      setCustom((l) => [...l, d.modalidade]);
+      setNomeNovaMod(""); setAmparoNovaMod(""); setNovaModalidade(false);
+    } catch { setMsgMod("Falha ao salvar."); }
+    finally { setSalvandoMod(false); }
+  }
+
+  async function removerModalidade(id: string) {
+    if (!confirm("Remover esta modalidade personalizada?")) return;
+    try {
+      const r = await fetch(`/api/requerimentos/modalidades?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!r.ok) throw new Error();
+      setCustom((l) => l.filter((m) => m.id !== id));
+    } catch { alert("Falha ao remover."); }
+  }
+
+  function abrirEdicaoEdital(curso: string) {
+    setEditandoCurso(curso);
+    setFormEdital(editais?.[curso] || { sigla: curso, nomeCompleto: "", numero: "", data: "" });
+  }
+
+  async function salvarEdital() {
+    if (!editandoCurso) return;
+    setSalvandoEdital(true);
+    try {
+      const r = await fetch("/api/requerimentos/editais", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modalidade: editandoCurso, ...formEdital }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { alert(d?.error || "Falha ao salvar o edital."); return; }
+      setEditais(d.editais);
+      setEditandoCurso(null);
+    } catch { alert("Falha ao salvar o edital."); }
+    finally { setSalvandoEdital(false); }
+  }
 
   const abas = ehAdmin ? ABAS_ADMIN : ABAS_POLICIAL;
   const [aba, setAba] = useState<string>(abas[0].id);
@@ -311,16 +385,138 @@ export default function RequerimentosClient({
             </div>
 
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">Cursos</p>
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-              {MODALIDADES_CURSOS.map((m) => (
-                <button
-                  key={m}
-                  onClick={() => novo(m)}
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center text-sm text-[#E8EEF6] transition hover:border-[#D4AF37]/40 hover:bg-[#D4AF37]/10"
-                >
-                  {m}
-                </button>
+            <div className="mb-5 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+              {MODALIDADES_CURSOS.filter((m) => m !== "OUTROS").map((m) => (
+                <div key={m} className="flex items-stretch gap-1">
+                  <button
+                    onClick={() => novo(m)}
+                    className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center text-sm text-[#E8EEF6] transition hover:border-[#D4AF37]/40 hover:bg-[#D4AF37]/10"
+                  >
+                    {m}
+                    {editais?.[m]?.numero && (
+                      <span className="mt-0.5 block truncate text-[10px] text-[#94A3B8]">edital {editais[m].numero}</span>
+                    )}
+                  </button>
+                  {ehAdmin && (
+                    <button onClick={() => abrirEdicaoEdital(m)} title={`Editar edital do ${m}`}
+                      className="rounded-lg border border-white/10 px-2 text-[#94A3B8] transition hover:border-[#D4AF37]/40 hover:text-[#D4AF37]">
+                      <Settings className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               ))}
+            </div>
+
+            {/* modalidades personalizadas: cadastradas pelo admin, caem no
+                quadrinho OUTROS do formulario impresso */}
+            {(custom.length > 0 || ehAdmin) && (
+              <>
+                <p className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
+                  Personalizadas
+                  {ehAdmin && !novaModalidade && (
+                    <button onClick={() => setNovaModalidade(true)} className="inline-flex items-center gap-1 normal-case text-[#94A3B8] hover:text-white">
+                      <Plus className="h-3.5 w-3.5" /> nova modalidade
+                    </button>
+                  )}
+                </p>
+                {custom.length > 0 && (
+                  <div className="mb-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                    {custom.map((m) => (
+                      <div key={m.id} className="flex items-stretch gap-1">
+                        <button onClick={() => novo(m.nome)}
+                          className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-[#E8EEF6] transition hover:border-[#D4AF37]/40 hover:bg-[#D4AF37]/10">
+                          {m.nome}
+                        </button>
+                        {ehAdmin && (
+                          <button onClick={() => removerModalidade(m.id)} title="remover"
+                            className="rounded-lg border border-white/10 px-2 text-[#94A3B8] transition hover:border-red-500/40 hover:text-red-300">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {novaModalidade && (
+                  <div className="mb-3 rounded-lg border border-[#D4AF37]/30 bg-[#0b1626] p-3">
+                    <p className="mb-2 text-[11px] text-[#94A3B8]">
+                      Sem quadrinho próprio no papel — sai marcada em “OUTROS”, com este nome entre parênteses.
+                    </p>
+                    <input value={nomeNovaMod} onChange={(e) => setNomeNovaMod(e.target.value)}
+                      placeholder="Nome da modalidade (ex: ALTERAÇÃO DE NOME DE GUERRA)"
+                      className="mb-2 w-full rounded-lg border border-white/10 bg-[#0F1B2D] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                    <textarea value={amparoNovaMod} onChange={(e) => setAmparoNovaMod(e.target.value)} rows={2}
+                      placeholder="Amparo legal padrão (opcional — o requerente pode ajustar depois)"
+                      className="mb-2 w-full rounded-lg border border-white/10 bg-[#0F1B2D] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                    <div className="flex items-center gap-2">
+                      <button onClick={salvarNovaModalidade} disabled={salvandoMod || !nomeNovaMod.trim()}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-40">
+                        {salvandoMod ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Salvar
+                      </button>
+                      <button onClick={() => { setNovaModalidade(false); setNomeNovaMod(""); setAmparoNovaMod(""); }}
+                        className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#94A3B8] hover:text-white">
+                        Cancelar
+                      </button>
+                      {msgMod && <span className="text-xs text-red-300">{msgMod}</span>}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* editor do edital de um curso (CAS/CFS/CFC) */}
+      {editandoCurso && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div className="ui-card w-full max-w-md p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-white">Edital do {editandoCurso}</h2>
+              <button onClick={() => setEditandoCurso(null)} className="rounded-lg p-1.5 text-[#94A3B8] hover:bg-white/5 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-4 text-xs text-[#94A3B8]">
+              Atualize aqui sempre que sair um edital novo. Todo requerimento criado a partir de agora já
+              nasce com este texto — os já enviados não mudam.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Sigla (aparece como “OUTROS (INSCRIÇÃO NO ... PM)”)</label>
+                <input value={formEdital.sigla} onChange={(e) => setFormEdital((f) => ({ ...f, sigla: e.target.value }))}
+                  placeholder="Ex: CEFS"
+                  className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Nome completo do curso</label>
+                <input value={formEdital.nomeCompleto} onChange={(e) => setFormEdital((f) => ({ ...f, nomeCompleto: e.target.value }))}
+                  placeholder="Ex: CURSO ESPECIAL DE FORMAÇÃO DE SARGENTOS (CEFS)"
+                  className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Nº do edital</label>
+                  <input value={formEdital.numero} onChange={(e) => setFormEdital((f) => ({ ...f, numero: e.target.value }))}
+                    placeholder="Ex: 002/2025-DE"
+                    className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Data do edital</label>
+                  <input value={formEdital.data} onChange={(e) => setFormEdital((f) => ({ ...f, data: e.target.value }))}
+                    placeholder="Ex: 04/04/2025"
+                    className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 flex items-center gap-2">
+              <button onClick={salvarEdital} disabled={salvandoEdital}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-40">
+                {salvandoEdital ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Salvar edital
+              </button>
+              <button onClick={() => setEditandoCurso(null)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:text-white">
+                Cancelar
+              </button>
             </div>
           </div>
         </div>

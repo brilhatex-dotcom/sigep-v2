@@ -48,8 +48,33 @@ export default function RequerimentoForm({
     setF((o) => ({ ...o, [k]: v }));
   }
 
+  // Campos obrigatorios so para ENVIAR (rascunho pode ficar incompleto).
+  // Cursos: CPF, e-mail (ja existem na ficha) + os 4 dados da pagina 2 que
+  // so o requerente/comandante sabem na hora (o item 6 do documento, a data
+  // de inclusao, o sistema deriva sozinho da ficha — nao precisa pedir).
+  function faltando(): string[] {
+    if (!ehCursos) return [];
+    const nomes: Record<string, string> = {
+      cpf: "CPF", email: "E-mail",
+      p2Conceito: "Conceito Militar",
+      p2UltimaPromocao: "Data da última promoção",
+      p2BgNumero: "Nº do BG da última promoção",
+      p2BgData: "Data do BG",
+    };
+    return Object.entries(nomes)
+      .filter(([k]) => !(f[k] ?? "").trim())
+      .map(([, rotulo]) => rotulo);
+  }
+
   async function enviar(acao: "rascunho" | "enviar") {
     setErro("");
+    if (acao === "enviar") {
+      const falta = faltando();
+      if (falta.length) {
+        setErro(`Preencha antes de enviar: ${falta.join(", ")}.`);
+        return;
+      }
+    }
     setSalvando(true);
     try {
       const res = await fetch("/api/requerimentos", {
@@ -107,12 +132,12 @@ export default function RequerimentoForm({
                   className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
               </div>
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">CPF</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">CPF *</label>
                 <input type="text" value={f.cpf ?? ""} onChange={(e) => set("cpf", e.target.value)}
                   className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
               </div>
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">E-mail</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">E-mail *</label>
                 <input type="text" value={f.email ?? ""} onChange={(e) => set("email", e.target.value)}
                   className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
               </div>
@@ -156,26 +181,45 @@ export default function RequerimentoForm({
           className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
       </section>
 
-      {/* pagina 2 - so cursos (policial sugere, admin confirma) */}
+      {/* pagina 2 - so cursos (campos obrigatorios para enviar) */}
       {ehCursos && (
         <section className="ui-card p-6">
           <h2 className="mb-1 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-            <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Informações do comandante (pág. 2)
+            <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Informações do comandante (pág. 2 — verso)
           </h2>
           <p className="mb-4 text-[12px] text-[#94A3B8]">
-            Preencha o que souber. O P/1 confere e confirma antes de assinar.
+            Os itens 1º a 3º e o 6º da situação jurídica já saem prontos no documento — o 6º é calculado
+            sozinho a partir da data de inclusão. Preencha só o que só você sabe: o conceito e os dados da
+            última promoção.
           </p>
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Conceito/Comportamento militar</label>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Conceito militar *</label>
               <input type="text" value={f.p2Conceito ?? ""} onChange={(e) => set("p2Conceito", e.target.value)}
                 placeholder="Ex: EXCEPCIONAL"
                 className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Situação jurídica / complementares</label>
-              <textarea rows={5} value={f.p2Complementares ?? ""} onChange={(e) => set("p2Complementares", e.target.value)}
-                placeholder="Última promoção, data de inclusão, situação..."
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Data da última promoção *</label>
+              <input type="date" value={f.p2UltimaPromocao ?? ""} onChange={(e) => set("p2UltimaPromocao", e.target.value)}
+                className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+            </div>
+            <div />
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Nº do BG da última promoção *</label>
+              <input type="text" value={f.p2BgNumero ?? ""} onChange={(e) => set("p2BgNumero", e.target.value)}
+                placeholder="Ex: 009"
+                className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Data do BG *</label>
+              <input type="date" value={f.p2BgData ?? ""} onChange={(e) => set("p2BgData", e.target.value)}
+                className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Observação adicional do comandante (opcional)</label>
+              <textarea rows={3} value={f.p2Complementares ?? ""} onChange={(e) => set("p2Complementares", e.target.value)}
+                placeholder="Só se houver algo além do texto padrão da página 2..."
                 className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
             </div>
           </div>
