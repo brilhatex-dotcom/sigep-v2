@@ -138,6 +138,42 @@ export default function LicencaPremio({
   const [salvandoDatas, setSalvandoDatas] = useState(false);
   const [erroDatas, setErroDatas] = useState<string | null>(null);
 
+  // ---- abrir o exercício de um ano novo ----
+  const [abrindoAno, setAbrindoAno] = useState(false);
+
+  /* Cria as 4 equipes do ano, com datas em branco, para o ano passar a
+     aparecer no seletor. Começa SEM militares de propósito: a licença-prêmio
+     é conquistada a cada 10 anos de serviço, então quem gozou num ano não
+     goza no seguinte — copiar a lista do ano anterior traria de volta
+     justamente quem já tirou. */
+  async function novoAno() {
+    const anosNum = anos.map(Number).filter((n) => !isNaN(n));
+    const sugestao = String(Math.max(new Date().getFullYear(), ...(anosNum.length ? anosNum : [0])) + 1);
+    const ano = window.prompt(
+      "Abrir o exercício de Licença-Prêmio para qual ano?\n\n" +
+      "Serão criadas as 4 equipes, com as datas em branco e SEM militares.\n" +
+      "Diferente das férias, a licença-prêmio é conquistada a cada 10 anos de\n" +
+      "serviço — quem gozou num ano não goza no seguinte —, então a lista começa\n" +
+      "vazia e você inclui quem faz jus, pelo botão de adicionar de cada equipe.",
+      sugestao
+    );
+    if (!ano) return;
+    const alvo = ano.trim();
+    if (!/^\d{4}$/.test(alvo)) { alert("Ano inválido. Use o formato AAAA (ex: 2027)."); return; }
+    setAbrindoAno(true);
+    try {
+      const r = await fetch("/api/licenca-premio/novo-ano", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ano: alvo }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { alert(d?.erro || "Não foi possível abrir o exercício."); return; }
+      alert(`Exercício de ${alvo} aberto com as 4 equipes.\n\nAgora lance os períodos de cada equipe e inclua os militares que fazem jus.`);
+      onTrocarAno(alvo);
+    } catch { alert("Falha ao abrir o exercício."); }
+    finally { setAbrindoAno(false); }
+  }
+
   // ---- adicionar militar ----
   const [modalAdicionar, setModalAdicionar] = useState<EquipeLicencaView | null>(null);
   const [efetivo, setEfetivo] = useState<Militar[]>([]);
@@ -425,6 +461,17 @@ export default function LicencaPremio({
         >
           {anos.map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
+        {isAdmin && (
+          <button
+            onClick={novoAno}
+            disabled={abrindoAno}
+            title="Abre o exercício de Licença-Prêmio de um ano novo (4 equipes, sem datas e sem militares)"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/40 px-3 py-1.5 text-sm font-medium text-[#D4AF37] transition hover:bg-[#D4AF37]/10 disabled:opacity-50"
+          >
+            {abrindoAno ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            + Novo ano
+          </button>
+        )}
         <button
           onClick={imprimir}
           title="Imprimir o plano de Licença-Prêmio (equipes, períodos e militares)"
