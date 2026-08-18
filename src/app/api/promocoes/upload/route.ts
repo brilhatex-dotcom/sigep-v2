@@ -1,12 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { enviarParaR2 } from "@/lib/r2";
+import { urlAssinadaUpload } from "@/lib/r2";
 import { periodoAtivo } from "@/lib/promocoes";
 import { TOTAL_CERTIDOES } from "@/lib/certidoes";
+import { statusP1 } from "@/lib/promocaoStatusP1";
+import { chaveCertidao, LIMITE_CERTIDAO_BYTES } from "@/lib/promocaoUpload";
 
-// POST (multipart): campos -> ordem (1..8), arquivo (PDF), [efetivoId opcional p/ admin]
+export const dynamic = "force-dynamic";
+
+/* POST /api/promocoes/upload   { ordem, tam, efetivoId? } -> { url, key }
+
+   PREPARA o envio de uma certidao: devolve uma URL assinada para o NAVEGADOR
+   mandar o PDF DIRETO ao R2. Depois de subir, o navegador chama
+   /api/promocoes/upload/confirmar para gravar no banco.
+
+   Antes o PDF subia por aqui dentro (multipart). Nao dava: a Vercel corta
+   requisicao acima de ~4,5 MB, e certidao digitalizada passa disso com
+   facilidade — o militar so via "Falha no envio", sem saber por que. E o
+   mesmo caminho que o chat ja usa para os anexos de 20 MB. */
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ erro: "Nao autorizado" }, { status: 401 });
@@ -17,14 +30,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const form = await req.formData();
-    const ordem = parseInt(String(form.get("ordem") ?? ""), 10);
-    const arquivo = form.get("arquivo") as File | null;
+    const b = await req.json().catch(() => ({}));
+    const ordem = parseInt(String(b?.ordem ?? ""), 10);
+    const tam = Number(b?.tam);
 
     // admin pode enviar pela ficha de outro; policial so pela propria
     const ehAdmin = (session.user.perfil ?? "").toLowerCase() === "admin";
-    const efetivoIdReq = form.get("efetivoId") as string | null;
-    const efetivoId = ehAdmin && efetivoIdReq ? efetivoIdReq : session.user.refEfetivo;
+    const efetivoId = ehAdmin && b?.efetivoId ? String(b.efetivoId) : session.user.refEfetivo;
 
     if (!efetivoId) {
       return NextResponse.json(
@@ -35,59 +47,37 @@ export async function POST(req: NextRequest) {
     if (!ordem || ordem < 1 || ordem > TOTAL_CERTIDOES) {
       return NextResponse.json({ erro: "Certidão inválida." }, { status: 400 });
     }
-    if (!arquivo) {
-      return NextResponse.json({ erro: "Nenhum arquivo enviado." }, { status: 400 });
+    if (!Number.isFinite(tam) || tam <= 0) {
+      return NextResponse.json({ erro: "Tamanho de arquivo inválido." }, { status: 400 });
+    }
+    if (tam > LIMITE_CERTIDAO_BYTES) {
+      return NextResponse.json(
+        {
+          erro: `Arquivo de ${(tam / 1048576).toFixed(1)} MB. O limite é ${
+            LIMITE_CERTIDAO_BYTES / 1048576
+          } MB.`,
+        },
+        { status: 413 }
+      );
     }
 
-    const ehPdf =
-      arquivo.type === "application/pdf" ||
-      arquivo.name.toLowerCase().endsWith(".pdf");
-    if (!ehPdf) {
-      return NextResponse.json({ erro: "Envie um arquivo PDF." }, { status: 400 });
+    // Depois de protocolado no P/1, o lote fica travado. A tela ja desabilita
+    // os botoes, mas a trava tem que valer aqui tambem: senao bastava uma
+    // chamada direta a API para trocar um arquivo que o P/1 ja conferiu.
+    // Para destravar, o P/1 usa o botao "Reabrir" no painel.
+    const st = await statusP1(periodo.id, efetivoId);
+    if (st?.enviadoEm) {
+      return NextResponse.json(
+        { erro: "Estas certidões já foram enviadas ao P/1 e estão travadas. Peça ao P/1 para reabrir antes de trocar." },
+        { status: 409 }
+      );
     }
 
-    // garante o participante
-    const participante = await prisma.participantePromocao.upsert({
-      where: { periodoId_efetivoId: { periodoId: periodo.id, efetivoId } },
-      update: {},
-      create: { periodoId: periodo.id, efetivoId },
-    });
-
-    const buffer = Buffer.from(await arquivo.arrayBuffer());
-    const key = `promocoes/${periodo.id}/${efetivoId}/certidao-${ordem}.pdf`;
-    await enviarParaR2(key, buffer, "application/pdf");
-
-    // grava/atualiza a certidao naquela posicao
-    await prisma.certidaoEnviada.upsert({
-      where: {
-        participanteId_ordem: { participanteId: participante.id, ordem },
-      },
-      update: {
-        r2Key: key,
-        nomeArquivo: arquivo.name,
-        tamanhoBytes: arquivo.size,
-        enviadaEm: new Date(),
-      },
-      create: {
-        participanteId: participante.id,
-        ordem,
-        r2Key: key,
-        nomeArquivo: arquivo.name,
-        tamanhoBytes: arquivo.size,
-      },
-    });
-
-    // se o PDF unificado ja existia, invalida (mudou uma certidao)
-    if (participante.pdfUnificado) {
-      await prisma.participantePromocao.update({
-        where: { id: participante.id },
-        data: { pdfUnificado: null, geradoEm: null },
-      });
-    }
-
-    return NextResponse.json({ ok: true, ordem });
+    const key = chaveCertidao(periodo.id, efetivoId, ordem);
+    const url = await urlAssinadaUpload(key, "application/pdf");
+    return NextResponse.json({ url, key });
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ erro: "Falha no envio." }, { status: 500 });
+    console.error("[POST /api/promocoes/upload]", e);
+    return NextResponse.json({ erro: "Falha ao preparar o envio." }, { status: 500 });
   }
 }

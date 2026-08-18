@@ -209,6 +209,23 @@ function barraValida(b: string): boolean {
    A conta e uma ESTIMATIVA: ao imprimir, a folha fica um pouco mais estreita
    que na tela e o texto pode reflowar. Por isso avisamos ja perto do limite,
    e nao so depois de passar. */
+
+/* Regras que a impressao aplica e que MUDAM A ALTURA da folha. Ficam aqui
+   (e nao so no @media print la embaixo) porque a medicao e feita numa copia
+   fora da tela, e uma copia so vale se estiver montada como no papel.
+
+   Sem isso, a medicao contava toda a interface de edicao que existe DENTRO da
+   folha branca — o buscador de militar de cada secao (.slotlist-busca, que e
+   display:block), os botoes "+ linha em branco" / "+ permuta" / "+ horario",
+   as linhas de OBS vazias — e dava quase o dobro da altura real: uma escala
+   que imprime em 1 pagina era anunciada como 2. */
+const CSS_MEDICAO_FOLHA = `
+  #sigep-medindo-folha .no-print,
+  #sigep-medindo-folha .obs-rodape.vazio-noprint,
+  #sigep-medindo-folha .obs-sec-tr.vazio-noprint { display: none !important; }
+  #sigep-medindo-folha .editavel:empty:before { content: "" !important; }
+  #sigep-medindo-folha .brasao { border: none !important; }
+`;
 function AvisoFolha({ alvo, landscape }: { alvo: React.RefObject<HTMLDivElement>; landscape: boolean }) {
   const [medida, setMedida] = useState<{ usado: number; limite: number } | null>(null);
 
@@ -235,14 +252,25 @@ function AvisoFolha({ alvo, landscape }: { alvo: React.RefObject<HTMLDivElement>
       // impressao (a pagina menos as margens de 6mm do @page) e sem o padding
       // da tela (que na impressao vira 0mm) — a mesma configuracao que vale
       // no papel, seja qual for o tamanho da janela do navegador.
+      //
+      // E a copia precisa ser montada COMO SAI NO PAPEL, nao como esta na
+      // tela: a folha branca carrega junto a interface de edicao (o buscador
+      // de militar de cada secao, os botoes de "+ linha", as OBS vazias), que
+      // some na impressao. Contar essa interface dobrava a altura — era isso
+      // que fazia uma escala de 1 pagina ser anunciada como 2.
       const larguraMm = (landscape ? 297 : 210) - 12; // menos 6mm de cada lado
       const clone = el.cloneNode(true) as HTMLElement;
+      clone.id = "sigep-medindo-folha";
       clone.style.cssText =
         `position:fixed; left:-9999px; top:0; width:${larguraMm}mm; max-width:none; ` +
         "padding:0; margin:0; box-shadow:none; outline:none;";
+      const regras = document.createElement("style");
+      regras.textContent = CSS_MEDICAO_FOLHA;
+      document.body.appendChild(regras);
       document.body.appendChild(clone);
       const usado = clone.getBoundingClientRect().height / mm;
       clone.remove();
+      regras.remove();
 
       const limite = (landscape ? 210 : 297) - 12; // altura util (menos as margens)
       setMedida({ usado, limite });

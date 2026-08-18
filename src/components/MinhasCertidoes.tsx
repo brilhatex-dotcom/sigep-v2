@@ -17,6 +17,7 @@ import {
   Link2,
 } from "lucide-react";
 import { LINKS_OFICIAIS } from "@/lib/certidoes";
+import { LIMITE_CERTIDAO_BYTES as LIMITE_BYTES } from "@/lib/promocaoUpload";
 
 type Item = {
   ordem: number;
@@ -57,6 +58,7 @@ export default function MinhasCertidoes({
   const [lista, setLista] = useState(itens);
   const [unificadoKey, setUnificadoKey] = useState(pdfUnificadoKey);
   const [enviando, setEnviando] = useState<number | null>(null);
+  const [progresso, setProgresso] = useState<number | null>(null);
   const [gerando, setGerando] = useState(false);
   const [erro, setErro] = useState("");
   const [linksAbertos, setLinksAbertos] = useState(false);
@@ -70,25 +72,62 @@ export default function MinhasCertidoes({
   // Depois de enviado ao P/1, trava o reenvio/troca para nao bagunçar o que ja foi protocolado.
   const travado = !!enviadoP1;
 
+  /* Envio em dois passos: a API devolve uma URL assinada e o PDF sobe DIRETO
+     para o R2, sem passar pela Vercel — que corta requisicao acima de ~4,5 MB
+     e fazia certidao digitalizada falhar sem explicacao. Depois de subir, o
+     segundo passo grava a certidao no banco. Mesmo caminho dos anexos do
+     chat. */
   async function enviar(ordem: number, file: File) {
     setErro("");
     if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
       setErro("Envie um arquivo PDF.");
       return;
     }
+    if (file.size > LIMITE_BYTES) {
+      setErro(`"${file.name}" tem ${(file.size / 1048576).toFixed(1)} MB. O limite é ${LIMITE_BYTES / 1048576} MB.`);
+      return;
+    }
     setEnviando(ordem);
-    const fd = new FormData();
-    fd.append("ordem", String(ordem));
-    fd.append("arquivo", file);
+    setProgresso(0);
 
     try {
-      const res = await fetch("/api/promocoes/upload", { method: "POST", body: fd });
-      const j = await res.json().catch(() => ({}));
-      setEnviando(null);
-      if (!res.ok) {
-        setErro(j.erro || "Falha no envio.");
+      // 1) pede a URL assinada
+      const r1 = await fetch("/api/promocoes/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ordem, tam: file.size }),
+      });
+      const d1 = await r1.json().catch(() => ({}));
+      if (!r1.ok) {
+        setErro(d1.erro || "Falha ao preparar o envio.");
         return;
       }
+
+      // 2) manda o PDF direto para o R2 (com barra de progresso)
+      await new Promise<void>((ok, falha) => {
+        const x = new XMLHttpRequest();
+        x.open("PUT", d1.url, true);
+        x.setRequestHeader("Content-Type", "application/pdf");
+        x.upload.onprogress = (e) => {
+          if (e.lengthComputable) setProgresso(Math.round((e.loaded / e.total) * 100));
+        };
+        x.onload = () => (x.status >= 200 && x.status < 300 ? ok() : falha(new Error("HTTP " + x.status)));
+        x.onerror = () => falha(new Error("rede"));
+        x.send(file);
+      });
+
+      // 3) registra no banco
+      const r2 = await fetch("/api/promocoes/upload/confirmar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ordem, key: d1.key, nomeArquivo: file.name, tam: file.size }),
+      });
+      const d2 = await r2.json().catch(() => ({}));
+      if (!r2.ok) {
+        setErro(d2.erro || "Falha ao registrar a certidão.");
+        return;
+      }
+
       setLista((l) =>
         l.map((i) =>
           i.ordem === ordem ? { ...i, enviada: true, nomeArquivo: file.name } : i
@@ -96,8 +135,10 @@ export default function MinhasCertidoes({
       );
       setUnificadoKey(null); // mudou uma certidao, invalida o unificado
     } catch {
+      setErro("Erro de conexão ao enviar. Confira a internet e tente de novo.");
+    } finally {
       setEnviando(null);
-      setErro("Erro de conexão ao enviar.");
+      setProgresso(null);
     }
   }
 
@@ -268,7 +309,9 @@ export default function MinhasCertidoes({
                   className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-sm text-white transition hover:bg-white/5 disabled:opacity-40"
                 >
                   {enviando === i.ordem ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                  {i.enviada ? "Trocar" : "Enviar"}
+                  {enviando === i.ordem
+                    ? progresso === null ? "Enviando..." : `${progresso}%`
+                    : i.enviada ? "Trocar" : "Enviar"}
                 </button>
               </div>
             </li>
