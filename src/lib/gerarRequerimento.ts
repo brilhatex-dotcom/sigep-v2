@@ -220,6 +220,29 @@ export function gerarRequerimentoDocx(d: DadosReq): Buffer {
     p2situacaojur: composeSituacaoJuridica(d),
   };
 
+  /* No requerimento de CURSOS, o documento oficial traz MATRICULA/CPF/E-MAIL
+     logo abaixo do pedido, DENTRO do quadro de informações adicionais — não há
+     campo próprio para eles no formulário impresso.
+
+     Montamos essas linhas AQUI, na geração, e não junto com o texto do pedido:
+     o texto do pedido é composto quando a tela abre e fica editável pelo
+     militar; se o CPF fosse colado lá, ficaria congelado no valor que a ficha
+     tinha naquele instante, e quem preenchesse o CPF depois (é campo
+     obrigatório) veria o documento sair com o CPF velho ou em branco. */
+  if (d.modelo === "cursos") {
+    const linhas = [s(dados.info as string).trim()];
+    const matricula = s(d.matricula).trim();
+    const cpf = s(d.cpf).trim();
+    const email = s(d.email).trim();
+    if (matricula || cpf || email) {
+      linhas.push("");
+      if (matricula) linhas.push(`MATRICULA: ${matricula}`);
+      if (cpf) linhas.push(`CPF: ${cpf}`);
+      if (email) linhas.push(`E-MAIL: ${email}`);
+    }
+    dados.info = linhas.join("\n");
+  }
+
   // marca a modalidade escolhida (todas false, exceto a dela). Qualquer
   // modalidade que o sistema nao reconhece (cursos CAS/CFS/CFC, ou uma
   // modalidade que o admin cadastrou na hora) cai no quadrinho "OUTROS" —

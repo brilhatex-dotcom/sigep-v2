@@ -252,19 +252,20 @@ export function usaQuadrinhoOutros(modalidade: string): boolean {
 
 export type EditalCurso = { sigla: string; nomeCompleto: string; numero: string; data: string };
 
-// "SOLICITO DE VOSSA SENHORIA, A MINHA INSCRIÇÃO NO {curso} - EDITAL Nº
-//  {numero}, datado de {data}." + as 3 linhas que o documento real acrescenta
-//  (matricula/cpf/e-mail), porque no formulario oficial elas entram dentro do
-//  proprio quadro de INFORMAÇÕES ADICIONAIS — nao ha quadro proprio pra isso.
-export function infoAdicionalCurso(edital: EditalCurso, matricula: string, cpf: string, email: string): string {
-  const linhas = [
-    `SOLICITO DE VOSSA SENHORIA, A MINHA INSCRIÇÃO NO ${edital.nomeCompleto}- EDITAL Nº ${edital.numero}, datado de ${edital.data}.`,
-    "",
-    `MATRICULA: ${matricula}`,
-    `CPF: ${cpf}`,
-    `E-MAIL: ${email}`,
-  ];
-  return linhas.join("\n");
+/* Texto do pedido em si: "SOLICITO DE VOSSA SENHORIA, A MINHA INSCRIÇÃO NO
+   {curso} - EDITAL Nº {numero}, datado de {data}."
+
+   ATENÇÃO: as linhas MATRICULA/CPF/E-MAIL que o documento oficial traz logo
+   abaixo NÃO entram aqui. Elas são montadas só na hora de GERAR o documento
+   (lib/gerarRequerimento), a partir dos campos realmente salvos.
+
+   O motivo: este texto é composto quando a tela ABRE e vai para uma caixa que
+   o militar pode editar. Se o CPF/e-mail fossem colados aqui, o valor ficaria
+   congelado no que a ficha tinha naquele instante — e o militar que digitasse
+   o CPF depois (agora é campo obrigatório) veria o documento sair com o CPF
+   velho, ou em branco se a ficha não tivesse nenhum. */
+export function infoAdicionalCurso(edital: EditalCurso): string {
+  return `SOLICITO DE VOSSA SENHORIA, A MINHA INSCRIÇÃO NO ${edital.nomeCompleto}- EDITAL Nº ${edital.numero}, datado de ${edital.data}.`;
 }
 
 // Texto entre parenteses ao lado do quadrinho "OUTROS": " (INSCRIÇÃO NO CEFS PM)".
