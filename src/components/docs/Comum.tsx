@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import CarimboSigep from "@/components/CarimboSigep";
+import { padronizarBrasao } from "@/lib/imagem";
 
 /* Peças compartilhadas pelos documentos em folha branca (Diárias, Guia JMS,
    Ofício): cabeçalho oficial, buscador de militar, campo editável na folha e
@@ -116,33 +117,90 @@ export function Campo({
   );
 }
 
-/* Cabeçalho oficial do 18º BPM. O brasão do centro é sempre o do ESTADO do
-   Maranhão; o da esquerda e a linha de contato mudam conforme o documento. */
+/* Cabeçalho oficial do 18º BPM.
+
+   Os três brasões vêm da MESMA configuração da Escala de Serviço
+   (/api/escala-brasoes) e são CLICÁVEIS: clicar abre o seletor de imagem e a
+   troca vale em todos os computadores e em todos os documentos de uma vez.
+
+   Isso existe principalmente pela logo da esquerda — a do aniversário da PMMA
+   (190 anos), que se renova todo ano. Trocar num documento troca em todos, e
+   também na escala, sem precisar mexer no código. */
+
+const PADRAO_BRASOES = {
+  pmma: "/brasoes/pmma-190.jpg",
+  ma: "/brasao-estado-ma.png",
+  bpm: "/brasoes/brasao-18bpm.png",
+};
+type ChaveBrasao = keyof typeof PADRAO_BRASOES;
+
 export function Cabecalho({
-  brasaoEsquerda = "/brasoes/pmma-190.jpg",
   contato = "TELEFAX: (99) 98497-1918(Permanência) – 18batalhaopmma@gmail.com",
-  larguraEsquerda = "24mm",
 }: {
-  brasaoEsquerda?: string;
   contato?: string;
-  larguraEsquerda?: string;
 }) {
+  const [brasoes, setBrasoes] = useState(PADRAO_BRASOES);
+
+  useEffect(() => {
+    fetch("/api/escala-brasoes").then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.brasoes) setBrasoes({ ...PADRAO_BRASOES, ...d.brasoes }); })
+      .catch(() => {});
+  }, []);
+
+  const trocar = (chave: ChaveBrasao) => {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "image/*";
+    inp.onchange = () => {
+      const f = inp.files && inp.files[0];
+      if (!f) return;
+      const leitor = new FileReader();
+      leitor.onload = async () => {
+        // Padroniza o tamanho antes de gravar, senão a imagem vai inteira para
+        // o banco e engorda a configuração.
+        const valor = await padronizarBrasao(chave, String(leitor.result));
+        setBrasoes((b) => {
+          const novo = { ...b, [chave]: valor };
+          fetch("/api/escala-brasoes", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ brasoes: novo }),
+          }).catch(() => {});
+          return novo;
+        });
+      };
+      leitor.readAsDataURL(f);
+    };
+    inp.click();
+  };
+
   const esconde = (e: React.SyntheticEvent<HTMLImageElement>) => {
     (e.target as HTMLImageElement).style.visibility = "hidden";
   };
+
+  const Brasao = ({ chave, largura, altura }: { chave: ChaveBrasao; largura: string; altura: string }) => (
+    <img
+      src={brasoes[chave]} alt=""
+      onClick={() => trocar(chave)}
+      title="Clique para trocar esta imagem (vale para todos os documentos)"
+      style={{ width: largura, height: altura, objectFit: "contain", cursor: "pointer" }}
+      onError={esconde}
+    />
+  );
+
   return (
     <>
       <div style={{ display: "flex", alignItems: "center", gap: "4mm" }}>
-        <img src={brasaoEsquerda} alt="" style={{ width: larguraEsquerda, height: "20mm", objectFit: "contain" }} onError={esconde} />
+        <Brasao chave="pmma" largura="24mm" altura="20mm" />
         <div style={{ flex: 1, textAlign: "center", lineHeight: 1.15 }}>
-          <img src="/brasao-estado-ma.png" alt="" style={{ height: "15mm", objectFit: "contain", display: "block", margin: "0 auto 1mm" }} onError={esconde} />
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: "1mm" }}>
+            <Brasao chave="ma" largura="auto" altura="15mm" />
+          </div>
           <p style={{ margin: 0 }}>ESTADO DO MARANHÃO</p>
           <p style={{ margin: 0 }}>SECRETARIA DE ESTADO DA SEGURANÇA PÚBLICA</p>
           <p style={{ margin: 0 }}>POLÍCIA MILITAR DO MARANHÃO</p>
           <p style={{ margin: 0 }}>COMANDO DO POLICIAMENTO DE ÁREA I/2</p>
           <p style={{ margin: 0 }}>18º BATALHÃO DE POLICIA MILITAR</p>
         </div>
-        <img src="/brasoes/brasao-18bpm.png" alt="" style={{ width: "20mm", height: "20mm", objectFit: "contain" }} onError={esconde} />
+        <Brasao chave="bpm" largura="20mm" altura="20mm" />
       </div>
       <p style={{ textAlign: "center", fontSize: "9pt", margin: "1mm 0 0", lineHeight: 1.2 }}>
         Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP-65.760-000<br />

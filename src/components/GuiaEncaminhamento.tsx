@@ -167,11 +167,7 @@ export default function GuiaEncaminhamento() {
         >
           {/* moldura em volta de tudo, como no documento original */}
           <div style={{ border: "0.8pt solid #000", padding: "5mm 6mm" }}>
-            <Cabecalho
-              brasaoEsquerda="/brasoes/armas-ma.png"
-              larguraEsquerda="22mm"
-              contato="TELEFONE: (99) 98509-5005 (Permanência) – 18batalhaopmma@gmail.com"
-            />
+            <Cabecalho contato="TELEFONE: (99) 98509-5005 (Permanência) – 18batalhaopmma@gmail.com" />
 
             <p style={{ textAlign: "center", fontWeight: "bold", margin: "8mm 0 5mm" }}>
               Guia de Encaminhamento Médico nº <Campo valor={numero} onChange={setNumero} min="16mm" centro />/{ano}.
