@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Printer, Pencil, Check } from "lucide-react";
 import {
   BuscaMilitar, Campo, Cabecalho, BlocoAssinatura, SeletorAssinatura,
-  ESTILO_FOLHA, FOLHA_A4, dataPorExtenso, brData, type Militar, type ModoAss,
+  ESTILO_FOLHA, FOLHA_A4, dataPorExtenso, type Militar, type ModoAss,
 } from "@/components/docs/Comum";
 import { classificarPatente } from "@/lib/patentes";
 
@@ -49,11 +49,15 @@ export default function OficioJms() {
       .then((d) => { if (d?.comandante) setComandante(String(d.comandante)); }).catch(() => {});
   }, []);
 
-  // Monta o texto do ofício com os dados do militar; a auxiliar ajusta na folha
-  // se o caso for outro.
+  // Texto igual ao do ofício original, com a data da JMS por extenso. A
+  // auxiliar ajusta na folha se o caso for outro.
   const montarCorpo = (ident: string, nome: string, id: string, dia: string) =>
     `Apresento a Vossa Senhoria o ${ident}- ${nome}, ID n° ${id}, do 18º BPM, ` +
-    `para ser avaliado por Junta Médica de Saúde NO DIA ${dia || "___/___/_____"}.`;
+    `para ser avaliado por Junta Médica de Saúde, no dia ${dia || "___________"}.`;
+
+  // "2026-05-11" -> "11 de maio de 2026"
+  const diaExtenso = (iso: string) =>
+    iso && iso.length >= 10 ? dataPorExtenso(new Date(`${iso}T00:00:00`)) : "";
 
   const escolher = async (m: Militar) => {
     setCarregando(true); setEditando(false);
@@ -61,7 +65,7 @@ export default function OficioJms() {
       const r = await fetch(`/api/efetivo/${encodeURIComponent(m.id)}`);
       const f = r.ok ? await r.json() : {};
       setSel(m);
-      setCorpo(montarCorpo(identificacao({ ...m, ...f }), String(f.nome || m.nome || "").toUpperCase(), m.id || "", brData(dataVisita)));
+      setCorpo(montarCorpo(identificacao({ ...m, ...f }), String(f.nome || m.nome || "").toUpperCase(), m.id || "", diaExtenso(dataVisita)));
     } finally { setCarregando(false); }
   };
 
@@ -72,7 +76,7 @@ export default function OficioJms() {
     if (!sel) return;
     const r = await fetch(`/api/efetivo/${encodeURIComponent(sel.id)}`);
     const f = r.ok ? await r.json() : {};
-    setCorpo(montarCorpo(identificacao({ ...sel, ...f }), String(f.nome || sel.nome || "").toUpperCase(), sel.id || "", brData(iso)));
+    setCorpo(montarCorpo(identificacao({ ...sel, ...f }), String(f.nome || sel.nome || "").toUpperCase(), sel.id || "", diaExtenso(iso)));
   };
 
   const limpar = () => { setSel(null); setCorpo(""); setNumero(""); setDataVisita(""); setEditando(false); };
@@ -133,33 +137,29 @@ export default function OficioJms() {
           contentEditable={editando}
           suppressContentEditableWarning
         >
-          <Cabecalho
-            brasaoEsquerda="/brasoes/armas-ma.png"
-            larguraEsquerda="22mm"
-            contato="TELEFONE: (99) 98509-5005 (Permanência) – 18batalhaopmma@gmail.com"
-          />
+          <Cabecalho contato="TELEFONE: (99) 98509-5005 (Permanência) – 18batalhaopmma@gmail.com" />
 
-          {/* nº do ofício à esquerda, cidade/data à direita */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", margin: "10mm 0 0" }}>
-            <div>
-              <p style={{ margin: 0 }}>Ofício nº <Campo valor={numero} onChange={setNumero} min="18mm" centro />/{ano}</p>
-              <p style={{ margin: 0 }}><Campo valor={setor} onChange={setSetor} min="35mm" /></p>
-            </div>
-            <p style={{ margin: 0, textAlign: "right" }}>
-              <Campo valor={dataDoc} onChange={setDataDoc} min="70mm" />
-            </p>
+          {/* Ordem do documento original: a cidade/data vem PRIMEIRO, e só
+              abaixo o nº do ofício, com o setor na MESMA linha, à direita. */}
+          <p style={{ textAlign: "right", margin: "12mm 0 0" }}>
+            <Campo valor={dataDoc} onChange={setDataDoc} min="70mm" />
+          </p>
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", margin: "8mm 0 0" }}>
+            <p style={{ margin: 0 }}>Ofício nº <Campo valor={numero} onChange={setNumero} min="18mm" centro />/{ano}</p>
+            <p style={{ margin: 0 }}><Campo valor={setor} onChange={setSetor} min="30mm" /></p>
           </div>
 
           <p style={{ margin: "10mm 0 0" }}>Do: <Campo valor={de} onChange={setDe} min="80mm" /></p>
-          <p style={{ margin: "0 0 6mm" }}>Ao: <Campo valor={para} onChange={setPara} min="80mm" /></p>
+          <p style={{ margin: 0 }}>Ao: <Campo valor={para} onChange={setPara} min="80mm" /></p>
 
-          <p style={{ margin: "0 0 8mm" }}>Assunto: <Campo valor={assunto} onChange={setAssunto} min="80mm" /></p>
+          <p style={{ margin: "8mm 0 10mm" }}>Assunto: <Campo valor={assunto} onChange={setAssunto} min="80mm" /></p>
 
           <p style={{ textAlign: "justify", textIndent: "14mm", margin: "0 0 14mm", lineHeight: 1.8 }}>
             <Campo valor={corpo} onChange={setCorpo} inline />
           </p>
 
-          <p style={{ textAlign: "center", margin: "0 0 16mm" }}>Atenciosamente,</p>
+          <p style={{ margin: "0 0 18mm" }}>Atenciosamente,</p>
 
           <BlocoAssinatura modo={modoAss} nome={comandante} cargo="CMT  DO 18º BPM" largura="52mm" />
         </div>
