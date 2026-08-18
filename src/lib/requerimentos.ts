@@ -45,6 +45,16 @@ export const MODALIDADES_CURSOS: string[] = [
   "OUTROS",
 ];
 
+// modalidades de ARMAMENTO E MATERIAL BELICO.
+// Usam a MESMA folha de requerimento comum: no formulario oficial nao existe
+// quadrinho proprio pra elas, entao a marcacao cai no "OUTROS" e a
+// especificacao aparece ao lado (ex.: OUTROS (CAUTELA DE COLETE BALISTICO)).
+export const MODALIDADES_MATERIAL: string[] = [
+  "CAUTELA DE ARMA DE FOGO (ACAF)",
+  "CAUTELA DE COLETE BALÍSTICO",
+  "AUTORIZAÇÃO DE PERMANÊNCIA DE ARMAMENTO",
+];
+
 // modalidades que SEMPRE usam o modelo de CURSOS (página 2 detalhada)
 const FORCAM_CURSOS = new Set(["CAS", "CFS", "CFC"]);
 
@@ -56,6 +66,34 @@ export function modeloDaModalidade(modalidade: string): Modelo {
 // constantes de leis (usadas para montar os amparos)
 const ESTATUTO = "LEI ESTADUAL Nº 6.513, DE 30 DE NOVEMBRO DE 1995, QUE DISPÕE SOBRE O ESTATUTO DOS POLICIAIS MILITARES DA PMMA";
 const REMUNERACAO = "LEI ESTADUAL Nº 4.175, DE 20 DE JUNHO DE 1980, QUE DISPÕE SOBRE A REMUNERAÇÃO DOS POLICIAIS MILITARES DA PMMA";
+
+// ==========================================================
+//  ESPECIFICACAO DO "OUTROS"
+//  Texto que sai entre parenteses ao lado do quadrinho OUTROS
+//  na folha oficial. So existe para as modalidades que nao tem
+//  quadrinho proprio no formulario (armamento/material belico).
+// ==========================================================
+export const ESPECIFICACAO_OUTROS: Record<string, string> = {
+  "CAUTELA DE ARMA DE FOGO (ACAF)": "CAUTELA DE ARMA DE FOGO, MEDIANTE ACAF",
+  "CAUTELA DE COLETE BALÍSTICO": "CAUTELA DE COLETE BALÍSTICO",
+  "AUTORIZAÇÃO DE PERMANÊNCIA DE ARMAMENTO": "AUTORIZAÇÃO DE PERMANÊNCIA DE ARMAMENTO NAS FÉRIAS",
+};
+
+// ==========================================================
+//  INFORMACOES ADICIONAIS PADRAO
+//  Texto do pedido em si, ja no formato usado nos requerimentos
+//  reais protocolados. O requerente ainda pode editar.
+// ==========================================================
+export const INFO_PADRAO: Record<string, string> = {
+  "CAUTELA DE ARMA DE FOGO (ACAF)":
+    "SOLICITO DE VOSSA SENHORIA, PROVIDÊNCIAS NO SENTIDO DE AUTORIZAR A CONFECÇÃO DA CAUTELA DE ARMA DE FOGO, MEDIANTE ACAF.",
+
+  "CAUTELA DE COLETE BALÍSTICO":
+    "SOLICITO DE VOSSA SENHORIA, PROVIDÊNCIAS NO SENTIDO DE AUTORIZAR A CONFECÇÃO DA CAUTELA DE COLETE BALÍSTICO.",
+
+  "AUTORIZAÇÃO DE PERMANÊNCIA DE ARMAMENTO":
+    "SOLICITO DE VOSSA SENHORIA AUTORIZAÇÃO PARA PERMANECER COM O ARMAMENTO CAUTELADO DURANTE MINHAS FÉRIAS, CONFORME DOCUMENTO EM ANEXO.",
+};
 
 // ==========================================================
 //  AMPARO LEGAL PADRÃO POR MODALIDADE
@@ -107,6 +145,17 @@ export const AMPARO_PADRAO: Record<string, string> = {
   "TRANSFERÊNCIA PARA A RESERVA REMUNERADA":
     "ART. 62 INCISOS II E III, LETRA \u201CH\u201D; ART. 66; ART. 67; ART. 73; ART. 115 INCISO I; ART. 118 INCISO I E ART. 119 DA LEI ESTADUAL Nº 6.513, DE 30 DE NOVEMBRO DE 1995, QUE DISPÕE SOBRE O ESTATUTO DOS POLICIAIS MILITARES DA PMMA; INCISO I DO ART. 80; ART. 86; ART. 87 DA LEI ESTADUAL Nº 4.175, DE 20 DE JUNHO DE 1980, QUE DISPÕE SOBRE A LEI DE REMUNERAÇÃO DA PMMA; LEI ESTADUAL Nº 5.597, DE 24 DE DEZEMBRO DE 1992, QUE DISPÕE SOBRE A GRATIFICAÇÃO DE HABILITAÇÃO POLICIAL MILITAR; LEI ESTADUAL Nº 5.658, DE 26 DE ABRIL DE 1993, QUE DISPÕE SOBRE A GRATIFICAÇÃO E INDENIZAÇÃO DO PESSOAL DA POLÍCIA MILITAR DO ESTADO; LEI ESTADUAL Nº 6.277, DE 06 DE ABRIL DE 1995, QUE DISPÕE SOBRE A CRIAÇÃO DA GRATIFICAÇÃO ESPECIAL MILITAR E LEI ESTADUAL Nº 7.384, DE 16 DE JUNHO DE 1999, QUE DISPÕE SOBRE A REFORMA E REORGANIZAÇÃO ADMINISTRATIVA DO ESTADO E A LEI COMPLEMENTAR Nº 165, DE 8 DE ABRIL DE 2014, QUE ALTERA A LEI COMPLEMENTAR Nº 73, DE 4 DE FEVEREIRO DE 2004.",
 
+  // ---- Armamento e material bélico ----
+  // Cautela (confecção) de arma de fogo e de colete balístico: mesma portaria.
+  "CAUTELA DE ARMA DE FOGO (ACAF)":
+    "AMPARO LEGAL NA PORTARIA Nº 035/2007 – DO GCG.",
+
+  "CAUTELA DE COLETE BALÍSTICO":
+    "AMPARO LEGAL NA PORTARIA Nº 035/2007 – DO GCG.",
+
+  "AUTORIZAÇÃO DE PERMANÊNCIA DE ARMAMENTO":
+    "DE ACORDO COM O MANUAL DE ADMINISTRAÇÃO E LOGÍSTICA DA PMMA, NO QUE SE REFERE AO ART. 24 DA PORTARIA Nº 002/2006 – GCG: “NOS CASOS DE AFASTAMENTO SUPERIORES A 08 (OITO) DIAS, O DETENTOR DEVERÁ, ANTES DO INÍCIO DO AFASTAMENTO, RESTITUIR A ARMA À RESERVA DE ARMAMENTO DA UPM, PODENDO, EXCEPCIONALMENTE, PERMANECER COM ELA, A CRITÉRIO DO CPA-I/2, APÓS ANÁLISE DE PEDIDO POR ESCRITO, DEVIDAMENTE FUNDAMENTADO”.",
+
   // ---- Direito de petição / certidão ----
   "CERTIDÃO PARA FINS DE DIREITO":
     "ART. 5º, INCISO XXXIV, ALÍNEA \u201CB\u201D, DA CONSTITUIÇÃO DA REPÚBLICA FEDERATIVA DO BRASIL DE 1988, QUE ASSEGURA A OBTENÇÃO DE CERTIDÕES EM REPARTIÇÕES PÚBLICAS, PARA DEFESA DE DIREITOS E ESCLARECIMENTO DE SITUAÇÕES DE INTERESSE PESSOAL.",
@@ -151,4 +200,20 @@ export const AMPARO_PADRAO: Record<string, string> = {
 // retorna o amparo padrão da modalidade (ou "" se não houver)
 export function amparoDaModalidade(modalidade: string): string {
   return AMPARO_PADRAO[modalidade.toUpperCase().trim()] ?? "";
+}
+
+// texto que sai entre parênteses ao lado do "OUTROS" (ou "" se não houver)
+export function especificacaoDaModalidade(modalidade: string): string {
+  return ESPECIFICACAO_OUTROS[modalidade.toUpperCase().trim()] ?? "";
+}
+
+// texto padrão das informações adicionais (ou "" se não houver)
+export function infoPadraoDaModalidade(modalidade: string): string {
+  return INFO_PADRAO[modalidade.toUpperCase().trim()] ?? "";
+}
+
+// modalidades que caem no quadrinho "OUTROS" da folha oficial
+export function usaQuadrinhoOutros(modalidade: string): boolean {
+  const m = modalidade.toUpperCase().trim();
+  return m === "OUTROS" || m in ESPECIFICACAO_OUTROS;
 }
