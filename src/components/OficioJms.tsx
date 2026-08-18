@@ -133,35 +133,43 @@ export default function OficioJms() {
         <div
           key={sel.id}
           className="folha-diaria mx-auto bg-white text-black shadow-2xl print:shadow-none"
-          style={{ ...FOLHA_A4, outline: editando ? "2px solid #f59e0b" : "none" }}
+          // margens de ~20mm, como as do documento original
+          style={{ ...FOLHA_A4, padding: "14mm 20mm", outline: editando ? "2px solid #f59e0b" : "none" }}
           contentEditable={editando}
           suppressContentEditableWarning
         >
-          <Cabecalho contato="TELEFONE: (99) 98509-5005 (Permanência) – 18batalhaopmma@gmail.com" />
+          <Cabecalho
+            contato="TELEFONE: (99) 98509-5005 (Permanência) – 18batalhaopmma@gmail.com"
+            brasaoLargura="17mm" brasaoAltura="15mm" centroAltura="13mm"
+          />
 
-          {/* Ordem do documento original: a cidade/data vem PRIMEIRO, e só
-              abaixo o nº do ofício, com o setor na MESMA linha, à direita. */}
-          <p style={{ textAlign: "right", margin: "12mm 0 0" }}>
-            <Campo valor={dataDoc} onChange={setDataDoc} min="70mm" />
+          {/* Medidas tiradas do documento original (046/2026):
+              data centralizada em negrito · nº do ofício e setor numa LINHA SÓ,
+              à esquerda, separados por travessão · Do/Ao/Assunto recuados para
+              perto da metade da folha · "Atenciosamente" com recuo pequeno. */}
+          <p style={{ textAlign: "center", fontWeight: "bold", margin: "12mm 0 0" }}>
+            <Campo valor={dataDoc} onChange={setDataDoc} min="70mm" centro />
           </p>
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", margin: "8mm 0 0" }}>
-            <p style={{ margin: 0 }}>Ofício nº <Campo valor={numero} onChange={setNumero} min="18mm" centro />/{ano}</p>
-            <p style={{ margin: 0 }}><Campo valor={setor} onChange={setSetor} min="30mm" /></p>
+          <p style={{ fontWeight: "bold", margin: "7mm 0 0" }}>
+            Ofício n° <Campo valor={numero} onChange={setNumero} min="16mm" centro />/{ano} – <Campo valor={setor} onChange={setSetor} min="28mm" />
+          </p>
+
+          <div style={{ marginLeft: "84mm", marginTop: "9mm" }}>
+            <p style={{ margin: 0 }}><b>Do:</b> <Campo valor={de} onChange={setDe} min="60mm" /></p>
+            <p style={{ margin: 0 }}><b>Ao:</b> <Campo valor={para} onChange={setPara} min="60mm" /></p>
+            <p style={{ margin: 0 }}><b>Assunto:</b> <Campo valor={assunto} onChange={setAssunto} min="60mm" /></p>
           </div>
 
-          <p style={{ margin: "10mm 0 0" }}>Do: <Campo valor={de} onChange={setDe} min="80mm" /></p>
-          <p style={{ margin: 0 }}>Ao: <Campo valor={para} onChange={setPara} min="80mm" /></p>
-
-          <p style={{ margin: "8mm 0 10mm" }}>Assunto: <Campo valor={assunto} onChange={setAssunto} min="80mm" /></p>
-
-          <p style={{ textAlign: "justify", textIndent: "14mm", margin: "0 0 14mm", lineHeight: 1.8 }}>
+          <p style={{ textAlign: "justify", textIndent: "14mm", margin: "10mm 0 0", lineHeight: 1.5 }}>
             <Campo valor={corpo} onChange={setCorpo} inline />
           </p>
 
-          <p style={{ margin: "0 0 18mm" }}>Atenciosamente,</p>
+          <p style={{ margin: "16mm 0 0 12mm" }}>Atenciosamente,</p>
 
-          <BlocoAssinatura modo={modoAss} nome={comandante} cargo="CMT  DO 18º BPM" largura="52mm" />
+          <div style={{ marginTop: "20mm" }}>
+            <BlocoAssinatura modo={modoAss} nome={comandante} cargo="CMT  DO 18º BPM" largura="52mm" />
+          </div>
         </div>
       )}
 
