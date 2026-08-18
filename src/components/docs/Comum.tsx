@@ -136,8 +136,18 @@ type ChaveBrasao = keyof typeof PADRAO_BRASOES;
 
 export function Cabecalho({
   contato = "TELEFAX: (99) 98497-1918(Permanência) – 18batalhaopmma@gmail.com",
+  brasaoLargura = "24mm",
+  brasaoAltura = "20mm",
+  centroAltura = "15mm",
+  fonte,
 }: {
   contato?: string;
+  /* Tamanho dos brasões e do bloco de texto — cada documento oficial usa uma
+     proporção um pouco diferente. */
+  brasaoLargura?: string;
+  brasaoAltura?: string;
+  centroAltura?: string;
+  fonte?: string;
 }) {
   const [brasoes, setBrasoes] = useState(PADRAO_BRASOES);
 
@@ -188,11 +198,11 @@ export function Cabecalho({
 
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", gap: "4mm" }}>
-        <Brasao chave="pmma" largura="24mm" altura="20mm" />
+      <div style={{ display: "flex", alignItems: "center", gap: "4mm", fontSize: fonte }}>
+        <Brasao chave="pmma" largura={brasaoLargura} altura={brasaoAltura} />
         <div style={{ flex: 1, textAlign: "center", lineHeight: 1.15 }}>
           <div style={{ display: "flex", justifyContent: "center", marginBottom: "1mm" }}>
-            <Brasao chave="ma" largura="auto" altura="15mm" />
+            <Brasao chave="ma" largura="auto" altura={centroAltura} />
           </div>
           <p style={{ margin: 0 }}>ESTADO DO MARANHÃO</p>
           <p style={{ margin: 0 }}>SECRETARIA DE ESTADO DA SEGURANÇA PÚBLICA</p>
@@ -200,9 +210,9 @@ export function Cabecalho({
           <p style={{ margin: 0 }}>COMANDO DO POLICIAMENTO DE ÁREA I/2</p>
           <p style={{ margin: 0 }}>18º BATALHÃO DE POLICIA MILITAR</p>
         </div>
-        <Brasao chave="bpm" largura="20mm" altura="20mm" />
+        <Brasao chave="bpm" largura={brasaoLargura} altura={brasaoAltura} />
       </div>
-      <p style={{ textAlign: "center", fontSize: "9pt", margin: "1mm 0 0", lineHeight: 1.2 }}>
+      <p style={{ textAlign: "center", fontSize: "8pt", margin: "1mm 0 0", lineHeight: 1.2 }}>
         Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP-65.760-000<br />
         <b>{contato}</b>
       </p>

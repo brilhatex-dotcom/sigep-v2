@@ -195,6 +195,76 @@ function barraValida(b: string): boolean {
   return /\d/.test((b || "").trim());
 }
 
+/* AVISO DE ESTOURO DE FOLHA
+
+   Enquanto a auxiliar alimenta a escala, mede a altura real da folha e compara
+   com o que cabe numa pagina A4. Assim ela ve na hora que a escala passou de
+   uma folha, em vez de descobrir so na impressao.
+
+   Na impressao o padding da .doc-paper vira 0 e a pagina fica com margem de
+   6mm (ver o @media print la embaixo), entao o limite util e a altura da
+   pagina menos as duas margens, e da altura medida descontamos o padding que
+   nao vai existir.
+
+   A conta e uma ESTIMATIVA: ao imprimir, a folha fica um pouco mais estreita
+   que na tela e o texto pode reflowar. Por isso avisamos ja perto do limite,
+   e nao so depois de passar. */
+function AvisoFolha({ alvo, landscape }: { alvo: React.RefObject<HTMLDivElement>; landscape: boolean }) {
+  const [medida, setMedida] = useState<{ usado: number; limite: number } | null>(null);
+
+  useEffect(() => {
+    const el = alvo.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+
+    const medir = () => {
+      // 1mm em px medido de verdade — muda com o zoom do navegador.
+      const regua = document.createElement("div");
+      regua.style.cssText = "position:absolute;visibility:hidden;height:100mm;pointer-events:none";
+      document.body.appendChild(regua);
+      const mm = regua.getBoundingClientRect().height / 100;
+      regua.remove();
+      if (!mm) return;
+
+      const paddingV = 16; // 8mm em cima + 8mm embaixo, que somem na impressao
+      const usado = el.getBoundingClientRect().height / mm - paddingV;
+      const limite = (landscape ? 210 : 297) - 12; // menos as margens de 6mm
+      setMedida({ usado, limite });
+    };
+
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [alvo, landscape]);
+
+  if (!medida) return null;
+  const { usado, limite } = medida;
+  const pct = usado / limite;
+  if (pct < 0.9) return null; // longe do limite: nao enche a tela de aviso
+
+  const estourou = pct > 1;
+  const sobra = Math.max(0, Math.round(limite - usado));
+
+  return (
+    <div className={`no-print mb-3 rounded-lg border px-3 py-2 text-sm ${
+      estourou ? "border-red-500/40 bg-red-500/10 text-red-200" : "border-amber-500/40 bg-amber-500/10 text-amber-200"
+    }`}>
+      {estourou ? (
+        <>
+          <b>Passou de uma folha.</b> A escala está com cerca de {Math.round(usado)} mm de conteúdo e a
+          página comporta {limite} mm — vai sair em 2 páginas. Tire alguma linha em branco ou encurte uma
+          observação para caber.
+        </>
+      ) : (
+        <>
+          <b>Perto do limite da folha.</b> Sobram cerca de {sobra} mm — aproximadamente
+          {" "}{Math.max(1, Math.floor(sobra / 5))} linha(s). Mais que isso e a escala passa para a 2ª página.
+        </>
+      )}
+    </div>
+  );
+}
+
 function capitalizaNome(s: string): string {
   const t = (s || "").trim().toLowerCase();
   if (!t) return "";
@@ -1646,6 +1716,8 @@ export default function EscalaClient() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   });
   const [aba, setAba] = useState<"dia" | "config" | "chefe">("dia");
+  // Folha da escala: medida para avisar quando o conteúdo passa de 1 página.
+  const folhaRef = useRef<HTMLDivElement>(null);
   // Brasoes: arquivos fixos do sistema (public/brasoes) \u2014 aparecem em todos os PCs.
   const [brasoes, setBrasoes] = useState<Brasoes>({
     pmma: "/brasoes/pmma-190.jpg",
@@ -2519,9 +2591,11 @@ export default function EscalaClient() {
         <>
           <PreviaRodizio cad={cadEff} data={data} nomeDe={nomeDe} />
 
+          <AvisoFolha alvo={folhaRef} landscape={ehJoe} />
+
           <div className="paper-wrap">
             {ehJoe && <style dangerouslySetInnerHTML={{ __html: "@media print{@page{size:A4 landscape;margin:6mm}}" }} />}
-            <div className={"doc-paper" + (ehJoe ? " landscape" : "")}>
+            <div ref={folhaRef} className={"doc-paper" + (ehJoe ? " landscape" : "")}>
               {/* Cabecalho */}
               <div className="hdr">
                 <div className="hdr-left">
