@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText, Plus, Clock, CheckCircle2, XCircle, FileEdit, X, Search, ArrowDownUp,
-  Settings, Trash2, Loader2, Check,
+  Settings, Trash2, Loader2, Check, Users,
 } from "lucide-react";
 import {
   MODALIDADES_COMUM,
@@ -51,6 +51,9 @@ type Aba = { id: string; rotulo: string; status: string[] };
 
 const ABAS_ADMIN: Aba[] = [
   { id: "enviado", rotulo: "Pendentes", status: ["enviado"] },
+  // Sem esta aba, o que o P/1 cria em lote como rascunho some da tela dele —
+  // a aba inicial e "Pendentes", que so lista os enviados.
+  { id: "rascunho", rotulo: "Rascunhos", status: ["rascunho"] },
   { id: "deferido", rotulo: "Deferidos", status: ["deferido"] },
   { id: "indeferido", rotulo: "Indeferidos", status: ["indeferido"] },
   { id: "todos", rotulo: "Todos", status: ["rascunho", "enviado", "deferido", "indeferido"] },
@@ -75,6 +78,13 @@ export default function RequerimentosClient({
 }) {
   const router = useRouter();
   const [escolhendo, setEscolhendo] = useState(false);
+  // o mesmo seletor de modalidade serve aos dois caminhos; `lote` diz qual
+  const [lote, setLote] = useState(false);
+
+  function abrirEscolha(emLote: boolean) {
+    setLote(emLote);
+    setEscolhendo(true);
+  }
 
   // ---- modalidades personalizadas (cadastradas pelo admin na hora) ----
   const [custom, setCustom] = useState<ModalidadeCustom[]>([]);
@@ -154,6 +164,9 @@ export default function RequerimentosClient({
   function novo(modalidade: string) {
     const modelo = modeloDaModalidade(modalidade);
     const q = new URLSearchParams({ modalidade, modelo });
+    // Em lote, o requerimento e dos militares escolhidos no buscador, nao de
+    // quem esta na tela — por isso a modalidade e a mesma, so muda o destino.
+    if (lote) q.set("lote", "1");
     router.push(`/requerimentos/novo?${q.toString()}`);
   }
 
@@ -215,20 +228,32 @@ export default function RequerimentosClient({
               : "Preencha e envie seus requerimentos ao P/1."}
           </p>
         </div>
-        {temFicha && (
-          <button
-            onClick={() => setEscolhendo(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110"
-          >
-            <Plus className="h-4 w-4" /> Novo requerimento
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {temFicha && (
+            <button
+              onClick={() => abrirEscolha(false)}
+              className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110"
+            >
+              <Plus className="h-4 w-4" /> Novo requerimento
+            </button>
+          )}
+          {ehAdmin && (
+            <button
+              onClick={() => abrirEscolha(true)}
+              title="O mesmo requerimento para vários militares de uma vez, escolhidos no buscador"
+              className="inline-flex items-center gap-2 rounded-lg border border-[#D4AF37]/40 px-4 py-2 text-sm font-semibold text-[#D4AF37] transition hover:bg-[#D4AF37]/10"
+            >
+              <Users className="h-4 w-4" /> Em lote (vários PMs)
+            </button>
+          )}
+        </div>
       </div>
 
       {!temFicha && ehAdmin && (
         <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
-          Para criar requerimentos próprios, vincule sua ficha de efetivo (refEfetivo) ao seu usuário.
-          Sem isso, você só visualiza para análise.
+          Seu usuário não está vinculado a uma ficha de efetivo, então não dá para criar
+          requerimentos <b>próprios</b>. Pelo botão “Em lote” você continua criando para outros
+          militares normalmente.
         </div>
       )}
       {!temFicha && !ehAdmin && (
@@ -350,7 +375,14 @@ export default function RequerimentosClient({
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-auto bg-black/60 p-4">
           <div className="ui-card mt-10 w-full max-w-2xl p-6">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-white">Escolha a modalidade</h2>
+              <div>
+                <h2 className="text-lg font-bold text-white">Escolha a modalidade</h2>
+                {lote && (
+                  <p className="text-xs text-[#94A3B8]">
+                    Em lote — no passo seguinte você escolhe os militares no buscador.
+                  </p>
+                )}
+              </div>
               <button onClick={() => setEscolhendo(false)} className="rounded-lg p-1.5 text-[#94A3B8] hover:bg-white/5 hover:text-white">
                 <X className="h-5 w-5" />
               </button>
