@@ -225,9 +225,26 @@ function AvisoFolha({ alvo, landscape }: { alvo: React.RefObject<HTMLDivElement>
       regua.remove();
       if (!mm) return;
 
-      const paddingV = 16; // 8mm em cima + 8mm embaixo, que somem na impressao
-      const usado = el.getBoundingClientRect().height / mm - paddingV;
-      const limite = (landscape ? 210 : 297) - 12; // menos as margens de 6mm
+      // NAO medimos a folha visivel na tela: o container pode estar mais
+      // estreito que os 210mm reais (zoom do navegador, barra lateral, janela
+      // nao maximizada), o que quebra mais linha e faz a altura medida ficar
+      // bem maior do que sai de verdade no papel — foi exatamente o que
+      // aconteceu aqui (444mm medidos numa folha que imprimia em 1 pagina).
+      //
+      // Em vez disso, cria uma COPIA fora da tela, fixada na largura REAL de
+      // impressao (a pagina menos as margens de 6mm do @page) e sem o padding
+      // da tela (que na impressao vira 0mm) — a mesma configuracao que vale
+      // no papel, seja qual for o tamanho da janela do navegador.
+      const larguraMm = (landscape ? 297 : 210) - 12; // menos 6mm de cada lado
+      const clone = el.cloneNode(true) as HTMLElement;
+      clone.style.cssText =
+        `position:fixed; left:-9999px; top:0; width:${larguraMm}mm; max-width:none; ` +
+        "padding:0; margin:0; box-shadow:none; outline:none;";
+      document.body.appendChild(clone);
+      const usado = clone.getBoundingClientRect().height / mm;
+      clone.remove();
+
+      const limite = (landscape ? 210 : 297) - 12; // altura util (menos as margens)
       setMedida({ usado, limite });
     };
 
