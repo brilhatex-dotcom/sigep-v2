@@ -21,7 +21,6 @@ import {
   ClipboardList,
   Map,
   Car,
-  Phone,
   LogOut,
   Menu,
   Bell,
@@ -138,7 +137,6 @@ const NAV: Secao[] = [
     itens: [
       { rotulo: "Histórico Policial Militar", Icone: History, adminOnly: true },
       { rotulo: "Motoristas / CNH", Icone: Car, adminOnly: true },
-      { rotulo: "Telefones", Icone: Phone, adminOnly: true },
       { rotulo: "Livro do CPU", Icone: BookOpen, adminOnly: true },
       { rotulo: "RG Militar Digital (via DAL)", Icone: CreditCard, adminOnly: true },
       { rotulo: "P/3", Icone: Shield, adminOnly: true },
