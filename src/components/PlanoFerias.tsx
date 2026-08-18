@@ -180,6 +180,37 @@ export default function PlanoFerias({
   const [addSalvando, setAddSalvando] = useState<string | null>(null);
   const [addMsg, setAddMsg] = useState("");
   const [removendo, setRemovendo] = useState<string | null>(null);
+  const [reequilibrando, setReequilibrando] = useState(false);
+
+  /* Refaz a distribuição de um plano JÁ EXISTENTE — para os planos criados
+     antes do equilíbrio automático, ou quando o efetivo mudou muito. Não apaga
+     nada: equipes e datas ficam, e a equipe 1 é preservada. */
+  async function reequilibrar() {
+    const ok = window.confirm(
+      `Reequilibrar o plano de ${anoSelecionado}?\n\n` +
+      `A EQUIPE 1 continua com os mesmos militares e as DATAS já lançadas não mudam.\n` +
+      `As demais equipes são refeitas espalhando cada unidade (ROTEM, Força Tática, ADM\n` +
+      `e cada destacamento) entre elas, para não sair muita gente da mesma unidade de uma vez.\n\n` +
+      `Ajustes manuais que você tenha feito nas equipes 2 em diante serão refeitos.`
+    );
+    if (!ok) return;
+    setReequilibrando(true);
+    try {
+      const r = await fetch("/api/ferias/reequilibrar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ anoGozo: anoSelecionado }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { alert(d?.erro || "Não foi possível reequilibrar."); return; }
+      alert(
+        `Plano de ${anoSelecionado} reequilibrado.\n\n` +
+        `${d.total} militares no plano · ${d.mudaram} trocaram de equipe · ` +
+        `${d.equipe1Preservada} mantidos na equipe 1.`
+      );
+      router.refresh();
+    } catch { alert("Falha ao reequilibrar."); }
+    finally { setReequilibrando(false); }
+  }
 
   // quem já está no plano deste ano (em qualquer equipe) — para não oferecer
   // duas vezes na busca
@@ -629,6 +660,17 @@ export default function PlanoFerias({
             className="rounded-lg border border-[#D4AF37]/40 px-3 py-1.5 text-sm font-medium text-[#D4AF37] transition hover:bg-[#D4AF37]/10"
           >
             + Novo plano
+          </button>
+        )}
+        {isAdmin && totalMilitares > 0 && (
+          <button
+            onClick={reequilibrar}
+            disabled={reequilibrando}
+            title={`Redistribui os militares de ${anoSelecionado} equilibrando por unidade. As datas já lançadas e a equipe 1 não mudam.`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/40 px-3 py-1.5 text-sm font-medium text-emerald-300 transition hover:bg-emerald-400/10 disabled:opacity-50"
+          >
+            {reequilibrando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+            Reequilibrar
           </button>
         )}
         <button

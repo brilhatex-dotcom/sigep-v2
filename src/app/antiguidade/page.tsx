@@ -6,6 +6,7 @@ import AppShell from "@/components/AppShell";
 import AntiguidadeTabela, { MilitarLinha } from "@/components/AntiguidadeTabela";
 import { classificarPatente } from "@/lib/patentes";
 import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
+import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
 import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
 import { idsInativos, semInativos } from "@/lib/inativos";
 
@@ -102,6 +103,9 @@ export default async function AntiguidadePage({
   const equipes = await prisma.equipeFerias.findMany();
   const membros = await prisma.membroFerias.findMany();
   const idsFerias = montarIdsEmFerias(equipes, membros, hoje, await idsFeriasAdiadas());
+  // ferias em datas soltas contam igual as do plano — sem isso, quem esta de
+  // ferias avulsas aparecia aqui como se estivesse a disposicao
+  for (const id of await idsFeriasAvulsasHoje(hoje)) idsFerias.add(id);
 
   // licenca-premio de hoje
   const equipesLicenca = await prisma.equipeLicencaPremio.findMany();
