@@ -1,4 +1,4 @@
-import { ORGANOGRAMA, pertenceAoNo, type NoOrg } from "@/lib/organograma";
+import { ORGANOGRAMA, pertenceAoNo, acharNo, type NoOrg } from "@/lib/organograma";
 
 /* DISTRIBUIÇÃO EQUILIBRADA DAS EQUIPES DE FÉRIAS
 
@@ -46,6 +46,13 @@ export function grupoDoMilitar(lotacao: string | null): string {
 
   for (const no of ORGANOGRAMA.filhos ?? []) visitar(no);
   return achado;
+}
+
+/* Nome legível da unidade, para mostrar na tela (o grupo é um id interno:
+   "3cia-p2" -> "2º Pel. Gonçalves Dias"). */
+export function rotuloDoGrupo(grupo: string): string {
+  if (grupo === "—") return "Sem lotação definida";
+  return acharNo(grupo)?.rotulo ?? grupo;
 }
 
 /* Distribui os militares pelas equipes equilibrando por grupo.
