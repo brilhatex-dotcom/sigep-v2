@@ -1,25 +1,28 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Printer, Save, Loader2, Plus, Trash2 } from "lucide-react";
+import { Printer, Save, Loader2, Plus, Trash2, Pencil, Check } from "lucide-react";
+import CarimboSigep from "@/components/CarimboSigep";
 import { BuscaMilitar, Campo, Cabecalho, ESTILO_FOLHA, FOLHA_A4, type Militar } from "@/components/diarias/Comum";
 
 /* FICHA DE CONTROLE INDIVIDUAL DE DIÁRIAS (área de Diárias)
 
-   Cabecalho e DADOS PESSOAIS saem do cadastro do efetivo, como na Ficha de
-   Credor. A diferenca esta na tabela DADOS DA VIAGEM: BG/Nota, processo,
-   trajeto, periodo e quantidade de diarias — dados que NAO existem em nenhum
-   outro lugar do sistema.
+   É o REGISTRO DO ANO: as viagens do policial vão se acumulando ao longo do
+   exercicio e a ficha mostra o historico daquele ano, com o total somado. Cada
+   viagem guarda o ano a que pertence, entao trocar de ano abre o historico
+   daquele exercicio sem misturar com os outros.
 
-   Por isso as viagens SAO gravadas (Config "diarias_viagens", por militar):
-   sem isso a ficha se perderia ao fechar a tela e nao haveria controle nenhum.
-   O TOTAL e somado das linhas, nao digitado.
+   Cabecalho e dados pessoais saem do cadastro do efetivo. As viagens (BG/Nota,
+   processo, trajeto, periodo, qtd) sao gravadas por militar e por ano, porque
+   nao existem em nenhum outro lugar do sistema.
 
-   O nome do Comandante e a assinatura vem da configuracao da Escala (a mesma
-   fonte dos memorandos), entao a ficha acompanha quando o comando mudar. */
+   A assinatura do Comandante sai EM BRANCO por padrao, com a opcao de carimbo
+   da avancada SIGEP ou de reservar o espaco para assinar no Gov.br — mesmo
+   mecanismo dos memorandos. */
 
 type Viagem = { id: string; bgNota: string; processo: string; trajeto: string; periodo: string; qtd: string };
 type Pessoais = { nome: string; matricula: string; idPm: string; cpf: string; lotacao: string };
+type ModoAss = "branco" | "sigep" | "gov";
 
 const PESSOAIS_VAZIO: Pessoais = { nome: "", matricula: "", idPm: "", cpf: "", lotacao: "" };
 
@@ -33,36 +36,43 @@ function dataPorExtenso(d = new Date()) {
 }
 
 export default function FichaControleIndividual() {
+  const anoAtual = String(new Date().getFullYear());
   const [sel, setSel] = useState<Militar | null>(null);
+  const [ano, setAno] = useState(anoAtual);
+  const [anosComRegistro, setAnosComRegistro] = useState<string[]>([]);
   const [pes, setPes] = useState<Pessoais>(PESSOAIS_VAZIO);
   const [viagens, setViagens] = useState<Viagem[]>([]);
   const [cidadeData, setCidadeData] = useState(`PRESIDENTE DUTRA – MA, ${dataPorExtenso()}`);
-  const [cmt, setCmt] = useState({ nome: "TEN CEL QOEM FLÁVIO DE CARVALHO RAMOS", assinatura: "/brasoes/assinatura-cmt.png" });
+  const [comandante, setComandante] = useState("TEN CEL QOEM FLÁVIO DE CARVALHO RAMOS");
+  const [modoAss, setModoAss] = useState<ModoAss>("branco");
+  const [editando, setEditando] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState("");
 
-  // Comandante que assina: mesma fonte dos memorandos (config da Escala).
+  // Nome do Comandante: mesma fonte dos memorandos (config da Escala), então a
+  // ficha acompanha se o comando mudar.
   useEffect(() => {
     fetch("/api/escala-chefe").then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!d) return;
-        setCmt({
-          nome: String(d.comandante || "TEN CEL QOEM FLÁVIO DE CARVALHO RAMOS"),
-          assinatura: String(d.cmtAssinatura || "/brasoes/assinatura-cmt.png"),
-        });
-      }).catch(() => {});
+      .then((d) => { if (d?.comandante) setComandante(String(d.comandante)); })
+      .catch(() => {});
   }, []);
 
+  // Carrega as viagens do militar no ano escolhido. Roda ao escolher o militar
+  // e ao trocar de ano.
+  const carregarViagens = async (idPmma: string, anoAlvo: string) => {
+    const r = await fetch(`/api/diarias/viagens?idPmma=${encodeURIComponent(idPmma)}&ano=${encodeURIComponent(anoAlvo)}`);
+    const d = r.ok ? await r.json() : {};
+    const lista: Viagem[] = Array.isArray(d?.viagens) ? d.viagens : [];
+    setAnosComRegistro(Array.isArray(d?.anos) ? d.anos : []);
+    setViagens(lista.length ? lista : [novaViagem()]);
+  };
+
   const escolher = async (m: Militar) => {
-    setMsg(""); setCarregando(true);
+    setMsg(""); setCarregando(true); setEditando(false);
     try {
-      const [rf, rv] = await Promise.all([
-        fetch(`/api/efetivo/${encodeURIComponent(m.id)}`),
-        fetch(`/api/diarias/viagens?idPmma=${encodeURIComponent(m.id)}`),
-      ]);
+      const rf = await fetch(`/api/efetivo/${encodeURIComponent(m.id)}`);
       const f = rf.ok ? await rf.json() : {};
-      const dv = rv.ok ? await rv.json() : {};
       setSel(m);
       setPes({
         // No documento original o nome vem SEM posto, só o nome civil.
@@ -74,13 +84,21 @@ export default function FichaControleIndividual() {
         cpf: f.cpf || "",
         lotacao: f.lotacao || "18º BPM",
       });
-      const lista: Viagem[] = Array.isArray(dv?.viagens) ? dv.viagens : [];
-      setViagens(lista.length ? lista : [novaViagem()]);
+      await carregarViagens(m.id, ano);
     } catch { setMsg("Falha ao carregar a ficha do militar."); }
     finally { setCarregando(false); }
   };
 
-  const limpar = () => { setSel(null); setPes(PESSOAIS_VAZIO); setViagens([]); setMsg(""); };
+  const trocarAno = async (novo: string) => {
+    setAno(novo); setMsg("");
+    if (!sel) return;
+    setCarregando(true);
+    try { await carregarViagens(sel.id, novo); }
+    catch { setMsg("Falha ao carregar o ano."); }
+    finally { setCarregando(false); }
+  };
+
+  const limpar = () => { setSel(null); setPes(PESSOAIS_VAZIO); setViagens([]); setAnosComRegistro([]); setMsg(""); setEditando(false); };
   const setP = (k: keyof Pessoais) => (v: string) => setPes((p) => ({ ...p, [k]: v }));
   const setV = (i: number, k: keyof Viagem) => (v: string) =>
     setViagens((l) => l.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
@@ -103,13 +121,27 @@ export default function FichaControleIndividual() {
       const uteis = viagens.filter((v) => [v.bgNota, v.processo, v.trajeto, v.periodo, v.qtd].some((x) => (x || "").trim()));
       const r = await fetch("/api/diarias/viagens", {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idPmma: sel.id, viagens: uteis }),
+        body: JSON.stringify({ idPmma: sel.id, ano, viagens: uteis }),
       });
       if (!r.ok) { const d = await r.json().catch(() => ({})); setMsg(d?.error || "Falha ao salvar as viagens."); return; }
-      setMsg(`✅ ${uteis.length} viagem(ns) gravadas para este militar.`);
+      setAnosComRegistro((a) => (a.includes(ano) ? a : [ano, ...a].sort().reverse()));
+      setMsg(`✅ ${uteis.length} viagem(ns) gravadas no exercício ${ano}.`);
     } catch { setMsg("Falha ao salvar as viagens."); }
     finally { setSalvando(false); }
   };
+
+  // Anos oferecidos: os que já têm registro + o atual e o anterior.
+  const anosOpcoes = useMemo(() => {
+    const base = new Set([...anosComRegistro, anoAtual, String(Number(anoAtual) - 1), ano]);
+    return Array.from(base).filter(Boolean).sort().reverse();
+  }, [anosComRegistro, anoAtual, ano]);
+
+  const BotaoAss = ({ id, rotulo }: { id: ModoAss; rotulo: string }) => (
+    <button onClick={() => setModoAss(id)}
+      className={`rounded px-2 py-1 text-xs transition ${modoAss === id ? "bg-[#D4AF37] text-[#1a1205]" : "border border-white/10 text-[#94A3B8] hover:text-white"}`}>
+      {rotulo}
+    </button>
+  );
 
   return (
     <>
@@ -117,26 +149,65 @@ export default function FichaControleIndividual() {
         <BuscaMilitar sel={sel} onEscolher={escolher} onLimpar={limpar} rotulo="Militar" />
 
         {sel && (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110">
-              <Printer className="h-4 w-4" /> Imprimir
-            </button>
-            <button onClick={() => setViagens((l) => [...l, novaViagem()])} className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/40 px-3 py-1.5 text-sm text-[#D4AF37] transition hover:bg-[#D4AF37]/10">
-              <Plus className="h-4 w-4" /> Nova viagem
-            </button>
-            <button onClick={salvar} disabled={salvando} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-white transition hover:bg-white/5 disabled:opacity-40">
-              {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar viagens
-            </button>
-            {msg && <span className="text-xs text-[#94A3B8]">{msg}</span>}
-          </div>
+          <>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <label className="text-xs text-[#94A3B8]">Exercício</label>
+              <select value={ano} onChange={(e) => trocarAno(e.target.value)}
+                className="rounded-lg border border-white/10 bg-[#0b1626] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]/50">
+                {anosOpcoes.map((a) => (
+                  <option key={a} value={a}>{a}{anosComRegistro.includes(a) ? " ✓" : ""}</option>
+                ))}
+              </select>
+              <span className="text-xs text-[#94A3B8]">
+                {anosComRegistro.length ? `com registro: ${anosComRegistro.join(", ")}` : "sem registro anterior"}
+              </span>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110">
+                <Printer className="h-4 w-4" /> Imprimir
+              </button>
+              <button onClick={() => setViagens((l) => [...l, novaViagem()])} className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/40 px-3 py-1.5 text-sm text-[#D4AF37] transition hover:bg-[#D4AF37]/10">
+                <Plus className="h-4 w-4" /> Nova viagem
+              </button>
+              <button onClick={salvar} disabled={salvando} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-white transition hover:bg-white/5 disabled:opacity-40">
+                {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar viagens
+              </button>
+              <button onClick={() => setEditando((v) => !v)}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-white transition ${editando ? "bg-emerald-600 hover:bg-emerald-700" : "bg-amber-500 hover:bg-amber-600"}`}>
+                {editando ? <><Check className="h-4 w-4" /> Pronto</> : <><Pencil className="h-4 w-4" /> Editar</>}
+              </button>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-[#94A3B8]">Assinatura do Comandante:</span>
+              <BotaoAss id="branco" rotulo="Em branco" />
+              <BotaoAss id="sigep" rotulo="Carimbo SIGEP" />
+              <BotaoAss id="gov" rotulo="Espaço p/ Gov.br" />
+            </div>
+
+            {editando && (
+              <p className="mt-2 text-xs text-amber-300">
+                Modo edição: dá para mexer em qualquer parte do documento (rótulos, títulos, cabeçalho).
+                As viagens e os dados pessoais continuam sendo salvos normalmente; o resto vale só para esta impressão.
+              </p>
+            )}
+            {msg && <p className="mt-2 text-xs text-[#94A3B8]">{msg}</p>}
+          </>
         )}
-        {!sel && <p className="mt-2 text-xs text-[#94A3B8]">Busque o militar. Os dados pessoais vêm do cadastro; as viagens ficam gravadas para este militar e voltam na próxima vez.</p>}
+        {!sel && <p className="mt-2 text-xs text-[#94A3B8]">Busque o militar. Os dados pessoais vêm do cadastro; as viagens ficam gravadas por exercício e formam o histórico do policial.</p>}
       </div>
 
       {carregando && <p className="text-center text-sm text-[#94A3B8] print:hidden">Carregando a ficha...</p>}
 
       {sel && !carregando && (
-        <div key={sel.id} className="folha-diaria mx-auto bg-white text-black shadow-2xl print:shadow-none" style={FOLHA_A4}>
+        <div
+          key={`${sel.id}-${ano}`}
+          className="folha-diaria mx-auto bg-white text-black shadow-2xl print:shadow-none"
+          style={{ ...FOLHA_A4, outline: editando ? "2px solid #f59e0b" : "none" }}
+          contentEditable={editando}
+          suppressContentEditableWarning
+        >
           <Cabecalho />
 
           <p style={{ textAlign: "center", fontSize: "14pt", fontWeight: "bold", margin: "6mm 0 5mm" }}>
@@ -154,7 +225,7 @@ export default function FichaControleIndividual() {
           </p>
           <p style={sLinha}><b>LOTAÇÃO:</b> <Campo valor={pes.lotacao} onChange={setP("lotacao")} min="70mm" /></p>
 
-          {/* ----- DADOS DA VIAGEM ----- */}
+          {/* ----- DADOS DA VIAGEM (exercício selecionado) ----- */}
           <table style={{ width: "100%", borderCollapse: "collapse", margin: "5mm 0 0", fontSize: "11pt" }}>
             <thead>
               <tr>
@@ -171,9 +242,7 @@ export default function FichaControleIndividual() {
             <tbody>
               {viagens.map((v, i) => (
                 <tr key={v.id}>
-                  <td style={sCelD}>
-                    <Campo valor={v.bgNota} onChange={setV(i, "bgNota")} min="100%" />
-                  </td>
+                  <td style={sCelD}><Campo valor={v.bgNota} onChange={setV(i, "bgNota")} min="100%" /></td>
                   <td style={sCelD}><Campo valor={v.processo} onChange={setV(i, "processo")} min="100%" /></td>
                   <td style={sCelD}><Campo valor={v.trajeto} onChange={setV(i, "trajeto")} min="100%" /></td>
                   <td style={sCelD}><Campo valor={v.periodo} onChange={setV(i, "periodo")} min="100%" /></td>
@@ -183,6 +252,7 @@ export default function FichaControleIndividual() {
                       <button
                         className="print:hidden"
                         title="remover esta viagem"
+                        contentEditable={false}
                         onClick={() => setViagens((l) => l.filter((_, j) => j !== i))}
                         style={{ position: "absolute", right: "-7mm", top: "50%", transform: "translateY(-50%)", color: "#b91c1c", background: "none", border: "none", cursor: "pointer" }}
                       >
@@ -203,10 +273,19 @@ export default function FichaControleIndividual() {
             <Campo valor={cidadeData} onChange={setCidadeData} min="100mm" centro />
           </p>
 
+          {/* Assinatura do Cmt: em branco por padrão; carimbo da avançada SIGEP
+              ou espaço reservado para assinar depois no Gov.br. */}
           <div style={{ textAlign: "center", marginTop: "6mm" }}>
-            <img src={cmt.assinatura} alt="" style={{ height: "18mm", objectFit: "contain", display: "block", margin: "0 auto" }}
-              onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
-            <p style={{ margin: 0, fontWeight: "bold" }}>{cmt.nome}</p>
+            {modoAss === "sigep" ? (
+              <div style={{ display: "flex", justifyContent: "center", marginBottom: "1mm" }}>
+                <CarimboSigep nome={comandante} cargo="Cmt. do 18º BPM" largura="52mm" />
+              </div>
+            ) : (
+              // "branco" e "gov" reservam a mesma altura: no Gov.br a assinatura
+              // é aplicada depois, no PDF, e precisa desse espaço livre.
+              <div style={{ height: modoAss === "gov" ? "22mm" : "16mm" }} />
+            )}
+            <p style={{ margin: 0, fontWeight: "bold" }}>{comandante}</p>
             <p style={{ margin: 0, fontWeight: "bold" }}>CMT. DO 18º BPM</p>
           </div>
         </div>

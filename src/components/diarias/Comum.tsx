@@ -117,7 +117,9 @@ export function Cabecalho() {
       <div style={{ display: "flex", alignItems: "center", gap: "4mm" }}>
         <img src="/brasoes/pmma-190.jpg" alt="" style={{ width: "24mm", height: "20mm", objectFit: "contain" }} onError={esconde} />
         <div style={{ flex: 1, textAlign: "center", lineHeight: 1.15 }}>
-          <img src="/brasoes/armas-ma.png" alt="" style={{ height: "14mm", objectFit: "contain", display: "block", margin: "0 auto 1mm" }} onError={esconde} />
+          {/* Brasão do ESTADO do Maranhão (governo) — não o emblema da PM.
+              Mesma imagem usada no memorando de férias. */}
+          <img src="/brasao-estado-ma.png" alt="" style={{ height: "15mm", objectFit: "contain", display: "block", margin: "0 auto 1mm" }} onError={esconde} />
           <p style={{ margin: 0 }}>ESTADO DO MARANHÃO</p>
           <p style={{ margin: 0 }}>SECRETARIA DE ESTADO DA SEGURANÇA PÚBLICA</p>
           <p style={{ margin: 0 }}>POLÍCIA MILITAR DO MARANHÃO</p>

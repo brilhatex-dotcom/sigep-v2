@@ -32,13 +32,27 @@ const VAZIO: Campos = {
   telefone: "", banco: "", agencia: "", conta: "",
 };
 
-// "SOLDADO PM N°775/17 JOSUÉ SILVA LIMA" — posto por extenso, em caixa alta,
-// como no documento original.
-export function nomeCredor(m: { postoGrad?: string | null; numeroBarra?: string | null; nome?: string | null }): string {
-  const posto = classificarPatente(m.postoGrad ?? "").rotulo;
+/* Nome do credor, em caixa alta e com o posto por extenso, seguindo a mesma
+   regra de identificacao que a Escala de Servico ja usa:
+
+     praca   -> "SOLDADO PM N°775/17 JOSUÉ SILVA LIMA"
+     oficial -> "1º TENENTE QOEM PAULO SILAS BARROS DE BRITO JÚNIOR"
+
+   Oficial NAO tem numero/barra — so praca tem — e leva o QUADRO (QOEM, QOE...)
+   no lugar de "PM". */
+export function nomeCredor(m: {
+  postoGrad?: string | null; numeroBarra?: string | null; nome?: string | null; quadro?: string | null;
+}): string {
+  const p = classificarPatente(m.postoGrad ?? "");
+  const posto = p.rotulo !== "Não informado" ? p.rotulo : "";
+  const ehOficial = p.ordem <= 7;
+  const quadro = (m.quadro || "").trim().toUpperCase();
   const barra = (m.numeroBarra || "").trim();
-  return [posto && posto !== "Não informado" ? `${posto} PM` : "", barra ? `N°${barra}` : "", m.nome || ""]
-    .filter(Boolean).join(" ").toUpperCase();
+
+  const meio = ehOficial ? (quadro || "PM") : "PM";
+  const num = !ehOficial && /\d/.test(barra) ? `N°${barra}` : "";
+
+  return [posto, posto ? meio : "", num, m.nome || ""].filter(Boolean).join(" ").toUpperCase();
 }
 
 export default function FichaCredor() {

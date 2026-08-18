@@ -15,11 +15,15 @@ export const dynamic = "force-dynamic";
    nenhum. Ficam na tabela Config, chave "diarias_viagens", no mesmo molde das
    ferias avulsas.
 
-   GET ?idPmma=  -> { viagens }        PUT { idPmma, viagens } -> substitui (admin) */
+   A ficha e o registro do ANO: cada viagem guarda o ano a que pertence, e o
+   historico do policial vai se acumulando exercicio a exercicio.
+
+   GET ?idPmma=&ano= -> { viagens }   PUT { idPmma, ano, viagens } -> substitui
+   apenas as viagens daquele militar NAQUELE ano (admin) */
 const CHAVE = "diarias_viagens";
 
 type Viagem = {
-  id: string; idPmma: string;
+  id: string; idPmma: string; ano: string;
   bgNota: string; processo: string; trajeto: string; periodo: string; qtd: string;
 };
 
@@ -42,10 +46,18 @@ async function salvar(lista: Viagem[]) {
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
-  const idPmma = new URL(req.url).searchParams.get("idPmma") || "";
+  const q = new URL(req.url).searchParams;
+  const idPmma = q.get("idPmma") || "";
+  const ano = q.get("ano") || "";
   if (!idPmma) return NextResponse.json({ error: "idPmma obrigatorio" }, { status: 400 });
   const lista = ler((await prisma.config.findUnique({ where: { chave: CHAVE } }))?.valor);
-  return NextResponse.json({ viagens: lista.filter((v) => v.idPmma === idPmma) });
+  const doMilitar = lista.filter((v) => v.idPmma === idPmma);
+  // Anos que este militar ja tem registro, para o seletor da ficha.
+  const anos = Array.from(new Set(doMilitar.map((v) => v.ano).filter(Boolean))).sort().reverse();
+  return NextResponse.json({
+    viagens: ano ? doMilitar.filter((v) => (v.ano || "") === ano) : doMilitar,
+    anos,
+  });
 }
 
 export async function PUT(req: Request) {
@@ -55,12 +67,15 @@ export async function PUT(req: Request) {
   try {
     const b = await req.json();
     const idPmma = String(b?.idPmma || "").trim();
+    const ano = String(b?.ano || "").trim();
     if (!idPmma) return NextResponse.json({ error: "idPmma obrigatorio" }, { status: 400 });
+    if (!/^\d{4}$/.test(ano)) return NextResponse.json({ error: "ano obrigatorio (AAAA)" }, { status: 400 });
     const entrada = Array.isArray(b?.viagens) ? b.viagens : [];
 
     const limpa: Viagem[] = entrada.map((v: any, i: number) => ({
       id: String(v?.id || `${idPmma}-${Date.now()}-${i}`),
       idPmma,
+      ano,
       bgNota: String(v?.bgNota || "").trim(),
       processo: String(v?.processo || "").trim(),
       trajeto: String(v?.trajeto || "").trim(),
@@ -68,9 +83,11 @@ export async function PUT(req: Request) {
       qtd: String(v?.qtd || "").trim(),
     }));
 
-    // Troca APENAS as linhas deste militar; as dos outros ficam como estao.
+    // Troca APENAS as linhas deste militar NESTE ano; os outros anos e os
+    // demais militares ficam como estao — o historico se preserva.
     const lista = ler((await prisma.config.findUnique({ where: { chave: CHAVE } }))?.valor);
-    await salvar([...lista.filter((v) => v.idPmma !== idPmma), ...limpa]);
+    const resto = lista.filter((v) => !(v.idPmma === idPmma && (v.ano || "") === ano));
+    await salvar([...resto, ...limpa]);
     return NextResponse.json({ ok: true, viagens: limpa });
   } catch (err) {
     console.error("[PUT /api/diarias/viagens]", err);
