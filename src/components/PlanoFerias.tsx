@@ -16,6 +16,9 @@ import {
   Clock,
   ChevronDown,
   ChevronRight,
+  UserPlus,
+  Trash2,
+  Search,
 } from "lucide-react";
 import MemorandoFerias, { DadosMemorando } from "@/components/MemorandoFerias";
 
@@ -168,6 +171,67 @@ export default function PlanoFerias({
   const [aberta, setAberta] = useState<EquipeView | null>(null);
   const [permuta, setPermuta] = useState<MembroEquipe | null>(null);
   const [novaEquipe, setNovaEquipe] = useState("");
+
+  // ---- composição da equipe: adicionar / remover militar ----
+  // O plano do ano novo já nasce equilibrado, mas o P/1 continua dono da lista.
+  const [addAberto, setAddAberto] = useState(false);
+  const [addBusca, setAddBusca] = useState("");
+  const [addLista, setAddLista] = useState<{ id: string; postoGrad?: string | null; numeroBarra?: string | null; nome?: string | null; nomeGuerra?: string | null; matricula?: string | null }[]>([]);
+  const [addSalvando, setAddSalvando] = useState<string | null>(null);
+  const [addMsg, setAddMsg] = useState("");
+  const [removendo, setRemovendo] = useState<string | null>(null);
+
+  // quem já está no plano deste ano (em qualquer equipe) — para não oferecer
+  // duas vezes na busca
+  const idsNoPlano = useMemo(
+    () => new Set(equipes.flatMap((e) => e.membros.map((m) => m.efetivoId))),
+    [equipes]
+  );
+
+  const abrirAdicionar = () => {
+    setAddAberto(true); setAddBusca(""); setAddMsg("");
+    if (addLista.length) return;
+    fetch("/api/efetivo").then((r) => (r.ok ? r.json() : null))
+      .then((d) => setAddLista((d?.efetivo || d || []) as typeof addLista)).catch(() => {});
+  };
+
+  const resultadosAdd = useMemo(() => {
+    const t = addBusca.trim().toLowerCase();
+    if (!t) return [];
+    return addLista
+      .filter((m) => !idsNoPlano.has(m.id))
+      .filter((m) => `${m.postoGrad ?? ""} ${m.nome ?? ""} ${m.nomeGuerra ?? ""} ${m.matricula ?? ""}`.toLowerCase().includes(t))
+      .slice(0, 8);
+  }, [addBusca, addLista, idsNoPlano]);
+
+  async function adicionarMembro(idPmma: string) {
+    if (!aberta) return;
+    setAddSalvando(idPmma); setAddMsg("");
+    try {
+      const r = await fetch("/api/ferias/membros", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idPmma, numeroEquipe: aberta.numeroEquipe, anoGozo: anoSelecionado }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setAddMsg(d?.erro || "Falha ao adicionar."); return; }
+      setAddBusca(""); setAddAberto(false); setAberta(null);
+      router.refresh();
+    } catch { setAddMsg("Falha ao adicionar."); }
+    finally { setAddSalvando(null); }
+  }
+
+  async function removerMembro(m: MembroEquipe) {
+    const nome = [m.postoGrad, m.nomeGuerra || m.nome].filter(Boolean).join(" ");
+    if (!confirm(`Remover ${nome} do plano de ${anoSelecionado}?\n\nEle sai desta equipe e deixa de contar como "de férias" nas demais telas.`)) return;
+    setRemovendo(m.efetivoId);
+    try {
+      const r = await fetch(`/api/ferias/membros?idPmma=${encodeURIComponent(m.efetivoId)}&anoGozo=${encodeURIComponent(anoSelecionado)}`, { method: "DELETE" });
+      if (!r.ok) throw new Error();
+      setAberta(null);
+      router.refresh();
+    } catch { alert("Falha ao remover."); }
+    finally { setRemovendo(null); }
+  }
   const [salvandoPermuta, setSalvandoPermuta] = useState(false);
   const [memorando, setMemorando] = useState<DadosMemorando | null>(null);
   const [memInfo, setMemInfo] = useState<{ efetivoId: string } | null>(null);
@@ -194,7 +258,12 @@ export default function PlanoFerias({
     const anosNum = anos.map(Number).filter((n) => !isNaN(n));
     const sugestao = String(Math.max(new Date().getFullYear(), ...(anosNum.length ? anosNum : [0])) + 1);
     const ano = window.prompt(
-      "Criar plano de férias para qual ano?\n(copia as equipes e os militares do ano atual, com as datas em branco para você preencher)",
+      "Criar plano de férias para qual ano?\n\n" +
+      "A EQUIPE 1 repete os mesmos militares deste ano.\n" +
+      "As demais equipes são REDISTRIBUÍDAS para equilibrar o efetivo: cada unidade\n" +
+      "(ROTEM, Força Tática, ADM e cada destacamento) fica espalhada entre as equipes,\n" +
+      "para não sair muita gente da mesma unidade de uma vez.\n\n" +
+      "As datas vêm em branco, e você pode adicionar, remover ou trocar de equipe depois.",
       sugestao
     );
     if (!ano) return;
@@ -207,7 +276,14 @@ export default function PlanoFerias({
       });
       const d = await r.json();
       if (!r.ok) { alert(d.erro || "Não foi possível criar o plano."); return; }
-      alert(`Plano de ${dest} criado! ${d.membros || 0} militares copiados do ano ${anoSelecionado}. Agora é só ajustar as datas de cada equipe.`);
+      alert(
+        d.modo === "equilibrado"
+          ? `Plano de ${dest} criado com ${d.membros || 0} militares.\n\n` +
+            `A equipe 1 manteve os mesmos de ${anoSelecionado}; as demais foram redistribuídas ` +
+            `equilibrando por unidade. Agora é só ajustar as datas de cada equipe — e, se precisar, ` +
+            `adicionar, remover ou trocar alguém de equipe.`
+          : `Plano de ${dest} criado! ${d.membros || 0} militares copiados do ano ${anoSelecionado}. Agora é só ajustar as datas de cada equipe.`
+      );
       onTrocarAno(dest);
     } catch { alert("Falha ao criar o plano."); }
   }
@@ -862,6 +938,13 @@ export default function PlanoFerias({
                 </h3>
               </div>
               <div className="flex items-center gap-2">
+                {isAdmin && (
+                  <button onClick={abrirAdicionar}
+                    title={`Adicionar um militar à equipe ${aberta.numeroEquipe} no plano de ${anoSelecionado}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-1.5 text-xs font-medium text-emerald-200 hover:bg-emerald-400/20">
+                    <UserPlus className="h-4 w-4" /> Adicionar
+                  </button>
+                )}
                 {isAdmin && filtrarMembros(aberta.membros).length > 0 && (
                   <>
                     <button onClick={() => abrirAssinarLote(aberta, "chefe_p1")}
@@ -894,6 +977,52 @@ export default function PlanoFerias({
                   </p>
                 ))}
               </div>
+
+              {/* busca para incluir um militar nesta equipe */}
+              {isAdmin && addAberto && (
+                <div className="mb-4 rounded-lg border border-emerald-400/30 bg-emerald-400/5 p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-xs font-semibold text-emerald-200">
+                      Adicionar à equipe {aberta.numeroEquipe} · plano de {anoSelecionado}
+                    </p>
+                    <button onClick={() => setAddAberto(false)} className="text-xs text-[#94A3B8] hover:text-white">fechar</button>
+                  </div>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+                    <input
+                      value={addBusca}
+                      onChange={(e) => setAddBusca(e.target.value)}
+                      placeholder="Buscar militar por nome ou matrícula..."
+                      className="w-full rounded-lg border border-white/10 bg-[#0b1626] py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-emerald-400/50"
+                    />
+                  </div>
+                  {addBusca.trim() !== "" && (
+                    <div className="mt-1 overflow-hidden rounded-lg border border-white/10 bg-[#0b1626]">
+                      {resultadosAdd.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-[#94A3B8]">
+                          Nenhum militar disponível (quem já está no plano de {anoSelecionado} não aparece aqui).
+                        </div>
+                      ) : resultadosAdd.map((m) => (
+                        <button
+                          key={m.id}
+                          onClick={() => adicionarMembro(m.id)}
+                          disabled={addSalvando === m.id}
+                          className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-white hover:bg-white/5 disabled:opacity-50"
+                        >
+                          <span>
+                            {[m.postoGrad, m.nomeGuerra || m.nome].filter(Boolean).join(" ")}
+                            {m.matricula && <span className="ml-2 text-xs text-[#94A3B8]">mat {m.matricula}</span>}
+                          </span>
+                          {addSalvando === m.id
+                            ? <Loader2 className="h-4 w-4 animate-spin text-[#94A3B8]" />
+                            : <UserPlus className="h-4 w-4 text-emerald-300" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {addMsg && <p className="mt-2 text-xs text-red-300">{addMsg}</p>}
+                </div>
+              )}
 
               <div className="max-h-[50vh] overflow-y-auto rounded-lg border border-white/10">
                 <table className="min-w-full text-sm">
@@ -956,6 +1085,17 @@ export default function PlanoFerias({
                                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                   : <Clock className="h-3.5 w-3.5" />}
                                 {postergados.has(m.efetivoId) ? "Adiado" : "Adiar"}
+                              </button>
+                              <button
+                                onClick={() => removerMembro(m)}
+                                disabled={removendo === m.efetivoId}
+                                title="Tira este militar do plano deste ano (não apaga a ficha dele)"
+                                className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-[#94A3B8] hover:border-red-500/40 hover:text-red-300 disabled:opacity-50"
+                              >
+                                {removendo === m.efetivoId
+                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  : <Trash2 className="h-3.5 w-3.5" />}
+                                Remover
                               </button>
                             </div>
                           </td>

@@ -83,12 +83,9 @@ export default async function NovoRequerimentoPage({
     if (edital?.nomeCompleto && edital?.numero) {
       amparoLegal = amparoDoCurso(edital);
       modalidadeOutros = especificacaoDoCurso(edital);
-      infoAdicional = infoAdicionalCurso(
-        edital,
-        m.matricula || "",
-        perfil?.cpf || m.cpf || "",
-        perfil?.email || m.email || ""
-      );
+      // Só a frase do pedido. As linhas MATRICULA/CPF/E-MAIL são acrescentadas
+      // na geração do documento, a partir do que foi realmente preenchido.
+      infoAdicional = infoAdicionalCurso(edital);
     }
     // edital sem numero configurado ainda: segue tudo em branco, o P/1
     // preenche na mao — melhor que travar o militar de abrir o requerimento.
