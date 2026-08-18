@@ -52,10 +52,15 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       tempoServico: r.tempoServico,
       estadoCivil: r.estadoCivil,
       opmClassificado: r.opmClassificado,
+      opmExercicio: r.opmExercicio,
       amparoLegal: r.amparoLegal,
       infoAdicional: r.infoAdicional,
       cpf: r.cpf,
       email: r.email,
+      p2Conceito: r.p2Conceito,
+      p2UltimaPromocao: r.p2UltimaPromocao,
+      p2SituacaoJur: r.p2SituacaoJur,
+      p2Complementares: r.p2Complementares,
     });
 
     const key = `requerimentos/${r.id}_${Date.now()}.docx`;

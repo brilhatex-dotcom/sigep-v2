@@ -69,14 +69,68 @@ type DadosReq = {
   tempoServico?: string | null;
   estadoCivil?: string | null;
   opmClassificado?: string | null;
+  opmExercicio?: string | null;
   amparoLegal?: string | null;
   infoAdicional?: string | null;
   cpf?: string | null;
   email?: string | null;
+  // pagina 2 (so modelo "cursos")
+  p2Conceito?: string | null;
+  p2UltimaPromocao?: string | null;
+  p2SituacaoJur?: string | null; // JSON {bgNumero, bgData} — ver comentario abaixo
+  p2Complementares?: string | null;
 };
 
 function s(v: string | null | undefined): string {
   return v == null ? "" : String(v);
+}
+
+// "18/02/2014" -> "18 de fevereiro de 2014"
+const MESES_EXT = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+function dataPorExtenso(dataBR: string): string {
+  const m = dataBR.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return dataBR;
+  const dia = parseInt(m[1], 10);
+  const mes = MESES_EXT[parseInt(m[2], 10) - 1];
+  if (!mes) return dataBR;
+  return `${dia} de ${mes} de ${m[3]}`;
+}
+
+/* Compoe os 6 itens da "Situação Jurídica do Militar" da pagina 2 do
+   requerimento de cursos (CAS/CFS/CFC), no mesmo texto usado nos
+   requerimentos reais protocolados no 18º BPM.
+
+   Itens 1º-3º e 5º sao SEMPRE OS MESMOS (nao variam por militar) — ficam
+   fixos aqui, nao sao campo de formulario. O 4º vem da ultima promocao +
+   BG (campos que o requerente preenche). O 6º e derivado sozinho da DATA DE
+   INCLUSAO que a ficha ja tem, convertida por extenso — ninguem precisa
+   digitar de novo uma informacao que o cadastro ja sabe. */
+function composeSituacaoJuridica(d: {
+  p2UltimaPromocao?: string | null; p2SituacaoJur?: string | null;
+  dataInclusao?: string | null; opmExercicio?: string | null;
+}): string {
+  let bgNumero = "", bgData = "";
+  try {
+    const j = d.p2SituacaoJur ? JSON.parse(d.p2SituacaoJur) : {};
+    bgNumero = s(j?.bgNumero);
+    bgData = formatarData(s(j?.bgData));
+  } catch { /* campo antigo/vazio: segue sem BG */ }
+
+  const opm = s(d.opmExercicio) || "18º BPM";
+  const dataPromocao = formatarData(s(d.p2UltimaPromocao));
+  const item4 = bgNumero || bgData
+    ? `4º) Data da última promoção ${dataPromocao} (BG nº ${bgNumero} de ${bgData})`
+    : `4º) Data da última promoção ${dataPromocao}`;
+  const dataInclusaoExt = dataPorExtenso(formatarData(s(d.dataInclusao)));
+
+  return [
+    "1º) Não está sub-júdice, nem responde a Inquérito Policial, Policial Militar ou Técnico, Sindicância ou Conselho de Disciplina;",
+    "2º) Não foi punido disciplinarmente por transgressão de natureza grave, no período de 12 (doze) meses até a data de encerramento das inscrições;",
+    "3º) Não está condenado a pena privativa de liberdade, medida de segurança ou qualquer condenação compatível com a função policial militar;",
+    item4,
+    `5º) Está em pleno desempenho de suas atividades policiais militares na Sede do ${opm}.`,
+    `6º) O policial militar foi incluído no dia ${dataInclusaoExt}.`,
+  ].join("\n");
 }
 
 /* -------------------------------------------------------------------------
@@ -162,12 +216,17 @@ export function gerarRequerimentoDocx(d: DadosReq): Buffer {
     idpmma: s(d.idPmmaTxt),
     cpf: s(d.cpf),
     email: s(d.email),
+    p2conceito: s(d.p2Conceito),
+    p2situacaojur: composeSituacaoJuridica(d),
   };
 
-  // marca a modalidade escolhida (todas false, exceto a dela)
+  // marca a modalidade escolhida (todas false, exceto a dela). Qualquer
+  // modalidade que o sistema nao reconhece (cursos CAS/CFS/CFC, ou uma
+  // modalidade que o admin cadastrou na hora) cai no quadrinho "OUTROS" —
+  // nao ha como criar um quadrinho novo na folha impressa.
   for (const chave of Object.values(CHAVE_X)) dados[chave] = false;
-  const chaveEscolhida = CHAVE_X[d.modalidade.trim().toUpperCase()];
-  if (chaveEscolhida) dados[chaveEscolhida] = true;
+  const chaveEscolhida = CHAVE_X[d.modalidade.trim().toUpperCase()] ?? "outros";
+  dados[chaveEscolhida] = true;
 
   // especificacao do "OUTROS": sai no mesmo quadro do formulario, entre
   // parenteses (ex.: OUTROS (CAUTELA DE COLETE BALISTICO)). Vazio = nada muda.

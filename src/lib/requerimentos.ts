@@ -212,8 +212,67 @@ export function infoPadraoDaModalidade(modalidade: string): string {
   return INFO_PADRAO[modalidade.toUpperCase().trim()] ?? "";
 }
 
+// TODAS as modalidades que tem quadrinho PROPRIO na folha impressa. Qualquer
+// coisa fora desta lista (inclusive as modalidades que o admin cadastra na
+// hora) nao tem onde marcar "X" no papel oficial, entao cai no quadrinho
+// "OUTROS" com o nome dela entre parenteses — o mesmo tratamento que ja valia
+// so para armamento/material belico.
+const TODAS_COM_QUADRINHO_PROPRIO = new Set([
+  ...MODALIDADES_COMUM.map((m) => m.toUpperCase()),
+]);
+
+// true se a modalidade e uma das que o sistema ja conhece de fabrica (tem
+// quadrinho proprio OU e um dos cursos OU e "OUTROS"). false = modalidade
+// cadastrada pelo admin na hora, ou qualquer string desconhecida.
+export function ehModalidadeConhecida(modalidade: string): boolean {
+  const m = modalidade.toUpperCase().trim();
+  return (
+    TODAS_COM_QUADRINHO_PROPRIO.has(m) ||
+    MODALIDADES_CURSOS.includes(m) ||
+    MODALIDADES_MATERIAL.includes(m)
+  );
+}
+
 // modalidades que caem no quadrinho "OUTROS" da folha oficial
 export function usaQuadrinhoOutros(modalidade: string): boolean {
   const m = modalidade.toUpperCase().trim();
-  return m === "OUTROS" || m in ESPECIFICACAO_OUTROS;
+  if (m === "OUTROS" || m in ESPECIFICACAO_OUTROS) return true;
+  // desconhecida (cadastrada pelo admin, ou modalidade de curso — CAS/CFS/CFC
+  // tambem nao tem quadrinho proprio no formulario impresso, ver o documento
+  // real: aparecem como "OUTROS (INSCRIÇÃO NO CEFS PM)") -> tambem cai aqui.
+  return !TODAS_COM_QUADRINHO_PROPRIO.has(m);
+}
+
+// ==========================================================
+//  REQUERIMENTO DE CURSOS (CAS/CFS/CFC) — pagina 2 e edital
+//  Compoe os textos a partir de pecas atomicas (nunca gravadas ja prontas),
+//  para que o EDITAL configurado hoje valha em qualquer requerimento gerado
+//  de agora em diante, sem precisar editar os ja enviados.
+// ==========================================================
+
+export type EditalCurso = { sigla: string; nomeCompleto: string; numero: string; data: string };
+
+// "SOLICITO DE VOSSA SENHORIA, A MINHA INSCRIÇÃO NO {curso} - EDITAL Nº
+//  {numero}, datado de {data}." + as 3 linhas que o documento real acrescenta
+//  (matricula/cpf/e-mail), porque no formulario oficial elas entram dentro do
+//  proprio quadro de INFORMAÇÕES ADICIONAIS — nao ha quadro proprio pra isso.
+export function infoAdicionalCurso(edital: EditalCurso, matricula: string, cpf: string, email: string): string {
+  const linhas = [
+    `SOLICITO DE VOSSA SENHORIA, A MINHA INSCRIÇÃO NO ${edital.nomeCompleto}- EDITAL Nº ${edital.numero}, datado de ${edital.data}.`,
+    "",
+    `MATRICULA: ${matricula}`,
+    `CPF: ${cpf}`,
+    `E-MAIL: ${email}`,
+  ];
+  return linhas.join("\n");
+}
+
+// Texto entre parenteses ao lado do quadrinho "OUTROS": " (INSCRIÇÃO NO CEFS PM)".
+export function especificacaoDoCurso(edital: EditalCurso): string {
+  return `INSCRIÇÃO NO ${edital.sigla} PM`;
+}
+
+// Amparo legal padrao de uma inscricao em curso: referencia o proprio edital.
+export function amparoDoCurso(edital: EditalCurso): string {
+  return `EDITAL Nº ${edital.numero}, DE ${edital.data}, DA DIRETORIA DE ENSINO DA POLÍCIA MILITAR DO MARANHÃO.`;
 }

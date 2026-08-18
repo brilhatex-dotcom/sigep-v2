@@ -30,6 +30,25 @@ export async function POST(req: Request) {
 
   const v = (k: string) => (d[k] != null && String(d[k]).trim() !== "" ? String(d[k]).trim() : null);
 
+  // Confere de novo no servidor os campos obrigatorios de cursos, mesmo ja
+  // validados na tela — nunca confia so no cliente.
+  if (modelo === "cursos" && acao === "enviado") {
+    const obrigatorios = ["cpf", "email", "p2Conceito", "p2UltimaPromocao", "p2BgNumero", "p2BgData"];
+    const faltando = obrigatorios.filter((k) => !v(k));
+    if (faltando.length) {
+      return NextResponse.json({ error: `Preencha antes de enviar: ${faltando.join(", ")}.` }, { status: 400 });
+    }
+  }
+
+  // O banco nao tem colunas proprias para "Nº do BG" e "Data do BG" (nunca
+  // usadas ate hoje neste modelo) — em vez de pedir uma migracao, aproveitamos
+  // a coluna p2SituacaoJur, que tambem nunca foi usada, guardando os dois
+  // valores como JSON. A pagina 2 inteira e composta na hora de GERAR o
+  // documento (gerarRequerimento.ts), a partir dessas pecas atomicas.
+  const p2SituacaoJur = (v("p2BgNumero") || v("p2BgData"))
+    ? JSON.stringify({ bgNumero: v("p2BgNumero") || "", bgData: v("p2BgData") || "" })
+    : null;
+
   try {
     const criado = await prisma.requerimento.create({
       data: {
@@ -59,7 +78,8 @@ export async function POST(req: Request) {
         amparoLegal: v("amparoLegal"),
         infoAdicional: v("infoAdicional"),
         p2Conceito: v("p2Conceito"),
-        p2SituacaoJur: v("p2SituacaoJur"),
+        p2SituacaoJur,
+        p2UltimaPromocao: v("p2UltimaPromocao"),
         p2Complementares: v("p2Complementares"),
         status: acao,
       },
