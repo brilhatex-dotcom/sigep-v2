@@ -55,6 +55,117 @@ export function rotuloDoGrupo(grupo: string): string {
   return acharNo(grupo)?.rotulo ?? grupo;
 }
 
+/* ================= RODÍZIO ANUAL DAS EQUIPES =================
+
+   Regra do Batalhão: de um ano para o outro, cada equipe DESCE um número, e a
+   primeira do rodízio dá a volta para a última.
+
+     equipe 1  — fica de fora, sempre a mesma gente
+     equipe 2  ->  9        equipe 6  ->  5
+     equipe 3  ->  2        equipe 7  ->  6
+     equipe 4  ->  3        equipe 8  ->  7
+     equipe 5  ->  4        equipe 9  ->  8
+
+   O porquê: cada equipe tem o seu período no calendário. Quem saiu de férias
+   no período da equipe 2 neste ano sai no da 9 no ano que vem — assim todo
+   mundo reveza a época do ano, em vez de ficar sempre com o mesmo mês. */
+export function mapaRodizio(equipes: string[]): Map<string, string> {
+  const ordenadas = [...equipes].sort((a, b) => Number(a) - Number(b));
+  const mapa = new Map<string, string>();
+  if (ordenadas.length < 2) return mapa;
+
+  const [primeira, ...rotativas] = ordenadas;
+  mapa.set(primeira, primeira); // a equipe 1 não roda
+
+  const k = rotativas.length;
+  rotativas.forEach((eq, i) => {
+    // desce um: a de índice 0 (equipe 2) dá a volta para a última (equipe 9)
+    mapa.set(eq, rotativas[(i - 1 + k) % k]);
+  });
+  return mapa;
+}
+
+/* Aplica o rodízio e, em seguida, corrige APENAS o que ficou desequilibrado.
+
+   O rodízio sozinho preserva a composição das equipes (só troca o rótulo), o
+   que é ótimo quando o ano de origem já estava equilibrado — nesse caso não há
+   nada a corrigir e todo mundo mantém o rodízio limpo.
+
+   Quando o ano de origem tem uma unidade concentrada numa equipe só, o rodízio
+   herdaria essa concentração. Então, depois de rodar, movemos o MÍNIMO de
+   militares necessário para que nenhuma equipe fique acima do teto daquela
+   unidade — preservando o rodízio de todos os demais. */
+export function rotacionarComEquilibrio(
+  militares: MilitarParaDistribuir[],
+  equipes: string[],
+  atribuicoesOrigem: Atribuicao[]
+): { atribuicoes: Atribuicao[]; movidosPorEquilibrio: number } {
+  const ordenadas = [...equipes].sort((a, b) => Number(a) - Number(b));
+  if (ordenadas.length < 2) {
+    return { atribuicoes: atribuicoesOrigem, movidosPorEquilibrio: 0 };
+  }
+  const primeira = ordenadas[0];
+  const rotativas = ordenadas.slice(1);
+  const mapa = mapaRodizio(ordenadas);
+  const mapaLotacao = new Map(militares.map((m) => [m.idPmma, m.lotacao ?? null]));
+
+  // ---- 1) rodízio puro ----
+  const destino = new Map<string, string>(); // idPmma -> equipe
+  for (const a of atribuicoesOrigem) {
+    destino.set(a.idPmma, mapa.get(a.numeroEquipe) ?? a.numeroEquipe);
+  }
+
+  // ---- 2) correção mínima do equilíbrio, unidade por unidade ----
+  // Só mexe em quem está nas equipes do rodízio: a equipe 1 é intocada.
+  const porGrupo = new Map<string, string[]>(); // grupo -> ids (fora da equipe 1)
+  for (const [id, eq] of destino) {
+    if (eq === primeira) continue;
+    const g = grupoDoMilitar(mapaLotacao.get(id) ?? null);
+    if (!porGrupo.has(g)) porGrupo.set(g, []);
+    porGrupo.get(g)!.push(id);
+  }
+
+  let movidos = 0;
+  const gruposOrdenados = Array.from(porGrupo.keys()).sort();
+
+  for (const g of gruposOrdenados) {
+    const ids = porGrupo.get(g)!;
+    const teto = Math.ceil(ids.length / rotativas.length);
+
+    // quantos deste grupo em cada equipe do rodízio
+    const contar = () => {
+      const c = new Map<string, string[]>(rotativas.map((e) => [e, []]));
+      for (const id of ids) {
+        const eq = destino.get(id)!;
+        if (c.has(eq)) c.get(eq)!.push(id);
+      }
+      return c;
+    };
+
+    // enquanto alguma equipe passar do teto, tira um e põe na mais vazia
+    for (let volta = 0; volta < ids.length; volta++) {
+      const c = contar();
+      let cheia = "", vazia = "";
+      for (const e of rotativas) {
+        if (!cheia || c.get(e)!.length > c.get(cheia)!.length) cheia = e;
+        if (!vazia || c.get(e)!.length < c.get(vazia)!.length) vazia = e;
+      }
+      if (c.get(cheia)!.length <= teto) break;             // já está no teto
+      if (c.get(cheia)!.length - c.get(vazia)!.length < 2) break; // nada a ganhar
+
+      // move sempre o mesmo (ordem estável) para o resultado ser repetível
+      const candidato = [...c.get(cheia)!].sort()[0];
+      destino.set(candidato, vazia);
+      movidos++;
+    }
+  }
+
+  return {
+    atribuicoes: Array.from(destino.entries()).map(([idPmma, numeroEquipe]) => ({ idPmma, numeroEquipe })),
+    movidosPorEquilibrio: movidos,
+  };
+}
+
 /* Distribui os militares pelas equipes equilibrando por grupo.
 
    `fixos` são os que não se movem (a equipe 1 do ano anterior): entram no
