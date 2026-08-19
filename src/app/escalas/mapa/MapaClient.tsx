@@ -37,7 +37,10 @@ type Slot = { titular: string; permuta: string | null; status?: any };
 type TipoAfastamento =
   | "ferias" | "missao" | "curso" | "licenca_premio"
   | "licenca_paternidade" | "jms" | "rotam" | "outro";
-type Afastamento = { militar: string; tipo: TipoAfastamento; inicio: string; fim: string };
+type Afastamento = { militar: string; tipo: TipoAfastamento; inicio: string; fim: string;
+  // Motivo vindo da situacao da ficha (Agregacao, LTIP, Reserva...), que nao
+  // cabe num dos tipos fixos. Sem isto tudo virava um generico "AF/Afastado".
+  rotulo?: string; sigla?: string };
 type EquipeRotem = { nome: string; turnos: string[]; militares: string[]; diasSemana?: number[] };
 type Cadastro = {
   cpu: string[]; ftGraduado: string[]; ftMotorista: string[]; ftPatrulheiro: string[];
@@ -141,6 +144,19 @@ function afastado(nome: string, data: string, lista: Afastamento[]) {
 function afastamentoDe(nome: string, data: string, lista: Afastamento[]): TipoAfastamento | null {
   const a = lista.find((x) => x.militar === nome && data >= x.inicio && data <= x.fim);
   return a ? a.tipo : null;
+}
+// O registro inteiro, quando se precisa do motivo (rotulo/sigla) e nao so do tipo.
+function afastamentoRegDe(nome: string, data: string, lista: Afastamento[]): Afastamento | null {
+  return lista.find((x) => x.militar === nome && data >= x.inicio && data <= x.fim) || null;
+}
+// Nome cheio e sigla que aparecem na tela: o motivo real quando existe.
+function rotuloAf(a: Afastamento | null): string {
+  if (!a) return "Afastado";
+  return a.rotulo || AF_LABEL[a.tipo] || "Afastado";
+}
+function siglaAf(a: Afastamento | null): string {
+  if (!a) return "AF";
+  return a.sigla || ABBR_AF[a.tipo] || "AF";
 }
 function rodizio(pool: string[], qtd: number, dataAlvo: string, afast: Afastamento[], ref: string): string[] {
   if (pool.length === 0 || dataAlvo < ref) return [];
@@ -1124,8 +1140,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     for (let k = 2; k <= nExtra + 1; k++) { const id = q[team]?.[`${funcaoKey}#${k}`] || ""; if (id) cands.push(id); }
     for (const id of cands) {
       if (afastado(id, iso, cadEff.afastamentos)) {
-        const tp = afastamentoDe(id, iso, cadEff.afastamentos);
-        return { tipo: AF_LABEL[(tp || "outro") as TipoAfastamento] || "Afastado", nome: nomeDe(id) };
+        return { tipo: rotuloAf(afastamentoRegDe(id, iso, cadEff.afastamentos)), nome: nomeDe(id) };
       }
     }
     return null;
@@ -1139,8 +1154,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     const out: { nome: string; tipo: string }[] = [];
     for (const id of eq.militares) {
       if (afastado(id, iso, cadEff.afastamentos)) {
-        const tp = afastamentoDe(id, iso, cadEff.afastamentos);
-        out.push({ nome: nomeDe(id), tipo: AF_LABEL[(tp || "outro") as TipoAfastamento] || "Afastado" });
+        out.push({ nome: nomeDe(id), tipo: rotuloAf(afastamentoRegDe(id, iso, cadEff.afastamentos)) });
       }
     }
     return out;
@@ -1558,7 +1572,9 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                   </td>
                   {dias.map((iso) => {
                     const funcs = porMilitar.map[nome]?.[iso] || [];
-                    const af = afastamentoDe(nome, iso, cad.afastamentos);
+                    const reg = afastamentoRegDe(nome, iso, cad.afastamentos);
+                    const af = reg ? reg.tipo : null;
+                    const sig = siglaAf(reg);
                     const escalado = funcs.length > 0;
                     let cls = "mp-cel mil";
                     if (fimDeSemana(iso)) cls += " fds";
@@ -1567,13 +1583,13 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                     else if (af) cls += " afast";
                     else if (funcs.length > 1) cls += " dobra";
                     if (selNome === nome && escalado) cls += " sel";
-                    const txt = af && !escalado ? ABBR_AF[af] : funcs.join("/");
+                    const txt = af && !escalado ? sig : funcs.join("/");
                     let corCel = "";
                     if (af && escalado) corCel = "";                       // conflito: mantem vermelho
                     else if (af) corCel = COR_AF[af];                      // afastado: cor da situacao
                     else if (funcs.length === 1) corCel = COR_ABBR[funcs[0]] || ""; // servico
                     const stCel = corCel ? { background: corCel, color: "#0a1020" } : undefined;
-                    return <td key={iso} className={cls} style={stCel} title={af ? `${ABBR_AF[af]}${escalado ? " + escalado!" : ""}` : funcs.join(" / ")}>{txt}</td>;
+                    return <td key={iso} className={cls} style={stCel} title={reg ? `${rotuloAf(reg)}${escalado ? " + escalado!" : ""}` : funcs.join(" / ")}>{txt}</td>;
                   })}
                   <td className="mp-tot">{porMilitar.total[nome] || 0}</td>
                 </tr>

@@ -3,55 +3,31 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
+import { montarAfastamentos } from "@/lib/afastamentosPlano";
+import { ehAfastamento, SITUACOES_PADRAO, type SituacaoItem } from "@/lib/situacoesPadrao";
 
 export const dynamic = "force-dynamic";
 
 /* =========================================================================
    /api/escala/afastamentos-plano
-   Devolve os períodos de FÉRIAS e LICENÇA-PRÊMIO do PLANO (equipes/membros)
-   já no formato de afastamento do motor da escala:
+   Devolve TODOS os afastamentos conhecidos já no formato do motor da escala:
      { afastamentos: [{ militar, tipo, inicio, fim }] }   (datas em ISO)
-   Assim o motor da escala (mapa, diária e todas as abas) REMOVE/pula quem
-   está de férias/LP naquele dia — sem o escalante precisar cadastrar à mão.
+
+   Assim o motor (mapa mensal, diária e todas as abas) tira da escala quem
+   está ausente, sem o escalante precisar cadastrar à mão.
+
+   Fontes: plano de férias, plano de licença-prêmio, férias avulsas, JMS com
+   data na ficha, e a situação da ficha que conta como afastamento
+   (Agregação, LTIP, Licença, Reserva...). A regra de montagem fica em
+   src/lib/afastamentosPlano.ts, para poder ser testada sem banco.
    ========================================================================= */
 
-function toISO(v: string | null): string {
-  if (!v) return "";
-  const s = String(v).trim();
-  if (!s) return "";
-  // ISO (aceita mês/dia com 1 ou 2 dígitos: 2026-7-25 ou 2026-07-25)
-  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
-  // BR dd/mm/aaaa (1 ou 2 dígitos)
-  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
-  // BR com traço dd-mm-aaaa
-  m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
-  if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
-  // Plano B: deixa o JS interpretar (mesma robustez do aviso de saídas).
-  const d = new Date(s);
-  if (!isNaN(d.getTime())) {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  }
-  return "";
-}
-
-function addDiasISO(iso: string, n: number): string {
-  if (!iso) return "";
-  const [y, m, d] = iso.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  dt.setUTCDate(dt.getUTCDate() + n);
-  return dt.toISOString().slice(0, 10);
-}
-
-// Deriva o FIM do período: usa o fim explícito; senão a apresentação menos 1
-// dia (o militar volta na apresentação); senão assume 30 dias a partir do
-// início. Assim, uma equipe com só a data de saída ainda remove o militar.
-function fimPeriodo(inicio: string, fim: string, apres: string): string {
-  if (fim) return fim;
-  if (apres) return addDiasISO(apres, -1);
-  if (inicio) return addDiasISO(inicio, 29);
-  return "";
+function hojeISO(): string {
+  // fuso do Batalhão: o "hoje" tem que ser o de Bacabal, não o do servidor
+  const f = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+  });
+  return f.format(new Date()); // aaaa-mm-dd
 }
 
 export async function GET(req: Request) {
@@ -73,61 +49,55 @@ export async function GET(req: Request) {
     const eqLic = await q(() => prisma.equipeLicencaPremio.findMany({ where: { anoGozo: { in: anos } } }));
     const mbLic = await q(() => prisma.membroLicencaPremio.findMany({ where: { anoGozo: { in: anos } } }));
 
-    const afast: { militar: string; tipo: string; inicio: string; fim: string }[] = [];
+    // fichas: JMS com data e a situação atual (Agregação, LTIP, Licença...)
+    const fichas = await q(() => prisma.efetivo.findMany({
+      select: { id: true, situacao: true, jmsDataInicio: true, jmsDataRetorno: true },
+    }));
 
-    // Férias — cada equipe pode ter 2 períodos. Guardamos o período por
-    // "numeroEquipe|anoGozo" E por "numeroEquipe" (fallback), pois o membro nem
-    // sempre traz o mesmo anoGozo da equipe.
-    const perFer = new Map<string, { inicio: string; fim: string }[]>();
-    for (const e of eqFer) {
-      const arr: { inicio: string; fim: string }[] = [];
-      const p1i = toISO(e.periodo1Inicio);
-      if (p1i) arr.push({ inicio: p1i, fim: fimPeriodo(p1i, toISO(e.periodo1Fim), toISO(e.periodo1Apres)) });
-      const p2i = toISO(e.periodo2Inicio);
-      if (p2i) arr.push({ inicio: p2i, fim: fimPeriodo(p2i, toISO(e.periodo2Fim), toISO(e.periodo2Apres)) });
-      if (arr.length) { perFer.set(`${e.numeroEquipe}|${e.anoGozo}`, arr); perFer.set(String(e.numeroEquipe), arr); }
-    }
-    // Quem ADIOU as férias do plano NÃO é afastado: segue no serviço normal.
-    const adiados = await idsFeriasAdiadas();
-    for (const m of mbFer) {
-      if (adiados.has(m.idPmma)) continue;
-      for (const p of (perFer.get(`${m.numeroEquipe}|${m.anoGozo}`) || perFer.get(String(m.numeroEquipe)) || []))
-        afast.push({ militar: m.idPmma, tipo: "ferias", inicio: p.inicio, fim: p.fim });
-    }
-
-    // Licença-prêmio — um período por equipe.
-    const perLic = new Map<string, { inicio: string; fim: string }>();
-    for (const e of eqLic) {
-      const i = toISO(e.periodoInicio);
-      if (i) { const v = { inicio: i, fim: fimPeriodo(i, toISO(e.periodoFim), "") }; perLic.set(`${e.numeroEquipe}|${e.anoGozo}`, v); perLic.set(String(e.numeroEquipe), v); }
-    }
-    for (const m of mbLic) {
-      const p = perLic.get(`${m.numeroEquipe}|${m.anoGozo}`) || perLic.get(String(m.numeroEquipe));
-      if (p) afast.push({ militar: m.idPmma, tipo: "licenca_premio", inicio: p.inicio, fim: p.fim });
-    }
-
-    // Férias AVULSAS (datas soltas, Config "ferias_avulsas") — também removem.
+    // férias avulsas (datas soltas)
+    let avulsas: any[] = [];
     try {
       const row = await prisma.config.findUnique({ where: { chave: "ferias_avulsas" } });
       const lista = row?.valor ? JSON.parse(row.valor) : [];
-      if (Array.isArray(lista)) {
-        for (const a of lista) {
-          const i = toISO(a?.inicio || null), f = toISO(a?.fim || null);
-          if (a?.idPmma && i && f) afast.push({ militar: String(a.idPmma), tipo: "ferias", inicio: i, fim: f });
-        }
-      }
+      if (Array.isArray(lista)) avulsas = lista;
     } catch {}
 
+    // lista de situações do admin (quais contam como afastamento)
+    let situacoes: SituacaoItem[] = SITUACOES_PADRAO;
+    try {
+      const row = await prisma.config.findUnique({ where: { chave: "situacoes" } });
+      const parsed = row?.valor ? JSON.parse(row.valor) : null;
+      if (Array.isArray(parsed) && parsed.length) situacoes = parsed as SituacaoItem[];
+    } catch {}
+
+    const adiados = await idsFeriasAdiadas();
+
+    const afastamentos = montarAfastamentos({
+      equipesFerias: eqFer as any,
+      membrosFerias: mbFer as any,
+      equipesLicenca: eqLic as any,
+      membrosLicenca: mbLic as any,
+      avulsas,
+      adiados,
+      fichas: fichas as any,
+      situacaoAfasta: (s) => ehAfastamento(s, situacoes),
+      hoje: hojeISO(),
+    });
+
     return NextResponse.json({
-      afastamentos: afast,
+      afastamentos,
       _debug: {
         anos,
         equipesFerias: eqFer.length,
         membrosFerias: mbFer.length,
         equipesLP: eqLic.length,
         membrosLP: mbLic.length,
-        totalAfastamentos: afast.length,
-        amostra: afast.slice(0, 8),
+        fichas: fichas.length,
+        totalAfastamentos: afastamentos.length,
+        porTipo: afastamentos.reduce<Record<string, number>>((acc, a) => {
+          acc[a.tipo] = (acc[a.tipo] || 0) + 1; return acc;
+        }, {}),
+        amostra: afastamentos.slice(0, 8),
       },
     });
   } catch (err) {
