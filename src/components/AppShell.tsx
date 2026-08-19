@@ -38,6 +38,28 @@ import {
   DoorOpen,
   MessageSquare,
   HeartPulse,
+  // Um icone POR ITEM: antes ClipboardList servia 5 itens diferentes e Award,
+  // FileText e ShieldCheck serviam 3 cada — itens identicos na tela, sem onde
+  // o olho se apoiar.
+  CalendarDays,
+  CalendarRange,
+  GraduationCap,
+  Medal,
+  Receipt,
+  Search,
+  Scale,
+  Stethoscope,
+  Sun,
+  BadgeCheck,
+  Siren,
+  Radio,
+  UserCog,
+  ScrollText,
+  MapPinned,
+  Landmark,
+  ArrowDownWideNarrow,
+  NotebookPen,
+  Crosshair,
 } from "lucide-react";
 import Relogio from "@/components/Relogio";
 import BuscaGlobal from "@/components/BuscaGlobal";
@@ -48,14 +70,19 @@ import "@/components/ui-theme.css";
 type Item = {
   rotulo: string;
   href?: string;
-  Icone: React.ComponentType<{ className?: string }>;
+  // aceita style porque a cor da seção entra no ícone
+  Icone: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
   disponivel?: boolean;
   adminOnly?: boolean;
   policialOnly?: boolean; // aparece só para o usuário final (não-admin)
   lugarOk?: boolean;      // liberado também para Cmt/Sargenteante de lugar (escopo da lotação)
   soLugar?: boolean;      // aparece SOMENTE para Cmt/Sargenteante de lugar
 };
-type Secao = { titulo: string; itens: Item[] };
+/* Cada seção tem um tom próprio. Com 43 itens numa coluna só, tudo no mesmo
+   cinza vira uma parede de texto: a cor no ícone dá ao olho um ponto de apoio
+   para achar o bloco certo sem ler item por item. O texto continua neutro —
+   quem colore é só o ícone, para não virar arco-íris. */
+type Secao = { titulo: string; itens: Item[]; cor?: string };
 
 // adminOnly: true  -> SO o admin ve/acessa.
 // Sem adminOnly    -> todos (inclusive policial) veem.
@@ -63,6 +90,7 @@ type Secao = { titulo: string; itens: Item[] };
 const NAV: Secao[] = [
   {
     titulo: "Principal",
+    cor: "#60A5FA",
     itens: [
       { rotulo: "Dashboard", href: "/dashboard", Icone: LayoutDashboard, disponivel: true, adminOnly: true },
       { rotulo: "Avisos", href: "/avisos", Icone: Bell, disponivel: true, adminOnly: true },
@@ -72,74 +100,81 @@ const NAV: Secao[] = [
   },
   {
     titulo: "Recursos Humanos",
+    cor: "#2DD4BF",
     itens: [
       { rotulo: "Cadastro de Efetivo", href: "/efetivo", Icone: Users, disponivel: true, adminOnly: true },
-      { rotulo: "Hierarquia", href: "/hierarquia", Icone: Network, disponivel: true, adminOnly: true },
+      { rotulo: "Hierarquia", href: "/hierarquia", Icone: ListOrdered, disponivel: true, adminOnly: true },
       { rotulo: "Organograma", href: "/organograma", Icone: Network, disponivel: true, adminOnly: true, lugarOk: true },
-      { rotulo: "Efetivo por Antiguidade", href: "/antiguidade", Icone: ListOrdered, disponivel: true, adminOnly: true },
-      { rotulo: "Efetivo por Lotação", href: "/lotacao", Icone: Building2, disponivel: true, adminOnly: true, lugarOk: true },
+      { rotulo: "Efetivo por Antiguidade", href: "/antiguidade", Icone: ArrowDownWideNarrow, disponivel: true, adminOnly: true },
+      { rotulo: "Efetivo por Lotação", href: "/lotacao", Icone: Landmark, disponivel: true, adminOnly: true, lugarOk: true },
       { rotulo: "Ficha Individual", href: "/ficha", Icone: Contact, disponivel: true },
-      { rotulo: "Promoções / Certidões", href: "/promocoes", Icone: Award, disponivel: true },
+      { rotulo: "Promoções / Certidões", href: "/promocoes", Icone: Medal, disponivel: true },
     ],
   },
   {
     titulo: "Operacional",
+    cor: "#D4AF37",
     itens: [
       { rotulo: "Plano de Férias", href: "/ferias", Icone: Palmtree, disponivel: true, adminOnly: true },
-      { rotulo: "Licença-Prêmio", href: "/licenca-premio", Icone: Award, disponivel: true, adminOnly: true },
+      { rotulo: "Licença-Prêmio", href: "/licenca-premio", Icone: BadgeCheck, disponivel: true, adminOnly: true },
       { rotulo: "JOE", href: "/joe", Icone: ClipboardList, disponivel: true },
       { rotulo: "Permutas", href: "/permutas", Icone: ArrowLeftRight, disponivel: true },
-      { rotulo: "Requerimentos", href: "/requerimentos", Icone: FileText, disponivel: true },
-      { rotulo: "Cursos", href: "/cursos", Icone: Award, disponivel: true },
+      { rotulo: "Requerimentos", href: "/requerimentos", Icone: ScrollText, disponivel: true },
+      { rotulo: "Cursos", href: "/cursos", Icone: GraduationCap, disponivel: true },
       { rotulo: "Verificar Documento", href: "/verificar", Icone: ShieldCheck, disponivel: true },
-      { rotulo: "Escala de Serviço", href: "/minha-escala", Icone: ClipboardList, disponivel: true, policialOnly: true },
-      { rotulo: "Meu Mapa de Escala", href: "/meu-mapa", Icone: Map, disponivel: true, policialOnly: true },
-      { rotulo: "Minhas Férias", href: "/minhas-ferias", Icone: Palmtree, disponivel: true, policialOnly: true },
-      { rotulo: "Diárias", href: "/diarias", Icone: FileText, disponivel: true, adminOnly: true },
-      { rotulo: "Guia JMS e Ofício", href: "/guia-jms", Icone: HeartPulse, disponivel: true, adminOnly: true },
-      { rotulo: "Escalas de Serviço", href: "/escalas", Icone: ClipboardList, disponivel: true, adminOnly: true },
+      { rotulo: "Escala de Serviço", href: "/minha-escala", Icone: CalendarDays, disponivel: true, policialOnly: true },
+      { rotulo: "Meu Mapa de Escala", href: "/meu-mapa", Icone: MapPinned, disponivel: true, policialOnly: true },
+      { rotulo: "Minhas Férias", href: "/minhas-ferias", Icone: Sun, disponivel: true, policialOnly: true },
+      { rotulo: "Diárias", href: "/diarias", Icone: Receipt, disponivel: true, adminOnly: true },
+      { rotulo: "Guia JMS e Ofício", href: "/guia-jms", Icone: Stethoscope, disponivel: true, adminOnly: true },
+      { rotulo: "Escalas de Serviço", href: "/escalas", Icone: CalendarRange, disponivel: true, adminOnly: true },
       { rotulo: "Mapa de Escala", href: "/escalas/mapa", Icone: Map, disponivel: true, adminOnly: true },
       { rotulo: "Escalas das Unidades", href: "/escalas/unidades", Icone: Building2, disponivel: true, adminOnly: true },
-      { rotulo: "Escala da Unidade (RP)", href: "/escalas/servico/rp", Icone: ClipboardList, disponivel: true, soLugar: true },
+      { rotulo: "Escala da Unidade (RP)", href: "/escalas/servico/rp", Icone: Radio, disponivel: true, soLugar: true },
     ],
   },
   {
     titulo: "Disciplinar",
+    cor: "#F87171",
     itens: [
       { rotulo: "FATD", href: "/disciplinar/fatd", Icone: Gavel, disponivel: true, adminOnly: true },
-      { rotulo: "Sindicância", href: "/disciplinar/sindicancia", Icone: FileText, disponivel: true, adminOnly: true },
-      { rotulo: "IPS", href: "/disciplinar/ips", Icone: ShieldCheck, disponivel: true, adminOnly: true },
-      { rotulo: "IPM", href: "/disciplinar/ipm", Icone: ClipboardList, disponivel: true, adminOnly: true },
+      { rotulo: "Sindicância", href: "/disciplinar/sindicancia", Icone: Search, disponivel: true, adminOnly: true },
+      { rotulo: "IPS", href: "/disciplinar/ips", Icone: Siren, disponivel: true, adminOnly: true },
+      { rotulo: "IPM", href: "/disciplinar/ipm", Icone: Scale, disponivel: true, adminOnly: true },
     ],
   },
   {
     titulo: "Centro de Comando",
+    cor: "#A78BFA",
     itens: [
       { rotulo: "Controle de Entrada e Saída", href: "/centro-comando", Icone: DoorOpen, disponivel: true, adminOnly: true },
     ],
   },
   {
     titulo: "Administração",
+    cor: "#FBBF24",
     itens: [
-      { rotulo: "Gerenciar Acessos", href: "/admin/gerar-logins", Icone: KeyRound, disponivel: true, adminOnly: true },
+      { rotulo: "Gerenciar Acessos", href: "/admin/gerar-logins", Icone: UserCog, disponivel: true, adminOnly: true },
     ],
   },
   {
     titulo: "Governança",
+    cor: "#94A3B8",
     itens: [
       { rotulo: "Governança e LGPD", href: "/governanca", Icone: Shield, disponivel: true, adminOnly: true },
-      { rotulo: "Auditoria", href: "/auditoria", Icone: ShieldCheck, disponivel: true, adminOnly: true },
+      { rotulo: "Auditoria", href: "/auditoria", Icone: History, disponivel: true, adminOnly: true },
       { rotulo: "Tentativas de Acesso", href: "/seguranca/tentativas", Icone: ShieldAlert, disponivel: true, adminOnly: true },
     ],
   },
   {
     titulo: "Próximas versões",
+    cor: "#64748B",
     itens: [
-      { rotulo: "Histórico Policial Militar", Icone: History, adminOnly: true },
+      { rotulo: "Histórico Policial Militar", Icone: BookOpen, adminOnly: true },
       { rotulo: "Motoristas / CNH", Icone: Car, adminOnly: true },
-      { rotulo: "Livro do CPU", Icone: BookOpen, adminOnly: true },
+      { rotulo: "Livro do CPU", Icone: NotebookPen, adminOnly: true },
       { rotulo: "RG Militar Digital (via DAL)", Icone: CreditCard, adminOnly: true },
-      { rotulo: "P/3", Icone: Shield, adminOnly: true },
+      { rotulo: "P/3", Icone: Crosshair, adminOnly: true },
       { rotulo: "P/4", Icone: Truck, adminOnly: true },
     ],
   },
@@ -265,9 +300,21 @@ export default function AppShell({
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
-        {secoesVisiveis.map((secao) => (
+        {secoesVisiveis.map((secao) => {
+          /* A cor da seção fica no ÍCONE, nunca no texto: assim o bloco se
+             identifica de longe e o rótulo continua legível. O item ativo
+             puxa o dourado do sistema, para não competir com a seção. */
+          const corSecao = secao.cor || "#94A3B8";
+          return (
           <div key={secao.titulo} className="mb-5">
-            <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#94A3B8]/60">
+            <p
+              className="flex items-center gap-2 px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#94A3B8]/60"
+            >
+              <span
+                aria-hidden
+                className="h-[3px] w-[3px] shrink-0 rounded-full"
+                style={{ background: corSecao, boxShadow: `0 0 6px ${corSecao}` }}
+              />
               {secao.titulo}
             </p>
             <ul className="space-y-1">
@@ -282,14 +329,20 @@ export default function AppShell({
                       <Link
                         href={item.href}
                         onClick={() => setAberto(false)}
-                        className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                        className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
                           ativo
                             ? "ui-nav-ativo font-semibold text-white"
                             : "text-[#94A3B8] hover:bg-white/5 hover:text-white"
                         }`}
                       >
                         <item.Icone
-                          className={`h-[18px] w-[18px] ${ativo ? "text-[#D4AF37]" : ""}`}
+                          className="h-[18px] w-[18px] shrink-0 transition-opacity"
+                          style={{
+                            color: ativo ? "#D4AF37" : corSecao,
+                            // fora do item ativo a cor entra suave: marca o
+                            // bloco sem transformar a barra num arco-íris
+                            opacity: ativo ? 1 : 0.75,
+                          }}
                         />
                         {item.rotulo}
                       </Link>
@@ -300,7 +353,10 @@ export default function AppShell({
                 return (
                   <li key={item.rotulo}>
                     <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-[#94A3B8]/40">
-                      <item.Icone className="h-[18px] w-[18px]" />
+                      <item.Icone
+                        className="h-[18px] w-[18px] shrink-0"
+                        style={{ color: corSecao, opacity: 0.45 }}
+                      />
                       {item.rotulo}
                       <span className="ml-auto rounded bg-white/5 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-[#94A3B8]/60">
                         em breve
@@ -311,7 +367,8 @@ export default function AppShell({
               })}
             </ul>
           </div>
-        ))}
+          );
+        })}
 
         {/* Conta: visivel a todos os perfis */}
         <div className="mb-5">
