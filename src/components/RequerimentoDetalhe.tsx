@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Download, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { FileText, Download, Loader2, Pencil, Trash2 } from "lucide-react";
 
 type Dados = {
   id: string; modalidade: string; modelo: string; status: string;
@@ -22,6 +22,31 @@ export default function RequerimentoDetalhe({
   const [gerando, setGerando] = useState(false);
   const [temDocx, setTemDocx] = useState(dados.temDocx);
   const [erro, setErro] = useState("");
+  const [excluindo, setExcluindo] = useState(false);
+
+  // O admin mexe em qualquer um. O policial, só enquanto está em rascunho —
+  // depois de enviado, alterar por fora mudaria o que o P/1 já está vendo.
+  const podeMexer = ehAdmin || dados.status === "rascunho";
+
+  async function excluir() {
+    if (!confirm(
+      `Excluir este requerimento de ${dados.modalidade}?\n\n` +
+      "Some da lista e o documento gerado é apagado junto. Não dá para desfazer."
+    )) return;
+    setErro("");
+    setExcluindo(true);
+    try {
+      const res = await fetch(`/api/requerimentos/${dados.id}`, { method: "DELETE" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { setErro(d.error || "Falha ao excluir."); return; }
+      router.push("/requerimentos");
+      router.refresh();
+    } catch {
+      setErro("Erro de conexão ao excluir.");
+    } finally {
+      setExcluindo(false);
+    }
+  }
 
   async function gerar() {
     setErro(""); setGerando(true);
@@ -86,6 +111,29 @@ export default function RequerimentoDetalhe({
           )}
         </div>
       </section>
+
+      {podeMexer && (
+        <section className="ui-card p-6">
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-white">
+            Corrigir ou remover
+          </h2>
+          <p className="mb-4 text-[12px] text-[#94A3B8]">
+            Ao editar, o documento já gerado é descartado — gere de novo depois de salvar, para
+            sair com o texto novo.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <button onClick={() => router.push(`/requerimentos/${dados.id}/editar`)}
+              className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/5">
+              <Pencil className="h-4 w-4" /> Editar
+            </button>
+            <button onClick={excluir} disabled={excluindo}
+              className="inline-flex items-center gap-2 rounded-lg border border-red-500/40 px-4 py-2 text-sm font-medium text-red-300 transition hover:bg-red-500/10 disabled:opacity-50">
+              {excluindo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Excluir
+            </button>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

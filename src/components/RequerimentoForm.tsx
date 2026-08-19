@@ -30,10 +30,14 @@ export default function RequerimentoForm({
   modalidade,
   modelo,
   inicial,
+  // quando vem preenchido, o formulario EDITA esse requerimento em vez de
+  // criar um novo (mesma tela, mesmos campos — muda so o destino)
+  editandoId,
 }: {
   modalidade: string;
   modelo: string;
   inicial: Dados;
+  editandoId?: string;
 }) {
   const router = useRouter();
   const [f, setF] = useState<Dados>(inicial);
@@ -77,15 +81,18 @@ export default function RequerimentoForm({
     }
     setSalvando(true);
     try {
-      const res = await fetch("/api/requerimentos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modalidade, modelo, acao, dados: f }),
-      });
+      const res = await fetch(
+        editandoId ? `/api/requerimentos/${editandoId}` : "/api/requerimentos",
+        {
+          method: editandoId ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ modalidade, modelo, acao, dados: f }),
+        }
+      );
       const d = await res.json().catch(() => ({}));
       setSalvando(false);
       if (!res.ok) { setErro(d.error || "Não foi possível salvar."); return; }
-      router.push(`/requerimentos/${d.id}`);
+      router.push(`/requerimentos/${editandoId || d.id}`);
       router.refresh();
     } catch {
       setSalvando(false);
@@ -107,7 +114,9 @@ export default function RequerimentoForm({
           <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Dados do requerente
         </h2>
         <p className="mb-4 text-[12px] text-[#94A3B8]">
-          Os campos vêm da sua ficha. Confira e ajuste o que precisar — fica salvo para os próximos requerimentos.
+          {editandoId
+            ? "Ajuste o que precisar. Se o documento já tinha sido gerado, ele é descartado — gere de novo depois de salvar, para sair com o texto novo."
+            : "Os campos vêm da sua ficha. Confira e ajuste o que precisar — fica salvo para os próximos requerimentos."}
         </p>
         <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
           {CAMPOS_PESSOAIS.map((c) => (
