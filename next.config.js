@@ -39,11 +39,26 @@ const nextConfig = {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
   experimental: {
-    // empacota os templates .docx junto das serverless functions que os leem,
-    // senao o fs.readFileSync de /public quebra em producao (Vercel) -> 500 ENOENT
+    /* Empacota os arquivos de /public junto das serverless functions que os
+       leem com fs.readFileSync. Sem isto, em producao (Vercel) o arquivo nao
+       esta no bundle da function: /public e servido pelo CDN, nao vai junto.
+
+       Sao dois casos com sintomas diferentes:
+       - TEMPLATE .docx faltando -> 500 ENOENT, o documento nao sai;
+       - BRASAO/ASSINATURA faltando -> nao quebra, as libs devolvem null e o
+         documento sai SEM o brasao. Silencioso, e por isso pior de perceber:
+         o memorando de ferias, a permuta, o FATD, a portaria e o termo saiam
+         em producao sem os brasoes, sem erro nenhum no log. */
     outputFileTracingIncludes: {
       "/api/requerimentos/[id]/gerar": ["./public/templates/**"],
-      "/api/joe/[id]/rene": ["./public/templates/**"],
+      "/api/joe/[id]/rene": ["./public/templates/**", "./public/brasoes/**"],
+      "/api/ferias/memorando-docx": ["./public/brasoes/**"],
+      "/api/permutas/docx": ["./public/brasoes/**"],
+      "/api/disciplinar/fatd-docx": ["./public/brasoes/**"],
+      "/api/disciplinar/portaria-docx": ["./public/brasoes/**"],
+      "/api/disciplinar/termo-docx": ["./public/brasoes/**"],
+      "/api/escala/docx": ["./public/brasoes/**"],
+      "/api/escala/pdf": ["./public/brasoes/**"],
     },
   },
 };
