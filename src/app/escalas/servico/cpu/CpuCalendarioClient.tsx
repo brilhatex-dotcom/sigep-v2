@@ -98,6 +98,20 @@ function EdCell({ init, style }: { init: string; style?: React.CSSProperties }) 
 
 export default function CpuCalendarioClient() {
   const [cad, setCad] = useState<Cadastro | null>(null);
+  /* Afastamentos vindos do PLANO (férias, licença-prêmio, férias avulsas, JMS
+     com data e situação da ficha). Ficam SEPARADOS do `cad`: o `cad` é gravado
+     de volta em /api/escala-config, e misturar aqui congelaria no cadastro um
+     afastamento que é calculado. Sem isto, o rodízio do CPU só pulava quem
+     alguém tinha lembrado de cadastrar à mão — quem estava de férias pelo
+     plano continuava entrando na escala. */
+  const [planoAfast, setPlanoAfast] = useState<Afastamento[]>([]);
+  useEffect(() => {
+    fetch("/api/escala/afastamentos-plano")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (Array.isArray(d?.afastamentos)) setPlanoAfast(d.afastamentos as Afastamento[]); })
+      .catch(() => {});
+  }, []);
+
   const [efMap, setEfMap] = useState<Record<string, Militar>>({});
   const [chefe, setChefe] = useState<Chefe>({ nome: "", funcao: "", assinatura: "", assinarGov: false, cmtAssinatura: "/brasoes/assinatura-cmt.png" });
   const [brasoes, setBrasoes] = useState<Brasoes>(BRASOES_PADRAO);
@@ -141,7 +155,7 @@ export default function CpuCalendarioClient() {
       const m = efMap[v]; return { nome: m ? nomeCpu(m) : v, auto: false, folga: false };
     }
     if (!cad) return { nome: "", auto: true, folga: false };
-    const id = rodizio(cad.cpu || [], iso, cad.afastamentos || [], cad.refCpuISO || iso);
+    const id = rodizio(cad.cpu || [], iso, [...(cad.afastamentos || []), ...planoAfast], cad.refCpuISO || iso);
     const m = id ? efMap[id] : null;
     return { nome: m ? nomeCpu(m) : "", auto: true, folga: false };
   };
@@ -149,7 +163,7 @@ export default function CpuCalendarioClient() {
     const v = cad?.cpuOverrides?.[iso];
     if (v !== undefined) { if (v && !v.startsWith("__FOLGA") && efMap[v]) return foneFmt(efMap[v].telefone || ""); return ""; }
     if (!cad) return "";
-    const id = rodizio(cad.cpu || [], iso, cad.afastamentos || [], cad.refCpuISO || iso);
+    const id = rodizio(cad.cpu || [], iso, [...(cad.afastamentos || []), ...planoAfast], cad.refCpuISO || iso);
     return id && efMap[id] ? foneFmt(efMap[id].telefone || "") : "";
   };
 

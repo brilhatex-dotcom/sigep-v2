@@ -119,6 +119,20 @@ function Editavel({ value, onChange, className, placeholder }: { value: string; 
 
 export default function CpuSemanalClient() {
   const [cad, setCad] = useState<Cadastro | null>(null);
+  /* Afastamentos vindos do PLANO (férias, licença-prêmio, férias avulsas, JMS
+     com data e situação da ficha). Ficam SEPARADOS do `cad`: o `cad` é gravado
+     de volta em /api/escala-config, e misturar aqui congelaria no cadastro um
+     afastamento que é calculado. Sem isto, o rodízio do CPU só pulava quem
+     alguém tinha lembrado de cadastrar à mão — quem estava de férias pelo
+     plano continuava entrando na escala. */
+  const [planoAfast, setPlanoAfast] = useState<Afastamento[]>([]);
+  useEffect(() => {
+    fetch("/api/escala/afastamentos-plano")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (Array.isArray(d?.afastamentos)) setPlanoAfast(d.afastamentos as Afastamento[]); })
+      .catch(() => {});
+  }, []);
+
   const [efMap, setEfMap] = useState<Record<string, Militar>>({});
   const [chefe, setChefe] = useState<Chefe>({ nome: "", funcao: "", assinatura: "", assinarGov: false, cmtAssinatura: "/brasoes/assinatura-cmt.png" });
   // Garante que o início caia sempre numa TERÇA (semana terça→segunda).
@@ -198,7 +212,7 @@ export default function CpuSemanalClient() {
 
   const auto = (iso: string) => {
     if (!cad) return { nome: "", fone: "" };
-    const id = rodizio(cad.cpu || [], iso, cad.afastamentos || [], cad.refCpuISO || iso);
+    const id = rodizio(cad.cpu || [], iso, [...(cad.afastamentos || []), ...planoAfast], cad.refCpuISO || iso);
     const m = id ? efMap[id] : null;
     return { nome: m ? nomeCpu(m) : "", fone: m ? fone(m.telefone || "") : "" };
   };
@@ -208,7 +222,7 @@ export default function CpuSemanalClient() {
     const v = cad?.cpuOverrides?.[iso];
     if (v !== undefined) return v;
     if (!cad) return "";
-    return rodizio(cad.cpu || [], iso, cad.afastamentos || [], cad.refCpuISO || iso) || "";
+    return rodizio(cad.cpu || [], iso, [...(cad.afastamentos || []), ...planoAfast], cad.refCpuISO || iso) || "";
   };
   const nomeDe = (iso: string) => {
     const v = cad?.cpuOverrides?.[iso];
