@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText, Plus, Clock, CheckCircle2, XCircle, FileEdit, X, Search, ArrowDownUp,
-  Settings, Trash2, Loader2, Check, Users,
+  Settings, Trash2, Loader2, Check, Users, ChevronDown,
 } from "lucide-react";
 import {
   MODALIDADES_COMUM,
@@ -161,6 +161,39 @@ export default function RequerimentosClient({
   const [filtroModalidade, setFiltroModalidade] = useState("");
   const [maisAntigos, setMaisAntigos] = useState<boolean>(ehAdmin); // admin: fila justa (antigos 1o)
 
+  /* Meses recolhidos: com o tempo a lista vira uma parede de cartões. Guarda
+     cada mês fechado e abre no clique — o mês mais recente (o primeiro da
+     ordem escolhida) já vem aberto, que é o que se quer ver ao entrar. */
+  const [mesesAbertos, setMesesAbertos] = useState<Set<string>>(new Set());
+
+  function alternarMes(mes: string) {
+    setMesesAbertos((s) => {
+      const novo = new Set(s);
+      if (novo.has(mes)) novo.delete(mes); else novo.add(mes);
+      return novo;
+    });
+  }
+
+  // ---- excluir direto da lista (limpeza rápida) ----
+  const [excluindo, setExcluindo] = useState<string | null>(null);
+  const [removidos, setRemovidos] = useState<Set<string>>(new Set());
+
+  async function excluir(r: Item) {
+    if (!confirm(
+      `Excluir o requerimento de ${r.modalidade}${ehAdmin ? ` — ${r.requerente}` : ""}?\n\n` +
+      "Some da lista e o documento gerado é apagado junto. Não dá para desfazer."
+    )) return;
+    setExcluindo(r.id);
+    try {
+      const res = await fetch(`/api/requerimentos/${r.id}`, { method: "DELETE" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(d?.error || "Falha ao excluir."); return; }
+      setRemovidos((s) => new Set(s).add(r.id));
+      router.refresh();
+    } catch { alert("Erro de conexão ao excluir."); }
+    finally { setExcluindo(null); }
+  }
+
   function novo(modalidade: string) {
     const modelo = modeloDaModalidade(modalidade);
     const q = new URLSearchParams({ modalidade, modelo });
@@ -187,6 +220,7 @@ export default function RequerimentosClient({
     const statusDaAba = abas.find((a) => a.id === aba)?.status ?? [];
     const termo = busca.trim().toLowerCase();
     return itens
+      .filter((r) => !removidos.has(r.id)) // sai da tela na hora, sem esperar o refresh
       .filter((r) => statusDaAba.includes(r.status))
       .filter((r) => (filtroModalidade ? r.modalidade === filtroModalidade : true))
       .filter((r) =>
@@ -199,7 +233,7 @@ export default function RequerimentosClient({
         const db = new Date(b.criadoEm).getTime();
         return maisAntigos ? da - db : db - da;
       });
-  }, [itens, abas, aba, busca, filtroModalidade, maisAntigos]);
+  }, [itens, abas, aba, busca, filtroModalidade, maisAntigos, removidos]);
 
   // Agrupa por mes (como as JOEs): guarda cada requerimento dentro do seu mes.
   const porMes = useMemo(() => {
@@ -214,6 +248,17 @@ export default function RequerimentosClient({
       .sort((a, b) => (maisAntigos ? a.localeCompare(b) : b.localeCompare(a)))
       .map((mes) => ({ mes, itens: map.get(mes)! }));
   }, [lista, maisAntigos]);
+
+  /* Entrar numa tela toda fechada parece tela vazia. O primeiro mês da ordem
+     escolhida abre sozinho — e só uma vez: depois disso vale o que o usuário
+     abriu ou fechou na mão. */
+  const primeiroMes = porMes[0]?.mes;
+  const [jaAbriuPrimeiro, setJaAbriuPrimeiro] = useState(false);
+  useEffect(() => {
+    if (jaAbriuPrimeiro || !primeiroMes) return;
+    setMesesAbertos(new Set([primeiroMes]));
+    setJaAbriuPrimeiro(true);
+  }, [primeiroMes, jaAbriuPrimeiro]);
 
   return (
     <div>
@@ -335,38 +380,66 @@ export default function RequerimentosClient({
           </p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {porMes.map((g) => (
-            <div key={g.mes}>
-              <h3 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#D4AF37]">
-                {rotuloMes(g.mes)}
-                <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-normal text-[#94A3B8]">{g.itens.length}</span>
-              </h3>
-              <ul className="space-y-2">
-                {g.itens.map((r) => {
-                  const s = selo(r.status);
-                  return (
-                    <li key={r.id}>
-                      <button
-                        onClick={() => router.push(`/requerimentos/${r.id}`)}
-                        className="ui-card flex w-full items-center justify-between gap-3 p-4 text-left transition hover:border-[#D4AF37]/40"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-white">{r.modalidade}</p>
-                          <p className="text-[12px] text-[#94A3B8]">
-                            {ehAdmin ? `${r.requerente} · ` : ""}{dataBR(r.criadoEm)}
-                          </p>
-                        </div>
-                        <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${s.cls}`}>
-                          <s.Icone className="h-3.5 w-3.5" /> {s.txt}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
+        <div className="space-y-2">
+          {porMes.map((g) => {
+            const aberto = mesesAbertos.has(g.mes);
+            return (
+              <div key={g.mes} className="ui-card overflow-hidden">
+                <button
+                  onClick={() => alternarMes(g.mes)}
+                  className="flex w-full items-center gap-2 px-4 py-3 text-left transition hover:bg-white/5"
+                >
+                  <ChevronDown
+                    className={`h-4 w-4 shrink-0 text-[#94A3B8] transition ${aberto ? "rotate-180" : ""}`}
+                  />
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#D4AF37]">
+                    {rotuloMes(g.mes)}
+                  </span>
+                  <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-[#94A3B8]">
+                    {g.itens.length}
+                  </span>
+                </button>
+
+                {aberto && (
+                  <ul className="divide-y divide-white/5 border-t border-white/5">
+                    {g.itens.map((r) => {
+                      const s = selo(r.status);
+                      return (
+                        <li key={r.id} className="flex items-center gap-2 pr-3 transition hover:bg-white/5">
+                          <button
+                            onClick={() => router.push(`/requerimentos/${r.id}`)}
+                            className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3 text-left"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-white">{r.modalidade}</p>
+                              <p className="text-[12px] text-[#94A3B8]">
+                                {ehAdmin ? `${r.requerente} · ` : ""}{dataBR(r.criadoEm)}
+                              </p>
+                            </div>
+                            <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${s.cls}`}>
+                              <s.Icone className="h-3.5 w-3.5" /> {s.txt}
+                            </span>
+                          </button>
+                          {(ehAdmin || r.status === "rascunho") && (
+                            <button
+                              onClick={() => excluir(r)}
+                              disabled={excluindo === r.id}
+                              title="Excluir este requerimento"
+                              className="shrink-0 rounded-lg border border-white/10 p-1.5 text-[#94A3B8] transition hover:border-red-500/40 hover:text-red-300 disabled:opacity-40"
+                            >
+                              {excluindo === r.id
+                                ? <Loader2 className="h-4 w-4 animate-spin" />
+                                : <Trash2 className="h-4 w-4" />}
+                            </button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
