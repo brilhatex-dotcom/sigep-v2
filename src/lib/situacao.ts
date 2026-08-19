@@ -2,10 +2,17 @@
 //  Situacao calculada (Opcao A: so mostra, nao altera o banco)
 //
 //  Prioridade:
-//   1) Esta de ferias HOJE (pelo plano)         -> "Férias"
-//   2) Esta em JMS HOJE (pelas datas)            -> "JMS"
+//   1) Esta em JMS HOJE (pelas datas)            -> "JMS"
+//   2) Esta de ferias HOJE (pelo plano)          -> "Férias"
 //   3) Esta em Licenca-Premio HOJE (pelo plano)  -> "Licença-Prêmio"
 //   4) Caso contrario                            -> situacao da ficha
+//
+//  O JMS vem ANTES das ferias de proposito. Militar em JMS nao entra de
+//  ferias: mesmo que chegue o periodo da equipe dele, ele precisa primeiro
+//  sair do JMS e voltar a PRONTO — so ai goza as ferias, que ficam a gozar
+//  ate la. Com as ferias na frente, quem estava nas duas coisas era contado
+//  como "Férias" e sumia do total de JMS: o painel da Junta Medica mostrava
+//  2 militares e o cartao la em cima dizia 1.
 //
 //  Uso: montar o conjunto de IDs em ferias (1x, no servidor) e
 //  chamar situacaoCalculada(militar, idsEmFerias, hoje) por linha.
@@ -62,8 +69,8 @@ export function situacaoCalculada(
   hoje: Date,
   idsEmLicencaPremio?: Set<string>
 ): string {
-  if (idsEmFerias.has(m.id)) return "Férias";
   if (estaEmJmsHoje(m, hoje)) return "JMS";
+  if (idsEmFerias.has(m.id)) return "Férias";
   if (idsEmLicencaPremio && idsEmLicencaPremio.has(m.id)) return "Licença-Prêmio";
   return m.situacao && m.situacao.trim() ? m.situacao.trim() : "—";
 }

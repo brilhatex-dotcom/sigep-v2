@@ -8,7 +8,7 @@ import BannerAlertas, { Alerta } from "@/components/BannerAlertas";
 import FraseRotativa from "@/components/FraseRotativa";
 import JmsTabela, { LinhaJms } from "@/components/JmsTabela";
 import { classificarPatente } from "@/lib/patentes";
-import { montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
+import { montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada, estaEmJmsHoje } from "@/lib/situacao";
 import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
 import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
 import { idsInativos, semInativos } from "@/lib/inativos";
@@ -43,8 +43,22 @@ export default async function DashboardPage() {
   const membrosTodos = await prisma.membroFerias.findMany();
   const idsAvulsaHoje = await idsFeriasAvulsasHoje(hoje); // férias em datas soltas
   const idsAdiados = await idsFeriasAdiadas(); // quem adiou não sai de férias
+
+  /* Quem está em JMS hoje NÃO entra de férias: mesmo chegando o período da
+     equipe, primeiro sai do JMS e volta a PRONTO — só então goza as férias,
+     que ficam a gozar até lá. Tirar esse pessoal aqui, de uma vez, faz o
+     cartão "Em férias", o gráfico de situação e o painel nominal contarem
+     todos a mesma coisa. */
+  const idsJmsHoje = new Set(militares.filter((m) => estaEmJmsHoje(m, hoje)).map((m) => m.id));
+
   const idsFerias = montarIdsEmFerias(equipesTodas, membrosTodos, hoje, idsAdiados);
-  for (const id of idsAvulsaHoje) idsFerias.add(id);
+  // As avulsas também respeitam o adiamento — antes entravam direto e podiam
+  // devolver às férias quem o P/1 tinha acabado de adiar.
+  for (const id of idsAvulsaHoje) if (!idsAdiados.has(id)) idsFerias.add(id);
+  // guarda quem o PLANO manda de férias hoje antes de tirar os de JMS: é essa
+  // diferença que vira o aviso de "férias a gozar"
+  const idsFeriasPlanoHoje = new Set(idsFerias);
+  for (const id of idsJmsHoje) idsFerias.delete(id);
 
   // licenca-premio de hoje (mesma logica das ferias, 1 periodo por equipe)
   const equipesLicencaTodas = await prisma.equipeLicencaPremio.findMany();
@@ -79,13 +93,13 @@ export default async function DashboardPage() {
   let masc=0, fem=0;
   militares.forEach((m)=>{ const s=(m.sexo??"").trim().toUpperCase(); if(s.startsWith("M"))masc++; else if(s.startsWith("F"))fem++; });
 
-  // ---- JMS (tabela + alertas) ----
-  const emJms = militares.filter((m)=>{
-    const temInicio=!!(m.jmsDataInicio&&m.jmsDataInicio.trim());
-    const semRetornoPassado=true;
-    const sit=(m.situacao??"").toLowerCase().includes("jms");
-    return (temInicio&&semRetornoPassado)||sit;
-  }).filter((m)=> m.jmsDataInicio && m.jmsDataInicio.trim() || (m.situacao??"").toLowerCase().includes("jms"));
+  /* ---- JMS (tabela + alertas) ----
+     Antes a data de RETORNO nunca era conferida aqui: havia um
+     `semRetornoPassado = true` fixo, que só tinha o nome da verificação. Na
+     prática, quem um dia teve início de JMS ficava no painel para sempre,
+     mesmo depois de voltar. Agora usa a mesma regra do contador
+     (estaEmJmsHoje), então painel e cartão falam do mesmo conjunto. */
+  const emJms = militares.filter((m)=> estaEmJmsHoje(m, hoje));
 
   const linhasJms: LinhaJms[] = emJms.map((m)=>{
     const ini=paraData(m.jmsDataInicio);
@@ -129,7 +143,25 @@ export default async function DashboardPage() {
       texto:a.texto,
     }));
 
-  const alertas=[...alertasJms, ...alertasAvisos];
+  /* Militar em JMS bem no período de férias da equipe dele. O sistema já não
+     o conta como de férias — mas as férias ficam A GOZAR, e isso só entra no
+     relatório de férias vencidas se o P/1 marcar "Adiar" no plano. Sem este
+     aviso, o período passava batido e o militar perdia o registro. */
+  const alertasJmsFerias: Alerta[] = militares
+    .filter((m)=> idsJmsHoje.has(m.id))
+    .filter((m)=> idsFeriasPlanoHoje.has(m.id) && !idsAdiados.has(m.id))
+    .map((m)=>{
+      const nome=[m.postoGrad, m.nomeGuerra||m.nome].filter(Boolean).join(" ").trim()||m.id;
+      return {
+        chave:`jms_ferias:${m.id}:${hojeISO.slice(0,7)}`,
+        tipo:"ferias_vencidas" as const,
+        nivel:"atencao" as const,
+        texto:`${nome} está em JMS durante o período de férias da equipe dele. Não entra de férias agora — marque "Adiar" no Plano de Férias para as férias ficarem registradas a gozar.`,
+      };
+    })
+    .filter((a)=> !setDisp.has(a.chave));
+
+  const alertas=[...alertasJms, ...alertasJmsFerias, ...alertasAvisos];
 
   // ---- aniversariantes do mes ----
   const aniversariantes = militares
@@ -156,6 +188,8 @@ export default async function DashboardPage() {
   const nomesPorEquipe=new Map<string,string[]>();
   membros.forEach((mb)=>{
     if(idsAdiados.has(mb.idPmma)) return;
+    if(idsJmsHoje.has(mb.idPmma)) return;      // em JMS: não está de férias
+    if(!fichasMap.has(mb.idPmma)) return;      // já saiu da unidade: não conta
     totalPorEquipe.set(mb.numeroEquipe,(totalPorEquipe.get(mb.numeroEquipe)??0)+1);
     const f=fichasMap.get(mb.idPmma);
     const nome=[f?.postoGrad, f?.nomeGuerra || f?.nome].filter(Boolean).join(" ").trim();

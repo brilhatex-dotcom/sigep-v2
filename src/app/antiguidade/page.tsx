@@ -105,7 +105,10 @@ export default async function AntiguidadePage({
   const idsFerias = montarIdsEmFerias(equipes, membros, hoje, await idsFeriasAdiadas());
   // ferias em datas soltas contam igual as do plano — sem isso, quem esta de
   // ferias avulsas aparecia aqui como se estivesse a disposicao
-  for (const id of await idsFeriasAvulsasHoje(hoje)) idsFerias.add(id);
+  // As férias avulsas também respeitam o adiamento: sem isto, quem o P/1
+  // acabou de adiar voltava a aparecer de férias por esta linha.
+  const idsAdiadosAvulsas = await idsFeriasAdiadas();
+  for (const id of await idsFeriasAvulsasHoje(hoje)) if (!idsAdiadosAvulsas.has(id)) idsFerias.add(id);
 
   // licenca-premio de hoje
   const equipesLicenca = await prisma.equipeLicencaPremio.findMany();

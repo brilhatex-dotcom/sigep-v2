@@ -35,7 +35,10 @@ export default async function EfetivoPage({
   const equipes = await prisma.equipeFerias.findMany();
   const membros = await prisma.membroFerias.findMany();
   const idsFerias = montarIdsEmFerias(equipes, membros, hoje, await idsFeriasAdiadas());
-  for (const id of await idsFeriasAvulsasHoje(hoje)) idsFerias.add(id); // ferias em datas soltas
+  // As férias avulsas também respeitam o adiamento: sem isto, quem o P/1
+  // acabou de adiar voltava a aparecer de férias por esta linha.
+  const idsAdiadosAvulsas = await idsFeriasAdiadas();
+  for (const id of await idsFeriasAvulsasHoje(hoje)) if (!idsAdiadosAvulsas.has(id)) idsFerias.add(id);
 
   // licenca-premio de hoje
   const equipesLicenca = await prisma.equipeLicencaPremio.findMany();
