@@ -105,6 +105,10 @@ type Afastamento = {
   tipo: TipoAfastamento;
   inicio: string;
   fim: string;
+  // Motivo vindo da situacao da ficha (Agregacao, LTIP, Reserva...), que nao
+  // cabe num dos tipos fixos. Sem isto tudo virava um generico "AF".
+  rotulo?: string;
+  sigla?: string;
 };
 
 type EquipeRotem = { nome: string; turnos: string[]; militares: string[]; diasSemana?: number[] };
@@ -1083,8 +1087,8 @@ function JoeEscalaTabela({ rows, onChange }: { rows: JoeEscalaLinha[]; onChange:
 
 function BadgeAfast({ a }: { a: Afastamento }) {
   return (
-    <span className="chip-af" title={`${LABEL_AF[a.tipo]} de ${brCurto(a.inicio)} a ${brCurto(a.fim)}`}>
-      {LABEL_AF[a.tipo]} até {brCurto(a.fim)}
+    <span className="chip-af" title={`${a.rotulo || LABEL_AF[a.tipo]} de ${brCurto(a.inicio)} a ${brCurto(a.fim)}`}>
+      {a.sigla || LABEL_AF[a.tipo]} até {brCurto(a.fim)}
     </span>
   );
 }
