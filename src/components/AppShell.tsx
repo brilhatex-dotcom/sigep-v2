@@ -60,6 +60,7 @@ import {
   ArrowDownWideNarrow,
   NotebookPen,
   Crosshair,
+  Table2,
 } from "lucide-react";
 import Relogio from "@/components/Relogio";
 import BuscaGlobal from "@/components/BuscaGlobal";
@@ -107,6 +108,7 @@ const NAV: Secao[] = [
       { rotulo: "Organograma", href: "/organograma", Icone: Network, disponivel: true, adminOnly: true, lugarOk: true },
       { rotulo: "Efetivo por Antiguidade", href: "/antiguidade", Icone: ArrowDownWideNarrow, disponivel: true, adminOnly: true },
       { rotulo: "Efetivo por Lotação", href: "/lotacao", Icone: Landmark, disponivel: true, adminOnly: true, lugarOk: true },
+      { rotulo: "Relatórios", href: "/relatorios", Icone: Table2, disponivel: true, adminOnly: true },
       { rotulo: "Ficha Individual", href: "/ficha", Icone: Contact, disponivel: true },
       { rotulo: "Promoções / Certidões", href: "/promocoes", Icone: Medal, disponivel: true },
     ],
