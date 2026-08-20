@@ -59,13 +59,42 @@ export default function GuiaEncaminhamento() {
       .then((d) => { if (d?.comandante) setComandante(String(d.comandante)); }).catch(() => {});
   }, []);
 
+  /* Ponto de partida do ano: qual foi a ÚLTIMA guia emitida NO PAPEL, antes do
+     sistema. O Batalhão já estava na 028/2026 quando o SIGEP entrou, e a série
+     do ano não recomeça por causa disso — informando 28 aqui, a próxima sai
+     029. Fica guardado por ano. */
+  const [ultimaPapel, setUltimaPapel] = useState<number>(0);
+  const [editandoSerie, setEditandoSerie] = useState(false);
+  const [rascunhoSerie, setRascunhoSerie] = useState("");
+  const [salvandoSerie, setSalvandoSerie] = useState(false);
+
   // Prévia do próximo número livre do ano.
   const buscarProximo = async (anoAlvo: string) => {
     const r = await fetch(`/api/jms/guias?ano=${encodeURIComponent(anoAlvo)}`);
     const d = r.ok ? await r.json() : {};
     if (typeof d?.proximo === "number") setNumero(String(d.proximo).padStart(3, "0"));
+    if (typeof d?.ultimaForaDoSistema === "number") setUltimaPapel(d.ultimaForaDoSistema);
   };
   useEffect(() => { buscarProximo(ano); /* eslint-disable-next-line */ }, [ano]);
+
+  const salvarSerie = async () => {
+    const n = Number(rascunhoSerie.replace(/\D/g, ""));
+    if (!Number.isFinite(n)) { setMsg("Informe um número."); return; }
+    setSalvandoSerie(true); setMsg("");
+    try {
+      const r = await fetch("/api/jms/guias", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ano, ultimaForaDoSistema: n }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsg(d?.error || "Falha ao salvar a numeração."); return; }
+      setUltimaPapel(d.ultimaForaDoSistema);
+      setNumero(String(d.proximo).padStart(3, "0"));
+      setEditandoSerie(false);
+      setMsg(`✅ Numeração ajustada: a próxima guia sai ${String(d.proximo).padStart(3, "0")}/${ano}.`);
+    } catch { setMsg("Falha ao salvar a numeração."); }
+    finally { setSalvandoSerie(false); }
+  };
 
   const escolher = async (m: Militar) => {
     setMsg(""); setCarregando(true); setEditando(false); setRegistrada(false);
@@ -122,6 +151,40 @@ export default function GuiaEncaminhamento() {
               <span className={`text-xs ${registrada ? "text-emerald-300" : "text-[#94A3B8]"}`}>
                 {registrada ? `nº ${numero}/${ano} — registrada` : `próximo número livre: ${numero}/${ano}`}
               </span>
+            </div>
+
+            {/* De onde a numeração do ano continua */}
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[#94A3B8]">
+              {editandoSerie ? (
+                <>
+                  <span>Última guia emitida no papel em {ano}:</span>
+                  <input autoFocus value={rascunhoSerie}
+                    onChange={(e) => setRascunhoSerie(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    placeholder="028"
+                    className="w-20 rounded-lg border border-[#D4AF37]/50 bg-[#0b1626] px-2 py-1 text-sm text-white outline-none" />
+                  <button onClick={salvarSerie} disabled={salvandoSerie}
+                    className="inline-flex items-center gap-1 rounded-lg bg-[#D4AF37] px-2.5 py-1 text-xs font-semibold text-[#1a1205] disabled:opacity-50">
+                    {salvandoSerie ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />} Salvar
+                  </button>
+                  <button onClick={() => setEditandoSerie(false)} className="text-[#94A3B8] hover:text-white">cancelar</button>
+                  <span className="w-full text-[11px] text-[#7e8b99]">
+                    Informe o número da última guia que saiu no papel. A próxima do sistema sai logo depois dela.
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span>
+                    {ultimaPapel > 0
+                      ? `Numeração continua de ${String(ultimaPapel).padStart(3, "0")}/${ano} (última emitida no papel).`
+                      : `Numeração começando do zero em ${ano}.`}
+                  </span>
+                  <button
+                    onClick={() => { setRascunhoSerie(String(ultimaPapel || "")); setEditandoSerie(true); }}
+                    className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-0.5 text-[11px] text-[#94A3B8] transition hover:border-[#D4AF37]/40 hover:text-white">
+                    <Pencil className="h-3 w-3" /> ajustar
+                  </button>
+                </>
+              )}
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
