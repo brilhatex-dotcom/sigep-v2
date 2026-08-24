@@ -113,9 +113,10 @@ function celValor(txt: string, w: number, center = false, rowSpan = 1) {
     children: linhas.map((l) => new Paragraph({ alignment: center ? AlignmentType.CENTER : AlignmentType.LEFT, children: [run(l, { italics: true })] })),
   });
 }
-function celRotulo(txt: string, w: number) {
+function celRotulo(txt: string, w: number, rowSpan = 1) {
   return new TableCell({
     width: { size: w, type: WidthType.PERCENTAGE }, borders: BORDAS, shading: { fill: "F2F2F2" }, verticalAlign: VerticalAlign.CENTER,
+    rowSpan,
     children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [run(txt, { bold: true })] })],
   });
 }
@@ -132,7 +133,7 @@ function expedienteDocx(e: EscalaDia): Table | null {
   const rowsExp: TableRow[] = [
     celFaixa(`EXPEDIENTE ${limpa(ex.horario)}`.trim(), 4),
     new TableRow({ children: [celRotulo("CMT", 16), celValor(val(ex.cmt || ""), 34, true), celRotulo("SUBCMT", 16), celValor(val(ex.subcmt || ""), 34, true)] }),
-    new TableRow({ children: [celRotulo("CMT FT", 16), celValor(val(ex.cmtFt || ""), 34, true), celRotulo("P4", 16), celValor(val("", ex.p4), 34, true, 2)] }),
+    new TableRow({ children: [celRotulo("CMT FT", 16), celValor(val(ex.cmtFt || ""), 34, true), celRotulo("P4", 16, 2), celValor(val("", ex.p4), 34, true, 2)] }),
     new TableRow({ children: [celRotulo("SUBCMT FT", 16), celValor(val(ex.subcmtFt || ""), 34, true)] }),
     new TableRow({ children: [celRotulo("P1", 16), celValor(val("", ex.p1), 34, true), celRotulo("RONDA ESCOLAR", 16), celValor(val("", ex.rondaEscolar), 34, true)] }),
     new TableRow({ children: [celRotulo("P3", 16), celValor(val("", ex.p3), 34, true), celRotulo("PATRULHA MARIA DA PENHA", 16), celValor(val("", ex.patrulha), 34, true)] }),
