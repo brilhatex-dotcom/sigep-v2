@@ -105,10 +105,11 @@ function imgDocx(valor?: string | null, w = 80, h = 80) {
   if (!img) return null;
   return new ImageRun({ type: img.kind, data: img.data, transformation: { width: w, height: h } } as any);
 }
-function celValor(txt: string, w: number, center = false) {
+function celValor(txt: string, w: number, center = false, rowSpan = 1) {
   const linhas = (txt ? txt.split("\n") : [""]);
   return new TableCell({
     width: { size: w, type: WidthType.PERCENTAGE }, borders: BORDAS, verticalAlign: VerticalAlign.CENTER,
+    rowSpan,
     children: linhas.map((l) => new Paragraph({ alignment: center ? AlignmentType.CENTER : AlignmentType.LEFT, children: [run(l, { italics: true })] })),
   });
 }
@@ -131,8 +132,8 @@ function expedienteDocx(e: EscalaDia): Table | null {
   const rowsExp: TableRow[] = [
     celFaixa(`EXPEDIENTE ${limpa(ex.horario)}`.trim(), 4),
     new TableRow({ children: [celRotulo("CMT", 16), celValor(val(ex.cmt || ""), 34, true), celRotulo("SUBCMT", 16), celValor(val(ex.subcmt || ""), 34, true)] }),
-    new TableRow({ children: [celRotulo("CMT FT", 16), celValor(val(ex.cmtFt || ""), 34, true), celRotulo("SUBCMT FT", 16), celValor(val(ex.subcmtFt || ""), 34, true)] }),
-    new TableRow({ children: [celRotulo("P4", 16), celValor(val("", ex.p4), 34, true), celRotulo("", 16), celValor("", 34, true)] }),
+    new TableRow({ children: [celRotulo("CMT FT", 16), celValor(val(ex.cmtFt || ""), 34, true), celRotulo("P4", 16), celValor(val("", ex.p4), 34, true, 2)] }),
+    new TableRow({ children: [celRotulo("SUBCMT FT", 16), celValor(val(ex.subcmtFt || ""), 34, true)] }),
     new TableRow({ children: [celRotulo("P1", 16), celValor(val("", ex.p1), 34, true), celRotulo("RONDA ESCOLAR", 16), celValor(val("", ex.rondaEscolar), 34, true)] }),
     new TableRow({ children: [celRotulo("P3", 16), celValor(val("", ex.p3), 34, true), celRotulo("PATRULHA MARIA DA PENHA", 16), celValor(val("", ex.patrulha), 34, true)] }),
   ];
@@ -447,8 +448,8 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
         { text: l2, w: 0.16, bold: true, center: true, fill: true }, { text: v2, w: 0.34, center: true },
       ]);
       r4("CMT", v(ex.cmt || ""), "SUBCMT", v(ex.subcmt || ""));
-      r4("CMT FT", v(ex.cmtFt || ""), "SUBCMT FT", v(ex.subcmtFt || ""));
-      r4("P4", v("", ex.p4), "", "");
+      r4("CMT FT", v(ex.cmtFt || ""), "P4", v("", ex.p4));
+      r4("SUBCMT FT", v(ex.subcmtFt || ""), "", "");
       r4("P1", v("", ex.p1), "RONDA ESCOLAR", v("", ex.rondaEscolar));
       r4("P3", v("", ex.p3), "PATRULHA M. DA PENHA", v("", ex.patrulha));
       if (limpa(e.obsExpediente || "")) drawLinha([{ text: "OBS: " + limpa(e.obsExpediente || ""), w: 1 }]);
