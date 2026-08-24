@@ -337,8 +337,9 @@ export default function FolhaEscalaView({
                 <tr><td className="hd" colSpan={4}>EXPEDIENTE <T html={exp.horario} /></td></tr>
                 {expedienteFeriado ? (
                   <>
-                    <tr><td className="lbl">CMT</td><td className="val feriado" rowSpan={4}>{feriadoTexto}</td><td className="lbl">SUBCMT</td><td className="val feriado" rowSpan={4}>{feriadoTexto}</td></tr>
-                    <tr><td className="lbl">CMT FT</td><td className="lbl">P4</td></tr>
+                    <tr><td className="lbl">CMT</td><td className="val feriado" rowSpan={5}>{feriadoTexto}</td><td className="lbl">SUBCMT</td><td className="val feriado" rowSpan={5}>{feriadoTexto}</td></tr>
+                    <tr><td className="lbl">CMT FT</td><td className="lbl">SUBCMT FT</td></tr>
+                    <tr><td className="lbl">P4</td><td className="lbl"></td></tr>
                     <tr><td className="lbl">P1</td><td className="lbl">RONDA ESCOLAR</td></tr>
                     <tr><td className="lbl">P3</td><td className="lbl">PATRULHA MARIA DA PENHA</td></tr>
                   </>
@@ -353,8 +354,14 @@ export default function FolhaEscalaView({
                     <tr>
                       <td className="lbl">CMT FT</td>
                       <td className="val val-c"><T html={exp.cmtFt} /></td>
+                      <td className="lbl">SUBCMT FT</td>
+                      <td className="val val-c"><T html={exp.subcmtFt} /></td>
+                    </tr>
+                    <tr>
                       <td className="lbl">P4</td>
                       <td className="val"><ListaTexto valor={exp.p4} center semPermuta /></td>
+                      <td className="lbl"></td>
+                      <td className="val"></td>
                     </tr>
                     <tr>
                       <td className="lbl">P1</td>
