@@ -354,7 +354,7 @@ export default function FolhaEscalaView({
                     <tr>
                       <td className="lbl">CMT FT</td>
                       <td className="val val-c"><T html={exp.cmtFt} /></td>
-                      <td className="lbl">P4</td>
+                      <td className="lbl" rowSpan={2}>P4</td>
                       <td className="val" rowSpan={2}><ListaTexto valor={exp.p4} center semPermuta /></td>
                     </tr>
                     <tr>
