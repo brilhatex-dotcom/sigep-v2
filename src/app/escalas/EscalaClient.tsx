@@ -2722,8 +2722,8 @@ export default function EscalaClient() {
                   {expedienteFeriado ? (
                     <>
                       <tr><td className="lbl">CMT</td><td className="val feriado" rowSpan={5}>{feriadoTexto}</td><td className="lbl">SUBCMT</td><td className="val feriado" rowSpan={5}>{feriadoTexto}</td></tr>
-                      <tr><td className="lbl">CMT FT</td><td className="lbl">SUBCMT FT</td></tr>
-                      <tr><td className="lbl">P4</td><td className="lbl"></td></tr>
+                      <tr><td className="lbl">CMT FT</td><td className="lbl">P4</td></tr>
+                      <tr><td className="lbl">SUBCMT FT</td><td className="lbl"></td></tr>
                       <tr><td className="lbl">P1</td><td className="lbl">RONDA ESCOLAR</td></tr>
                       <tr><td className="lbl">P3</td><td className="lbl">PATRULHA MARIA DA PENHA</td></tr>
                     </>
@@ -2738,14 +2738,12 @@ export default function EscalaClient() {
                       <tr>
                         <td className="lbl">CMT FT</td>
                         <td className="val val-c"><SlotInline efetivo={efetivo} semPermuta slot={s2(e.expediente.cmtFt)} onChange={(ns) => editE((d) => { d.expediente.cmtFt = ns.titular; })} /></td>
-                        <td className="lbl">SUBCMT FT</td>
-                        <td className="val val-c"><SlotInline efetivo={efetivo} semPermuta slot={s2(e.expediente.subcmtFt)} onChange={(ns) => editE((d) => { d.expediente.subcmtFt = ns.titular; })} /></td>
+                        <td className="lbl">P4</td>
+                        <td className="val" rowSpan={2}><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.p4} ordenar onChange={(arr) => editE((d) => { d.expediente.p4 = arr; })} /></td>
                       </tr>
                       <tr>
-                        <td className="lbl">P4</td>
-                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.p4} ordenar onChange={(arr) => editE((d) => { d.expediente.p4 = arr; })} /></td>
-                        <td className="lbl"></td>
-                        <td className="val"></td>
+                        <td className="lbl">SUBCMT FT</td>
+                        <td className="val val-c"><SlotInline efetivo={efetivo} semPermuta slot={s2(e.expediente.subcmtFt)} onChange={(ns) => editE((d) => { d.expediente.subcmtFt = ns.titular; })} /></td>
                       </tr>
                       <tr>
                         <td className="lbl">P1</td>
