@@ -842,7 +842,7 @@ function QuadroEquipes({
                         onDragEnd={() => setDrag(null)}
                         title={nomeDe(id) + (af ? " · afastado neste dia" : "") + " · arraste para mover"}
                       >
-                        <span className="mp-q-nome" style={af ? undefined : { color: "#0a1020" }}>{sobrenome(nomeDe(id))}</span>
+                        <span className="mp-q-nome" style={af ? undefined : { color: "#0a1020" }}>{nomeDe(id)}</span>
                         <span className="mp-q-acoes no-print">
                           <button title="Afastamento" onClick={() => { setAfCell({ team: lt, fk: f.key, id }); setBusca(""); setAddCell(null); setMovCell(null); }}>📅</button>
                           <button title="Mudar de quadro / lotação" onClick={() => { setMovCell({ team: lt, fk: f.key, id }); setMovBusca(""); setMovMsg(""); setAfCell(null); setAddCell(null); }}>⇄</button>
