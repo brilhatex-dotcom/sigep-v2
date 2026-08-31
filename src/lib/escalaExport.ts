@@ -16,7 +16,7 @@ import { compararAntiguidade } from "@/lib/patentes";
 
 type Slot = { titular?: string; permuta?: string | null };
 type Expediente = {
-  horario?: string; cmt?: string; subcmt?: string; cmtFt?: string; subcmtFt?: string;
+  horario?: string; cmt?: string; subcmt?: string; cmtFt?: string; subcmtFt?: string; adm?: string;
   p4?: Slot[]; p1?: Slot[]; rondaEscolar?: Slot[]; p3?: Slot[]; patrulha?: Slot[];
 };
 export type EscalaDia = {
@@ -133,8 +133,7 @@ function expedienteDocx(e: EscalaDia): Table | null {
   const rowsExp: TableRow[] = [
     celFaixa(`EXPEDIENTE ${limpa(ex.horario)}`.trim(), 4),
     new TableRow({ children: [celRotulo("CMT", 16), celValor(val(ex.cmt || ""), 34, true), celRotulo("SUBCMT", 16), celValor(val(ex.subcmt || ""), 34, true)] }),
-    new TableRow({ children: [celRotulo("CMT FT", 16), celValor(val(ex.cmtFt || ""), 34, true), celRotulo("P4", 16, 2), celValor(val("", ex.p4), 34, true, 2)] }),
-    new TableRow({ children: [celRotulo("SUBCMT FT", 16), celValor(val(ex.subcmtFt || ""), 34, true)] }),
+    new TableRow({ children: [celRotulo("FT", 16), celValor(`CMT ${val(ex.cmtFt || "")}\nSUBCMT ${val(ex.subcmtFt || "")}\nADM ${val(ex.adm || "")}`, 34, true), celRotulo("P4", 16), celValor(val("", ex.p4), 34, true)] }),
     new TableRow({ children: [celRotulo("P1", 16), celValor(val("", ex.p1), 34, true), celRotulo("RONDA ESCOLAR", 16), celValor(val("", ex.rondaEscolar), 34, true)] }),
     new TableRow({ children: [celRotulo("P3", 16), celValor(val("", ex.p3), 34, true), celRotulo("PATRULHA MARIA DA PENHA", 16), celValor(val("", ex.patrulha), 34, true)] }),
   ];
@@ -449,8 +448,7 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
         { text: l2, w: 0.16, bold: true, center: true, fill: true }, { text: v2, w: 0.34, center: true },
       ]);
       r4("CMT", v(ex.cmt || ""), "SUBCMT", v(ex.subcmt || ""));
-      r4("CMT FT", v(ex.cmtFt || ""), "P4", v("", ex.p4));
-      r4("SUBCMT FT", v(ex.subcmtFt || ""), "", "");
+      r4("FT", `CMT ${v(ex.cmtFt || "")}\nSUBCMT ${v(ex.subcmtFt || "")}\nADM ${v(ex.adm || "")}`, "P4", v("", ex.p4));
       r4("P1", v("", ex.p1), "RONDA ESCOLAR", v("", ex.rondaEscolar));
       r4("P3", v("", ex.p3), "PATRULHA M. DA PENHA", v("", ex.patrulha));
       if (limpa(e.obsExpediente || "")) drawLinha([{ text: "OBS: " + limpa(e.obsExpediente || ""), w: 1 }]);
