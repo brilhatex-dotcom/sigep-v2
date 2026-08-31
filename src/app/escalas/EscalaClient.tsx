@@ -2738,10 +2738,12 @@ export default function EscalaClient() {
                       </tr>
                       <tr>
                         <td className="lbl">FT</td>
-                        <td className="val val-c">
-                          <div><b>CMT</b> <SlotInline efetivo={efetivo} semPermuta slot={s2(e.expediente.cmtFt)} onChange={(ns) => editE((d) => { d.expediente.cmtFt = ns.titular; })} /></div>
-                          <div><b>SUBCMT</b> <SlotInline efetivo={efetivo} semPermuta slot={s2(e.expediente.subcmtFt)} onChange={(ns) => editE((d) => { d.expediente.subcmtFt = ns.titular; })} /></div>
-                          <div><b>ADM</b> <SlotInline efetivo={efetivo} semPermuta slot={s2(e.expediente.adm)} onChange={(ns) => editE((d) => { d.expediente.adm = ns.titular; })} /></div>
+                        <td className="val">
+                          <div className="lista center">
+                            <div className="linha"><b className="ft-rotulo">CMT</b> <SlotInline efetivo={efetivo} semPermuta slot={s2(e.expediente.cmtFt)} onChange={(ns) => editE((d) => { d.expediente.cmtFt = ns.titular; })} /></div>
+                            <div className="linha"><b className="ft-rotulo">SUBCMT</b> <SlotInline efetivo={efetivo} semPermuta slot={s2(e.expediente.subcmtFt)} onChange={(ns) => editE((d) => { d.expediente.subcmtFt = ns.titular; })} /></div>
+                            <div className="linha"><b className="ft-rotulo">ADM</b> <SlotInline efetivo={efetivo} semPermuta slot={s2(e.expediente.adm)} onChange={(ns) => editE((d) => { d.expediente.adm = ns.titular; })} /></div>
+                          </div>
                         </td>
                         <td className="lbl">P4</td>
                         <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.p4} ordenar onChange={(arr) => editE((d) => { d.expediente.p4 = arr; })} /></td>
@@ -3119,6 +3121,9 @@ const CSS = `
 .lista.bold-italic{ font-weight:700; font-style:italic; }
 .linha{ display:flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:flex-start; }
 .slot{ display:inline; } .perm{ font-weight:700; }
+/* Rotulo (CMT/SUBCMT/ADM) dentro da linha da FT: negrito e reto, para
+   contrastar com o nome em italico que vem do .val. */
+.ft-rotulo{ font-style:normal; font-weight:700; margin-right:2px; }
 
 .rodape-local{ text-align:center; font-size:15px; margin-top:10px; }
 .obs-rodape{ margin-top:8px; font-size:14px; text-align:left; line-height:1.3; }
