@@ -113,6 +113,19 @@ function celValor(txt: string, w: number, center = false, rowSpan = 1) {
     children: linhas.map((l) => new Paragraph({ alignment: center ? AlignmentType.CENTER : AlignmentType.LEFT, children: [run(l, { italics: true })] })),
   });
 }
+/* Igual a celValor, mas cada linha leva um rótulo em negrito na frente
+   (ex.: "CMT Major Fulano") — usado no bloco FT, que junta CMT/SUBCMT/ADM
+   numa única célula, do jeito que sai no documento oficial (rótulo reto,
+   nome em itálico, alinhado à esquerda). */
+function celValorRotulado(linhas: { rotulo: string; texto: string }[], w: number) {
+  return new TableCell({
+    width: { size: w, type: WidthType.PERCENTAGE }, borders: BORDAS, verticalAlign: VerticalAlign.CENTER,
+    children: linhas.map((l) => new Paragraph({
+      alignment: AlignmentType.LEFT,
+      children: [run(l.rotulo + " ", { bold: true }), run(l.texto || "—", { italics: true })],
+    })),
+  });
+}
 function celRotulo(txt: string, w: number, rowSpan = 1) {
   return new TableCell({
     width: { size: w, type: WidthType.PERCENTAGE }, borders: BORDAS, shading: { fill: "F2F2F2" }, verticalAlign: VerticalAlign.CENTER,
@@ -133,7 +146,17 @@ function expedienteDocx(e: EscalaDia): Table | null {
   const rowsExp: TableRow[] = [
     celFaixa(`EXPEDIENTE ${limpa(ex.horario)}`.trim(), 4),
     new TableRow({ children: [celRotulo("CMT", 16), celValor(val(ex.cmt || ""), 34, true), celRotulo("SUBCMT", 16), celValor(val(ex.subcmt || ""), 34, true)] }),
-    new TableRow({ children: [celRotulo("FT", 16), celValor(`CMT ${val(ex.cmtFt || "")}\nSUBCMT ${val(ex.subcmtFt || "")}\nADM ${val(ex.adm || "")}`, 34, true), celRotulo("P4", 16), celValor(val("", ex.p4), 34, true)] }),
+    new TableRow({ children: [
+      celRotulo("FT", 16),
+      feriado
+        ? celValor(ft, 34, true)
+        : celValorRotulado([
+            { rotulo: "CMT", texto: limpa(ex.cmtFt || "") },
+            { rotulo: "SUBCMT", texto: limpa(ex.subcmtFt || "") },
+            { rotulo: "ADM", texto: limpa(ex.adm || "") },
+          ], 34),
+      celRotulo("P4", 16), celValor(val("", ex.p4), 34, true),
+    ] }),
     new TableRow({ children: [celRotulo("P1", 16), celValor(val("", ex.p1), 34, true), celRotulo("RONDA ESCOLAR", 16), celValor(val("", ex.rondaEscolar), 34, true)] }),
     new TableRow({ children: [celRotulo("P3", 16), celValor(val("", ex.p3), 34, true), celRotulo("PATRULHA MARIA DA PENHA", 16), celValor(val("", ex.patrulha), 34, true)] }),
   ];
@@ -448,7 +471,13 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
         { text: l2, w: 0.16, bold: true, center: true, fill: true }, { text: v2, w: 0.34, center: true },
       ]);
       r4("CMT", v(ex.cmt || ""), "SUBCMT", v(ex.subcmt || ""));
-      r4("FT", `CMT ${v(ex.cmtFt || "")}\nSUBCMT ${v(ex.subcmtFt || "")}\nADM ${v(ex.adm || "")}`, "P4", v("", ex.p4));
+      // Feriado: uma unica frase, nao 3 linhas repetindo "FERIADO..." com o rotulo na frente.
+      const ftTexto = feriado ? ft : [
+        `CMT ${limpa(ex.cmtFt || "")}`,
+        `SUBCMT ${limpa(ex.subcmtFt || "")}`,
+        `ADM ${limpa(ex.adm || "")}`,
+      ].join("\n");
+      r4("FT", ftTexto, "P4", v("", ex.p4));
       r4("P1", v("", ex.p1), "RONDA ESCOLAR", v("", ex.rondaEscolar));
       r4("P3", v("", ex.p3), "PATRULHA M. DA PENHA", v("", ex.patrulha));
       if (limpa(e.obsExpediente || "")) drawLinha([{ text: "OBS: " + limpa(e.obsExpediente || ""), w: 1 }]);

@@ -352,10 +352,12 @@ export default function FolhaEscalaView({
                     </tr>
                     <tr>
                       <td className="lbl">FT</td>
-                      <td className="val val-c">
-                        <div><b>CMT</b> <T html={exp.cmtFt} /></div>
-                        <div><b>SUBCMT</b> <T html={exp.subcmtFt} /></div>
-                        <div><b>ADM</b> <T html={exp.adm} /></div>
+                      <td className="val">
+                        <div className="lista center">
+                          <div className="linha"><b className="ft-rotulo">CMT</b> <T html={exp.cmtFt} /></div>
+                          <div className="linha"><b className="ft-rotulo">SUBCMT</b> <T html={exp.subcmtFt} /></div>
+                          <div className="linha"><b className="ft-rotulo">ADM</b> <T html={exp.adm} /></div>
+                        </div>
                       </td>
                       <td className="lbl">P4</td>
                       <td className="val"><ListaTexto valor={exp.p4} center semPermuta /></td>
@@ -516,6 +518,7 @@ const CSS = `
 .fev-root .lista.centro .linha{ justify-content:center; }
 .fev-root .linha{ display:flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:flex-start; }
 .fev-root .slot{ display:inline; } .fev-root .perm{ font-weight:700; }
+.fev-root .ft-rotulo{ font-style:normal; font-weight:700; margin-right:2px; }
 
 .fev-root .rodape-local{ text-align:center; font-size:15px; margin-top:10px; }
 .fev-root .obs-rodape{ margin-top:8px; font-size:14px; text-align:left; line-height:1.3; }
