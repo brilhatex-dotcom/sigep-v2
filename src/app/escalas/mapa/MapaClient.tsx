@@ -213,16 +213,23 @@ function assignDia(iso: string, cad: Cadastro, escalas: Record<string, any>, idD
     const t = (s: any) => (s && s.titular ? idDe(semTags(String(s.titular))) : "");
     const arr1 = (v: any) => (Array.isArray(v) ? v : v ? [v] : []); // Slot antigo -> lista
     const lst = (arr: any[]) => arr1(arr).map(t).filter(Boolean);
+    // Dia ja salvo mas o turno fixo de alguem ainda nao foi escrito nele —
+    // soma na hora, pra nao sumir do mapa so porque a folha diaria daquele
+    // dia foi salva antes de o turno fixo ser cadastrado.
+    const comExtras = (fk: string, ids: string[]) => {
+      const extras = extrasFixosDoDia(fk, iso, cad).filter((id) => !ids.includes(id));
+      return extras.length ? [...ids, ...extras] : ids;
+    };
     return {
       cpu: [t(e.cpuDeDia)].filter(Boolean),
       ftGraduado: semAfast([t(e.ftGraduado)].filter(Boolean)),
       ftMotorista: semAfast([t(e.ftMotorista)].filter(Boolean)),
-      ftPatrulheiro: semAfast(lst(e.ftPatrulheiro)),
+      ftPatrulheiro: comExtras("ftPatrulheiro", semAfast(lst(e.ftPatrulheiro))),
       rpAdjunto: semAfast([t(e.rpAdjunto)].filter(Boolean)),
       rpMotorista: semAfast([t(e.rpMotorista)].filter(Boolean)),
-      rpPatrulheiro: semAfast(lst(e.rpPatrulheiro)),
-      guardaPermanente: semAfast(lst(e.guardaPermanente)),
-      inteligencia: semAfast(lst(e.inteligencia)),
+      rpPatrulheiro: comExtras("rpPatrulheiro", semAfast(lst(e.rpPatrulheiro))),
+      guardaPermanente: comExtras("guardaPermanente", semAfast(lst(e.guardaPermanente))),
+      inteligencia: comExtras("inteligencia", semAfast(lst(e.inteligencia))),
       rotem: semAfast(lst(e.rotemMilitares)),
     };
   }

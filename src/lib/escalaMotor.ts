@@ -185,16 +185,23 @@ export function assignDia(iso: string, cad: Cadastro, escalas: Record<string, an
     const t = (s: any) => (s && s.titular ? idDe(semTags(String(s.titular))) : "");
     const arr1 = (v: any) => (Array.isArray(v) ? v : v ? [v] : []); // Slot antigo -> lista
     const lst = (arr: any[]) => arr1(arr).map(t).filter(Boolean);
+    // Dia ja salvo mas o turno fixo de alguem ainda nao foi escrito nele
+    // (ex.: cadastrado depois do dia ter sido salvo) — soma na hora, sem
+    // esperar a correcao automatica da folha diaria persistir.
+    const comExtras = (fk: string, ids: string[]) => {
+      const extras = extrasFixosDoDia(fk, iso, cad).filter((id) => !ids.includes(id));
+      return extras.length ? [...ids, ...extras] : ids;
+    };
     return {
       cpu: [t(e.cpuDeDia)].filter(Boolean),
       ftGraduado: [t(e.ftGraduado)].filter(Boolean),
       ftMotorista: [t(e.ftMotorista)].filter(Boolean),
-      ftPatrulheiro: lst(e.ftPatrulheiro),
+      ftPatrulheiro: comExtras("ftPatrulheiro", lst(e.ftPatrulheiro)),
       rpAdjunto: [t(e.rpAdjunto)].filter(Boolean),
       rpMotorista: [t(e.rpMotorista)].filter(Boolean),
-      rpPatrulheiro: lst(e.rpPatrulheiro),
-      guardaPermanente: lst(e.guardaPermanente),
-      inteligencia: lst(e.inteligencia),
+      rpPatrulheiro: comExtras("rpPatrulheiro", lst(e.rpPatrulheiro)),
+      guardaPermanente: comExtras("guardaPermanente", lst(e.guardaPermanente)),
+      inteligencia: comExtras("inteligencia", lst(e.inteligencia)),
       rotem: lst(e.rotemMilitares),
     };
   }
