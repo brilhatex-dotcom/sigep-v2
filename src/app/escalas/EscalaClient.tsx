@@ -2772,19 +2772,19 @@ export default function EscalaClient() {
                           </div>
                         </td>
                         <td className="lbl">P4</td>
-                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.p4} ordenar onChange={(arr) => editE((d) => { d.expediente.p4 = arr; })} /></td>
+                        <td className="val"><SlotList efetivo={efetivo} semPermuta centro slots={e.expediente.p4} ordenar onChange={(arr) => editE((d) => { d.expediente.p4 = arr; })} /></td>
                       </tr>
                       <tr>
                         <td className="lbl">P1</td>
-                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.p1} ordenar onChange={(arr) => editE((d) => { d.expediente.p1 = arr; })} /></td>
+                        <td className="val"><SlotList efetivo={efetivo} semPermuta centro slots={e.expediente.p1} ordenar onChange={(arr) => editE((d) => { d.expediente.p1 = arr; })} /></td>
                         <td className="lbl">RONDA ESCOLAR</td>
-                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.rondaEscolar} ordenar onChange={(arr) => editE((d) => { d.expediente.rondaEscolar = arr; })} /></td>
+                        <td className="val"><SlotList efetivo={efetivo} semPermuta centro slots={e.expediente.rondaEscolar} ordenar onChange={(arr) => editE((d) => { d.expediente.rondaEscolar = arr; })} /></td>
                       </tr>
                       <tr>
                         <td className="lbl">P3</td>
-                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.p3} ordenar onChange={(arr) => editE((d) => { d.expediente.p3 = arr; })} /></td>
+                        <td className="val"><SlotList efetivo={efetivo} semPermuta centro slots={e.expediente.p3} ordenar onChange={(arr) => editE((d) => { d.expediente.p3 = arr; })} /></td>
                         <td className="lbl">PATRULHA MARIA DA PENHA</td>
-                        <td className="val"><SlotList efetivo={efetivo} semPermuta center slots={e.expediente.patrulha} ordenar onChange={(arr) => editE((d) => { d.expediente.patrulha = arr; })} /></td>
+                        <td className="val"><SlotList efetivo={efetivo} semPermuta centro slots={e.expediente.patrulha} ordenar onChange={(arr) => editE((d) => { d.expediente.patrulha = arr; })} /></td>
                       </tr>
                     </>
                   )}
@@ -3150,9 +3150,9 @@ const CSS = `
 /* Rotulo (CMT/SUBCMT/ADM) dentro da linha da FT: negrito e reto, para
    contrastar com o nome em italico que vem do .val. */
 .ft-bloco{ display:flex; flex-direction:column; gap:4px; }
-.ft-grupo{ text-align:center; }
+.ft-grupo{ display:flex; align-items:flex-start; justify-content:center; gap:4px; }
 .ft-grupo:not(:last-child){ padding-bottom:3px; border-bottom:1px dotted #0000001f; }
-.ft-rotulo{ display:block; }
+.ft-rotulo{ flex-shrink:0; }
 
 .rodape-local{ text-align:center; font-size:15px; margin-top:10px; }
 .obs-rodape{ margin-top:8px; font-size:14px; text-align:left; line-height:1.3; }
