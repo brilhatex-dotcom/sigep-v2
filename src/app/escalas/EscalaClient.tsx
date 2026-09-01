@@ -45,9 +45,11 @@ type Expediente = {
   horario: string;
   cmt: string;
   subcmt: string;
-  cmtFt: string;
-  subcmtFt: string;
-  adm: string;
+  // Listas (nao campo unico): permite mais de uma pessoa em cada papel da
+  // FT, com busca/adicionar/remover iguais ao P1, P4 etc.
+  cmtFt: Slot[];
+  subcmtFt: Slot[];
+  adm: Slot[];
   p4: Slot[];
   p1: Slot[];
   rondaEscolar: Slot[];
@@ -569,6 +571,7 @@ function sList(nomes: string[]): Slot[] {
 // folha, igual à Rádio Patrulha) — dias salvos antigos guardam um Slot único.
 function asSlots(v: any): Slot[] {
   if (Array.isArray(v)) return v;
+  if (typeof v === "string") return v.trim() ? [s(v)] : [];
   if (v && typeof v === "object" && "titular" in v) return [v as Slot];
   return [];
 }
@@ -578,9 +581,9 @@ function expedientePadrao(): Expediente {
     horario: "07h30 às 13h30min",
     cmt: "TC QOEM Flávio",
     subcmt: "Major QOEM Frans",
-    cmtFt: "Major QOEM Paulo Roberto",
-    subcmtFt: "Asp Of QOEM Macedo",
-    adm: "",
+    cmtFt: [s("Major QOEM Paulo Roberto")],
+    subcmtFt: [s("Asp Of QOEM Macedo")],
+    adm: [],
     p4: [
       s("Major QOE Herbert"),
       s("2º Sgt. PM nº 122/07- Júlio"),
@@ -2753,10 +2756,19 @@ export default function EscalaClient() {
                       <tr>
                         <td className="lbl">FT</td>
                         <td className="val">
-                          <div className="lista center">
-                            <div className="linha"><span className="ft-rotulo">CMT</span> <SlotInline efetivo={efetivo} semPermuta slot={s2(e.expediente.cmtFt)} onChange={(ns) => editE((d) => { d.expediente.cmtFt = ns.titular; })} /></div>
-                            <div className="linha"><span className="ft-rotulo">SUBCMT</span> <SlotInline efetivo={efetivo} semPermuta slot={s2(e.expediente.subcmtFt)} onChange={(ns) => editE((d) => { d.expediente.subcmtFt = ns.titular; })} /></div>
-                            <div className="linha"><span className="ft-rotulo">ADM</span> <SlotInline efetivo={efetivo} semPermuta slot={s2(e.expediente.adm)} onChange={(ns) => editE((d) => { d.expediente.adm = ns.titular; })} /></div>
+                          <div className="ft-bloco">
+                            <div className="ft-grupo">
+                              <span className="ft-rotulo">CMT</span>
+                              <SlotList efetivo={efetivo} semPermuta centro slots={asSlots(e.expediente.cmtFt)} onChange={(arr) => editE((d) => { d.expediente.cmtFt = arr; })} />
+                            </div>
+                            <div className="ft-grupo">
+                              <span className="ft-rotulo">SUBCMT</span>
+                              <SlotList efetivo={efetivo} semPermuta centro slots={asSlots(e.expediente.subcmtFt)} onChange={(arr) => editE((d) => { d.expediente.subcmtFt = arr; })} />
+                            </div>
+                            <div className="ft-grupo">
+                              <span className="ft-rotulo">ADM</span>
+                              <SlotList efetivo={efetivo} semPermuta centro slots={asSlots(e.expediente.adm)} onChange={(arr) => editE((d) => { d.expediente.adm = arr; })} />
+                            </div>
                           </div>
                         </td>
                         <td className="lbl">P4</td>
@@ -3137,7 +3149,10 @@ const CSS = `
 .slot{ display:inline; } .perm{ font-weight:700; }
 /* Rotulo (CMT/SUBCMT/ADM) dentro da linha da FT: negrito e reto, para
    contrastar com o nome em italico que vem do .val. */
-.ft-rotulo{ margin-right:2px; }
+.ft-bloco{ display:flex; flex-direction:column; gap:4px; }
+.ft-grupo{ text-align:center; }
+.ft-grupo:not(:last-child){ padding-bottom:3px; border-bottom:1px dotted #0000001f; }
+.ft-rotulo{ display:block; }
 
 .rodape-local{ text-align:center; font-size:15px; margin-top:10px; }
 .obs-rodape{ margin-top:8px; font-size:14px; text-align:left; line-height:1.3; }

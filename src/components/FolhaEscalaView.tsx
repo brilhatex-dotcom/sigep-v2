@@ -74,6 +74,7 @@ function semTags(html: string): string {
 /** ftPatrulheiro e afins podem ser Slot (folhas antigas) ou Slot[] (novo). */
 function comoLista(v: any): Slot[] {
   if (Array.isArray(v)) return v;
+  if (typeof v === "string") return v.trim() ? [{ titular: v }] : [];
   if (v && typeof v === "object") return [v];
   return [];
 }
@@ -360,10 +361,19 @@ export default function FolhaEscalaView({
                     <tr>
                       <td className="lbl">FT</td>
                       <td className="val">
-                        <div className="lista center">
-                          <div className="linha"><span className="ft-rotulo">CMT</span> <T html={exp.cmtFt} /></div>
-                          <div className="linha"><span className="ft-rotulo">SUBCMT</span> <T html={exp.subcmtFt} /></div>
-                          <div className="linha"><span className="ft-rotulo">ADM</span> <T html={exp.adm} /></div>
+                        <div className="ft-bloco">
+                          <div className="ft-grupo">
+                            <span className="ft-rotulo">CMT</span>
+                            <ListaTexto valor={exp.cmtFt} centro semPermuta />
+                          </div>
+                          <div className="ft-grupo">
+                            <span className="ft-rotulo">SUBCMT</span>
+                            <ListaTexto valor={exp.subcmtFt} centro semPermuta />
+                          </div>
+                          <div className="ft-grupo">
+                            <span className="ft-rotulo">ADM</span>
+                            <ListaTexto valor={exp.adm} centro semPermuta />
+                          </div>
                         </div>
                       </td>
                       <td className="lbl">P4</td>
@@ -525,7 +535,10 @@ const CSS = `
 .fev-root .lista.centro .linha{ justify-content:center; }
 .fev-root .linha{ display:flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:flex-start; }
 .fev-root .slot{ display:inline; } .fev-root .perm{ font-weight:700; }
-.fev-root .ft-rotulo{ margin-right:2px; }
+.fev-root .ft-bloco{ display:flex; flex-direction:column; gap:4px; }
+.fev-root .ft-grupo{ text-align:center; }
+.fev-root .ft-grupo:not(:last-child){ padding-bottom:3px; border-bottom:1px dotted #0000001f; }
+.fev-root .ft-rotulo{ display:block; }
 
 .fev-root .rodape-local{ text-align:center; font-size:15px; margin-top:10px; }
 .fev-root .obs-rodape{ margin-top:8px; font-size:14px; text-align:left; line-height:1.3; }
