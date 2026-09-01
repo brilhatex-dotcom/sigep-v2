@@ -40,6 +40,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       modalidadeOutros: r.modalidadeOutros,
       nomeCompleto: r.nomeCompleto,
       endereco: r.endereco,
+      complemento: r.complemento,
       bairro: r.bairro,
       municipio: r.municipio,
       fone: r.fone,

@@ -9,6 +9,8 @@ type Dados = {
   nomeCompleto: string; postoGrad: string; matricula: string;
   amparoLegal: string; infoAdicional: string; temDocx: boolean;
   parecer: string; criadoEm: string;
+  // resumo do produto controlado (so no modelo de aquisicao de uso restrito)
+  pce?: string;
 };
 
 export default function RequerimentoDetalhe({
@@ -75,15 +77,28 @@ export default function RequerimentoDetalhe({
         </p>
       </div>
 
+      {/* No formulário do Exército não existe amparo legal nem informações
+          adicionais — o que importa ali é o produto controlado pedido. */}
       <section className="ui-card p-6 space-y-3">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Amparo legal</p>
-          <p className="mt-0.5 text-sm text-white">{dados.amparoLegal || "—"}</p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Informações adicionais</p>
-          <p className="mt-0.5 whitespace-pre-wrap text-sm text-white">{dados.infoAdicional || "—"}</p>
-        </div>
+        {dados.modelo === "aquisicao_restrito" ? (
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+              Produto controlado a ser adquirido
+            </p>
+            <p className="mt-0.5 text-sm text-white">{dados.pce || "—"}</p>
+          </div>
+        ) : (
+          <>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Amparo legal</p>
+              <p className="mt-0.5 text-sm text-white">{dados.amparoLegal || "—"}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Informações adicionais</p>
+              <p className="mt-0.5 whitespace-pre-wrap text-sm text-white">{dados.infoAdicional || "—"}</p>
+            </div>
+          </>
+        )}
       </section>
 
       {erro && (

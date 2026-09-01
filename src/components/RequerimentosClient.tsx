@@ -10,6 +10,7 @@ import {
   MODALIDADES_COMUM,
   MODALIDADES_CURSOS,
   MODALIDADES_MATERIAL,
+  MODALIDADE_AQUISICAO_RESTRITO,
   modeloDaModalidade,
 } from "@/lib/requerimentos";
 
@@ -478,7 +479,10 @@ export default function RequerimentosClient({
               Armamento e material bélico
             </p>
             <div className="mb-5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              {MODALIDADES_MATERIAL.map((m) => (
+              {/* Aquisição de uso restrito não entra no lote: cada militar tem
+                  a sua arma (produto, marca, calibre), não dá para repetir a
+                  mesma ficha para vários. */}
+              {MODALIDADES_MATERIAL.filter((m) => !(lote && m === MODALIDADE_AQUISICAO_RESTRITO)).map((m) => (
                 <button
                   key={m}
                   onClick={() => novo(m)}

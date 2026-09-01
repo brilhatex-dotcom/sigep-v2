@@ -43,7 +43,7 @@ export default async function NovoRequerimentoPage({
           <h1 className="mb-1 text-2xl font-bold text-white">Requerimento em lote</h1>
           <p className="mb-5 text-sm text-[#94A3B8]">
             Modalidade: <span className="font-semibold text-[#D4AF37]">{modalidade}</span>
-            {modelo === "cursos" ? " · modelo de cursos" : ""}
+            {modelo === "cursos" ? " · modelo de cursos" : modelo === "aquisicao_restrito" ? " · formulário do Exército (SisFPC)" : ""}
           </p>
 
           <RequerimentoLoteForm modalidade={modalidade} modelo={modelo} inicial={textos} />
@@ -80,7 +80,7 @@ export default async function NovoRequerimentoPage({
         <h1 className="mb-1 text-2xl font-bold text-white">Novo requerimento</h1>
         <p className="mb-5 text-sm text-[#94A3B8]">
           Modalidade: <span className="font-semibold text-[#D4AF37]">{modalidade}</span>
-          {modelo === "cursos" ? " · modelo de cursos" : ""}
+          {modelo === "cursos" ? " · modelo de cursos" : modelo === "aquisicao_restrito" ? " · formulário do Exército (SisFPC)" : ""}
         </p>
 
         <RequerimentoForm

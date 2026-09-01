@@ -5,6 +5,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import RequerimentoForm from "@/components/RequerimentoForm";
+import { lerPce } from "@/lib/gerarRequerimento";
 import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +45,9 @@ export default async function EditarRequerimentoPage({
   if (!ehAdmin && r.status !== "rascunho") redirect(`/requerimentos/${r.id}`);
 
   const bg = lerBg(r.p2SituacaoJur);
+  // Aquisicao de uso restrito: os dados do produto ficam como JSON dentro de
+  // p2Complementares — desfazemos aqui para o formulario mostrar campo a campo.
+  const pce = r.modelo === "aquisicao_restrito" ? lerPce(r.p2Complementares) : null;
 
   const inicial: Record<string, string> = {
     nomeCompleto: r.nomeCompleto ?? "",
@@ -72,7 +76,16 @@ export default async function EditarRequerimentoPage({
     p2UltimaPromocao: r.p2UltimaPromocao ?? "",
     p2BgNumero: bg.bgNumero,
     p2BgData: bg.bgData,
-    p2Complementares: r.p2Complementares ?? "",
+    p2Complementares: pce ? "" : (r.p2Complementares ?? ""),
+    ...(pce
+      ? {
+          produto: pce.produto,
+          marca: pce.marca,
+          modeloArma: pce.modeloArma,
+          calibre: pce.calibre,
+          quantidade: pce.quantidade,
+        }
+      : {}),
   };
 
   return (

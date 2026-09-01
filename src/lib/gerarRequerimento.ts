@@ -10,6 +10,7 @@ import Docxtemplater from "docxtemplater";
    Templates ficam em /public/templates/:
      - requerimento_comum.docx
      - requerimento_cursos.docx   (quando disponivel)
+     - requerimento_aquisicao_restrito.docx  (formulario do Exercito/SisFPC)
 
    IMPORTANTE (Vercel): arquivos de /public NAO entram no bundle da
    serverless function por padrao. Para o fs.readFileSync funcionar em
@@ -57,6 +58,7 @@ type DadosReq = {
   modalidadeOutros?: string | null;
   nomeCompleto?: string | null;
   endereco?: string | null;
+  complemento?: string | null;
   bairro?: string | null;
   municipio?: string | null;
   fone?: string | null;
@@ -171,8 +173,44 @@ function formatarData(v: string | null | undefined): string {
   return txt;
 }
 
+/* PCE (produto controlado) do requerimento de aquisicao de uso restrito.
+   O banco nao tem colunas proprias pra produto/marca/modelo/calibre/quantidade
+   — em vez de pedir migracao, viajam como JSON em p2Complementares (coluna que
+   so o modelo de cursos usa, e nunca ao mesmo tempo que esta). Mesma convencao
+   ja adotada com o "Nº do BG" dentro de p2SituacaoJur. */
+export type DadosPce = { produto: string; marca: string; modeloArma: string; calibre: string; quantidade: string };
+
+export function lerPce(json: string | null | undefined): DadosPce {
+  const vazio: DadosPce = { produto: "", marca: "", modeloArma: "", calibre: "", quantidade: "" };
+  if (!json) return vazio;
+  try {
+    const v = JSON.parse(json);
+    return {
+      produto: s(v?.produto),
+      marca: s(v?.marca),
+      modeloArma: s(v?.modeloArma),
+      calibre: s(v?.calibre),
+      quantidade: s(v?.quantidade),
+    };
+  } catch {
+    return vazio;
+  }
+}
+
+/* Endereco de entrega do formulario do Exercito: e uma linha so. Junta o que
+   na ficha vem separado (logradouro, complemento, bairro) sem repetir virgula
+   de campo vazio. */
+function enderecoEntrega(d: DadosReq): string {
+  return [s(d.endereco).trim(), s(d.complemento).trim(), s(d.bairro).trim()].filter(Boolean).join(", ");
+}
+
 export function gerarRequerimentoDocx(d: DadosReq): Buffer {
-  const nomeTemplate = d.modelo === "cursos" ? "requerimento_cursos.docx" : "requerimento_comum.docx";
+  const nomeTemplate =
+    d.modelo === "aquisicao_restrito"
+      ? "requerimento_aquisicao_restrito.docx"
+      : d.modelo === "cursos"
+      ? "requerimento_cursos.docx"
+      : "requerimento_comum.docx";
   const caminho = path.join(process.cwd(), "public", "templates", nomeTemplate);
 
   let content: string;
@@ -193,6 +231,29 @@ export function gerarRequerimentoDocx(d: DadosReq): Buffer {
     linebreaks: true,
     delimiters: { start: "{", end: "}" },
   });
+
+  /* Formulario do Exercito (SisFPC): campos proprios, sem quadrinho de
+     modalidade, sem amparo legal e sem informacoes adicionais — o papel nao
+     tem esses quadros. Sai daqui antes da montagem da folha da PMMA. */
+  if (d.modelo === "aquisicao_restrito") {
+    const pce = lerPce(d.p2Complementares);
+    doc.render({
+      nome: s(d.nomeCompleto),
+      // "Identidade: {..}-PMMA" — o ID PMMA do requerente
+      identidade: s(d.idPmmaTxt) || s(d.matricula),
+      cpf: s(d.cpf),
+      email: s(d.email),
+      endereco: enderecoEntrega(d),
+      cidade: s(d.municipio),
+      telefone: s(d.fone),
+      produto: pce.produto,
+      marca: pce.marca,
+      modeloarma: pce.modeloArma,
+      calibre: pce.calibre,
+      quantidade: pce.quantidade,
+    });
+    return doc.getZip().generate({ type: "nodebuffer" });
+  }
 
   // monta o objeto de dados; cada chave condicional vira true so na escolhida
   const dados: Record<string, string | boolean> = {
