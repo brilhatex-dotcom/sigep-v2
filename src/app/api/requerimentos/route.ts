@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { modeloDaModalidade } from "@/lib/requerimentos";
+import { modeloDaModalidade, ehModeloAquisicao } from "@/lib/requerimentos";
 import { registrar } from "@/lib/auditoria";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `Preencha antes de enviar: ${faltando.join(", ")}.` }, { status: 400 });
     }
   }
-  if (modelo === "aquisicao_restrito" && acao === "enviado") {
+  if (ehModeloAquisicao(modelo) && acao === "enviado") {
     const obrigatorios = ["nomeCompleto", "idPmmaTxt", "cpf", "endereco", "municipio", "produto", "marca", "modeloArma", "calibre", "quantidade"];
     const faltando = obrigatorios.filter((k) => !v(k));
     if (faltando.length) {
@@ -56,12 +56,12 @@ export async function POST(req: Request) {
     ? JSON.stringify({ bgNumero: v("p2BgNumero") || "", bgData: v("p2BgData") || "" })
     : null;
 
-  /* Aquisicao de uso restrito: produto/marca/modelo/calibre/quantidade tambem
+  /* Aquisicao de arma: produto/marca/modelo/calibre/quantidade tambem
      nao tem coluna propria — mesma solucao, viajam como JSON em
      p2Complementares (que so o modelo de cursos usa, nunca os dois juntos). */
   const camposPce = ["produto", "marca", "modeloArma", "calibre", "quantidade"];
   const p2Complementares =
-    modelo === "aquisicao_restrito"
+    ehModeloAquisicao(modelo)
       ? (camposPce.some((k) => v(k))
           ? JSON.stringify(Object.fromEntries(camposPce.map((k) => [k, v(k) || ""])))
           : null)

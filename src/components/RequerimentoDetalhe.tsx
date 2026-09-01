@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Download, Loader2, Pencil, Trash2 } from "lucide-react";
+import { ehModeloAquisicao } from "@/lib/requerimentos";
 
 type Dados = {
   id: string; modalidade: string; modelo: string; status: string;
@@ -77,10 +78,10 @@ export default function RequerimentoDetalhe({
         </p>
       </div>
 
-      {/* No formulário do Exército não existe amparo legal nem informações
+      {/* Nas folhas de PCE não existe amparo legal nem informações
           adicionais — o que importa ali é o produto controlado pedido. */}
       <section className="ui-card p-6 space-y-3">
-        {dados.modelo === "aquisicao_restrito" ? (
+        {ehModeloAquisicao(dados.modelo) ? (
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
               Produto controlado a ser adquirido

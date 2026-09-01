@@ -11,6 +11,7 @@ import {
   MODALIDADES_CURSOS,
   MODALIDADES_MATERIAL,
   MODALIDADE_AQUISICAO_RESTRITO,
+  MODALIDADE_AQUISICAO_PERMITIDO,
   modeloDaModalidade,
 } from "@/lib/requerimentos";
 
@@ -482,7 +483,9 @@ export default function RequerimentosClient({
               {/* Aquisição de uso restrito não entra no lote: cada militar tem
                   a sua arma (produto, marca, calibre), não dá para repetir a
                   mesma ficha para vários. */}
-              {MODALIDADES_MATERIAL.filter((m) => !(lote && m === MODALIDADE_AQUISICAO_RESTRITO)).map((m) => (
+              {MODALIDADES_MATERIAL.filter(
+                (m) => !(lote && (m === MODALIDADE_AQUISICAO_RESTRITO || m === MODALIDADE_AQUISICAO_PERMITIDO))
+              ).map((m) => (
                 <button
                   key={m}
                   onClick={() => novo(m)}

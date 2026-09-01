@@ -11,13 +11,23 @@
 //   - Requerimentos reais protocolados no 18º BPM
 // ==========================================================
 
-export type Modelo = "comum" | "cursos" | "aquisicao_restrito";
+export type Modelo = "comum" | "cursos" | "aquisicao_restrito" | "aquisicao_permitido";
 
-/* Aquisicao de arma de fogo de USO RESTRITO: nao usa a folha de requerimento
-   da PMMA — e o formulario proprio do Exercito (SisFPC), "REQUERIMENTO/
-   AUTORIZACAO PARA AQUISICAO DE PCE", com quadros de identificacao, produto,
-   anexos, solicitacao e parecer. Por isso tem modelo (e template) so dele. */
+/* Aquisicao de arma de fogo: nao usa a folha de requerimento da PMMA — sao os
+   formularios de PCE ("REQUERIMENTO/AUTORIZACAO PARA AQUISICAO DE PCE"), com
+   quadros de identificacao, produto, anexos, solicitacao e parecer. Cada um
+   tem o seu template, porque as folhas sao diferentes:
+     · USO RESTRITO   -> folha do Exercito (SisFPC), com QR e o campo de
+                         autorizacao no alto;
+     · USO PERMITIDO  -> folha da Diretoria de Apoio Logistico da PMMA (Secao
+                         de Armamento), com o deferimento no quadro 5. */
 export const MODALIDADE_AQUISICAO_RESTRITO = "AQUISIÇÃO DE ARMA DE FOGO DE USO RESTRITO";
+export const MODALIDADE_AQUISICAO_PERMITIDO = "AQUISIÇÃO DE ARMA DE FOGO DE USO PERMITIDO";
+
+// true nos dois modelos de aquisicao de PCE (folha propria, campos proprios)
+export function ehModeloAquisicao(modelo: string): boolean {
+  return modelo === "aquisicao_restrito" || modelo === "aquisicao_permitido";
+}
 
 // modalidades do MODELO COMUM (folha de requerimento padrão)
 export const MODALIDADES_COMUM: string[] = [
@@ -59,8 +69,9 @@ export const MODALIDADES_MATERIAL: string[] = [
   "CAUTELA DE ARMA DE FOGO (ACAF)",
   "CAUTELA DE COLETE BALÍSTICO",
   "AUTORIZAÇÃO DE PERMANÊNCIA DE ARMAMENTO",
-  // formulario proprio do Exercito (SisFPC), nao a folha da PMMA
+  // formularios de PCE (folha propria), nao a folha de requerimento da PMMA
   MODALIDADE_AQUISICAO_RESTRITO,
+  MODALIDADE_AQUISICAO_PERMITIDO,
 ];
 
 // modalidades que SEMPRE usam o modelo de CURSOS (página 2 detalhada)
@@ -70,6 +81,7 @@ const FORCAM_CURSOS = new Set(["CAS", "CFS", "CFC"]);
 export function modeloDaModalidade(modalidade: string): Modelo {
   const m = modalidade.toUpperCase().trim();
   if (m === MODALIDADE_AQUISICAO_RESTRITO) return "aquisicao_restrito";
+  if (m === MODALIDADE_AQUISICAO_PERMITIDO) return "aquisicao_permitido";
   return FORCAM_CURSOS.has(m) ? "cursos" : "comum";
 }
 
@@ -246,9 +258,9 @@ export function ehModalidadeConhecida(modalidade: string): boolean {
 // modalidades que caem no quadrinho "OUTROS" da folha oficial
 export function usaQuadrinhoOutros(modalidade: string): boolean {
   const m = modalidade.toUpperCase().trim();
-  // Aquisicao de uso restrito nao usa a folha da PMMA (tem formulario proprio
-  // do Exercito), entao nao ha quadrinho "OUTROS" pra marcar.
-  if (m === MODALIDADE_AQUISICAO_RESTRITO) return false;
+  // As aquisicoes de PCE nao usam a folha de requerimento da PMMA (tem
+  // formulario proprio), entao nao ha quadrinho "OUTROS" pra marcar.
+  if (m === MODALIDADE_AQUISICAO_RESTRITO || m === MODALIDADE_AQUISICAO_PERMITIDO) return false;
   if (m === "OUTROS" || m in ESPECIFICACAO_OUTROS) return true;
   // desconhecida (cadastrada pelo admin, ou modalidade de curso — CAS/CFS/CFC
   // tambem nao tem quadrinho proprio no formulario impresso, ver o documento

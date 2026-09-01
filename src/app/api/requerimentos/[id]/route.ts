@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { removerDoR2 } from "@/lib/r2";
 import { registrar } from "@/lib/auditoria";
+import { ehModeloAquisicao } from "@/lib/requerimentos";
 
 export const dynamic = "force-dynamic";
 
@@ -75,7 +76,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       return NextResponse.json({ error: `Preencha antes de enviar: ${faltando.join(", ")}.` }, { status: 400 });
     }
   }
-  if (r!.modelo === "aquisicao_restrito" && acao === "enviado") {
+  if (ehModeloAquisicao(r!.modelo) && acao === "enviado") {
     const obrigatorios = ["nomeCompleto", "idPmmaTxt", "cpf", "endereco", "municipio", "produto", "marca", "modeloArma", "calibre", "quantidade"];
     const faltando = obrigatorios.filter((k) => !v(k));
     if (faltando.length) {
@@ -93,11 +94,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   for (const k of CAMPOS_TEXTO) dadosUpdate[k] = v(k);
   if (acao) dadosUpdate.status = acao;
 
-  /* Aquisicao de uso restrito: os dados do produto controlado tambem nao tem
+  /* Aquisicao de arma: os dados do produto controlado tambem nao tem
      coluna propria — viajam como JSON em p2Complementares, sobrescrevendo o
      valor de texto que o laco acima pos ali (esse campo de texto so existe no
      modelo de cursos). Mesma convencao da criacao. */
-  if (r!.modelo === "aquisicao_restrito") {
+  if (ehModeloAquisicao(r!.modelo)) {
     const camposPce = ["produto", "marca", "modeloArma", "calibre", "quantidade"];
     dadosUpdate.p2Complementares = camposPce.some((k) => v(k))
       ? JSON.stringify(Object.fromEntries(camposPce.map((k) => [k, v(k) || ""])))
