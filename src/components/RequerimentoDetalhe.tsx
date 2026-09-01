@@ -128,6 +128,26 @@ export default function RequerimentoDetalhe({
         </div>
       </section>
 
+      {/* Anexo obrigatório dos dois requerimentos de aquisição: sai do mesmo
+          cadastro, com os nomes de quem assina hoje. */}
+      {ehModeloAquisicao(dados.modelo) && (
+        <section className="ui-card p-6">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+            <FileText className="h-4 w-4 text-[#D4AF37]" /> Declaração de parecer favorável
+          </h2>
+          <p className="mb-4 text-[12px] text-[#94A3B8]">
+            Anexo obrigatório deste requerimento. Assinada pelo Chefe do P/1 e pelo Cmt do 18º BPM —
+            os nomes vêm da configuração do comando, e o produto e o calibre saem do que está aqui.
+          </p>
+          <a
+            href={`/api/requerimentos/${dados.id}/parecer`}
+            className="inline-flex items-center gap-2 rounded-lg border border-[#2b3f63] bg-[#16243a] px-4 py-2 text-sm font-semibold text-[#E8EEF6] transition hover:border-[#D4AF37]"
+          >
+            <Download className="h-4 w-4" /> Baixar declaração (.docx)
+          </a>
+        </section>
+      )}
+
       {podeMexer && (
         <section className="ui-card p-6">
           <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-white">

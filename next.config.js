@@ -51,6 +51,7 @@ const nextConfig = {
          em producao sem os brasoes, sem erro nenhum no log. */
     outputFileTracingIncludes: {
       "/api/requerimentos/[id]/gerar": ["./public/templates/**"],
+      "/api/requerimentos/[id]/parecer": ["./public/templates/**"],
       "/api/joe/[id]/rene": ["./public/templates/**", "./public/brasoes/**"],
       "/api/ferias/memorando-docx": ["./public/brasoes/**"],
       "/api/permutas/docx": ["./public/brasoes/**"],
