@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
+import { ehModeloAquisicao } from "@/lib/requerimentos";
 
 /* =========================================================================
    Gera o DOCX do requerimento a partir do template (substitui dados +
@@ -208,6 +209,8 @@ export function gerarRequerimentoDocx(d: DadosReq): Buffer {
   const nomeTemplate =
     d.modelo === "aquisicao_restrito"
       ? "requerimento_aquisicao_restrito.docx"
+      : d.modelo === "aquisicao_permitido"
+      ? "requerimento_aquisicao_permitido.docx"
       : d.modelo === "cursos"
       ? "requerimento_cursos.docx"
       : "requerimento_comum.docx";
@@ -232,14 +235,19 @@ export function gerarRequerimentoDocx(d: DadosReq): Buffer {
     delimiters: { start: "{", end: "}" },
   });
 
-  /* Formulario do Exercito (SisFPC): campos proprios, sem quadrinho de
-     modalidade, sem amparo legal e sem informacoes adicionais — o papel nao
-     tem esses quadros. Sai daqui antes da montagem da folha da PMMA. */
-  if (d.modelo === "aquisicao_restrito") {
+  /* Formularios de PCE (uso restrito, do Exercito; uso permitido, da DAL da
+     PMMA): campos proprios, sem quadrinho de modalidade, sem amparo legal e
+     sem informacoes adicionais — o papel nao tem esses quadros. Os dois usam
+     os mesmos campos; muda so o template. Sai daqui antes da montagem da
+     folha de requerimento da PMMA. */
+  if (ehModeloAquisicao(d.modelo)) {
     const pce = lerPce(d.p2Complementares);
     doc.render({
+      // "Cargo:" so existe na folha de uso permitido (na do Exercito ja vem
+      // impresso "PM"); no template do restrito a chave e ignorada.
+      cargo: s(d.postoGrad),
       nome: s(d.nomeCompleto),
-      // "Identidade: {..}-PMMA" — o ID PMMA do requerente
+      // "Identidade:" — o ID PMMA do requerente
       identidade: s(d.idPmmaTxt) || s(d.matricula),
       cpf: s(d.cpf),
       email: s(d.email),

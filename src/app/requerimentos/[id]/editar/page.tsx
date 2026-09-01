@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import RequerimentoForm from "@/components/RequerimentoForm";
 import { lerPce } from "@/lib/gerarRequerimento";
+import { ehModeloAquisicao } from "@/lib/requerimentos";
 import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +48,7 @@ export default async function EditarRequerimentoPage({
   const bg = lerBg(r.p2SituacaoJur);
   // Aquisicao de uso restrito: os dados do produto ficam como JSON dentro de
   // p2Complementares — desfazemos aqui para o formulario mostrar campo a campo.
-  const pce = r.modelo === "aquisicao_restrito" ? lerPce(r.p2Complementares) : null;
+  const pce = ehModeloAquisicao(r.modelo) ? lerPce(r.p2Complementares) : null;
 
   const inicial: Record<string, string> = {
     nomeCompleto: r.nomeCompleto ?? "",

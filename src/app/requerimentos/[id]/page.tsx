@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import RequerimentoDetalhe from "@/components/RequerimentoDetalhe";
 import { lerPce } from "@/lib/gerarRequerimento";
+import { ehModeloAquisicao } from "@/lib/requerimentos";
 import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ export default async function DetalheRequerimentoPage({
   if (!ehAdmin && r.efetivoId !== meuEfetivo) redirect("/requerimentos");
 
   // "PISTOLA TAURUS G3C · CAL. 9MM · 01" — resumo do quadro 2 do formulário
-  const pce = r.modelo === "aquisicao_restrito" ? lerPce(r.p2Complementares) : null;
+  const pce = ehModeloAquisicao(r.modelo) ? lerPce(r.p2Complementares) : null;
   const pceResumo = pce
     ? [
         [pce.produto, pce.marca, pce.modeloArma].filter(Boolean).join(" "),

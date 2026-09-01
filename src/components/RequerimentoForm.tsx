@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Save, Send } from "lucide-react";
-import { usaQuadrinhoOutros } from "@/lib/requerimentos";
+import { usaQuadrinhoOutros, ehModeloAquisicao } from "@/lib/requerimentos";
 
 type Dados = Record<string, string>;
 
@@ -26,12 +26,14 @@ const CAMPOS_PESSOAIS: { key: string; label: string; col?: number }[] = [
   { key: "opmExercicio", label: "OPM em exercício" },
 ];
 
-/* Aquisicao de arma de uso restrito: o formulario do Exercito (SisFPC) pede
-   so estes dados do adquirente — nao adianta mostrar tempo de servico, estado
+/* Aquisicao de arma (uso restrito e uso permitido): a folha de PCE pede so
+   estes dados do adquirente — nao adianta mostrar tempo de servico, estado
    civil e OPM, que nao tem onde sair no papel. O endereco vai na linha
-   "Endereço de entrega" (logradouro + complemento + bairro juntos). */
+   "Endereço de entrega" (logradouro + complemento + bairro juntos).
+   O Posto/Graduacao entra no "Cargo:" da folha de uso permitido. */
 const CAMPOS_AQUISICAO: { key: string; label: string; col?: number }[] = [
   { key: "nomeCompleto", label: "Nome completo", col: 3 },
+  { key: "postoGrad", label: "Cargo (posto/graduação)" },
   { key: "idPmmaTxt", label: "Identidade (ID PMMA)" },
   { key: "cpf", label: "CPF" },
   { key: "email", label: "E-mail pessoal" },
@@ -42,7 +44,7 @@ const CAMPOS_AQUISICAO: { key: string; label: string; col?: number }[] = [
   { key: "fone", label: "Telefone pessoal" },
 ];
 
-// quadro "2. PRODUTO CONTROLADO A SER ADQUIRIDO" do formulario do Exercito
+// quadro "2. PRODUTO CONTROLADO A SER ADQUIRIDO" das folhas de PCE
 const CAMPOS_PCE: { key: string; label: string; dica: string }[] = [
   { key: "produto", label: "Produto", dica: "Ex: PISTOLA" },
   { key: "marca", label: "Marca", dica: "Ex: TAURUS" },
@@ -70,8 +72,8 @@ export default function RequerimentoForm({
   const [erro, setErro] = useState("");
 
   const ehCursos = modelo === "cursos";
-  // formulario proprio do Exercito (SisFPC), nao a folha da PMMA
-  const ehAquisicao = modelo === "aquisicao_restrito";
+  // formularios de PCE (uso restrito/permitido), nao a folha da PMMA
+  const ehAquisicao = ehModeloAquisicao(modelo);
   // "OUTROS" puro ou modalidade que cai no quadrinho OUTROS (arma, colete...)
   const ehOutros = !ehAquisicao && usaQuadrinhoOutros(modalidade);
   const campos = ehAquisicao ? CAMPOS_AQUISICAO : CAMPOS_PESSOAIS;
@@ -85,8 +87,8 @@ export default function RequerimentoForm({
   // so o requerente/comandante sabem na hora (o item 6 do documento, a data
   // de inclusao, o sistema deriva sozinho da ficha — nao precisa pedir).
   function faltando(): string[] {
-    // Aquisicao de uso restrito: o formulario do Exercito so anda com o
-    // adquirente identificado e o produto descrito — sem isso o SisFPC devolve.
+    // Aquisicao de arma: a folha so anda com o adquirente identificado e o
+    // produto descrito — sem isso o pedido volta.
     if (ehAquisicao) {
       const nomes: Record<string, string> = {
         nomeCompleto: "Nome completo", idPmmaTxt: "Identidade (ID PMMA)", cpf: "CPF",
