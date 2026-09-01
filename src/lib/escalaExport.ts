@@ -113,16 +113,17 @@ function celValor(txt: string, w: number, center = false, rowSpan = 1) {
     children: linhas.map((l) => new Paragraph({ alignment: center ? AlignmentType.CENTER : AlignmentType.LEFT, children: [run(l, { italics: true })] })),
   });
 }
-/* Igual a celValor, mas cada linha leva um rótulo em negrito na frente
-   (ex.: "CMT Major Fulano") — usado no bloco FT, que junta CMT/SUBCMT/ADM
-   numa única célula, do jeito que sai no documento oficial (rótulo reto,
-   nome em itálico, alinhado à esquerda). */
+/* Igual a celValor, mas cada linha leva um rótulo na frente (ex.: "CMT
+   Major Fulano") — usado no bloco FT, que junta CMT/SUBCMT/ADM numa única
+   célula. No documento oficial o rótulo NÃO é destacado: sai no mesmo
+   itálico do resto da linha, alinhado à esquerda — só a posição (primeira
+   palavra da linha) já identifica o papel. */
 function celValorRotulado(linhas: { rotulo: string; texto: string }[], w: number) {
   return new TableCell({
     width: { size: w, type: WidthType.PERCENTAGE }, borders: BORDAS, verticalAlign: VerticalAlign.CENTER,
     children: linhas.map((l) => new Paragraph({
       alignment: AlignmentType.LEFT,
-      children: [run(l.rotulo + " ", { bold: true }), run(l.texto || "—", { italics: true })],
+      children: [run(`${l.rotulo} ${l.texto || "—"}`, { italics: true })],
     })),
   });
 }
