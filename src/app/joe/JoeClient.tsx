@@ -92,6 +92,29 @@ function nomeMilitar(m: Militar): string {
   return [posto, temBarra ? "nº " + barra : "", cap].filter(Boolean).join(" ").trim();
 }
 
+// mascara de dinheiro: guarda os centavos como digitos ("1960000" = R$ 19.600,00)
+// pra nao depender de "." vs "," na hora de digitar — ambiguidade que fazia
+// "19.600" (dezenove mil e seiscentos) ser lido como 19,6 por um <input type=number>.
+function centavosParaReaisStr(centavos: string): string {
+  const n = Number(centavos || "0") / 100;
+  return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function reaisParaCentavosStr(valor: number): string {
+  return String(Math.round((valor || 0) * 100));
+}
+function CampoReais({ centavos, onChange }: { centavos: string; onChange: (c: string) => void }) {
+  return (
+    <div className="campo-reais">
+      <span className="campo-reais-pref">R$</span>
+      <input
+        inputMode="numeric"
+        value={centavosParaReaisStr(centavos)}
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, ""))}
+      />
+    </div>
+  );
+}
+
 function brData(iso: string): string {
   if (!iso || iso.length < 10) return iso || "";
   return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
@@ -444,6 +467,8 @@ function ModalSaldo({ ehAdmin, onFechar }: { ehAdmin: boolean; onFechar: () => v
   const [novo, setNovo] = useState({ ...vazio });
   const [mostrarForm, setMostrarForm] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  // id da autorizacao sendo editada; null = cadastrando uma nova
+  const [editandoId, setEditandoId] = useState<string | null>(null);
 
   const aviso = (t: string) => { setMsg(t); setTimeout(() => setMsg(null), 3500); };
 
@@ -466,22 +491,42 @@ function ModalSaldo({ ehAdmin, onFechar }: { ehAdmin: boolean; onFechar: () => v
   };
   useEffect(() => { carregar(); }, []);
 
-  const cadastrar = async () => {
+  const fecharForm = () => { setMostrarForm(false); setEditandoId(null); setNovo({ ...vazio }); };
+
+  const iniciarEdicao = (a: AutorizacaoJoe) => {
+    setEditandoId(a.id);
+    setNovo({
+      despacho: a.despacho,
+      processoSei: a.processoSei,
+      periodoInicio: a.periodoInicio,
+      periodoFim: a.periodoFim,
+      quantidade: String(a.quantidade),
+      valorAutorizado: reaisParaCentavosStr(a.valorAutorizado),
+    });
+    setMostrarForm(true);
+  };
+
+  const salvar = async () => {
     if (!novo.despacho.trim()) return aviso("Informe o número do despacho.");
     if (!novo.periodoInicio || !novo.periodoFim) return aviso("Informe o início e o fim do período.");
     if (!novo.quantidade || Number(novo.quantidade) <= 0) return aviso("Informe a quantidade de vagas autorizadas.");
     setSalvando(true);
     try {
+      const corpo = {
+        ...novo,
+        quantidade: Number(novo.quantidade),
+        valorAutorizado: Number(novo.valorAutorizado || "0") / 100,
+        ...(editandoId ? { id: editandoId } : {}),
+      };
       const r = await fetch("/api/joe/saldo", {
-        method: "POST",
+        method: editandoId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...novo, quantidade: Number(novo.quantidade), valorAutorizado: Number(novo.valorAutorizado || 0) }),
+        body: JSON.stringify(corpo),
       });
       const d = await r.json();
-      if (!r.ok) return aviso(d.error || "Falha ao cadastrar o despacho.");
-      setNovo({ ...vazio });
-      setMostrarForm(false);
-      aviso("Despacho cadastrado.");
+      if (!r.ok) return aviso(d.error || "Falha ao salvar o despacho.");
+      aviso(editandoId ? "Despacho atualizado." : "Despacho cadastrado.");
+      fecharForm();
       await carregar();
     } finally {
       setSalvando(false);
@@ -495,6 +540,7 @@ function ModalSaldo({ ehAdmin, onFechar }: { ehAdmin: boolean; onFechar: () => v
       const d = await r.json().catch(() => ({}));
       if (!r.ok) return aviso(d.error || "Falha ao excluir.");
       aviso("Autorização excluída.");
+      if (editandoId === id) fecharForm();
       await carregar();
     } catch (e) {
       aviso(String((e as Error).message || e));
@@ -586,16 +632,20 @@ function ModalSaldo({ ehAdmin, onFechar }: { ehAdmin: boolean; onFechar: () => v
                   {autorizacoes.map((a) => (
                     <div className="jc-cand" key={a.id}>
                       <span className="jc-cand-nome">{a.despacho} · {brData(a.periodoInicio)} a {brData(a.periodoFim)}</span>
-                      <button className="link-btn danger" onClick={() => excluir(a.id)}>excluir</button>
+                      <span className="jc-cand-acoes">
+                        <button className="mini-btn editar" onClick={() => iniciarEdicao(a)}>✎ editar</button>
+                        <button className="mini-btn no" onClick={() => excluir(a.id)}>✕ excluir</button>
+                      </span>
                     </div>
                   ))}
                 </div>
               )}
 
               {!mostrarForm ? (
-                <button className="btn full" onClick={() => setMostrarForm(true)}>+ Cadastrar novo despacho</button>
+                <button className="btn primary full saldo-novo-btn" onClick={() => setMostrarForm(true)}>+ Cadastrar novo despacho</button>
               ) : (
                 <div className="joe-form-grid saldo-form">
+                  <div className="f-evento saldo-form-tit">{editandoId ? "Editando despacho" : "Novo despacho"}</div>
                   <label className="f-evento">Nº do despacho
                     <input value={novo.despacho} placeholder="ex: Despacho nº 1198/2026 - CPAI-2/PMMA" onChange={(e) => setNovo({ ...novo, despacho: e.target.value })} />
                   </label>
@@ -611,12 +661,14 @@ function ModalSaldo({ ehAdmin, onFechar }: { ehAdmin: boolean; onFechar: () => v
                   <label>Vagas autorizadas
                     <input type="number" min={1} value={novo.quantidade} onChange={(e) => setNovo({ ...novo, quantidade: e.target.value })} />
                   </label>
-                  <label>Valor autorizado (R$)
-                    <input type="number" min={0} step="0.01" value={novo.valorAutorizado} onChange={(e) => setNovo({ ...novo, valorAutorizado: e.target.value })} />
+                  <label>Valor autorizado
+                    <CampoReais centavos={novo.valorAutorizado} onChange={(c) => setNovo({ ...novo, valorAutorizado: c })} />
                   </label>
                   <div className="f-obs saldo-form-acoes">
-                    <button className="btn" onClick={() => { setMostrarForm(false); setNovo({ ...vazio }); }}>Cancelar</button>
-                    <button className="btn primary" disabled={salvando} onClick={cadastrar}>{salvando ? "Salvando..." : "Salvar despacho"}</button>
+                    <button className="btn" onClick={fecharForm}>Cancelar</button>
+                    <button className="btn primary" disabled={salvando} onClick={salvar}>
+                      {salvando ? "Salvando..." : editandoId ? "Salvar alterações" : "Salvar despacho"}
+                    </button>
                   </div>
                 </div>
               )}
@@ -1077,6 +1129,14 @@ const CSS = `
 .saldo-barra-fill{ height:100%; background:#D4AF37; border-radius:999px; }
 .saldo-barra-legenda{ font-size:11px; color:#6f82a0; margin-top:4px; text-align:right; }
 .saldo-admin{ border-top:1px solid #1d2c44; padding-top:12px; margin-top:4px; display:flex; flex-direction:column; gap:10px; }
+.saldo-novo-btn{ font-size:14px; padding:11px 14px; }
 .saldo-form{ margin-top:2px; }
+.saldo-form-tit{ color:#D4AF37; font-weight:700; font-size:13px; margin-bottom:-2px; }
 .saldo-form-acoes{ display:flex; gap:8px; justify-content:flex-end; }
+.campo-reais{ display:flex; align-items:center; gap:6px; background:#0a1626; border:1px solid #28395a; border-radius:8px; padding:0 10px; }
+.campo-reais-pref{ font-size:12px; color:#6f82a0; }
+.campo-reais input{ background:transparent; border:none; padding:8px 0; color:#E8EEF6; font-size:13px; width:100%; }
+.campo-reais input:focus{ outline:none; }
+.campo-reais:focus-within{ border-color:#D4AF37; }
+.mini-btn.editar:hover:not(:disabled){ border-color:#D4AF37; color:#f3df9d; }
 `;

@@ -124,6 +124,62 @@ export async function POST(req: Request) {
   }
 }
 
+export async function PUT(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
+  if (!ehAdmin((session.user as any).perfil)) return NextResponse.json({ error: "Somente o administrador." }, { status: 403 });
+
+  try {
+    const b = await req.json();
+    const id = String(b?.id || "").trim();
+    if (!id) return NextResponse.json({ error: "Informe o id." }, { status: 400 });
+
+    const despacho = String(b?.despacho || "").trim();
+    const processoSei = String(b?.processoSei || "").trim();
+    const periodoInicio = String(b?.periodoInicio || "").trim();
+    const periodoFim = String(b?.periodoFim || "").trim();
+    const quantidade = Math.round(Number(b?.quantidade));
+    const valorAutorizado = Number(b?.valorAutorizado);
+
+    if (!despacho) return NextResponse.json({ error: "Informe o número do despacho." }, { status: 400 });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(periodoInicio) || !/^\d{4}-\d{2}-\d{2}$/.test(periodoFim)) {
+      return NextResponse.json({ error: "Informe o início e o fim do período (AAAA-MM-DD)." }, { status: 400 });
+    }
+    if (periodoFim < periodoInicio) {
+      return NextResponse.json({ error: "O fim do período não pode vir antes do início." }, { status: 400 });
+    }
+    if (!Number.isFinite(quantidade) || quantidade <= 0) {
+      return NextResponse.json({ error: "Informe a quantidade de vagas autorizadas." }, { status: 400 });
+    }
+    if (!Number.isFinite(valorAutorizado) || valorAutorizado < 0) {
+      return NextResponse.json({ error: "Informe o valor autorizado." }, { status: 400 });
+    }
+
+    const row = await prisma.config.findUnique({ where: { chave: CHAVE } });
+    const lista = ler(row?.valor);
+    const idx = lista.findIndex((a) => a.id === id);
+    if (idx < 0) return NextResponse.json({ error: "Autorização não encontrada." }, { status: 404 });
+
+    const atualizada: AutorizacaoJoe = { ...lista[idx], despacho, processoSei, periodoInicio, periodoFim, quantidade, valorAutorizado };
+    lista[idx] = atualizada;
+    await salvar(lista);
+
+    try {
+      await registrar({
+        acao: "editar_autorizacao_joe",
+        alvo: id,
+        alvoNome: despacho,
+        detalhe: `${quantidade} vaga(s) · R$ ${valorAutorizado.toFixed(2)} · ${periodoInicio} a ${periodoFim}`,
+      });
+    } catch {}
+
+    return NextResponse.json({ ok: true, autorizacao: atualizada });
+  } catch (err) {
+    console.error("[PUT /api/joe/saldo]", err);
+    return NextResponse.json({ error: "Falha ao atualizar a autorização" }, { status: 500 });
+  }
+}
+
 export async function DELETE(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
