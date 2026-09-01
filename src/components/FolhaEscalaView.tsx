@@ -333,7 +333,14 @@ export default function FolhaEscalaView({
 
             {/* EXPEDIENTE */}
             {mostraExpediente && (
-              <table className="tbl"><tbody>
+              <table className="tbl tbl-exp">
+                <colgroup>
+                  <col style={{ width: "9%" }} />
+                  <col style={{ width: "39%" }} />
+                  <col style={{ width: "15%" }} />
+                  <col style={{ width: "37%" }} />
+                </colgroup>
+                <tbody>
                 <tr><td className="hd" colSpan={4}>EXPEDIENTE <T html={exp.horario} /></td></tr>
                 {expedienteFeriado ? (
                   <>

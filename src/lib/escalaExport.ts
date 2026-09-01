@@ -146,20 +146,20 @@ function expedienteDocx(e: EscalaDia): Table | null {
   const val = (v: string, lst?: Slot[]) => feriado ? ft : (lst ? lista(lst) : limpa(v));
   const rowsExp: TableRow[] = [
     celFaixa(`EXPEDIENTE ${limpa(ex.horario)}`.trim(), 4),
-    new TableRow({ children: [celRotulo("CMT", 16), celValor(val(ex.cmt || ""), 34, true), celRotulo("SUBCMT", 16), celValor(val(ex.subcmt || ""), 34, true)] }),
+    new TableRow({ children: [celRotulo("CMT", 9), celValor(val(ex.cmt || ""), 39, true), celRotulo("SUBCMT", 15), celValor(val(ex.subcmt || ""), 37, true)] }),
     new TableRow({ children: [
-      celRotulo("FT", 16),
+      celRotulo("FT", 9),
       feriado
-        ? celValor(ft, 34, true)
+        ? celValor(ft, 39, true)
         : celValorRotulado([
             { rotulo: "CMT", texto: limpa(ex.cmtFt || "") },
             { rotulo: "SUBCMT", texto: limpa(ex.subcmtFt || "") },
             { rotulo: "ADM", texto: limpa(ex.adm || "") },
-          ], 34),
-      celRotulo("P4", 16), celValor(val("", ex.p4), 34, true),
+          ], 39),
+      celRotulo("P4", 15), celValor(val("", ex.p4), 37, true),
     ] }),
-    new TableRow({ children: [celRotulo("P1", 16), celValor(val("", ex.p1), 34, true), celRotulo("RONDA ESCOLAR", 16), celValor(val("", ex.rondaEscolar), 34, true)] }),
-    new TableRow({ children: [celRotulo("P3", 16), celValor(val("", ex.p3), 34, true), celRotulo("PATRULHA MARIA DA PENHA", 16), celValor(val("", ex.patrulha), 34, true)] }),
+    new TableRow({ children: [celRotulo("P1", 9), celValor(val("", ex.p1), 39, true), celRotulo("RONDA ESCOLAR", 15), celValor(val("", ex.rondaEscolar), 37, true)] }),
+    new TableRow({ children: [celRotulo("P3", 9), celValor(val("", ex.p3), 39, true), celRotulo("PATRULHA MARIA DA PENHA", 15), celValor(val("", ex.patrulha), 37, true)] }),
   ];
   if (limpa(e.obsExpediente || "")) {
     rowsExp.push(new TableRow({
