@@ -377,19 +377,19 @@ export default function FolhaEscalaView({
                         </div>
                       </td>
                       <td className="lbl">P4</td>
-                      <td className="val"><ListaTexto valor={exp.p4} center semPermuta /></td>
+                      <td className="val"><ListaTexto valor={exp.p4} centro semPermuta /></td>
                     </tr>
                     <tr>
                       <td className="lbl">P1</td>
-                      <td className="val"><ListaTexto valor={exp.p1} center semPermuta /></td>
+                      <td className="val"><ListaTexto valor={exp.p1} centro semPermuta /></td>
                       <td className="lbl">RONDA ESCOLAR</td>
-                      <td className="val"><ListaTexto valor={exp.rondaEscolar} center semPermuta /></td>
+                      <td className="val"><ListaTexto valor={exp.rondaEscolar} centro semPermuta /></td>
                     </tr>
                     <tr>
                       <td className="lbl">P3</td>
-                      <td className="val"><ListaTexto valor={exp.p3} center semPermuta /></td>
+                      <td className="val"><ListaTexto valor={exp.p3} centro semPermuta /></td>
                       <td className="lbl">PATRULHA MARIA DA PENHA</td>
-                      <td className="val"><ListaTexto valor={exp.patrulha} center semPermuta /></td>
+                      <td className="val"><ListaTexto valor={exp.patrulha} centro semPermuta /></td>
                     </tr>
                   </>
                 )}
@@ -536,9 +536,9 @@ const CSS = `
 .fev-root .linha{ display:flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:flex-start; }
 .fev-root .slot{ display:inline; } .fev-root .perm{ font-weight:700; }
 .fev-root .ft-bloco{ display:flex; flex-direction:column; gap:4px; }
-.fev-root .ft-grupo{ text-align:center; }
+.fev-root .ft-grupo{ display:flex; align-items:flex-start; justify-content:center; gap:4px; }
 .fev-root .ft-grupo:not(:last-child){ padding-bottom:3px; border-bottom:1px dotted #0000001f; }
-.fev-root .ft-rotulo{ display:block; }
+.fev-root .ft-rotulo{ flex-shrink:0; }
 
 .fev-root .rodape-local{ text-align:center; font-size:15px; margin-top:10px; }
 .fev-root .obs-rodape{ margin-top:8px; font-size:14px; text-align:left; line-height:1.3; }
