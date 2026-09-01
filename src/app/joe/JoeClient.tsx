@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { AutorizacaoJoe, SaldoJoe } from "@/lib/joeSaldo";
 
 /* =========================================================================
    SIGEP-18BPM · JOE — Jornada Operacional Extraordinaria.
@@ -143,6 +144,8 @@ export default function JoeClient({ perfil }: { perfil: string }) {
 
   // modal de inscricao manual: guarda o id do JOE alvo (ou null = fechado)
   const [modalJoe, setModalJoe] = useState<string | null>(null);
+  // modal do saldo de JOE (cota autorizada por despacho do CPA/I-2)
+  const [modalSaldo, setModalSaldo] = useState(false);
 
   // acordeao por mes/ano: guarda as chaves expandidas. Comeca com o mes atual aberto.
   const [expandido, setExpandido] = useState<Set<string>>(() => {
@@ -314,7 +317,10 @@ export default function JoeClient({ perfil }: { perfil: string }) {
               : "Candidate-se aos serviços extraordinários remunerados disponíveis."}
           </p>
         </div>
-        <span className={"joe-perfil " + (ehAdmin ? "adm" : "pol")}>{ehAdmin ? "P1 / Admin" : "Policial"}</span>
+        <div className="joe-head-acoes">
+          <button className="btn saldo-btn" onClick={() => setModalSaldo(true)}>💰 Saldo JOE</button>
+          <span className={"joe-perfil " + (ehAdmin ? "adm" : "pol")}>{ehAdmin ? "P1 / Admin" : "Policial"}</span>
+        </div>
       </div>
 
       {msg && <div className="joe-toast">{msg}</div>}
@@ -417,6 +423,207 @@ export default function JoeClient({ perfil }: { perfil: string }) {
           }}
         />
       )}
+
+      {/* MODAL: saldo da cota de JOE autorizada por despacho */}
+      {modalSaldo && <ModalSaldo ehAdmin={ehAdmin} onFechar={() => setModalSaldo(false)} />}
+    </div>
+  );
+}
+
+/* ===================== MODAL DE SALDO DE JOE ===================== */
+
+function ModalSaldo({ ehAdmin, onFechar }: { ehAdmin: boolean; onFechar: () => void }) {
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+  const [autorizacoes, setAutorizacoes] = useState<AutorizacaoJoe[]>([]);
+  const [saldos, setSaldos] = useState<SaldoJoe[]>([]);
+  const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const vazio = { despacho: "", processoSei: "", periodoInicio: "", periodoFim: "", quantidade: "", valorAutorizado: "" };
+  const [novo, setNovo] = useState({ ...vazio });
+  const [mostrarForm, setMostrarForm] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+
+  const aviso = (t: string) => { setMsg(t); setTimeout(() => setMsg(null), 3500); };
+
+  const carregar = async () => {
+    setCarregando(true);
+    try {
+      const r = await fetch("/api/joe/saldo");
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Falha ao carregar o saldo.");
+      const lista: AutorizacaoJoe[] = d.autorizacoes || [];
+      setAutorizacoes(lista);
+      setSaldos(d.saldos || []);
+      setSelecionadoId((atual) => (atual && lista.some((a) => a.id === atual) ? atual : (d.atualId || lista[0]?.id || null)));
+      setErro(null);
+    } catch (e) {
+      setErro(String((e as Error).message || e));
+    } finally {
+      setCarregando(false);
+    }
+  };
+  useEffect(() => { carregar(); }, []);
+
+  const cadastrar = async () => {
+    if (!novo.despacho.trim()) return aviso("Informe o número do despacho.");
+    if (!novo.periodoInicio || !novo.periodoFim) return aviso("Informe o início e o fim do período.");
+    if (!novo.quantidade || Number(novo.quantidade) <= 0) return aviso("Informe a quantidade de vagas autorizadas.");
+    setSalvando(true);
+    try {
+      const r = await fetch("/api/joe/saldo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...novo, quantidade: Number(novo.quantidade), valorAutorizado: Number(novo.valorAutorizado || 0) }),
+      });
+      const d = await r.json();
+      if (!r.ok) return aviso(d.error || "Falha ao cadastrar o despacho.");
+      setNovo({ ...vazio });
+      setMostrarForm(false);
+      aviso("Despacho cadastrado.");
+      await carregar();
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const excluir = async (id: string) => {
+    if (!confirm("Excluir esta autorização de JOE?")) return;
+    try {
+      const r = await fetch(`/api/joe/saldo?id=${id}`, { method: "DELETE" });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) return aviso(d.error || "Falha ao excluir.");
+      aviso("Autorização excluída.");
+      await carregar();
+    } catch (e) {
+      aviso(String((e as Error).message || e));
+    }
+  };
+
+  const saldo = saldos.find((s) => s.autorizacao.id === selecionadoId) || null;
+
+  return (
+    <div className="joe-modal-overlay" onClick={onFechar}>
+      <div className="joe-modal saldo-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="jm-head">
+          <div>
+            <div className="jm-tit">Saldo JOE</div>
+            <div className="jm-sub">Cota extraordinária autorizada pelo CPA/I-2 por despacho</div>
+          </div>
+          <button className="jm-x" onClick={onFechar}>✕</button>
+        </div>
+
+        <div className="jm-corpo">
+          {msg && <div className="joe-toast">{msg}</div>}
+          {erro && <div className="joe-banner erro">{erro}</div>}
+          {carregando && <div className="joe-banner info">Carregando...</div>}
+
+          {!carregando && autorizacoes.length === 0 && (
+            <div className="joe-vazio">
+              Nenhum despacho de JOE cadastrado ainda.{ehAdmin ? " Cadastre o primeiro logo abaixo." : ""}
+            </div>
+          )}
+
+          {!carregando && saldo && (
+            <>
+              {autorizacoes.length > 1 && (
+                <label className="jm-label">Despacho
+                  <select className="jm-input" value={selecionadoId || ""} onChange={(e) => setSelecionadoId(e.target.value)}>
+                    {autorizacoes.map((a) => (
+                      <option key={a.id} value={a.id}>{a.despacho} · {brData(a.periodoInicio)} a {brData(a.periodoFim)}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              <div className="saldo-despacho">
+                <div><b>{saldo.autorizacao.despacho}</b>{saldo.autorizacao.processoSei ? ` · Proc. SEI ${saldo.autorizacao.processoSei}` : ""}</div>
+                <div className="saldo-periodo">Período: {brData(saldo.autorizacao.periodoInicio)} a {brData(saldo.autorizacao.periodoFim)}</div>
+              </div>
+
+              <div className="saldo-cards">
+                <div className="saldo-card">
+                  <span className="saldo-card-v">{saldo.autorizacao.quantidade}</span>
+                  <span className="saldo-card-l">Autorizado</span>
+                  <span className="saldo-card-sub">{reais(saldo.autorizacao.valorAutorizado)}</span>
+                </div>
+                <div className="saldo-card usado">
+                  <span className="saldo-card-v">{saldo.quantidadeUsada}</span>
+                  <span className="saldo-card-l">Comprometido</span>
+                  <span className="saldo-card-sub">{reais(saldo.valorComprometido)}</span>
+                </div>
+                <div className="saldo-card disp">
+                  <span className="saldo-card-v">{saldo.quantidadeDisponivel}</span>
+                  <span className="saldo-card-l">Disponível</span>
+                  <span className="saldo-card-sub">{reais(saldo.valorDisponivel)}</span>
+                </div>
+              </div>
+
+              <div className="saldo-barra"><div className="saldo-barra-fill" style={{ width: `${saldo.pctUso}%` }} /></div>
+              <div className="saldo-barra-legenda">{saldo.pctUso}% da cota já comprometida</div>
+
+              <div className="joe-secao" style={{ margin: "16px 2px 8px" }}>JOE que entraram nesta conta</div>
+              {saldo.eventos.length === 0 ? (
+                <div className="jc-sem-cand">Nenhum JOE aprovado dentro do período deste despacho ainda.</div>
+              ) : (
+                <div className="jc-cand-lista">
+                  {saldo.eventos.map((ev) => (
+                    <div className="jc-cand" key={ev.id}>
+                      <span className="jc-cand-nome">{ev.evento} · {brData(ev.data)}</span>
+                      <span className="tag p1">{ev.vagas} vaga{ev.vagas > 1 ? "s" : ""} · {reais(ev.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {ehAdmin && (
+            <div className="saldo-admin">
+              {autorizacoes.length > 0 && (
+                <div className="jc-cand-lista">
+                  {autorizacoes.map((a) => (
+                    <div className="jc-cand" key={a.id}>
+                      <span className="jc-cand-nome">{a.despacho} · {brData(a.periodoInicio)} a {brData(a.periodoFim)}</span>
+                      <button className="link-btn danger" onClick={() => excluir(a.id)}>excluir</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!mostrarForm ? (
+                <button className="btn full" onClick={() => setMostrarForm(true)}>+ Cadastrar novo despacho</button>
+              ) : (
+                <div className="joe-form-grid saldo-form">
+                  <label className="f-evento">Nº do despacho
+                    <input value={novo.despacho} placeholder="ex: Despacho nº 1198/2026 - CPAI-2/PMMA" onChange={(e) => setNovo({ ...novo, despacho: e.target.value })} />
+                  </label>
+                  <label>Processo SEI
+                    <input value={novo.processoSei} placeholder="ex: 2026.190110.35458" onChange={(e) => setNovo({ ...novo, processoSei: e.target.value })} />
+                  </label>
+                  <label>Início do período
+                    <input type="date" value={novo.periodoInicio} onChange={(e) => setNovo({ ...novo, periodoInicio: e.target.value })} />
+                  </label>
+                  <label>Fim do período
+                    <input type="date" value={novo.periodoFim} onChange={(e) => setNovo({ ...novo, periodoFim: e.target.value })} />
+                  </label>
+                  <label>Vagas autorizadas
+                    <input type="number" min={1} value={novo.quantidade} onChange={(e) => setNovo({ ...novo, quantidade: e.target.value })} />
+                  </label>
+                  <label>Valor autorizado (R$)
+                    <input type="number" min={0} step="0.01" value={novo.valorAutorizado} onChange={(e) => setNovo({ ...novo, valorAutorizado: e.target.value })} />
+                  </label>
+                  <div className="f-obs saldo-form-acoes">
+                    <button className="btn" onClick={() => { setMostrarForm(false); setNovo({ ...vazio }); }}>Cancelar</button>
+                    <button className="btn primary" disabled={salvando} onClick={cadastrar}>{salvando ? "Salvando..." : "Salvar despacho"}</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -726,6 +933,8 @@ const CSS = `
 .joe-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:14px; flex-wrap:wrap; }
 .joe-title{ margin:0; font-size:20px; font-weight:700; color:#D4AF37; }
 .joe-sub{ margin:3px 0 0; font-size:13px; color:#9fb0c7; }
+.joe-head-acoes{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.saldo-btn{ font-weight:600; }
 .joe-perfil{ font-size:12px; border-radius:999px; padding:4px 12px; white-space:nowrap; }
 .joe-perfil.adm{ background:#2a2410; color:#f3df9d; border:1px solid #6b5320; }
 .joe-perfil.pol{ background:#16243a; color:#9fd9ff; border:1px solid #2b4f7a; }
@@ -852,4 +1061,22 @@ const CSS = `
 .jm-nota{ font-size:11.5px; color:#9fb0c7; }
 .jm-nota b{ color:#9fe6bd; }
 .jm-rod-btns{ display:flex; gap:8px; }
+
+/* SALDO JOE */
+.saldo-modal{ max-width:560px; }
+.saldo-despacho{ background:#0a1626; border:1px solid #1d2c44; border-radius:9px; padding:9px 12px; font-size:13px; color:#cdd9ea; }
+.saldo-periodo{ font-size:12px; color:#9fb0c7; margin-top:2px; }
+.saldo-cards{ display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+.saldo-card{ background:#0a1626; border:1px solid #1d2c44; border-radius:9px; padding:10px 6px; text-align:center; }
+.saldo-card-v{ display:block; font-size:19px; font-weight:700; color:#D4AF37; }
+.saldo-card-l{ display:block; font-size:10.5px; color:#9fb0c7; margin-top:2px; }
+.saldo-card-sub{ display:block; font-size:11px; color:#6f82a0; margin-top:3px; }
+.saldo-card.usado .saldo-card-v{ color:#f3df9d; }
+.saldo-card.disp .saldo-card-v{ color:#9fe6bd; }
+.saldo-barra{ height:8px; border-radius:999px; background:#0a1626; border:1px solid #1d2c44; overflow:hidden; margin-top:4px; }
+.saldo-barra-fill{ height:100%; background:#D4AF37; border-radius:999px; }
+.saldo-barra-legenda{ font-size:11px; color:#6f82a0; margin-top:4px; text-align:right; }
+.saldo-admin{ border-top:1px solid #1d2c44; padding-top:12px; margin-top:4px; display:flex; flex-direction:column; gap:10px; }
+.saldo-form{ margin-top:2px; }
+.saldo-form-acoes{ display:flex; gap:8px; justify-content:flex-end; }
 `;
