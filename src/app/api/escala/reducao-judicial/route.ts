@@ -18,14 +18,21 @@ export const dynamic = "force-dynamic";
    equipe dele no mês. O motor distribui sozinho; o escalante ainda pode
    escalar além, com confirmação.
 
+   · funcao — turno FIXO: além de restringir os dias, o militar também entra
+     GARANTIDO como EXTRA (soma, não substitui) numa função de lista
+     (ftPatrulheiro/rpPatrulheiro/guardaPermanente/inteligencia) em todo dia
+     permitido dele — sem depender de qual equipe (A/B/C/D) está de plantão.
+
    A chave do Config continua "reducao_judicial" para não perder o que já
-   está cadastrado; registros antigos (sem "dias") seguem valendo.
-     GET  -> { reducoes: [{ idPmma, nome, percentual, dias, motivo }] }
-     POST (admin) { idPmma, nome?, percentual?, dias?, motivo? }
-          -> define/atualiza; sem teto e sem restrição de dias, remove */
+   está cadastrado; registros antigos (sem "dias"/"funcao") seguem valendo.
+     GET  -> { reducoes: [{ idPmma, nome, percentual, dias, funcao, motivo }] }
+     POST (admin) { idPmma, nome?, percentual?, dias?, funcao?, motivo? }
+          -> define/atualiza; sem teto, sem dias e sem funcao, remove */
 const CHAVE = "reducao_judicial";
 
-type Reducao = { idPmma: string; nome: string; percentual: number; dias: number[]; motivo: string };
+const FUNCOES_EXTRA_VALIDAS = new Set(["ftPatrulheiro", "rpPatrulheiro", "guardaPermanente", "inteligencia"]);
+
+type Reducao = { idPmma: string; nome: string; percentual: number; dias: number[]; funcao: string; motivo: string };
 
 /** Normaliza a lista de dias: só 0..6, sem repetido, em ordem. 7 dias = sem restrição. */
 function diasLimpos(v: unknown): number[] {
@@ -48,6 +55,7 @@ function ler(v?: string | null): Reducao[] {
           nome: String(x.nome || ""),
           percentual: Number(x.percentual) || 0,
           dias: diasLimpos(x.dias),
+          funcao: FUNCOES_EXTRA_VALIDAS.has(String(x.funcao || "")) ? String(x.funcao) : "",
           motivo: String(x.motivo || ""),
         }))
       : [];
@@ -89,15 +97,18 @@ export async function POST(req: Request) {
     }
     const dias = b?.dias !== undefined ? diasLimpos(b.dias) : (atual?.dias ?? []);
     const motivo = b?.motivo !== undefined ? String(b.motivo || "").trim() : (atual?.motivo ?? "");
+    const funcaoBruta = b?.funcao !== undefined ? String(b.funcao || "").trim() : (atual?.funcao ?? "");
+    const funcao = FUNCOES_EXTRA_VALIDAS.has(funcaoBruta) ? funcaoBruta : "";
 
     lista = lista.filter((r) => r.idPmma !== idPmma); // idempotente
     const temTeto = pct > 0 && pct < 100;
     const temDias = dias.length > 0;
-    if (temTeto || temDias) {
-      lista.push({ idPmma, nome: String(b?.nome || atual?.nome || "").trim(), percentual: temTeto ? pct : 0, dias, motivo });
+    const temFuncao = funcao !== "";
+    if (temTeto || temDias || temFuncao) {
+      lista.push({ idPmma, nome: String(b?.nome || atual?.nome || "").trim(), percentual: temTeto ? pct : 0, dias, funcao, motivo });
     }
     await salvar(lista);
-    return NextResponse.json({ ok: true, percentual: temTeto ? pct : 0, dias, motivo });
+    return NextResponse.json({ ok: true, percentual: temTeto ? pct : 0, dias, funcao, motivo });
   } catch (err) {
     console.error("[POST /api/escala/reducao-judicial]", err);
     return NextResponse.json({ error: "Falha ao salvar" }, { status: 500 });

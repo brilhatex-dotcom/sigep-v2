@@ -150,6 +150,9 @@ type Cadastro = {
   // Dias da semana em que o militar pode ser escalado (0=dom ... 6=sab).
   // Ausente/vazio = todos. Ex.: [0,6] = so fim de semana (quem estuda).
   diasPermitidos?: Record<string, number[]>;
+  // Turno fixo: idPmma -> funcao de lista em que ele entra como EXTRA (soma,
+  // nao substitui) em todo dia permitido dele. Ver escalaMotor.ts.
+  funcaoFixa?: Record<string, string>;
 };
 
 type Brasoes = {
@@ -510,6 +513,16 @@ function sobrenome(n: string): string {
 function afastado(nome: string, data: string, lista: Afastamento[]): boolean {
   return lista.some((a) => a.militar === nome && data >= a.inicio && data <= a.fim);
 }
+// Militares com turno FIXO na funcao `fk`: entram como EXTRA (somando, sem
+// tirar quem o rodizio normal ja coloca) em todo dia permitido deles.
+function extrasFixosDoDia(fk: string, iso: string, cad: Pick<Cadastro, "funcaoFixa" | "diasPermitidos" | "afastamentos">): string[] {
+  const ff = cad.funcaoFixa || {};
+  const dp = cad.diasPermitidos || {};
+  return Object.keys(ff)
+    .filter((id) => ff[id] === fk)
+    .filter((id) => podeNoDia(dp[id], iso))
+    .filter((id) => !afastado(id, iso, cad.afastamentos || []));
+}
 function afastamentoDe(nome: string, data: string, lista: Afastamento[]): Afastamento | null {
   return lista.find((a) => a.militar === nome && data >= a.inicio && data <= a.fim) || null;
 }
@@ -646,9 +659,16 @@ function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
   // Titular + linhas extras (ex.: 2o patrulheiro) definidas no Mapa.
   const dqNomes = (fk: string) => {
     const out: string[] = [];
+    const idsOut: string[] = [];
     const b = dqNome(fk); if (b) out.push(b);
+    const bId = q[team]?.[fk] || ""; if (bId && b) idsOut.push(bId);
     const n = cad.linhasExtras?.[fk] || 0;
-    for (let k = 2; k <= n + 1; k++) { const id = q[team]?.[`${fk}#${k}`] || ""; if (id && !afastado(id, iso, cad.afastamentos) && !capadoHoje(id)) out.push(nm(id)); }
+    for (let k = 2; k <= n + 1; k++) {
+      const id = q[team]?.[`${fk}#${k}`] || "";
+      if (id && !afastado(id, iso, cad.afastamentos) && !capadoHoje(id)) { out.push(nm(id)); idsOut.push(id); }
+    }
+    // turno fixo: soma quem tem essa funcao como extra fixo, no dia permitido dele
+    for (const id of extrasFixosDoDia(fk, iso, cad)) if (!idsOut.includes(id)) { out.push(nm(id)); idsOut.push(id); }
     return out;
   };
 
@@ -1767,6 +1787,7 @@ export default function EscalaClient() {
   // Reducao judicial (idPmma -> percentual/mes) — mesclado no cadEff em memoria.
   const [reducaoJudicial, setReducaoJudicial] = useState<Record<string, number>>({});
   const [diasPermitidos, setDiasPermitidos] = useState<Record<string, number[]>>({});
+  const [funcaoFixa, setFuncaoFixa] = useState<Record<string, string>>({});
   const [data, setData] = useState<string>(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -1836,13 +1857,16 @@ export default function EscalaClient() {
         if (Array.isArray(d?.reducoes)) {
           const m: Record<string, number> = {};
           const dd: Record<string, number[]> = {};
+          const ff: Record<string, string> = {};
           for (const x of d.reducoes) {
             if (!x?.idPmma) continue;
             if (x.percentual) m[String(x.idPmma)] = Number(x.percentual);
             if (Array.isArray(x.dias) && x.dias.length) dd[String(x.idPmma)] = x.dias.map(Number);
+            if (x.funcao) ff[String(x.idPmma)] = String(x.funcao);
           }
           setReducaoJudicial(m);
           setDiasPermitidos(dd);
+          setFuncaoFixa(ff);
         }
       })
       .catch(() => {});
@@ -2150,14 +2174,16 @@ export default function EscalaClient() {
     const todos = [...extra, ...planoAfast];
     const temRj = Object.keys(reducaoJudicial).length > 0;
     const temDp = Object.keys(diasPermitidos).length > 0;
-    if (todos.length === 0 && !temRj) return cad;
+    const temFf = Object.keys(funcaoFixa).length > 0;
+    if (todos.length === 0 && !temRj && !temFf) return cad;
     return {
       ...cad,
       afastamentos: [...(cad.afastamentos || []), ...todos],
       ...(temRj ? { reducaoJudicial } : {}),
       ...(temDp ? { diasPermitidos } : {}),
+      ...(temFf ? { funcaoFixa } : {}),
     };
-  }, [cad, feriasAvulsas, planoAfast, reducaoJudicial, diasPermitidos]);
+  }, [cad, feriasAvulsas, planoAfast, reducaoJudicial, diasPermitidos, funcaoFixa]);
 
   // Auto-preenche na FOLHA os campos vindos do QUADRO (FT, RP, Guarda,
   // Inteligência) que estão VAZIOS, para os dias de HOJE em diante já salvos.
@@ -2213,6 +2239,18 @@ export default function EscalaClient() {
             } else if (!Array.isArray((dia as any)[k])) {
               clonar(); (dia as any)[k] = cur; // normaliza Slot antigo -> lista
             }
+          }
+          // Turno fixo: chegou o dia permitido de alguem com essa funcao como
+          // extra — garante que ele entra, somando (sem tirar quem ja esta).
+          const atual = asSlots((dia as any)[k]);
+          const idsAtuais = new Set(
+            atual.map((sl) => { const n = semTags(sl?.titular || "").trim(); return n ? (nameToId[n] || n) : ""; }).filter(Boolean)
+          );
+          const faltando = extrasFixosDoDia(k, iso, cadEff).filter((id) => !idsAtuais.has(id));
+          if (faltando.length) {
+            clonar();
+            const preenchidos = asSlots((dia as any)[k]).filter((sl) => semTags(sl?.titular || "").trim());
+            (dia as any)[k] = [...preenchidos, ...faltando.map((id) => s(nomeDe(id)))];
           }
         }
         // Expediente: remove quem entrou de férias das listas (P1/P3/P4/Ronda/Patrulha).
