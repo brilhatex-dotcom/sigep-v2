@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { modeloDaModalidade } from "@/lib/requerimentos";
+import { modeloDaModalidade, ehModeloAquisicao } from "@/lib/requerimentos";
 import { dadosPessoais } from "@/lib/requerimentoDados";
 import { registrar } from "@/lib/auditoria";
 
@@ -22,6 +22,10 @@ export const dynamic = "force-dynamic";
    (conceito militar, data e BG da última promoção). Esses vêm em `porMilitar`,
    já ajustados um a um na tela.
 
+   Nos requerimentos de AQUISIÇÃO DE ARMA vale o mesmo: a arma é de cada um
+   (produto, marca, modelo, calibre, quantidade), então também vem por militar
+   — a linha "igual para todos" da tela é só um atalho para preencher a tabela.
+
    Só o admin. E, ao contrário de /api/requerimentos, aqui NÃO se exige que o
    admin tenha ficha de efetivo: o requerimento é dos militares da lista, não
    dele.
@@ -33,6 +37,8 @@ export const dynamic = "force-dynamic";
    justamente para adiantar o que já dá, e o documento sai do mesmo jeito. */
 
 const CAMPOS_PAGINA2 = ["p2Conceito", "p2UltimaPromocao", "p2BgNumero", "p2BgData"] as const;
+// produto controlado da aquisição de arma: um por militar
+const CAMPOS_PCE = ["produto", "marca", "modeloArma", "calibre", "quantidade"] as const;
 
 const ROTULO_FALTA: Record<string, string> = {
   cpf: "CPF",
@@ -41,6 +47,9 @@ const ROTULO_FALTA: Record<string, string> = {
   p2UltimaPromocao: "data da última promoção",
   p2BgNumero: "nº do BG",
   p2BgData: "data do BG",
+  produto: "produto", marca: "marca", modeloArma: "modelo",
+  calibre: "calibre", quantidade: "quantidade",
+  endereco: "endereço", municipio: "cidade/UF", idPmmaTxt: "identidade (ID PMMA)",
 };
 
 export async function POST(req: Request) {
@@ -84,6 +93,7 @@ export async function POST(req: Request) {
       efetivoId: string;
       pessoais: Record<string, string>;
       p2: Record<string, string | null>;
+      pce: Record<string, string | null>;
     };
     const preparados: Preparado[] = [];
     const semFicha: string[] = [];
@@ -97,6 +107,9 @@ export async function POST(req: Request) {
       const doMilitar = porMilitar[efetivoId] || {};
       const p2: Record<string, string | null> = {};
       for (const k of CAMPOS_PAGINA2) p2[k] = limpo(doMilitar[k] ?? d[k]);
+      // arma de cada um; sem valor próprio, cai no "igual para todos"
+      const pce: Record<string, string | null> = {};
+      for (const k of CAMPOS_PCE) pce[k] = limpo(doMilitar[k] ?? d[k]);
 
       if (querEnviar && modelo === "cursos") {
         const falta = [
@@ -109,7 +122,18 @@ export async function POST(req: Request) {
         }
       }
 
-      preparados.push({ efetivoId, pessoais, p2 });
+      if (querEnviar && ehModeloAquisicao(modelo)) {
+        const falta = [
+          ...(["cpf", "idPmmaTxt", "endereco", "municipio"] as const).filter((k) => !limpo(pessoais[k])),
+          ...CAMPOS_PCE.filter((k) => !pce[k]),
+        ];
+        if (falta.length) {
+          const quem = [pessoais.postoGrad, pessoais.nomeCompleto].filter(Boolean).join(" ").trim() || efetivoId;
+          pendencias.push(`${quem}: falta ${falta.map((k) => ROTULO_FALTA[k] || k).join(", ")}`);
+        }
+      }
+
+      preparados.push({ efetivoId, pessoais, p2, pce });
     }
 
     if (!preparados.length) {
@@ -134,7 +158,7 @@ export async function POST(req: Request) {
     // ---- 2) cria ----
     const status = querEnviar ? "enviado" : "rascunho";
 
-    for (const { efetivoId, pessoais, p2 } of preparados) {
+    for (const { efetivoId, pessoais, p2, pce } of preparados) {
       const p = (k: string) => limpo(pessoais[k]);
 
       // O banco não tem colunas próprias para "Nº do BG" e "Data do BG" — como
@@ -143,6 +167,14 @@ export async function POST(req: Request) {
       const p2SituacaoJur = (p2.p2BgNumero || p2.p2BgData)
         ? JSON.stringify({ bgNumero: p2.p2BgNumero || "", bgData: p2.p2BgData || "" })
         : null;
+
+      // Aquisição de arma: o produto controlado ocupa a coluna p2Complementares
+      // (JSON), mesma convenção do POST individual.
+      const complementares = ehModeloAquisicao(modelo)
+        ? (CAMPOS_PCE.some((k) => pce[k])
+            ? JSON.stringify(Object.fromEntries(CAMPOS_PCE.map((k) => [k, pce[k] || ""])))
+            : null)
+        : p2Complementares;
 
       await prisma.requerimento.create({
         data: {
@@ -174,7 +206,7 @@ export async function POST(req: Request) {
           p2Conceito: p2.p2Conceito,
           p2SituacaoJur,
           p2UltimaPromocao: p2.p2UltimaPromocao,
-          p2Complementares,
+          p2Complementares: complementares,
           status,
         },
       });
