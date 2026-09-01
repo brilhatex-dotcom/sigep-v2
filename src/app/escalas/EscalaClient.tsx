@@ -2719,7 +2719,21 @@ export default function EscalaClient() {
 
               {/* EXPEDIENTE */}
               {mostraExpediente && (
-                <table className="tbl"><tbody>
+                <table className="tbl tbl-exp">
+                  {/* Larguras fixas por COLGROUP, e não pela primeira linha: a
+                      primeira linha da tabela é o título "EXPEDIENTE" com
+                      colSpan=4, então o navegador não teria de onde tirar a
+                      largura de cada coluna. O rótulo (CMT/FT/P1/P3) fica
+                      estreito de propósito — é só uma palavra curta — para
+                      sobrar espaço pros nomes, do jeito que sai no documento
+                      oficial. */}
+                  <colgroup>
+                    <col style={{ width: "9%" }} />
+                    <col style={{ width: "39%" }} />
+                    <col style={{ width: "15%" }} />
+                    <col style={{ width: "37%" }} />
+                  </colgroup>
+                  <tbody>
                   <tr><td className="hd" colSpan={4}>EXPEDIENTE <Editable value={e.expediente.horario} onChange={(v) => editE((d) => { d.expediente.horario = v; })} /></td></tr>
                   {expedienteFeriado ? (
                     <>
