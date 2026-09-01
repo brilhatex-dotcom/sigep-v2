@@ -19,7 +19,8 @@ export type AutorizacaoJoe = {
   periodoInicio: string;   // aaaa-mm-dd
   periodoFim: string;      // aaaa-mm-dd
   quantidade: number;      // vagas autorizadas no período
-  valorAutorizado: number; // R$ total autorizado no período
+  valorPorVaga: number;    // R$ por vaga NESTE despacho (varia de despacho pra despacho: 250, 350...)
+  valorAutorizado: number; // R$ total autorizado no período = quantidade * valorPorVaga
   criadoPor: string | null;
   criadoEm: string;        // ISO
 };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { AutorizacaoJoe, SaldoJoe } from "@/lib/joeSaldo";
+import { joeNoPeriodo, type AutorizacaoJoe, type SaldoJoe } from "@/lib/joeSaldo";
 
 /* =========================================================================
    SIGEP-18BPM · JOE — Jornada Operacional Extraordinaria.
@@ -189,6 +189,27 @@ export default function JoeClient({ perfil }: { perfil: string }) {
   const [form, setForm] = useState({ ...vazio });
   const [criando, setCriando] = useState(false);
 
+  // despachos cadastrados: so pra sugerir o valor por vaga certo ao abrir um
+  // JOE cuja data cai dentro do periodo de algum despacho (evita usar o valor
+  // errado — ex.: 250 de um despacho antigo num JOE que devia ser 350).
+  const [autorizacoesRef, setAutorizacoesRef] = useState<AutorizacaoJoe[]>([]);
+  useEffect(() => {
+    if (!ehAdmin) return;
+    fetch("/api/joe/saldo")
+      .then((r) => r.json())
+      .then((d) => setAutorizacoesRef(d.autorizacoes || []))
+      .catch(() => {});
+  }, [ehAdmin]);
+  const despachoDaData = useMemo(
+    () => (form.data ? autorizacoesRef.find((a) => joeNoPeriodo({ data: form.data }, a)) : undefined),
+    [form.data, autorizacoesRef]
+  );
+  useEffect(() => {
+    if (!despachoDaData || form.valor) return;
+    setForm((f) => (f.valor ? f : { ...f, valor: String(despachoDaData.valorPorVaga) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [despachoDaData]);
+
   const carregar = async () => {
     setCarregando(true);
     try {
@@ -367,6 +388,7 @@ export default function JoeClient({ perfil }: { perfil: string }) {
             </label>
             <label>Valor por militar (R$)
               <input type="number" min={0} step="0.01" value={form.valor} placeholder="0,00" onChange={(e) => setForm({ ...form, valor: e.target.value })} />
+              {despachoDaData && <span className="f-hint">despacho vigente: {reais(despachoDaData.valorPorVaga)} por vaga</span>}
             </label>
             <label>Comandante da operação
               <input value={form.comandanteOp} placeholder="ex: MAJOR FRANS" onChange={(e) => setForm({ ...form, comandanteOp: e.target.value })} />
@@ -463,7 +485,7 @@ function ModalSaldo({ ehAdmin, onFechar }: { ehAdmin: boolean; onFechar: () => v
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const vazio = { despacho: "", processoSei: "", periodoInicio: "", periodoFim: "", quantidade: "", valorAutorizado: "" };
+  const vazio = { despacho: "", processoSei: "", periodoInicio: "", periodoFim: "", quantidade: "", valorPorVaga: "" };
   const [novo, setNovo] = useState({ ...vazio });
   const [mostrarForm, setMostrarForm] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -501,7 +523,7 @@ function ModalSaldo({ ehAdmin, onFechar }: { ehAdmin: boolean; onFechar: () => v
       periodoInicio: a.periodoInicio,
       periodoFim: a.periodoFim,
       quantidade: String(a.quantidade),
-      valorAutorizado: reaisParaCentavosStr(a.valorAutorizado),
+      valorPorVaga: reaisParaCentavosStr(a.valorPorVaga),
     });
     setMostrarForm(true);
   };
@@ -510,12 +532,13 @@ function ModalSaldo({ ehAdmin, onFechar }: { ehAdmin: boolean; onFechar: () => v
     if (!novo.despacho.trim()) return aviso("Informe o número do despacho.");
     if (!novo.periodoInicio || !novo.periodoFim) return aviso("Informe o início e o fim do período.");
     if (!novo.quantidade || Number(novo.quantidade) <= 0) return aviso("Informe a quantidade de vagas autorizadas.");
+    if (!novo.valorPorVaga || Number(novo.valorPorVaga) <= 0) return aviso("Informe o valor por vaga deste despacho.");
     setSalvando(true);
     try {
       const corpo = {
         ...novo,
         quantidade: Number(novo.quantidade),
-        valorAutorizado: Number(novo.valorAutorizado || "0") / 100,
+        valorPorVaga: Number(novo.valorPorVaga || "0") / 100,
         ...(editandoId ? { id: editandoId } : {}),
       };
       const r = await fetch("/api/joe/saldo", {
@@ -585,7 +608,7 @@ function ModalSaldo({ ehAdmin, onFechar }: { ehAdmin: boolean; onFechar: () => v
 
               <div className="saldo-despacho">
                 <div><b>{saldo.autorizacao.despacho}</b>{saldo.autorizacao.processoSei ? ` · Proc. SEI ${saldo.autorizacao.processoSei}` : ""}</div>
-                <div className="saldo-periodo">Período: {brData(saldo.autorizacao.periodoInicio)} a {brData(saldo.autorizacao.periodoFim)}</div>
+                <div className="saldo-periodo">Período: {brData(saldo.autorizacao.periodoInicio)} a {brData(saldo.autorizacao.periodoFim)} · {reais(saldo.autorizacao.valorPorVaga)} por vaga</div>
               </div>
 
               <div className="saldo-cards">
@@ -661,9 +684,15 @@ function ModalSaldo({ ehAdmin, onFechar }: { ehAdmin: boolean; onFechar: () => v
                   <label>Vagas autorizadas
                     <input type="number" min={1} value={novo.quantidade} onChange={(e) => setNovo({ ...novo, quantidade: e.target.value })} />
                   </label>
-                  <label>Valor autorizado
-                    <CampoReais centavos={novo.valorAutorizado} onChange={(c) => setNovo({ ...novo, valorAutorizado: c })} />
+                  <label>Valor por vaga <span className="saldo-form-nota">(varia por despacho: 250, 350...)</span>
+                    <CampoReais centavos={novo.valorPorVaga} onChange={(c) => setNovo({ ...novo, valorPorVaga: c })} />
                   </label>
+                  {!!(Number(novo.quantidade) > 0 && Number(novo.valorPorVaga) > 0) && (
+                    <div className="f-obs saldo-total-calc">
+                      Total autorizado: <b>{reais((Number(novo.quantidade) * Number(novo.valorPorVaga)) / 100)}</b>
+                      {" "}({novo.quantidade} vaga{Number(novo.quantidade) > 1 ? "s" : ""} × {reais(Number(novo.valorPorVaga) / 100)})
+                    </div>
+                  )}
                   <div className="f-obs saldo-form-acoes">
                     <button className="btn" onClick={fecharForm}>Cancelar</button>
                     <button className="btn primary" disabled={salvando} onClick={salvar}>
@@ -1006,6 +1035,7 @@ const CSS = `
 .joe-form-grid .f-obs{ grid-column: 1 / -1; }
 .joe-form-grid input{ background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:8px; padding:8px 10px; font-size:13px; }
 .joe-form-grid input:focus{ outline:none; border-color:#D4AF37; }
+.f-hint{ font-size:10px; color:#9fe6bd; font-weight:400; text-transform:none; }
 .joe-form-acoes{ margin-top:12px; display:flex; justify-content:flex-end; }
 
 .btn{ background:#16243a; color:#E8EEF6; border:1px solid #2b3f63; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; }
@@ -1132,6 +1162,9 @@ const CSS = `
 .saldo-novo-btn{ font-size:14px; padding:11px 14px; }
 .saldo-form{ margin-top:2px; }
 .saldo-form-tit{ color:#D4AF37; font-weight:700; font-size:13px; margin-bottom:-2px; }
+.saldo-form-nota{ text-transform:none; letter-spacing:0; color:#6f82a0; font-weight:400; }
+.saldo-total-calc{ font-size:12.5px; color:#9fe6bd; background:#0a1626; border:1px solid #1d2c44; border-radius:8px; padding:8px 10px; }
+.saldo-total-calc b{ color:#bff0d0; }
 .saldo-form-acoes{ display:flex; gap:8px; justify-content:flex-end; }
 .campo-reais{ display:flex; align-items:center; gap:6px; background:#0a1626; border:1px solid #28395a; border-radius:8px; padding:0 10px; }
 .campo-reais-pref{ font-size:12px; color:#6f82a0; }
