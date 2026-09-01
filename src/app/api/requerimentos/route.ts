@@ -39,6 +39,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `Preencha antes de enviar: ${faltando.join(", ")}.` }, { status: 400 });
     }
   }
+  if (modelo === "aquisicao_restrito" && acao === "enviado") {
+    const obrigatorios = ["nomeCompleto", "idPmmaTxt", "cpf", "endereco", "municipio", "produto", "marca", "modeloArma", "calibre", "quantidade"];
+    const faltando = obrigatorios.filter((k) => !v(k));
+    if (faltando.length) {
+      return NextResponse.json({ error: `Preencha antes de enviar: ${faltando.join(", ")}.` }, { status: 400 });
+    }
+  }
 
   // O banco nao tem colunas proprias para "Nº do BG" e "Data do BG" (nunca
   // usadas ate hoje neste modelo) — em vez de pedir uma migracao, aproveitamos
@@ -48,6 +55,17 @@ export async function POST(req: Request) {
   const p2SituacaoJur = (v("p2BgNumero") || v("p2BgData"))
     ? JSON.stringify({ bgNumero: v("p2BgNumero") || "", bgData: v("p2BgData") || "" })
     : null;
+
+  /* Aquisicao de uso restrito: produto/marca/modelo/calibre/quantidade tambem
+     nao tem coluna propria — mesma solucao, viajam como JSON em
+     p2Complementares (que so o modelo de cursos usa, nunca os dois juntos). */
+  const camposPce = ["produto", "marca", "modeloArma", "calibre", "quantidade"];
+  const p2Complementares =
+    modelo === "aquisicao_restrito"
+      ? (camposPce.some((k) => v(k))
+          ? JSON.stringify(Object.fromEntries(camposPce.map((k) => [k, v(k) || ""])))
+          : null)
+      : v("p2Complementares");
 
   try {
     const criado = await prisma.requerimento.create({
@@ -80,7 +98,7 @@ export async function POST(req: Request) {
         p2Conceito: v("p2Conceito"),
         p2SituacaoJur,
         p2UltimaPromocao: v("p2UltimaPromocao"),
-        p2Complementares: v("p2Complementares"),
+        p2Complementares,
         status: acao,
       },
     });

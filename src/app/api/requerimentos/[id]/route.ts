@@ -75,6 +75,13 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       return NextResponse.json({ error: `Preencha antes de enviar: ${faltando.join(", ")}.` }, { status: 400 });
     }
   }
+  if (r!.modelo === "aquisicao_restrito" && acao === "enviado") {
+    const obrigatorios = ["nomeCompleto", "idPmmaTxt", "cpf", "endereco", "municipio", "produto", "marca", "modeloArma", "calibre", "quantidade"];
+    const faltando = obrigatorios.filter((k) => !v(k));
+    if (faltando.length) {
+      return NextResponse.json({ error: `Preencha antes de enviar: ${faltando.join(", ")}.` }, { status: 400 });
+    }
+  }
 
   // "Nº do BG" e "Data do BG" viajam como JSON em p2SituacaoJur (o banco nao
   // tem colunas proprias) — mesma convencao da criacao.
@@ -85,6 +92,17 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   const dadosUpdate: Record<string, any> = { p2SituacaoJur };
   for (const k of CAMPOS_TEXTO) dadosUpdate[k] = v(k);
   if (acao) dadosUpdate.status = acao;
+
+  /* Aquisicao de uso restrito: os dados do produto controlado tambem nao tem
+     coluna propria — viajam como JSON em p2Complementares, sobrescrevendo o
+     valor de texto que o laco acima pos ali (esse campo de texto so existe no
+     modelo de cursos). Mesma convencao da criacao. */
+  if (r!.modelo === "aquisicao_restrito") {
+    const camposPce = ["produto", "marca", "modeloArma", "calibre", "quantidade"];
+    dadosUpdate.p2Complementares = camposPce.some((k) => v(k))
+      ? JSON.stringify(Object.fromEntries(camposPce.map((k) => [k, v(k) || ""])))
+      : null;
+  }
 
   // O .docx guardado virou retrato de uma versao que nao existe mais: some
   // com ele para ninguem baixar o documento velho achando que e o novo.

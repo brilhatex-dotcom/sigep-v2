@@ -5,6 +5,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import RequerimentoDetalhe from "@/components/RequerimentoDetalhe";
+import { lerPce } from "@/lib/gerarRequerimento";
 import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,16 @@ export default async function DetalheRequerimentoPage({
   if (!r) redirect("/requerimentos");
   if (!ehAdmin && r.efetivoId !== meuEfetivo) redirect("/requerimentos");
 
+  // "PISTOLA TAURUS G3C · CAL. 9MM · 01" — resumo do quadro 2 do formulário
+  const pce = r.modelo === "aquisicao_restrito" ? lerPce(r.p2Complementares) : null;
+  const pceResumo = pce
+    ? [
+        [pce.produto, pce.marca, pce.modeloArma].filter(Boolean).join(" "),
+        pce.calibre ? `CAL. ${pce.calibre}` : "",
+        pce.quantidade ? `QTD. ${pce.quantidade}` : "",
+      ].filter(Boolean).join(" · ")
+    : "";
+
   const dados = {
     id: r.id,
     modalidade: r.modalidade === "OUTROS" && r.modalidadeOutros ? r.modalidadeOutros : r.modalidade,
@@ -37,6 +48,7 @@ export default async function DetalheRequerimentoPage({
     temDocx: !!r.docxKey,
     parecer: r.parecer ?? "",
     criadoEm: r.criadoEm.toISOString(),
+    pce: pceResumo,
   };
 
   return (

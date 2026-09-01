@@ -26,6 +26,31 @@ const CAMPOS_PESSOAIS: { key: string; label: string; col?: number }[] = [
   { key: "opmExercicio", label: "OPM em exercício" },
 ];
 
+/* Aquisicao de arma de uso restrito: o formulario do Exercito (SisFPC) pede
+   so estes dados do adquirente — nao adianta mostrar tempo de servico, estado
+   civil e OPM, que nao tem onde sair no papel. O endereco vai na linha
+   "Endereço de entrega" (logradouro + complemento + bairro juntos). */
+const CAMPOS_AQUISICAO: { key: string; label: string; col?: number }[] = [
+  { key: "nomeCompleto", label: "Nome completo", col: 3 },
+  { key: "idPmmaTxt", label: "Identidade (ID PMMA)" },
+  { key: "cpf", label: "CPF" },
+  { key: "email", label: "E-mail pessoal" },
+  { key: "endereco", label: "Endereço de entrega", col: 2 },
+  { key: "complemento", label: "Complemento" },
+  { key: "bairro", label: "Bairro" },
+  { key: "municipio", label: "Cidade/UF" },
+  { key: "fone", label: "Telefone pessoal" },
+];
+
+// quadro "2. PRODUTO CONTROLADO A SER ADQUIRIDO" do formulario do Exercito
+const CAMPOS_PCE: { key: string; label: string; dica: string }[] = [
+  { key: "produto", label: "Produto", dica: "Ex: PISTOLA" },
+  { key: "marca", label: "Marca", dica: "Ex: TAURUS" },
+  { key: "modeloArma", label: "Modelo", dica: "Ex: G3C" },
+  { key: "calibre", label: "Calibre", dica: "Ex: 9MM" },
+  { key: "quantidade", label: "Quantidade", dica: "Ex: 01" },
+];
+
 export default function RequerimentoForm({
   modalidade,
   modelo,
@@ -45,8 +70,11 @@ export default function RequerimentoForm({
   const [erro, setErro] = useState("");
 
   const ehCursos = modelo === "cursos";
+  // formulario proprio do Exercito (SisFPC), nao a folha da PMMA
+  const ehAquisicao = modelo === "aquisicao_restrito";
   // "OUTROS" puro ou modalidade que cai no quadrinho OUTROS (arma, colete...)
-  const ehOutros = usaQuadrinhoOutros(modalidade);
+  const ehOutros = !ehAquisicao && usaQuadrinhoOutros(modalidade);
+  const campos = ehAquisicao ? CAMPOS_AQUISICAO : CAMPOS_PESSOAIS;
 
   function set(k: string, v: string) {
     setF((o) => ({ ...o, [k]: v }));
@@ -57,6 +85,19 @@ export default function RequerimentoForm({
   // so o requerente/comandante sabem na hora (o item 6 do documento, a data
   // de inclusao, o sistema deriva sozinho da ficha — nao precisa pedir).
   function faltando(): string[] {
+    // Aquisicao de uso restrito: o formulario do Exercito so anda com o
+    // adquirente identificado e o produto descrito — sem isso o SisFPC devolve.
+    if (ehAquisicao) {
+      const nomes: Record<string, string> = {
+        nomeCompleto: "Nome completo", idPmmaTxt: "Identidade (ID PMMA)", cpf: "CPF",
+        endereco: "Endereço de entrega", municipio: "Cidade/UF",
+        produto: "Produto", marca: "Marca", modeloArma: "Modelo",
+        calibre: "Calibre", quantidade: "Quantidade",
+      };
+      return Object.entries(nomes)
+        .filter(([k]) => !(f[k] ?? "").trim())
+        .map(([, rotulo]) => rotulo);
+    }
     if (!ehCursos) return [];
     const nomes: Record<string, string> = {
       cpf: "CPF", email: "E-mail",
@@ -119,7 +160,7 @@ export default function RequerimentoForm({
             : "Os campos vêm da sua ficha. Confira e ajuste o que precisar — fica salvo para os próximos requerimentos."}
         </p>
         <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
-          {CAMPOS_PESSOAIS.map((c) => (
+          {campos.map((c) => (
             <div key={c.key} className={classeCol(c.col)}>
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
                 {c.label}
@@ -155,6 +196,35 @@ export default function RequerimentoForm({
         </div>
       </section>
 
+      {/* quadro 2 do formulario do Exercito: o produto controlado */}
+      {ehAquisicao && (
+        <section className="ui-card p-6">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+            <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Produto controlado a ser adquirido
+          </h2>
+          <p className="mb-4 text-[12px] text-[#94A3B8]">
+            Sai na tabela do quadro 2 do formulário. A quantidade somada ao que você já possui não pode
+            passar do limite das normas da COLOG.
+          </p>
+          <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
+            {CAMPOS_PCE.map((c) => (
+              <div key={c.key}>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+                  {c.label}
+                </label>
+                <input
+                  type="text"
+                  value={f[c.key] ?? ""}
+                  onChange={(e) => set(c.key, e.target.value)}
+                  placeholder={c.dica}
+                  className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* modalidade OUTROS: especificar */}
       {ehOutros && (
         <section className="ui-card p-6">
@@ -170,25 +240,31 @@ export default function RequerimentoForm({
         </section>
       )}
 
-      {/* amparo legal */}
-      <section className="ui-card p-6">
-        <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-          <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Amparo legal
-        </h2>
-        <textarea rows={3} value={f.amparoLegal ?? ""} onChange={(e) => set("amparoLegal", e.target.value)}
-          placeholder="Base legal do requerimento (lei, artigo, edital...)"
-          className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
-      </section>
+      {/* Amparo legal e informações adicionais: o formulário do Exército não
+          tem esses quadros (o texto da solicitação já vem impresso nele). */}
+      {!ehAquisicao && (
+        <>
+          {/* amparo legal */}
+          <section className="ui-card p-6">
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+              <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Amparo legal
+            </h2>
+            <textarea rows={3} value={f.amparoLegal ?? ""} onChange={(e) => set("amparoLegal", e.target.value)}
+              placeholder="Base legal do requerimento (lei, artigo, edital...)"
+              className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+          </section>
 
-      {/* informacoes adicionais */}
-      <section className="ui-card p-6">
-        <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-          <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Informações adicionais
-        </h2>
-        <textarea rows={4} value={f.infoAdicional ?? ""} onChange={(e) => set("infoAdicional", e.target.value)}
-          placeholder="Descreva o que solicita..."
-          className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
-      </section>
+          {/* informacoes adicionais */}
+          <section className="ui-card p-6">
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+              <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Informações adicionais
+            </h2>
+            <textarea rows={4} value={f.infoAdicional ?? ""} onChange={(e) => set("infoAdicional", e.target.value)}
+              placeholder="Descreva o que solicita..."
+              className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+          </section>
+        </>
+      )}
 
       {/* pagina 2 - so cursos (campos obrigatorios para enviar) */}
       {ehCursos && (

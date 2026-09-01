@@ -11,7 +11,13 @@
 //   - Requerimentos reais protocolados no 18º BPM
 // ==========================================================
 
-export type Modelo = "comum" | "cursos";
+export type Modelo = "comum" | "cursos" | "aquisicao_restrito";
+
+/* Aquisicao de arma de fogo de USO RESTRITO: nao usa a folha de requerimento
+   da PMMA — e o formulario proprio do Exercito (SisFPC), "REQUERIMENTO/
+   AUTORIZACAO PARA AQUISICAO DE PCE", com quadros de identificacao, produto,
+   anexos, solicitacao e parecer. Por isso tem modelo (e template) so dele. */
+export const MODALIDADE_AQUISICAO_RESTRITO = "AQUISIÇÃO DE ARMA DE FOGO DE USO RESTRITO";
 
 // modalidades do MODELO COMUM (folha de requerimento padrão)
 export const MODALIDADES_COMUM: string[] = [
@@ -53,6 +59,8 @@ export const MODALIDADES_MATERIAL: string[] = [
   "CAUTELA DE ARMA DE FOGO (ACAF)",
   "CAUTELA DE COLETE BALÍSTICO",
   "AUTORIZAÇÃO DE PERMANÊNCIA DE ARMAMENTO",
+  // formulario proprio do Exercito (SisFPC), nao a folha da PMMA
+  MODALIDADE_AQUISICAO_RESTRITO,
 ];
 
 // modalidades que SEMPRE usam o modelo de CURSOS (página 2 detalhada)
@@ -60,7 +68,9 @@ const FORCAM_CURSOS = new Set(["CAS", "CFS", "CFC"]);
 
 // decide o modelo a partir da modalidade escolhida
 export function modeloDaModalidade(modalidade: string): Modelo {
-  return FORCAM_CURSOS.has(modalidade.toUpperCase().trim()) ? "cursos" : "comum";
+  const m = modalidade.toUpperCase().trim();
+  if (m === MODALIDADE_AQUISICAO_RESTRITO) return "aquisicao_restrito";
+  return FORCAM_CURSOS.has(m) ? "cursos" : "comum";
 }
 
 // constantes de leis (usadas para montar os amparos)
@@ -236,6 +246,9 @@ export function ehModalidadeConhecida(modalidade: string): boolean {
 // modalidades que caem no quadrinho "OUTROS" da folha oficial
 export function usaQuadrinhoOutros(modalidade: string): boolean {
   const m = modalidade.toUpperCase().trim();
+  // Aquisicao de uso restrito nao usa a folha da PMMA (tem formulario proprio
+  // do Exercito), entao nao ha quadrinho "OUTROS" pra marcar.
+  if (m === MODALIDADE_AQUISICAO_RESTRITO) return false;
   if (m === "OUTROS" || m in ESPECIFICACAO_OUTROS) return true;
   // desconhecida (cadastrada pelo admin, ou modalidade de curso — CAS/CFS/CFC
   // tambem nao tem quadrinho proprio no formulario impresso, ver o documento
