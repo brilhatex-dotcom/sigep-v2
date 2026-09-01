@@ -27,6 +27,13 @@ export type Cadastro = {
   // Ausente ou lista vazia = todos os dias. Ex.: [0,6] = so fim de semana, para
   // quem estuda durante a semana ou tem determinacao nesse sentido.
   diasPermitidos?: Record<string, number[]>;
+  // Turno FIXO: militar com diasPermitidos que tambem deve aparecer garantido
+  // numa funcao de LISTA (ftPatrulheiro/rpPatrulheiro/guardaPermanente/
+  // inteligencia) em todo dia permitido dele, SOMANDO ao rodizio normal da
+  // equipe (nao substitui quem ja entraria). idPmma -> chave da funcao. Pensado
+  // pra quem so serve em dias fixos (ex.: so sabado) e nao pode depender de
+  // qual equipe A/B/C/D calha de estar de plantao naquele dia.
+  funcaoFixa?: Record<string, string>;
   // ROTEM: horario padrao por dia da semana (0=domingo ... 6=sabado). E so o
   // ponto de partida — na folha do dia o horario continua editavel.
   rotemHorariosPadrao?: string[][];
@@ -73,6 +80,21 @@ export function podeNoDia(dias: number[] | undefined, iso: string): boolean {
   const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return true;
   return dias.includes(new Date(+m[1], +m[2] - 1, +m[3]).getDay());
+}
+
+/* Militares com turno FIXO na função `fk`: entram como EXTRA (somando, sem
+   tirar quem o rodízio normal já coloca) em todo dia permitido deles, mesmo
+   fora do dia de plantão da equipe. */
+export function extrasFixosDoDia(
+  fk: string, iso: string,
+  cad: Pick<Cadastro, "funcaoFixa" | "diasPermitidos" | "afastamentos">
+): string[] {
+  const ff = cad.funcaoFixa || {};
+  const dp = cad.diasPermitidos || {};
+  return Object.keys(ff)
+    .filter((id) => ff[id] === fk)
+    .filter((id) => podeNoDia(dp[id], iso))
+    .filter((id) => !afastado(id, iso, cad.afastamentos || []));
 }
 
 /** Rótulo curto dos dias permitidos, para a tela e os avisos. */
@@ -208,6 +230,7 @@ export function assignDia(iso: string, cad: Cadastro, escalas: Record<string, an
     };
     push1(q[team]?.[fk] || "");
     for (let k = 2; k <= nExtra(fk) + 1; k++) push1(q[team]?.[`${fk}#${k}`] || "");
+    for (const id of extrasFixosDoDia(fk, iso, cad)) if (!ids.includes(id)) ids.push(id);
     return ids;
   };
   const ovrCpu = cad.cpuOverrides?.[iso];

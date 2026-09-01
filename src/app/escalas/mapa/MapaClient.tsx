@@ -60,6 +60,9 @@ type Cadastro = {
   // Reducao judicial: idPmma -> percentual MAXIMO de servicos no mes (ex.: 50).
   reducaoJudicial?: Record<string, number>;
   diasPermitidos?: Record<string, number[]>;
+  // Turno fixo: idPmma -> funcao de lista em que ele entra como EXTRA (soma,
+  // nao substitui) em todo dia permitido dele. Ver escalaMotor.ts.
+  funcaoFixa?: Record<string, string>;
 };
 
 type Militar = {
@@ -140,6 +143,16 @@ const inicioMesISO = (iso: string) => `${iso.slice(0, 7)}-01`;
 
 function afastado(nome: string, data: string, lista: Afastamento[]) {
   return lista.some((a) => a.militar === nome && data >= a.inicio && data <= a.fim);
+}
+// Militares com turno FIXO na funcao `fk`: entram como EXTRA (somando, sem
+// tirar quem o rodizio normal ja coloca) em todo dia permitido deles.
+function extrasFixosDoDia(fk: string, iso: string, cad: Pick<Cadastro, "funcaoFixa" | "diasPermitidos" | "afastamentos">): string[] {
+  const ff = cad.funcaoFixa || {};
+  const dp = cad.diasPermitidos || {};
+  return Object.keys(ff)
+    .filter((id) => ff[id] === fk)
+    .filter((id) => podeNoDia(dp[id], iso))
+    .filter((id) => !afastado(id, iso, cad.afastamentos || []));
 }
 function afastamentoDe(nome: string, data: string, lista: Afastamento[]): TipoAfastamento | null {
   const a = lista.find((x) => x.militar === nome && data >= x.inicio && data <= x.fim);
@@ -245,6 +258,7 @@ function assignDia(iso: string, cad: Cadastro, escalas: Record<string, any>, idD
     const ids: string[] = [];
     const b = q[team]?.[fk] || ""; if (b && !afastado(b, iso, a) && !capadoHoje(b)) ids.push(b);
     for (let k = 2; k <= nExtra(fk) + 1; k++) { const id = q[team]?.[`${fk}#${k}`] || ""; if (id && !afastado(id, iso, a) && !capadoHoje(id)) ids.push(id); }
+    for (const id of extrasFixosDoDia(fk, iso, cad)) if (!ids.includes(id)) ids.push(id);
     return ids;
   };
   return {
@@ -365,6 +379,12 @@ const FUNCOES_EQUIPE: { key: string; label: string }[] = [
   { key: "guardaPermanente", label: "Guarda · Permanente" },
   { key: "inteligencia", label: "Inteligência" },
 ];
+// Funcoes que aceitam EXTRA (turno fixo somando, sem tirar ninguem) — so as
+// que ja sao LISTA na folha diaria; nas de vaga unica (ex.: CPU, RP-Adjunto)
+// nao ha onde "somar" mais um nome.
+const FUNCOES_EXTRA = FUNCOES_EQUIPE.filter((f) =>
+  ["ftPatrulheiro", "rpPatrulheiro", "guardaPermanente", "inteligencia"].includes(f.key)
+);
 const EQUIPES_ABCD = ["A", "B", "C", "D"];
 const LETRAS_EQUIPE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 /* Equipes conforme o padrão da unidade: 24/72 (sem padrão) = A/B/C/D;
@@ -535,7 +555,7 @@ const DIAS_CURTO = ["D", "S", "T", "Q", "Q", "S", "S"];
 const DIAS_NOME = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
 
 function RestricoesEscalaMini({
-  efetivo, nomeDe, reducoes, setReducoes, dias, setDias,
+  efetivo, nomeDe, reducoes, setReducoes, dias, setDias, funcoes, setFuncoes,
 }: {
   efetivo: Militar[];
   nomeDe: (t: string) => string;
@@ -543,6 +563,8 @@ function RestricoesEscalaMini({
   setReducoes: (updater: (m: Record<string, number>) => Record<string, number>) => void;
   dias: Record<string, number[]>;
   setDias: (updater: (m: Record<string, number[]>) => Record<string, number[]>) => void;
+  funcoes: Record<string, string>;
+  setFuncoes: (updater: (m: Record<string, string>) => Record<string, string>) => void;
 }) {
   const [q, setQ] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -562,7 +584,7 @@ function RestricoesEscalaMini({
   }, [q, efetivo, reducoes, dias]);
 
   /* Grava no servidor e no estado. Campo omitido = mantém o que já estava. */
-  const salvar = async (id: string, nome: string, patch: { percentual?: number; dias?: number[] }) => {
+  const salvar = async (id: string, nome: string, patch: { percentual?: number; dias?: number[]; funcao?: string }) => {
     setSalvando(true);
     try {
       const r = await fetch("/api/escala/reducao-judicial", {
@@ -581,6 +603,12 @@ function RestricoesEscalaMini({
         const n = { ...m };
         const ds: number[] = Array.isArray(d?.dias) ? d.dias : [];
         if (ds.length) n[id] = ds; else delete n[id];
+        return n;
+      });
+      setFuncoes((m) => {
+        const n = { ...m };
+        const fx = String(d?.funcao || "");
+        if (fx) n[id] = fx; else delete n[id];
         return n;
       });
     } catch { alert("Falha ao salvar a restrição."); }
@@ -617,13 +645,17 @@ function RestricoesEscalaMini({
           {ids.map((id) => {
             const ds = dias[id] || [];
             const pct = reducoes[id] || 0;
+            const fx = funcoes[id] || "";
             return (
               <div key={id} className="mp-rest-linha">
                 <div className="mp-rest-topo">
                   <span className="mp-afm-nome">{nomeDe(id)}</span>
-                  <span className="mp-rest-tag">{rotuloDias(ds)}{pct ? ` · máx. ${pct}%/mês` : ""}</span>
+                  <span className="mp-rest-tag">
+                    {rotuloDias(ds)}{pct ? ` · máx. ${pct}%/mês` : ""}
+                    {fx ? ` · extra fixo em ${FUNCOES_EXTRA.find((f) => f.key === fx)?.label || fx}` : ""}
+                  </span>
                   <button className="mp-afm-del" title="tirar a restrição" disabled={salvando}
-                    onClick={() => salvar(id, nomeDe(id), { percentual: 0, dias: [] })}>×</button>
+                    onClick={() => salvar(id, nomeDe(id), { percentual: 0, dias: [], funcao: "" })}>×</button>
                 </div>
                 <div className="mp-rest-controles">
                   <span className="mp-rest-rot">Entra em</span>
@@ -648,6 +680,14 @@ function RestricoesEscalaMini({
                       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                       onBlur={(e) => salvar(id, nomeDe(id), { percentual: Math.max(0, Math.min(99, Number(e.target.value) || 0)) })} />
                     % do mês
+                  </label>
+                  <label className="mp-rest-rot">
+                    turno fixo (extra, soma)
+                    <select value={fx} disabled={salvando}
+                      onChange={(e) => salvar(id, nomeDe(id), { funcao: e.target.value })}>
+                      <option value="">nenhum</option>
+                      {FUNCOES_EXTRA.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                    </select>
                   </label>
                 </div>
               </div>
@@ -955,6 +995,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
   // Reducao judicial (idPmma -> percentual/mes) — mesclado no cadEff em memoria.
   const [reducaoJudicial, setReducaoJudicial] = useState<Record<string, number>>({});
   const [diasPermitidos, setDiasPermitidos] = useState<Record<string, number[]>>({});
+  const [funcaoFixa, setFuncaoFixa] = useState<Record<string, string>>({});
   // Edicao do CPU direto na linha (excecao por dia).
   const [editCpu, setEditCpu] = useState<string | null>(null);
   const [buscaCpu, setBuscaCpu] = useState("");
@@ -978,14 +1019,17 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
         if (Array.isArray(d?.reducoes)) {
           const m: Record<string, number> = {};
           const dd: Record<string, number[]> = {};
+          const ff: Record<string, string> = {};
           for (const x of d.reducoes) {
             if (!x?.idPmma) continue;
             if (x.percentual) m[String(x.idPmma)] = Number(x.percentual);
             // sem esta linha os dias da semana sumiam ao recarregar a página
             if (Array.isArray(x.dias) && x.dias.length) dd[String(x.idPmma)] = x.dias.map(Number);
+            if (x.funcao) ff[String(x.idPmma)] = String(x.funcao);
           }
           setReducaoJudicial(m);
           setDiasPermitidos(dd);
+          setFuncaoFixa(ff);
         }
       })
       .catch(() => {});
@@ -1113,15 +1157,17 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     () => {
       const temRj = Object.keys(reducaoJudicial).length > 0;
       const temDp = Object.keys(diasPermitidos).length > 0;
-      if (!planoAfast.length && !temRj) return cad;
+      const temFf = Object.keys(funcaoFixa).length > 0;
+      if (!planoAfast.length && !temRj && !temFf) return cad;
       return {
         ...cad,
         afastamentos: [...(cad.afastamentos || []), ...planoAfast],
         ...(temRj ? { reducaoJudicial } : {}),
         ...(temDp ? { diasPermitidos } : {}),
+        ...(temFf ? { funcaoFixa } : {}),
       };
     },
-    [cad, planoAfast, reducaoJudicial, diasPermitidos]
+    [cad, planoAfast, reducaoJudicial, diasPermitidos, funcaoFixa]
   );
 
   // Quando uma vaga do QUADRO fica vazia porque o militar do dia está afastado,
@@ -1711,11 +1757,13 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
         <div className="mp-equipes-tit">Restrições de escala por militar</div>
         <div className="mp-equipes-sub">
           Para quem <b>não entra em qualquer dia</b>: militar que estuda e só é escalado no fim de semana, ou com <b>determinação judicial</b> de trabalhar parte do mês (ex.: 50%). Dá para usar as duas coisas juntas — fim de semana <i>e</i> 50% = metade dos fins de semana da equipe dele. O motor aplica sozinho; você ainda pode escalá-lo fora disso, com confirmação.
+          {" "}Se marcar um <b>turno fixo</b>, ele entra GARANTIDO nessa função em todo dia permitido dele — somando com quem o rodízio da equipe já colocaria, sem depender de qual equipe (A/B/C/D) está de plantão naquele dia.
         </div>
         <RestricoesEscalaMini
           efetivo={efetivo} nomeDe={nomeDe}
           reducoes={reducaoJudicial} setReducoes={setReducaoJudicial}
           dias={diasPermitidos} setDias={setDiasPermitidos}
+          funcoes={funcaoFixa} setFuncoes={setFuncaoFixa}
         />
       </div>
 
@@ -1938,6 +1986,8 @@ const CSS = `
 .mp-rest-controles{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:8px; }
 .mp-rest-rot{ font-size:11px; color:#9fb3c8; display:inline-flex; align-items:center; gap:4px; }
 .mp-rest-rot input{ width:52px; background:#0a1626; color:#E8EEF6; border:1px solid #28395a;
+  border-radius:7px; padding:5px 7px; font-size:12px; }
+.mp-rest-rot select{ background:#0a1626; color:#E8EEF6; border:1px solid #28395a;
   border-radius:7px; padding:5px 7px; font-size:12px; }
 .mp-rest-dias{ display:flex; gap:3px; }
 .mp-rest-dia{ width:26px; height:26px; border-radius:7px; border:1px solid #28395a;
