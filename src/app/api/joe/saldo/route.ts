@@ -80,7 +80,7 @@ export async function POST(req: Request) {
     const periodoInicio = String(b?.periodoInicio || "").trim();
     const periodoFim = String(b?.periodoFim || "").trim();
     const quantidade = Math.round(Number(b?.quantidade));
-    const valorAutorizado = Number(b?.valorAutorizado);
+    const valorPorVaga = Number(b?.valorPorVaga);
 
     if (!despacho) return NextResponse.json({ error: "Informe o número do despacho." }, { status: 400 });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(periodoInicio) || !/^\d{4}-\d{2}-\d{2}$/.test(periodoFim)) {
@@ -92,13 +92,17 @@ export async function POST(req: Request) {
     if (!Number.isFinite(quantidade) || quantidade <= 0) {
       return NextResponse.json({ error: "Informe a quantidade de vagas autorizadas." }, { status: 400 });
     }
-    if (!Number.isFinite(valorAutorizado) || valorAutorizado < 0) {
-      return NextResponse.json({ error: "Informe o valor autorizado." }, { status: 400 });
+    if (!Number.isFinite(valorPorVaga) || valorPorVaga <= 0) {
+      return NextResponse.json({ error: "Informe o valor por vaga deste despacho." }, { status: 400 });
     }
+    // total sempre e recalculado no servidor (vagas x valor por vaga) — nao
+    // confia no que o cliente mandar, pra nao repetir o erro de digitacao
+    // do valor agregado direto (ex.: "19.600,00" lido como 19,6).
+    const valorAutorizado = Math.round(quantidade * valorPorVaga * 100) / 100;
 
     const nova: AutorizacaoJoe = {
       id: crypto.randomUUID(),
-      despacho, processoSei, periodoInicio, periodoFim, quantidade, valorAutorizado,
+      despacho, processoSei, periodoInicio, periodoFim, quantidade, valorPorVaga, valorAutorizado,
       criadoPor: (session.user as any).login || session.user.name || null,
       criadoEm: new Date().toISOString(),
     };
@@ -139,7 +143,7 @@ export async function PUT(req: Request) {
     const periodoInicio = String(b?.periodoInicio || "").trim();
     const periodoFim = String(b?.periodoFim || "").trim();
     const quantidade = Math.round(Number(b?.quantidade));
-    const valorAutorizado = Number(b?.valorAutorizado);
+    const valorPorVaga = Number(b?.valorPorVaga);
 
     if (!despacho) return NextResponse.json({ error: "Informe o número do despacho." }, { status: 400 });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(periodoInicio) || !/^\d{4}-\d{2}-\d{2}$/.test(periodoFim)) {
@@ -151,16 +155,17 @@ export async function PUT(req: Request) {
     if (!Number.isFinite(quantidade) || quantidade <= 0) {
       return NextResponse.json({ error: "Informe a quantidade de vagas autorizadas." }, { status: 400 });
     }
-    if (!Number.isFinite(valorAutorizado) || valorAutorizado < 0) {
-      return NextResponse.json({ error: "Informe o valor autorizado." }, { status: 400 });
+    if (!Number.isFinite(valorPorVaga) || valorPorVaga <= 0) {
+      return NextResponse.json({ error: "Informe o valor por vaga deste despacho." }, { status: 400 });
     }
+    const valorAutorizado = Math.round(quantidade * valorPorVaga * 100) / 100;
 
     const row = await prisma.config.findUnique({ where: { chave: CHAVE } });
     const lista = ler(row?.valor);
     const idx = lista.findIndex((a) => a.id === id);
     if (idx < 0) return NextResponse.json({ error: "Autorização não encontrada." }, { status: 404 });
 
-    const atualizada: AutorizacaoJoe = { ...lista[idx], despacho, processoSei, periodoInicio, periodoFim, quantidade, valorAutorizado };
+    const atualizada: AutorizacaoJoe = { ...lista[idx], despacho, processoSei, periodoInicio, periodoFim, quantidade, valorPorVaga, valorAutorizado };
     lista[idx] = atualizada;
     await salvar(lista);
 
