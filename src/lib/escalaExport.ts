@@ -16,7 +16,9 @@ import { compararAntiguidade } from "@/lib/patentes";
 
 type Slot = { titular?: string; permuta?: string | null };
 type Expediente = {
-  horario?: string; cmt?: string; subcmt?: string; cmtFt?: string; subcmtFt?: string; adm?: string;
+  horario?: string; cmt?: string; subcmt?: string;
+  // CMT/SUBCMT/ADM da FT sao listas — permite mais de uma pessoa em cada papel.
+  cmtFt?: Slot[]; subcmtFt?: Slot[]; adm?: Slot[];
   p4?: Slot[]; p1?: Slot[]; rondaEscolar?: Slot[]; p3?: Slot[]; patrulha?: Slot[];
 };
 export type EscalaDia = {
@@ -64,7 +66,11 @@ function nomeSlot(sl?: Slot | null): string {
   const perm = limpa(sl?.permuta);
   return perm ? `${base}  (PERMUTA- ${perm})` : base;
 }
-function lista(arr?: Slot[]): string { return (arr || []).map(nomeSlot).filter(Boolean).join("\n"); }
+// Aceita tambem string solta (dias salvos antes de virar lista) sem quebrar.
+function lista(arr?: Slot[] | string | null): string {
+  if (typeof arr === "string") return limpa(arr);
+  return (arr || []).map(nomeSlot).filter(Boolean).join("\n");
+}
 // ftPatrulheiro pode vir como Slot (folhas antigas) ou Slot[] (novo) — coage p/ lista.
 function listaOuSlot(v?: Slot | Slot[] | null): string { return lista(Array.isArray(v) ? v : v ? [v] : []); }
 
@@ -121,10 +127,15 @@ function celValor(txt: string, w: number, center = false, rowSpan = 1) {
 function celValorRotulado(linhas: { rotulo: string; texto: string }[], w: number) {
   return new TableCell({
     width: { size: w, type: WidthType.PERCENTAGE }, borders: BORDAS, verticalAlign: VerticalAlign.CENTER,
-    children: linhas.map((l) => new Paragraph({
-      alignment: AlignmentType.LEFT,
-      children: [run(`${l.rotulo} ${l.texto || "—"}`, { italics: true })],
-    })),
+    // cada papel pode ter mais de uma pessoa (texto com "\n"): so a PRIMEIRA
+    // linha leva o rotulo na frente, as demais entram soltas, uma por paragrafo.
+    children: linhas.flatMap((l) => {
+      const nomes = l.texto ? l.texto.split("\n") : [""];
+      return nomes.map((n, i) => new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [run(i === 0 ? `${l.rotulo} ${n || "—"}` : n, { italics: true })],
+      }));
+    }),
   });
 }
 function celRotulo(txt: string, w: number, rowSpan = 1) {
@@ -152,9 +163,9 @@ function expedienteDocx(e: EscalaDia): Table | null {
       feriado
         ? celValor(ft, 39, true)
         : celValorRotulado([
-            { rotulo: "CMT", texto: limpa(ex.cmtFt || "") },
-            { rotulo: "SUBCMT", texto: limpa(ex.subcmtFt || "") },
-            { rotulo: "ADM", texto: limpa(ex.adm || "") },
+            { rotulo: "CMT", texto: lista(ex.cmtFt) },
+            { rotulo: "SUBCMT", texto: lista(ex.subcmtFt) },
+            { rotulo: "ADM", texto: lista(ex.adm) },
           ], 39),
       celRotulo("P4", 15), celValor(val("", ex.p4), 37, true),
     ] }),
@@ -473,10 +484,15 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
       ]);
       r4("CMT", v(ex.cmt || ""), "SUBCMT", v(ex.subcmt || ""));
       // Feriado: uma unica frase, nao 3 linhas repetindo "FERIADO..." com o rotulo na frente.
+      // Cada papel pode ter mais de uma pessoa: so a 1a linha leva o rotulo.
+      const linhaRotulada = (rotulo: string, arr?: Slot[]) => {
+        const nomes = lista(arr).split("\n").filter(Boolean);
+        return nomes.length ? nomes.map((n, i) => (i === 0 ? `${rotulo} ${n}` : n)).join("\n") : `${rotulo} —`;
+      };
       const ftTexto = feriado ? ft : [
-        `CMT ${limpa(ex.cmtFt || "")}`,
-        `SUBCMT ${limpa(ex.subcmtFt || "")}`,
-        `ADM ${limpa(ex.adm || "")}`,
+        linhaRotulada("CMT", ex.cmtFt),
+        linhaRotulada("SUBCMT", ex.subcmtFt),
+        linhaRotulada("ADM", ex.adm),
       ].join("\n");
       r4("FT", ftTexto, "P4", v("", ex.p4));
       r4("P1", v("", ex.p1), "RONDA ESCOLAR", v("", ex.rondaEscolar));
