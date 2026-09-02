@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   MessageSquare, Search, Paperclip, Send, X, Download, FileText, Loader2, ArrowLeft, Phone, Video,
   Mic, Reply, Copy, Pencil, Trash2, Ban, Check, ChevronDown,
   Pin, Archive, MailOpen, Bell, BellOff, Smile, Forward,
+  Image as ImageIcon, Camera, MapPin, Share2,
 } from "lucide-react";
 import Chamada from "@/components/Chamada";
 
@@ -36,6 +38,9 @@ type Msg = {
   citada?: { id: string; minha: boolean; trecho: string } | null;
   reacoes?: { emoji: string; qtd: number; minha: boolean }[];
 };
+// item do SIGEP que dá para mandar para alguém (escala, JOE, requerimento…)
+type ItemSigep = { id: string; icone: string; titulo: string; sub: string; href: string };
+type GrupoSigep = { titulo: string; itens: ItemSigep[] };
 
 // as mesmas do WhatsApp, na mesma ordem
 const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
@@ -71,6 +76,36 @@ function relogio(seg: number): string {
   return `${m}:${String(seg % 60).padStart(2, "0")}`;
 }
 
+/* Texto do balão com os links clicáveis.
+
+   Dois tipos aparecem no chat: endereço da internet (a localização vai como
+   link do Google Maps) e caminho do próprio SIGEP, como "/requerimentos/abc"
+   — esse abre por dentro do sistema, sem recarregar a página. O resto do
+   texto continua saindo igualzinho ao que foi escrito.
+
+   Quebra por espaço em vez de usar um regex esperto de propósito: iPhone mais
+   antigo não entende algumas construções novas de regex e derrubaria a tela
+   inteira. */
+const CAMINHO_SIGEP = /^\/[A-Za-z0-9][A-Za-z0-9\-_/[\]?=&.%]*$/;
+
+function TextoComLinks({ texto, minha, aoAbrir }: { texto: string; minha: boolean; aoAbrir: (h: string) => void }) {
+  const cor = minha ? "text-[#1a1205] underline decoration-[#1a1205]/40" : "text-[#7cc4ff] underline";
+  return (
+    <p className="whitespace-pre-wrap break-words">
+      {texto.split(/(\s+)/).map((p, i) => {
+        if (!p) return null;
+        if (p.startsWith("http://") || p.startsWith("https://")) {
+          return <a key={i} href={p} target="_blank" rel="noopener noreferrer" className={cor}>{p}</a>;
+        }
+        if (CAMINHO_SIGEP.test(p)) {
+          return <button key={i} onClick={() => aoAbrir(p)} className={cor}>{p}</button>;
+        }
+        return <span key={i}>{p}</span>;
+      })}
+    </p>
+  );
+}
+
 /* Avatar: foto do militar quando existe; iniciais quando não tem. */
 function Avatar({ c, tam = 36 }: { c: { nome: string; foto?: string | null }; tam?: number }) {
   const [falhou, setFalhou] = useState(false);
@@ -94,6 +129,7 @@ function Avatar({ c, tam = 36 }: { c: { nome: string; foto?: string | null }; ta
 // meuNome vem da página (continua no contrato do componente) — hoje só o
 // login "eu" é usado aqui dentro.
 export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
+  const router = useRouter();
   const [contatos, setContatos] = useState<Contato[]>([]);
   const [busca, setBusca] = useState("");
   const [aberto, setAberto] = useState<Contato | null>(null);
@@ -120,6 +156,13 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
   const [emBusca, setEmBusca] = useState(false);       // lista mostrando resultados
   const [reagindoEm, setReagindoEm] = useState<string | null>(null); // id com a fileira de emoji
   const [encaminhando, setEncaminhando] = useState<Msg | null>(null);
+  // ---- envio de informacoes (bloco 4) ----
+  const [menuAnexo, setMenuAnexo] = useState(false);
+  // quando manda varios arquivos de uma vez: "2 de 5"
+  const [fila, setFila] = useState<{ i: number; total: number } | null>(null);
+  const [buscandoLocal, setBuscandoLocal] = useState(false);
+  const [compartilhar, setCompartilhar] = useState(false);
+  const [gruposSigep, setGruposSigep] = useState<GrupoSigep[] | null>(null);
   // ---- gravacao de voz ----
   const [gravando, setGravando] = useState(false);
   const [segundos, setSegundos] = useState(0);
@@ -131,6 +174,8 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
   const abertoRef = useRef<Contato | null>(null); abertoRef.current = aberto;
   const ultimaRef = useRef<string | null>(null);
   const arquivoRef = useRef<HTMLInputElement | null>(null);
+  const fotosRef = useRef<HTMLInputElement | null>(null);
+  const cameraRef = useRef<HTMLInputElement | null>(null);
   const listaRef = useRef<HTMLDivElement | null>(null);
   const campoRef = useRef<HTMLTextAreaElement | null>(null);
   const buscaRef = useRef(false); buscaRef.current = emBusca;
@@ -233,12 +278,12 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
 
   // clique em qualquer lugar fecha o menu da mensagem
   useEffect(() => {
-    if (!menuDe && !menuContato) return;
-    const fechar = () => { setMenuDe(null); setMenuContato(null); };
+    if (!menuDe && !menuContato && !menuAnexo) return;
+    const fechar = () => { setMenuDe(null); setMenuContato(null); setMenuAnexo(false); };
     // no tique seguinte, para o próprio clique que abriu não fechar junto
     const t = setTimeout(() => document.addEventListener("click", fechar), 0);
     return () => { clearTimeout(t); document.removeEventListener("click", fechar); };
-  }, [menuDe, menuContato]);
+  }, [menuDe, menuContato, menuAnexo]);
 
   // conta os segundos enquanto grava (para mostrar 0:07 igual ao WhatsApp)
   useEffect(() => {
@@ -505,12 +550,14 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
     gravadorRef.current = null;
   }
 
-  async function enviarArquivo(f: File) {
-    if (!aberto) return;
+  // devolve true quando deu certo (a fila de vários arquivos usa isso para
+  // saber se continua ou para)
+  async function enviarArquivo(f: File): Promise<boolean> {
+    if (!aberto) return false;
     setErro("");
     if (f.size > LIMITE) {
       setErro(`"${f.name}" tem ${(f.size / 1048576).toFixed(1)} MB. O limite é 20 MB.`);
-      return;
+      return false;
     }
     setSubindo({ nome: f.name, pct: 0 });
     try {
@@ -520,7 +567,7 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
         body: JSON.stringify({ nome: f.name, tipo: f.type || "application/octet-stream", tam: f.size }),
       });
       const d1 = await r1.json();
-      if (!r1.ok) { setErro(d1?.error || "Falha ao preparar o envio."); setSubindo(null); return; }
+      if (!r1.ok) { setErro(d1?.error || "Falha ao preparar o envio."); setSubindo(null); return false; }
 
       // 2) manda o arquivo DIRETO para o R2 (com barra de progresso).
       //    Aqui é onde o CORS do bucket entra em jogo: sem ele o navegador
@@ -552,10 +599,11 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
         }),
       });
       const d2 = await r2.json();
-      if (!r2.ok) { setErro(d2?.error || "Arquivo enviado, mas a mensagem falhou."); return; }
+      if (!r2.ok) { setErro(d2?.error || "Arquivo enviado, mas a mensagem falhou."); return false; }
       setMsgs((m) => [...m, d2.mensagem]);
       ultimaRef.current = d2.mensagem.em;
       puxarContatos();
+      return true;
     } catch (e: any) {
       const m = String(e?.message || "");
       if (m === "__CORS__") {
@@ -570,10 +618,92 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
       } else {
         setErro(m || "Falha ao enviar o arquivo. Verifique a conexão e tente de novo.");
       }
+      return false;
     } finally {
       setSubindo(null);
+      // libera os campos para dar pra escolher o MESMO arquivo de novo
       if (arquivoRef.current) arquivoRef.current.value = "";
+      if (fotosRef.current) fotosRef.current.value = "";
+      if (cameraRef.current) cameraRef.current.value = "";
     }
+  }
+
+  /* Vários arquivos de uma vez: manda um atrás do outro (o R2 assina uma URL
+     por arquivo) e mostra "2 de 5" na barra. Se um falhar, para ali e diz
+     qual foi — não adianta continuar empilhando erro. */
+  async function enviarArquivos(lista: FileList | File[] | null) {
+    const fs = Array.from(lista || []);
+    if (!fs.length) return;
+    if (fs.length === 1) { await enviarArquivo(fs[0]); return; }
+    for (let i = 0; i < fs.length; i++) {
+      setFila({ i: i + 1, total: fs.length });
+      const ok = await enviarArquivo(fs[i]);
+      if (!ok) break;
+    }
+    setFila(null);
+  }
+
+  /* Localização atual: vai como um link do Google Maps, que abre no aplicativo
+     de mapas de quem recebe. Nada fica guardado além da mensagem. */
+  async function enviarLocalizacao() {
+    setMenuAnexo(false);
+    if (!aberto) return;
+    if (!navigator.geolocation) { setErro("Este aparelho não informa a localização."); return; }
+    setBuscandoLocal(true);
+    setErro("");
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        setBuscandoLocal(false);
+        const lat = pos.coords.latitude.toFixed(6);
+        const lon = pos.coords.longitude.toFixed(6);
+        await mandarTexto(`📍 Minha localização agora:\nhttps://www.google.com/maps?q=${lat},${lon}`);
+      },
+      (e) => {
+        setBuscandoLocal(false);
+        setErro(
+          e.code === e.PERMISSION_DENIED
+            ? "Você precisa autorizar a localização para este site no navegador."
+            : "Não foi possível pegar a localização agora. Tente de novo em local aberto."
+        );
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
+    );
+  }
+
+  /* Compartilhar um item do SIGEP (escala, JOE, requerimento, atalho): vai
+     como uma mensagem com título, detalhe e o caminho — que vira um link
+     clicável no balão de quem recebe. */
+  async function abrirCompartilhar() {
+    setMenuAnexo(false);
+    setCompartilhar(true);
+    if (gruposSigep) return;
+    try {
+      const r = await fetch("/api/chat/compartilhar");
+      const d = await r.json();
+      setGruposSigep(Array.isArray(d?.grupos) ? d.grupos : []);
+    } catch { setGruposSigep([]); }
+  }
+
+  async function compartilharItem(it: ItemSigep) {
+    setCompartilhar(false);
+    await mandarTexto(`${it.icone} ${it.titulo}\n${it.sub}\n${it.href}`);
+  }
+
+  /* Manda um texto pronto (localização, item do SIGEP) sem passar pelo campo
+     de digitação — e já coloca o balão na tela. */
+  async function mandarTexto(t: string) {
+    if (!aberto) return;
+    try {
+      const r = await fetch("/api/chat/mensagens", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ para: aberto.login, texto: t }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setErro(d?.error || "Não foi possível enviar."); return; }
+      setMsgs((m) => [...m, d.mensagem]);
+      ultimaRef.current = d.mensagem.em;
+      puxarContatos();
+    } catch { setErro("Sem conexão. Tente de novo."); }
   }
 
   async function abrirAnexo(key: string, baixar: boolean) {
@@ -682,6 +812,55 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
                   </span>
                   <Send className="h-3.5 w-3.5 shrink-0 text-[#D4AF37]" />
                 </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* escolher um item do SIGEP para mandar na conversa */}
+      {compartilhar && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-auto bg-black/60 p-4"
+          onClick={() => setCompartilhar(false)}>
+          <div className="mt-16 w-full max-w-md overflow-hidden rounded-xl border border-[#2b3f63] bg-[#0F1B2D]"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 border-b border-white/5 p-4">
+              <div className="min-w-0">
+                <p className="flex items-center gap-1.5 text-sm font-bold text-white">
+                  <Share2 className="h-4 w-4 text-[#D4AF37]" /> Mandar item do SIGEP
+                </p>
+                <p className="mt-0.5 truncate text-xs text-[#94A3B8]">
+                  Vai como mensagem com o atalho — quem recebe abre direto na tela certa.
+                </p>
+              </div>
+              <button onClick={() => setCompartilhar(false)} className="shrink-0 text-[#94A3B8] hover:text-white">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="max-h-[55vh] overflow-y-auto">
+              {gruposSigep === null ? (
+                <p className="flex items-center justify-center gap-2 p-6 text-sm text-[#94A3B8]">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
+                </p>
+              ) : gruposSigep.length === 0 ? (
+                <p className="p-6 text-center text-sm text-[#94A3B8]">Nada para compartilhar no momento.</p>
+              ) : gruposSigep.map((g) => (
+                <div key={g.titulo}>
+                  <p className="bg-black/25 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-[#D4AF37]">
+                    {g.titulo}
+                  </p>
+                  {g.itens.map((it) => (
+                    <button key={it.id} onClick={() => compartilharItem(it)}
+                      className="flex w-full items-center gap-2.5 border-b border-white/5 px-3 py-2.5 text-left transition hover:bg-white/5">
+                      <span className="shrink-0 text-base leading-none">{it.icone}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm text-white">{it.titulo}</span>
+                        <span className="block truncate text-[11px] text-[#94A3B8]">{it.sub}</span>
+                      </span>
+                      <Send className="h-3.5 w-3.5 shrink-0 text-[#D4AF37]" />
+                    </button>
+                  ))}
+                </div>
               ))}
             </div>
           </div>
@@ -978,7 +1157,9 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
                             </div>
                           )}
 
-                          {m.texto && <p className="whitespace-pre-wrap break-words">{m.texto}</p>}
+                          {m.texto && (
+                            <TextoComLinks texto={m.texto} minha={m.minha} aoAbrir={(h) => router.push(h)} />
+                          )}
 
                           {/* mensagem de voz */}
                           {m.arqKey && ehAudio(m.arqTipo) && (
@@ -1076,7 +1257,8 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
                 <div className="border-t border-white/5 px-3 py-2">
                   <p className="mb-1 flex items-center gap-2 text-xs text-[#94A3B8]">
                     <Loader2 className="h-3 w-3 animate-spin" />
-                    Enviando <b className="text-white">{subindo.nome}</b> — {subindo.pct}%
+                    {fila && <span className="shrink-0">Arquivo {fila.i} de {fila.total} —</span>}
+                    Enviando <b className="truncate text-white">{subindo.nome}</b> — {subindo.pct}%
                   </p>
                   <div className="h-1 overflow-hidden rounded bg-white/10">
                     <div className="h-full bg-[#D4AF37] transition-all" style={{ width: subindo.pct + "%" }} />
@@ -1120,11 +1302,46 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
                 </div>
               )}
 
-              <footer className="flex items-end gap-2 border-t border-white/5 p-2.5">
+              <footer className="relative flex items-end gap-2 border-t border-white/5 p-2.5">
+                {/* três campos escondidos: arquivo qualquer, galeria e câmera.
+                    Todos aceitam vários de uma vez (a câmera, uma foto). */}
                 <input
-                  ref={arquivoRef} type="file" className="hidden"
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) enviarArquivo(f); }}
+                  ref={arquivoRef} type="file" multiple className="hidden"
+                  onChange={(e) => enviarArquivos(e.target.files)}
                 />
+                <input
+                  ref={fotosRef} type="file" multiple accept="image/*,video/*" className="hidden"
+                  onChange={(e) => enviarArquivos(e.target.files)}
+                />
+                <input
+                  ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+                  onChange={(e) => enviarArquivos(e.target.files)}
+                />
+
+                {/* menu do clipe: tudo que dá para mandar além de texto */}
+                {menuAnexo && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute bottom-16 left-2.5 z-30 w-60 overflow-hidden rounded-xl border border-[#2b3f63] bg-[#0F1B2D] shadow-2xl"
+                  >
+                    {[
+                      { icone: <ImageIcon className="h-4 w-4 text-[#D4AF37]" />, rot: "Fotos e vídeos", sub: "Pode escolher vários", ao: () => { setMenuAnexo(false); fotosRef.current?.click(); } },
+                      { icone: <Camera className="h-4 w-4 text-[#D4AF37]" />, rot: "Câmera", sub: "Tirar uma foto agora", ao: () => { setMenuAnexo(false); cameraRef.current?.click(); } },
+                      { icone: <FileText className="h-4 w-4 text-[#D4AF37]" />, rot: "Documento", sub: "Qualquer arquivo, até 20 MB", ao: () => { setMenuAnexo(false); arquivoRef.current?.click(); } },
+                      { icone: <MapPin className="h-4 w-4 text-[#D4AF37]" />, rot: "Localização", sub: "Onde estou agora", ao: enviarLocalizacao },
+                      { icone: <Share2 className="h-4 w-4 text-[#D4AF37]" />, rot: "Item do SIGEP", sub: "Escala, JOE, requerimento…", ao: abrirCompartilhar },
+                    ].map((o) => (
+                      <button key={o.rot} onClick={o.ao}
+                        className="flex w-full items-center gap-2.5 border-b border-white/5 px-3 py-2.5 text-left transition last:border-0 hover:bg-white/5">
+                        <span className="shrink-0">{o.icone}</span>
+                        <span className="min-w-0">
+                          <span className="block text-xs font-semibold text-white">{o.rot}</span>
+                          <span className="block truncate text-[10px] text-[#94A3B8]">{o.sub}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {gravando ? (
                   /* gravando: o campo some e dá lugar ao contador, como no WhatsApp */
@@ -1151,11 +1368,12 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
                 ) : (
                   <>
                     <button
-                      onClick={() => arquivoRef.current?.click()} disabled={!!subindo}
-                      title="Anexar foto ou arquivo (até 20 MB)"
+                      onClick={(e) => { e.stopPropagation(); setMenuAnexo((v) => !v); }}
+                      disabled={!!subindo || buscandoLocal}
+                      title="Enviar arquivo, foto, localização ou item do SIGEP"
                       className="shrink-0 rounded-lg border border-white/10 p-2 text-[#94A3B8] transition hover:border-[#D4AF37] hover:text-white disabled:opacity-40"
                     >
-                      <Paperclip className="h-4 w-4" />
+                      {buscandoLocal ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
                     </button>
                     <textarea
                       ref={campoRef}
