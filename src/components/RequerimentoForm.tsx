@@ -17,6 +17,7 @@ const CAMPOS_PESSOAIS: { key: string; label: string; col?: number }[] = [
   { key: "dataNasc", label: "Data de nascimento" },
   { key: "dataInclusao", label: "Data de inclusão" },
   { key: "matricula", label: "Matrícula" },
+  { key: "idPmmaTxt", label: "ID PMMA" },
   { key: "postoGrad", label: "Posto/Graduação" },
   { key: "numeroPm", label: "Nº do PM" },
   { key: "tempoServico", label: "Tempo de serviço" },
@@ -178,11 +179,6 @@ export default function RequerimentoForm({
 
           {ehCursos && (
             <>
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">ID</label>
-                <input type="text" value={f.idPmmaTxt ?? ""} onChange={(e) => set("idPmmaTxt", e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
-              </div>
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">CPF *</label>
                 <input type="text" value={f.cpf ?? ""} onChange={(e) => set("cpf", e.target.value)}

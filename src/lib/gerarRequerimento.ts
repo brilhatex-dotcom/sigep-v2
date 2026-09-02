@@ -273,6 +273,10 @@ export function gerarRequerimentoDocx(d: DadosReq): Buffer {
     datanasc: formatarData(d.dataNasc),
     datainclusao: formatarData(d.dataInclusao),
     matricula: s(d.matricula),
+    // O quadro do papel agora é "MATRÍCULA/ID": sai a matrícula e o ID PMMA
+    // juntos, separados por barra. Faltando um dos dois, sai só o que existe
+    // (nada de barra solta no documento).
+    matriculaid: [s(d.matricula).trim(), s(d.idPmmaTxt).trim()].filter(Boolean).join(" / "),
     postograd: s(d.postoGrad),
     numeropm: s(d.numeroPm),
     temposervico: s(d.tempoServico),
