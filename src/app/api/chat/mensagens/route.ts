@@ -10,12 +10,36 @@ export const dynamic = "force-dynamic";
 /* /api/chat/mensagens
    GET    ?com=<login>[&depois=<ISO>]  -> conversa com essa pessoa; marca como
                                           lidas as que ela me mandou.
-   POST   { para, texto?, arq?, respondeA? } -> envia (texto e/ou anexo, podendo
-                                          citar outra mensagem) e dispara push.
+          ?com=<login>&busca=<texto>   -> procura DENTRO da conversa (inclusive
+                                          em mensagem antiga, fora do lote).
+   POST   { para, texto?, arq?, respondeA? }   -> envia (texto e/ou anexo,
+                                          podendo citar outra) e dispara push.
+   POST   { para, encaminharDe: <id> }  -> encaminha uma mensagem que eu já
+                                          tenho para outra pessoa.
    PATCH  { id, texto }               -> edita o texto de uma mensagem MINHA.
    DELETE ?id=<id>                    -> apaga para todos uma mensagem MINHA. */
 
 const LIMITE = 200;
+
+/* Reações da mensagem, agrupadas do jeito que o balão mostra:
+   [{ emoji: "👍", qtd: 2, minha: true }] */
+function reacoesDe(json: string | null, eu: string) {
+  if (!json) return [];
+  let bruto: Record<string, string> = {};
+  try {
+    const v = JSON.parse(json);
+    if (v && typeof v === "object" && !Array.isArray(v)) bruto = v;
+  } catch { return []; }
+  const mapa = new Map<string, { emoji: string; qtd: number; minha: boolean }>();
+  for (const [login, emoji] of Object.entries(bruto)) {
+    if (typeof emoji !== "string" || !emoji) continue;
+    const atual = mapa.get(emoji) || { emoji, qtd: 0, minha: false };
+    atual.qtd += 1;
+    if (login === eu) atual.minha = true;
+    mapa.set(emoji, atual);
+  }
+  return [...mapa.values()];
+}
 
 // Prévia curta da mensagem citada, para o balão mostrar sem outra consulta.
 function trechoDe(m: { texto: string | null; arqNome: string | null; arqTipo: string | null; apagadaEm: Date | null }): string {
@@ -34,6 +58,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const com = (url.searchParams.get("com") || "").trim();
   const depois = url.searchParams.get("depois");
+  const busca = (url.searchParams.get("busca") || "").trim();
   if (!com) return NextResponse.json({ error: "Informe com quem" }, { status: 400 });
 
   try {
@@ -49,11 +74,17 @@ export async function GET(req: Request) {
       const d = new Date(depois);
       if (!isNaN(d.getTime())) where.criadoEm = { gt: d };
     }
+    /* Busca dentro da conversa: procura no texto, ignorando maiúsculas, e
+       ignora as apagadas (não têm mais conteúdo para casar). */
+    if (busca) {
+      where.texto = { contains: busca, mode: "insensitive" };
+      where.apagadaEm = null;
+    }
 
     const msgs = await prisma.chatMensagem.findMany({
       where,
       orderBy: { criadoEm: depois ? "asc" : "desc" },
-      take: LIMITE,
+      take: busca ? 50 : LIMITE,
     });
     const lista = depois ? msgs : msgs.reverse();
 
@@ -73,11 +104,21 @@ export async function GET(req: Request) {
       return { id: alvo.id, minha: alvo.de === eu, trecho: trechoDe(alvo) };
     };
 
-    // marca como lidas as que ELA me mandou
-    await prisma.chatMensagem.updateMany({
-      where: { de: com, para: eu, lidaEm: null },
-      data: { lidaEm: new Date() },
-    });
+    /* Abrir a conversa marca como lidas as que ela me mandou e desfaz o
+       "marcar como não lida". No modo BUSCA não mexe em nada: procurar uma
+       mensagem antiga não é o mesmo que ler a conversa. */
+    if (!busca) {
+      await prisma.chatMensagem.updateMany({
+        where: { de: com, para: eu, lidaEm: null },
+        data: { lidaEm: new Date() },
+      });
+      try {
+        await prisma.chatConversa.updateMany({
+          where: { login: eu, com, naoLida: true },
+          data: { naoLida: false },
+        });
+      } catch { /* sem a tabela ainda: segue */ }
+    }
 
     return NextResponse.json({
       mensagens: lista.map((m) => {
@@ -96,9 +137,12 @@ export async function GET(req: Request) {
           lidaEm: m.lidaEm ? m.lidaEm.toISOString() : null,
           editada: !!m.editadaEm,
           apagada,
+          encaminhada: !!m.encaminhada && !apagada,
+          reacoes: apagada ? [] : reacoesDe(m.reacoes, eu),
           citada: apagada ? null : citacaoDe(m.respondeA),
         };
       }),
+      busca: busca || null,
     });
   } catch (err) {
     console.error("[GET /api/chat/mensagens]", err);
@@ -117,11 +161,33 @@ export async function POST(req: Request) {
 
     const b = await req.json();
     const para = String(b?.para || "").trim();
-    const texto = typeof b?.texto === "string" ? b.texto.trim().slice(0, 4000) : "";
-    const arq = b?.arq || null;
+    let texto = typeof b?.texto === "string" ? b.texto.trim().slice(0, 4000) : "";
+    let arq = b?.arq || null;
     const respondeAId = typeof b?.respondeA === "string" ? b.respondeA.trim() : "";
+    const encaminharDe = typeof b?.encaminharDe === "string" ? b.encaminharDe.trim() : "";
     if (!para) return NextResponse.json({ error: "Destinatario obrigatorio" }, { status: 400 });
     if (para === eu) return NextResponse.json({ error: "Nao da para conversar consigo mesmo" }, { status: 400 });
+
+    /* ENCAMINHAR: copia o conteúdo de uma mensagem que EU já tenho (mandei ou
+       recebi) para outra pessoa. O anexo não é re-enviado: a mensagem nova
+       aponta para o mesmo arquivo no R2. Só encaminha o que eu poderia ver —
+       mensagem de conversa alheia (ou apagada) não passa daqui. */
+    let encaminhada = false;
+    if (encaminharDe) {
+      const origem = await prisma.chatMensagem.findUnique({ where: { id: encaminharDe } });
+      if (!origem || (origem.de !== eu && origem.para !== eu)) {
+        return NextResponse.json({ error: "Mensagem não encontrada" }, { status: 404 });
+      }
+      if (origem.apagadaEm) {
+        return NextResponse.json({ error: "Essa mensagem foi apagada." }, { status: 409 });
+      }
+      texto = origem.texto || "";
+      arq = origem.arqKey
+        ? { key: origem.arqKey, nome: origem.arqNome, tipo: origem.arqTipo, tam: origem.arqTam }
+        : null;
+      encaminhada = true;
+    }
+
     if (!texto && !arq?.key) return NextResponse.json({ error: "Mensagem vazia" }, { status: 400 });
 
     const destino = await prisma.usuario.findUnique({ where: { login: para }, select: { login: true } });
@@ -147,6 +213,7 @@ export async function POST(req: Request) {
         arqTipo: arq?.tipo ? String(arq.tipo).slice(0, 120) : null,
         arqTam: Number.isFinite(Number(arq?.tam)) ? Number(arq.tam) : null,
         respondeA: citada?.id ?? null,
+        encaminhada,
       },
     });
 
@@ -175,7 +242,7 @@ export async function POST(req: Request) {
         id: msg.id, minha: true, texto: msg.texto,
         arqKey: msg.arqKey, arqNome: msg.arqNome, arqTipo: msg.arqTipo, arqTam: msg.arqTam,
         em: msg.criadoEm.toISOString(), lida: false, lidaEm: null,
-        editada: false, apagada: false, citada,
+        editada: false, apagada: false, encaminhada, reacoes: [], citada,
       },
     });
   } catch (err) {
