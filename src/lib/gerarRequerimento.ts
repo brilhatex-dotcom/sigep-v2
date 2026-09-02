@@ -88,6 +88,23 @@ function s(v: string | null | undefined): string {
   return v == null ? "" : String(v);
 }
 
+/* IDENTIFICAÇÃO DO MILITAR NO PAPEL
+
+   Da barra 18 em diante a PMMA parou de emitir matrícula: esses militares têm
+   só o ID. Por isso nada aqui assume que a matrícula existe — quando ela falta,
+   sai só o ID (sem barra solta), e quem tem os dois vê os dois. */
+function matriculaComId(d: DadosReq): string {
+  return [s(d.matricula).trim(), s(d.idPmmaTxt).trim()].filter(Boolean).join(" / ");
+}
+
+// rótulo honesto para o que realmente foi preenchido
+function rotuloMatriculaId(d: DadosReq): string {
+  const temMatricula = !!s(d.matricula).trim();
+  const temId = !!s(d.idPmmaTxt).trim();
+  if (temMatricula && temId) return "MATRÍCULA/ID";
+  return temId ? "ID" : "MATRÍCULA";
+}
+
 // "18/02/2014" -> "18 de fevereiro de 2014"
 const MESES_EXT = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 function dataPorExtenso(dataBR: string): string {
@@ -273,10 +290,8 @@ export function gerarRequerimentoDocx(d: DadosReq): Buffer {
     datanasc: formatarData(d.dataNasc),
     datainclusao: formatarData(d.dataInclusao),
     matricula: s(d.matricula),
-    // O quadro do papel agora é "MATRÍCULA/ID": sai a matrícula e o ID PMMA
-    // juntos, separados por barra. Faltando um dos dois, sai só o que existe
-    // (nada de barra solta no documento).
-    matriculaid: [s(d.matricula).trim(), s(d.idPmmaTxt).trim()].filter(Boolean).join(" / "),
+    // quadro "MATRÍCULA/ID" do papel — ver matriculaComId()
+    matriculaid: matriculaComId(d),
     postograd: s(d.postoGrad),
     numeropm: s(d.numeroPm),
     temposervico: s(d.tempoServico),
@@ -304,12 +319,15 @@ export function gerarRequerimentoDocx(d: DadosReq): Buffer {
      obrigatório) veria o documento sair com o CPF velho ou em branco. */
   if (d.modelo === "cursos") {
     const linhas = [s(dados.info as string).trim()];
-    const matricula = s(d.matricula).trim();
+    // Antes esta linha era só a MATRICULA: quem entrou da barra 18 em diante
+    // não tem matrícula e o pedido saía sem NENHUMA identificação. Agora sai o
+    // que o militar tiver — os dois, ou só o ID, com o rótulo certo.
+    const identificacao = matriculaComId(d);
     const cpf = s(d.cpf).trim();
     const email = s(d.email).trim();
-    if (matricula || cpf || email) {
+    if (identificacao || cpf || email) {
       linhas.push("");
-      if (matricula) linhas.push(`MATRICULA: ${matricula}`);
+      if (identificacao) linhas.push(`${rotuloMatriculaId(d)}: ${identificacao}`);
       if (cpf) linhas.push(`CPF: ${cpf}`);
       if (email) linhas.push(`E-MAIL: ${email}`);
     }
