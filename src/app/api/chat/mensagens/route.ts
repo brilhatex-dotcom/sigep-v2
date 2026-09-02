@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { enviarParaLogin } from "@/lib/push";
-import { garantirChatSilencioso } from "@/lib/chatDb";
+import { garantirChatSilencioso, deveNotificar } from "@/lib/chatDb";
 
 export const dynamic = "force-dynamic";
 
@@ -217,23 +217,34 @@ export async function POST(req: Request) {
       },
     });
 
-    // avisa no celular mesmo com o sistema fechado
+    /* Avisa no celular mesmo com o sistema fechado — a não ser que a pessoa
+       tenha silenciado esta conversa ou esteja com ela aberta na tela agora. */
     try {
-      const quem = (u?.name || eu).toString();
-      const tipo = String(arq?.tipo || "");
-      const resumo = texto
-        ? texto.slice(0, 120)
-        : tipo.startsWith("audio/")
-        ? "🎤 Mensagem de voz"
-        : tipo.startsWith("image/")
-        ? "🖼 Foto"
-        : "📎 " + (arq?.nome || "arquivo");
-      await enviarParaLogin(para, {
-        title: "Mensagem de " + quem,
-        body: resumo,
-        url: "/chat?com=" + encodeURIComponent(eu),
-        tag: "chat-" + eu,
-      });
+      if (await deveNotificar(para, eu)) {
+        const quem = (u?.name || eu).toString();
+        const tipo = String(arq?.tipo || "");
+        const resumo = texto
+          ? texto.slice(0, 120)
+          : tipo.startsWith("audio/")
+          ? "🎤 Mensagem de voz"
+          : tipo.startsWith("image/")
+          ? "🖼 Foto"
+          : "📎 " + (arq?.nome || "arquivo");
+        // total de não lidas: vira o número na bolinha do ícone do app
+        const naoLidas = await prisma.chatMensagem
+          .count({ where: { para, lidaEm: null, apagadaEm: null } })
+          .catch(() => 0);
+        await enviarParaLogin(para, {
+          title: "Mensagem de " + quem,
+          body: resumo,
+          url: "/chat?com=" + encodeURIComponent(eu),
+          tag: "chat-" + eu,
+          // o Service Worker usa isso para o botão "Marcar como lida"
+          tipo: "chat",
+          com: eu,
+          contador: naoLidas,
+        });
+      }
     } catch { /* push e best-effort */ }
 
     return NextResponse.json({

@@ -14,6 +14,16 @@ function lerVistas(): Set<string> {
 function salvarVistas(s: Set<string>) {
   try { localStorage.setItem(CHAVE_VISTAS, JSON.stringify([...s])); } catch { /* ignore */ }
 }
+/* Bolinha com o numero no icone do app (quando instalado no celular ou no
+   computador). Onde o navegador nao tem, simplesmente nao acontece nada. */
+function bolinhaNoIcone(n: number) {
+  try {
+    const nav = navigator as any;
+    if (n > 0) nav?.setAppBadge?.(n)?.catch?.(() => {});
+    else nav?.clearAppBadge?.()?.catch?.(() => {});
+  } catch { /* navegador sem suporte */ }
+}
+
 function quando(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
@@ -29,7 +39,9 @@ export default function SinoNotificacoes() {
 
   function recalcular(lista: Notificacao[]) {
     const vistas = vistasRef.current;
-    setNaoVistas(lista.filter((n) => !vistas.has(n.id)).length);
+    const n = lista.filter((x) => !vistas.has(x.id)).length;
+    setNaoVistas(n);
+    bolinhaNoIcone(n);
   }
 
   async function buscar() {
@@ -76,6 +88,7 @@ export default function SinoNotificacoes() {
       vistasRef.current = vistas;
       salvarVistas(vistas);
       setNaoVistas(0);
+      bolinhaNoIcone(0);
     }
   }
 
