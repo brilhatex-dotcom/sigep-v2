@@ -615,6 +615,9 @@ model ChatPresenca {
   login String   @id @map("Login")
   visto DateTime @map("Visto")
 
+  // Login da conversa aberta agora (nulo = nenhuma). Criada em runtime.
+  olhando String? @map("Olhando")
+
   @@map("chat_presenca")
 }
 

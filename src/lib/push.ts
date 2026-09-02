@@ -18,8 +18,13 @@ function garantirConfig() {
 export type Notificacao = {
   title: string;
   body: string;
-  url?: string;   // pra onde ir ao clicar
-  tag?: string;   // agrupa notificacoes do mesmo tipo
+  url?: string;      // pra onde ir ao clicar
+  tag?: string;      // agrupa notificacoes do mesmo tipo
+  // Só o chat usa daqui para baixo: com "tipo: chat" o Service Worker mostra o
+  // botao "Marcar como lida" (e "com" diz de qual conversa).
+  tipo?: string;
+  com?: string;
+  contador?: number; // total de nao lidas -> bolinha no icone do app
 };
 
 /* Envia uma notificacao para TODAS as inscricoes de um login.

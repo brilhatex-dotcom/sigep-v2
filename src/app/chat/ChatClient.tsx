@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   MessageSquare, Search, Paperclip, Send, X, Download, FileText, Loader2, ArrowLeft, Phone, Video,
   Mic, Reply, Copy, Pencil, Trash2, Ban, Check, ChevronDown,
-  Pin, Archive, MailOpen, BellOff, Smile, Forward,
+  Pin, Archive, MailOpen, Bell, BellOff, Smile, Forward,
 } from "lucide-react";
 import Chamada from "@/components/Chamada";
 
@@ -135,16 +135,41 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
   const campoRef = useRef<HTMLTextAreaElement | null>(null);
   const buscaRef = useRef(false); buscaRef.current = emBusca;
 
-  /* ---------------- presença ---------------- */
+  /* ---------------- presença ----------------
+     Além de dizer "estou online", a batida informa QUAL conversa está aberta
+     na tela. Com isso o servidor não manda notificação de uma conversa que a
+     pessoa está lendo neste exato momento — o balão aparece sozinho. Bate de
+     novo na hora em que troca de conversa. */
   useEffect(() => {
     const bater = () => {
       if (document.hidden) return;
-      fetch("/api/chat/presenca", { method: "POST" }).catch(() => {});
+      fetch("/api/chat/presenca", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ olhando: abertoRef.current?.login ?? null }),
+      }).catch(() => {});
     };
     bater();
     const t = setInterval(bater, 25000);
     document.addEventListener("visibilitychange", bater);
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", bater); };
+  }, [aberto?.login]);
+
+  /* Saiu do chat (fechou a aba ou foi para outra tela): avisa que não está
+     mais olhando nenhuma conversa, para as notificações voltarem na hora. */
+  useEffect(() => {
+    const largar = () => {
+      try {
+        const corpo = new Blob([JSON.stringify({ olhando: null })], { type: "application/json" });
+        if (!navigator.sendBeacon?.("/api/chat/presenca", corpo)) throw new Error("sem beacon");
+      } catch {
+        fetch("/api/chat/presenca", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ olhando: null }), keepalive: true,
+        }).catch(() => {});
+      }
+    };
+    window.addEventListener("pagehide", largar);
+    return () => { window.removeEventListener("pagehide", largar); largar(); };
   }, []);
 
   /* ---------------- contatos ---------------- */
@@ -393,12 +418,12 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
 
   /* Organização da conversa (fixar, arquivar, marcar não lida). É só meu:
      não muda nada do outro lado. */
-  async function organizar(c: Contato, acao: string) {
+  async function organizar(c: Contato, acao: string, horas?: number) {
     setMenuContato(null);
     try {
       const r = await fetch("/api/chat/conversa", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ com: c.login, acao }),
+        body: JSON.stringify({ com: c.login, acao, horas }),
       });
       const d = await r.json();
       if (!r.ok) { setErro(d?.error || "Não foi possível salvar."); return; }
@@ -749,6 +774,36 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
                       className="flex w-full items-center gap-2 border-t border-white/5 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
                       <Archive className="h-3.5 w-3.5" /> {c.arquivada ? "Desarquivar" : "Arquivar"}
                     </button>
+
+                    {/* silenciar: para de tocar o celular, mas a mensagem
+                        continua chegando normalmente na conversa */}
+                    {c.silenciada ? (
+                      <button onClick={() => organizar(c, "desilenciar")}
+                        className="flex w-full items-center gap-2 border-t border-white/5 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                        <Bell className="h-3.5 w-3.5" /> Reativar som
+                      </button>
+                    ) : (
+                      <div className="border-t border-white/5">
+                        <p className="flex items-center gap-2 px-3 pt-2 text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+                          <BellOff className="h-3 w-3" /> Silenciar
+                        </p>
+                        <div className="flex gap-1 px-2 pb-2 pt-1">
+                          {[
+                            { rot: "8 horas", horas: 8 },
+                            { rot: "1 semana", horas: 168 },
+                            { rot: "Sempre", horas: 0 },
+                          ].map((o) => (
+                            <button
+                              key={o.rot}
+                              onClick={() => organizar(c, "silenciar", o.horas)}
+                              className="flex-1 rounded border border-[#2b3f63] px-1 py-1 text-[10px] text-[#E8EEF6] transition hover:bg-white/10"
+                            >
+                              {o.rot}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

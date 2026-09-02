@@ -39,6 +39,11 @@ export function garantirChat(): Promise<void> {
       await prisma.$executeRawUnsafe(
         `ALTER TABLE "chat_mensagens" ADD COLUMN IF NOT EXISTS "Reacoes" TEXT`
       );
+      /* Com qual conversa a pessoa está NESTE momento. Serve para não mandar
+         notificação de uma conversa que ela já está lendo na tela. */
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE "chat_presenca" ADD COLUMN IF NOT EXISTS "Olhando" TEXT`
+      );
       /* Como cada um organiza a conversa: fixada no topo, arquivada, marcada
          como não lida à mão e silenciada. Uma linha por (eu, outra pessoa). */
       await prisma.$executeRawUnsafe(
@@ -70,4 +75,41 @@ export async function garantirChatSilencioso(): Promise<void> {
   } catch {
     /* segue sem as colunas novas — o chat básico continua funcionando */
   }
+}
+
+/* =========================================================================
+   QUANDO NÃO TOCAR O CELULAR DE ALGUÉM
+
+   Duas situações em que a notificação só atrapalha, iguais às do WhatsApp:
+
+   1) a pessoa silenciou essa conversa (por 8 h, uma semana ou para sempre);
+   2) a pessoa está com essa conversa ABERTA na tela agora — o balão já vai
+      aparecer sozinho em 3 s, não precisa vibrar o aparelho.
+
+   Na dúvida (banco fora, coluna ainda não criada), notifica: é melhor uma
+   notificação a mais do que uma mensagem que ninguém viu.
+   ========================================================================= */
+
+// mesma janela de "online" dos contatos: a presença bate a cada 25 s
+const JANELA_OLHANDO = 70_000; // ms
+
+export async function deveNotificar(para: string, de: string): Promise<boolean> {
+  try {
+    const pref = await prisma.chatConversa.findUnique({
+      where: { login_com: { login: para, com: de } },
+      select: { silenciadaAte: true },
+    });
+    if (pref?.silenciadaAte && pref.silenciadaAte.getTime() > Date.now()) return false;
+  } catch { /* sem a tabela: não está silenciada */ }
+
+  try {
+    const p = await prisma.chatPresenca.findUnique({
+      where: { login: para },
+      select: { visto: true, olhando: true },
+    });
+    const recente = !!p && p.visto.getTime() > Date.now() - JANELA_OLHANDO;
+    if (recente && p!.olhando === de) return false;
+  } catch { /* sem a coluna: notifica normalmente */ }
+
+  return true;
 }
