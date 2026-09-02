@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { hojeBR, paraData, tempoServico } from "@/lib/datas";
 import {
   amparoDaModalidade,
   especificacaoDaModalidade,
@@ -37,6 +38,18 @@ export function dataBR(valor: string | null | undefined): string {
   const dd = String(d.getUTCDate()).padStart(2, "0");
   const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
   return `${dd}/${mm}/${d.getUTCFullYear()}`;
+}
+
+/* Tempo de serviço em ANOS COMPLETOS, contado da data de inclusão até hoje.
+   Antes o campo saía sempre em branco no papel (ninguém digitava), sendo que a
+   ficha já tem a data de inclusão — dá para contar sozinho. Continua editável
+   no formulário, para o caso de quem tem averbação de tempo anterior. */
+export function tempoDeServicoAnos(dataInclusao: string | null | undefined): string {
+  const inicio = paraData(dataInclusao ?? null);
+  if (!inicio) return "";
+  const { anos } = tempoServico(inicio, hojeBR());
+  if (anos <= 0) return "";
+  return `${anos} ANO${anos > 1 ? "S" : ""}`;
 }
 
 export type TextoDaModalidade = {
@@ -109,7 +122,8 @@ export async function dadosPessoais(efetivoId: string): Promise<Record<string, s
     idPmmaTxt: m.id || "",
     postoGrad: m.postoGrad || "",
     numeroPm: m.numeroBarra || "",
-    tempoServico: "",
+    // contado da data de inclusão (ficha) — o papel pede em anos
+    tempoServico: tempoDeServicoAnos(m.dataIncorp),
     cargoFuncao: perfil?.cargoFuncao || m.funcao || "",
     estadoCivil: perfil?.estadoCivil || m.estadoCivil || "",
     // OPM em que o militar e classificado: fixo do batalhao (sempre CPA I/2)
