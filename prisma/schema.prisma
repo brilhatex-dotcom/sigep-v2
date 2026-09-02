@@ -584,13 +584,30 @@ model ChatMensagem {
   lidaEm   DateTime? @map("LidaEm")
 
   // Colunas criadas em runtime por lib/chatDb.ts (o deploy nao roda db push).
-  respondeA String?   @map("RespondeA") // id da mensagem citada
-  editadaEm DateTime? @map("EditadaEm")
-  apagadaEm DateTime? @map("ApagadaEm") // apagada para todos
+  respondeA   String?   @map("RespondeA") // id da mensagem citada
+  editadaEm   DateTime? @map("EditadaEm")
+  apagadaEm   DateTime? @map("ApagadaEm") // apagada para todos
+  encaminhada Boolean   @default(false) @map("Encaminhada")
+  reacoes     String?   @map("Reacoes") // JSON { login: emoji } — no 1-a-1 sao no maximo 2
 
   @@index([de, para, criadoEm])
   @@index([para, lidaEm])
   @@map("chat_mensagens")
+}
+
+// Como CADA UM organiza a conversa com outra pessoa: fixar no topo, arquivar,
+// marcar como nao lida e silenciar. E por usuario — eu fixar a conversa nao
+// fixa nada do outro lado. Tabela criada em runtime por lib/chatDb.ts.
+model ChatConversa {
+  login         String    @map("Login")
+  com           String    @map("Com")
+  fixada        Boolean   @default(false) @map("Fixada")
+  arquivada     Boolean   @default(false) @map("Arquivada")
+  naoLida       Boolean   @default(false) @map("NaoLida") // marcada à mão
+  silenciadaAte DateTime? @map("SilenciadaAte") // nulo = com som
+
+  @@id([login, com])
+  @@map("chat_conversa")
 }
 
 // Batida de presença: quem apareceu há menos de ~1 min está online.

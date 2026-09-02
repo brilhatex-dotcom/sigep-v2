@@ -31,6 +31,27 @@ export function garantirChat(): Promise<void> {
       await prisma.$executeRawUnsafe(
         `ALTER TABLE "chat_mensagens" ADD COLUMN IF NOT EXISTS "ApagadaEm" TIMESTAMP(3)`
       );
+      // Encaminhada: mostra a marca "Encaminhada" no balão, como no WhatsApp.
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE "chat_mensagens" ADD COLUMN IF NOT EXISTS "Encaminhada" BOOLEAN NOT NULL DEFAULT false`
+      );
+      // Reações: JSON { login: emoji }. No 1-a-1 são no máximo duas.
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE "chat_mensagens" ADD COLUMN IF NOT EXISTS "Reacoes" TEXT`
+      );
+      /* Como cada um organiza a conversa: fixada no topo, arquivada, marcada
+         como não lida à mão e silenciada. Uma linha por (eu, outra pessoa). */
+      await prisma.$executeRawUnsafe(
+        `CREATE TABLE IF NOT EXISTS "chat_conversa" (
+           "Login"         TEXT NOT NULL,
+           "Com"           TEXT NOT NULL,
+           "Fixada"        BOOLEAN NOT NULL DEFAULT false,
+           "Arquivada"     BOOLEAN NOT NULL DEFAULT false,
+           "NaoLida"       BOOLEAN NOT NULL DEFAULT false,
+           "SilenciadaAte" TIMESTAMP(3),
+           CONSTRAINT "chat_conversa_pkey" PRIMARY KEY ("Login", "Com")
+         )`
+      );
     })().catch((e) => {
       // Se falhar (ex.: tabela ainda não existe), não trava o chat: a próxima
       // chamada tenta de novo em vez de ficar com um erro grudado.

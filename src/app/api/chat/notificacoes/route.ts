@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { garantirChatSilencioso } from "@/lib/chatDb";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +17,14 @@ export async function GET() {
   if (!eu) return NextResponse.json({ notificacoes: [] });
 
   try {
+    await garantirChatSilencioso();
+
     const naoLidas = await prisma.chatMensagem.findMany({
-      where: { para: eu, lidaEm: null },
+      // mensagem apagada para todos não fica tocando o sino
+      where: { para: eu, lidaEm: null, apagadaEm: null },
       orderBy: { criadoEm: "desc" },
       take: 120,
-      select: { id: true, de: true, texto: true, arqNome: true, criadoEm: true },
+      select: { id: true, de: true, texto: true, arqNome: true, arqTipo: true, criadoEm: true },
     });
     if (naoLidas.length === 0) return NextResponse.json({ notificacoes: [] });
 
@@ -58,6 +62,10 @@ export async function GET() {
       const quem = nomeDe.get(login) || login;
       const previa = d.ultima.texto?.trim()
         ? d.ultima.texto.trim().slice(0, 70)
+        : d.ultima.arqTipo?.startsWith("audio/")
+        ? "🎤 Mensagem de voz"
+        : d.ultima.arqTipo?.startsWith("image/")
+        ? "🖼 Foto"
         : "📎 " + (d.ultima.arqNome || "arquivo");
       return {
         // o id muda quando chega mensagem nova, então o sino volta a piscar

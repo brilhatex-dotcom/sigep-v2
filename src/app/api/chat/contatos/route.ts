@@ -85,11 +85,22 @@ export async function GET() {
       ultima.set(outro, { previa: previa.slice(0, 90), em: m.criadoEm.toISOString() });
     }
 
+    /* Como EU organizei cada conversa (fixada, arquivada, silenciada, marcada
+       como não lida). Uma consulta só, e o chat funciona igual sem nenhuma
+       linha: tudo cai no padrão. */
+    let prefs = new Map<string, { fixada: boolean; arquivada: boolean; naoLida: boolean; silenciadaAte: Date | null }>();
+    try {
+      const linhas = await prisma.chatConversa.findMany({ where: { login: eu } });
+      prefs = new Map(linhas.map((p) => [p.com, p]));
+    } catch { /* tabela ainda nao criada: segue sem preferencias */ }
+    const agora = Date.now();
+
     const contatos = ativos.map((u) => {
       const f = u.refEfetivo ? ficha.get(u.refEfetivo) : null;
       const nome =
         (f?.nomeGuerra || f?.nome || u.nomeCompleto || u.login || "").toString().trim() || u.login;
       const ult = ultima.get(u.login);
+      const pref = prefs.get(u.login);
       return {
         login: u.login,
         nome,
@@ -102,10 +113,17 @@ export async function GET() {
         naoLidas: mapaNaoLidas.get(u.login) ?? 0,
         previa: ult?.previa ?? "",
         em: ult?.em ?? null,
+        fixada: !!pref?.fixada,
+        arquivada: !!pref?.arquivada,
+        // marcada à mão: só vale enquanto não chega mensagem nova de verdade
+        naoLidaManual: !!pref?.naoLida,
+        silenciada: !!(pref?.silenciadaAte && pref.silenciadaAte.getTime() > agora),
       };
     });
 
     contatos.sort((a, b) => {
+      // fixadas sempre no topo, como no WhatsApp
+      if (a.fixada !== b.fixada) return a.fixada ? -1 : 1;
       if ((b.naoLidas > 0 ? 1 : 0) !== (a.naoLidas > 0 ? 1 : 0)) return (b.naoLidas > 0 ? 1 : 0) - (a.naoLidas > 0 ? 1 : 0);
       if (a.em && b.em && a.em !== b.em) return b.em.localeCompare(a.em);
       if (!!b.em !== !!a.em) return b.em ? 1 : -1;

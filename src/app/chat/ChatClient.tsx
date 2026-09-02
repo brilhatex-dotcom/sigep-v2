@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   MessageSquare, Search, Paperclip, Send, X, Download, FileText, Loader2, ArrowLeft, Phone, Video,
   Mic, Reply, Copy, Pencil, Trash2, Ban, Check, ChevronDown,
+  Pin, Archive, MailOpen, BellOff, Smile, Forward,
 } from "lucide-react";
 import Chamada from "@/components/Chamada";
 
@@ -23,15 +24,21 @@ type Contato = {
   login: string; nome: string; postoGrad: string | null; lotacao: string | null;
   admin: boolean; online: boolean; naoLidas: number; previa: string; em: string | null;
   foto?: string | null;
+  // como EU organizei esta conversa
+  fixada?: boolean; arquivada?: boolean; naoLidaManual?: boolean; silenciada?: boolean;
 };
 type Msg = {
   id: string; minha: boolean; texto: string | null;
   arqKey: string | null; arqNome: string | null; arqTipo: string | null; arqTam: number | null;
   em: string; lida: boolean; lidaEm?: string | null;
-  editada?: boolean; apagada?: boolean;
+  editada?: boolean; apagada?: boolean; encaminhada?: boolean;
   // mensagem citada (responder), já com o trecho pronto para o balão
   citada?: { id: string; minha: boolean; trecho: string } | null;
+  reacoes?: { emoji: string; qtd: number; minha: boolean }[];
 };
+
+// as mesmas do WhatsApp, na mesma ordem
+const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
 const LIMITE = 20 * 1024 * 1024;
 
@@ -106,6 +113,13 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
   const [respondendo, setRespondendo] = useState<Msg | null>(null);
   const [editando, setEditando] = useState<{ id: string; textoOriginal: string } | null>(null);
   const [menuDe, setMenuDe] = useState<string | null>(null); // id da mensagem com o menu aberto
+  // ---- organizacao (bloco 2) ----
+  const [menuContato, setMenuContato] = useState<string | null>(null);
+  const [verArquivadas, setVerArquivadas] = useState(false);
+  const [buscaConversa, setBuscaConversa] = useState("");
+  const [emBusca, setEmBusca] = useState(false);       // lista mostrando resultados
+  const [reagindoEm, setReagindoEm] = useState<string | null>(null); // id com a fileira de emoji
+  const [encaminhando, setEncaminhando] = useState<Msg | null>(null);
   // ---- gravacao de voz ----
   const [gravando, setGravando] = useState(false);
   const [segundos, setSegundos] = useState(0);
@@ -119,6 +133,7 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
   const arquivoRef = useRef<HTMLInputElement | null>(null);
   const listaRef = useRef<HTMLDivElement | null>(null);
   const campoRef = useRef<HTMLTextAreaElement | null>(null);
+  const buscaRef = useRef(false); buscaRef.current = emBusca;
 
   /* ---------------- presença ---------------- */
   useEffect(() => {
@@ -168,6 +183,7 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
     if (!aberto) return;
     const puxar = async () => {
       if (document.hidden) return;
+      if (buscaRef.current) return; // mostrando resultado de busca: não empilha
       const c = abertoRef.current; if (!c) return;
       try {
         const q = "/api/chat/mensagens?com=" + encodeURIComponent(c.login) +
@@ -192,12 +208,12 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
 
   // clique em qualquer lugar fecha o menu da mensagem
   useEffect(() => {
-    if (!menuDe) return;
-    const fechar = () => setMenuDe(null);
+    if (!menuDe && !menuContato) return;
+    const fechar = () => { setMenuDe(null); setMenuContato(null); };
     // no tique seguinte, para o próprio clique que abriu não fechar junto
     const t = setTimeout(() => document.addEventListener("click", fechar), 0);
     return () => { clearTimeout(t); document.removeEventListener("click", fechar); };
-  }, [menuDe]);
+  }, [menuDe, menuContato]);
 
   // conta os segundos enquanto grava (para mostrar 0:07 igual ao WhatsApp)
   useEffect(() => {
@@ -340,6 +356,85 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
     catch { setErro("O navegador não deixou copiar. Selecione o texto à mão."); }
   }
 
+  // Reagir: o mesmo emoji de novo tira a reação (igual ao WhatsApp).
+  async function reagir(m: Msg, emoji: string) {
+    setReagindoEm(null); setMenuDe(null);
+    try {
+      const r = await fetch("/api/chat/reacao", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: m.id, emoji }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setErro(d?.error || "Não foi possível reagir."); return; }
+      setMsgs((ms) => ms.map((x) => (x.id === m.id ? { ...x, reacoes: d.reacoes } : x)));
+    } catch { setErro("Sem conexão. Tente de novo."); }
+  }
+
+  // Encaminhar: escolhe para quem no próprio painel de contatos.
+  async function encaminharPara(destino: Contato) {
+    const m = encaminhando;
+    if (!m) return;
+    setEncaminhando(null);
+    try {
+      const r = await fetch("/api/chat/mensagens", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ para: destino.login, encaminharDe: m.id }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setErro(d?.error || "Não foi possível encaminhar."); return; }
+      // encaminhou para a conversa que já está aberta: aparece na hora
+      if (abertoRef.current?.login === destino.login) {
+        setMsgs((ms) => [...ms, d.mensagem]);
+        ultimaRef.current = d.mensagem.em;
+      }
+      puxarContatos();
+    } catch { setErro("Sem conexão. Tente de novo."); }
+  }
+
+  /* Organização da conversa (fixar, arquivar, marcar não lida). É só meu:
+     não muda nada do outro lado. */
+  async function organizar(c: Contato, acao: string) {
+    setMenuContato(null);
+    try {
+      const r = await fetch("/api/chat/conversa", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ com: c.login, acao }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setErro(d?.error || "Não foi possível salvar."); return; }
+      // marcar como não lida também fecha a conversa, senão ela se marca como
+      // lida de novo no próximo ciclo de busca
+      if (acao === "naoLida" && abertoRef.current?.login === c.login) setAberto(null);
+      puxarContatos();
+    } catch { setErro("Sem conexão. Tente de novo."); }
+  }
+
+  /* Busca DENTRO da conversa: pergunta ao servidor (acha mensagem antiga, que
+     não está carregada na tela) e mostra só os resultados até limpar. */
+  async function buscarNaConversa(termo: string) {
+    const c = abertoRef.current;
+    if (!c) return;
+    const t = termo.trim();
+    if (!t) return limparBusca();
+    try {
+      const r = await fetch(
+        "/api/chat/mensagens?com=" + encodeURIComponent(c.login) + "&busca=" + encodeURIComponent(t)
+      );
+      const d = await r.json();
+      if (!r.ok) { setErro(d?.error || "Não foi possível buscar."); return; }
+      setEmBusca(true);
+      setMsgs(Array.isArray(d?.mensagens) ? d.mensagens : []);
+    } catch { setErro("Sem conexão. Tente de novo."); }
+  }
+
+  function limparBusca() {
+    setBuscaConversa("");
+    if (!emBusca) return;
+    setEmBusca(false);
+    const c = abertoRef.current;
+    if (c) abrirConversa(c); // recarrega a conversa inteira
+  }
+
   /* ---------------- mensagem de voz ---------------- */
 
   async function iniciarGravacao() {
@@ -471,12 +566,17 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
 
   const filtrados = useMemo(() => {
     const t = busca.trim().toLowerCase();
-    if (!t) return contatos;
-    return contatos.filter((c) =>
-      (c.nome + " " + (c.postoGrad || "") + " " + (c.lotacao || "") + " " + c.login).toLowerCase().includes(t));
-  }, [contatos, busca]);
+    const base = t
+      ? contatos.filter((c) =>
+          (c.nome + " " + (c.postoGrad || "") + " " + (c.lotacao || "") + " " + c.login).toLowerCase().includes(t))
+      : contatos;
+    // arquivadas ficam escondidas até pedir para ver (como no WhatsApp)
+    return base.filter((c) => (verArquivadas ? c.arquivada : !c.arquivada));
+  }, [contatos, busca, verArquivadas]);
 
-  const totalNaoLidas = contatos.reduce((a, c) => a + c.naoLidas, 0);
+  const qtdArquivadas = useMemo(() => contatos.filter((c) => c.arquivada).length, [contatos]);
+
+  const totalNaoLidas = contatos.filter((c) => !c.arquivada).reduce((a, c) => a + c.naoLidas, 0);
 
   /* ---------------- render ---------------- */
   const nomePorLogin = useCallback(
@@ -522,6 +622,47 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
         </div>
       )}
 
+      {/* escolher para quem encaminhar */}
+      {encaminhando && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-auto bg-black/60 p-4"
+          onClick={() => setEncaminhando(null)}>
+          <div className="mt-16 w-full max-w-md overflow-hidden rounded-xl border border-[#2b3f63] bg-[#0F1B2D]"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 border-b border-white/5 p-4">
+              <div className="min-w-0">
+                <p className="flex items-center gap-1.5 text-sm font-bold text-white">
+                  <Forward className="h-4 w-4 text-[#D4AF37]" /> Encaminhar para
+                </p>
+                <p className="mt-0.5 truncate text-xs text-[#94A3B8]">
+                  {encaminhando.texto
+                    || (ehAudio(encaminhando.arqTipo) ? "🎤 Mensagem de voz"
+                        : ehImagem(encaminhando.arqTipo) ? "🖼 Foto"
+                        : "📎 " + (encaminhando.arqNome || "arquivo"))}
+                </p>
+              </div>
+              <button onClick={() => setEncaminhando(null)} className="shrink-0 text-[#94A3B8] hover:text-white">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="max-h-[50vh] overflow-y-auto">
+              {contatos.filter((c) => !c.arquivada).map((c) => (
+                <button key={c.login} onClick={() => encaminharPara(c)}
+                  className="flex w-full items-center gap-2.5 border-b border-white/5 px-3 py-2.5 text-left transition hover:bg-white/5">
+                  <Avatar c={c} tam={32} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm text-white">{c.nome}</span>
+                    <span className="block truncate text-[11px] text-[#94A3B8]">
+                      {[c.postoGrad, c.lotacao].filter(Boolean).join(" · ") || c.login}
+                    </span>
+                  </span>
+                  <Send className="h-3.5 w-3.5 shrink-0 text-[#D4AF37]" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className={`grid gap-3 md:grid-cols-[280px_1fr] ${instalado ? "" : "hidden"}`}>
         {/* ---------- lista de contatos ---------- */}
         <aside className={`rounded-xl border border-[#1d2c44] bg-[#0F1B2D] ${aberto ? "hidden md:block" : ""}`}>
@@ -535,40 +676,82 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
               />
             </div>
           </div>
+          {(qtdArquivadas > 0 || verArquivadas) && (
+            <button
+              onClick={() => setVerArquivadas((v) => !v)}
+              className="flex w-full items-center gap-2 border-b border-white/5 px-3 py-2 text-left text-xs text-[#94A3B8] transition hover:bg-white/5 hover:text-white"
+            >
+              <Archive className="h-3.5 w-3.5" />
+              {verArquivadas ? "Voltar às conversas" : `Arquivadas (${qtdArquivadas})`}
+            </button>
+          )}
           <div className="max-h-[62vh] overflow-y-auto">
             {carregando ? (
               <p className="p-4 text-center text-sm text-[#94A3B8]">Carregando…</p>
             ) : filtrados.length === 0 ? (
               <p className="p-4 text-center text-sm text-[#94A3B8]">Nenhum militar encontrado.</p>
             ) : filtrados.map((c) => (
-              <button
-                key={c.login} onClick={() => abrirConversa(c)}
-                className={`flex w-full items-center gap-2.5 border-b border-white/5 px-3 py-2.5 text-left transition hover:bg-white/5 ${
+              <div
+                key={c.login}
+                className={`group/linha relative flex items-center gap-2.5 border-b border-white/5 px-3 py-2.5 transition hover:bg-white/5 ${
                   aberto?.login === c.login ? "bg-white/[.07]" : ""}`}
               >
-                <span className="relative shrink-0">
-                  <Avatar c={c} tam={36} />
-                  <span
-                    title={c.online ? "Online" : "Offline"}
-                    className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#0F1B2D] ${
-                      c.online ? "bg-emerald-400" : "bg-slate-600"}`}
-                  />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1.5">
-                    <span className="truncate text-sm font-semibold text-white">{c.nome}</span>
-                    {c.admin && <span className="shrink-0 rounded bg-[#D4AF37]/15 px-1 text-[9px] font-bold uppercase text-[#D4AF37]">P/1</span>}
+                <button onClick={() => abrirConversa(c)} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+                  <span className="relative shrink-0">
+                    <Avatar c={c} tam={36} />
+                    <span
+                      title={c.online ? "Online" : "Offline"}
+                      className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#0F1B2D] ${
+                        c.online ? "bg-emerald-400" : "bg-slate-600"}`}
+                    />
                   </span>
-                  <span className="block truncate text-xs text-[#94A3B8]">
-                    {c.previa || c.postoGrad || c.lotacao || c.login}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5">
+                      {c.fixada && <Pin className="h-3 w-3 shrink-0 text-[#D4AF37]" />}
+                      <span className="truncate text-sm font-semibold text-white">{c.nome}</span>
+                      {c.silenciada && <BellOff className="h-3 w-3 shrink-0 text-[#94A3B8]" />}
+                      {c.admin && <span className="shrink-0 rounded bg-[#D4AF37]/15 px-1 text-[9px] font-bold uppercase text-[#D4AF37]">P/1</span>}
+                    </span>
+                    <span className="block truncate text-xs text-[#94A3B8]">
+                      {c.previa || c.postoGrad || c.lotacao || c.login}
+                    </span>
                   </span>
-                </span>
-                {c.naoLidas > 0 && (
+                </button>
+
+                {c.naoLidas > 0 ? (
                   <span className="shrink-0 rounded-full bg-[#D4AF37] px-1.5 py-0.5 text-[10px] font-bold text-[#1a1205]">
                     {c.naoLidas}
                   </span>
+                ) : c.naoLidaManual ? (
+                  <span title="Marcada como não lida" className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#D4AF37]" />
+                ) : null}
+
+                <button
+                  onClick={(e) => { e.stopPropagation(); setMenuContato(menuContato === c.login ? null : c.login); }}
+                  title="Opções da conversa"
+                  className="shrink-0 rounded p-1 text-[#94A3B8] opacity-60 transition hover:bg-white/10 hover:text-white md:opacity-0 md:group-hover/linha:opacity-100"
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+
+                {menuContato === c.login && (
+                  <div className="absolute right-2 top-11 z-30 w-48 overflow-hidden rounded-lg border border-[#2b3f63] bg-[#0F1B2D] shadow-xl">
+                    <button onClick={() => organizar(c, c.fixada ? "desfixar" : "fixar")}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                      <Pin className="h-3.5 w-3.5" /> {c.fixada ? "Desafixar" : "Fixar no topo"}
+                    </button>
+                    <button onClick={() => organizar(c, c.naoLidaManual ? "lida" : "naoLida")}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                      <MailOpen className="h-3.5 w-3.5" />
+                      {c.naoLidaManual ? "Marcar como lida" : "Marcar como não lida"}
+                    </button>
+                    <button onClick={() => organizar(c, c.arquivada ? "desarquivar" : "arquivar")}
+                      className="flex w-full items-center gap-2 border-t border-white/5 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                      <Archive className="h-3.5 w-3.5" /> {c.arquivada ? "Desarquivar" : "Arquivar"}
+                    </button>
+                  </div>
                 )}
-              </button>
+              </div>
             ))}
           </div>
         </aside>
@@ -600,6 +783,24 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
                   </p>
                 </div>
                 <div className="ml-auto flex items-center gap-1.5">
+                  <div className="hidden items-center gap-1.5 rounded-lg border border-white/10 bg-black/30 px-2 sm:flex">
+                    <Search className="h-3.5 w-3.5 shrink-0 text-[#94A3B8]" />
+                    <input
+                      value={buscaConversa}
+                      onChange={(e) => setBuscaConversa(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") { e.preventDefault(); buscarNaConversa(buscaConversa); }
+                        if (e.key === "Escape") limparBusca();
+                      }}
+                      placeholder="Buscar na conversa…"
+                      className="w-36 bg-transparent py-1.5 text-xs text-white placeholder-white/35 outline-none"
+                    />
+                    {(buscaConversa || emBusca) && (
+                      <button onClick={limparBusca} title="Limpar busca" className="text-[#94A3B8] hover:text-white">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                   <button
                     onClick={() => setLigarPara({ para: aberto.login, video: false })}
                     title="Ligar (voz)"
@@ -617,8 +818,22 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
                 </div>
               </header>
 
+              {emBusca && (
+                <div className="flex items-center gap-2 border-b border-white/5 bg-[#D4AF37]/10 px-3 py-2 text-xs text-[#D4AF37]">
+                  <Search className="h-3.5 w-3.5 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">
+                    {msgs.length === 0
+                      ? `Nenhuma mensagem com “${buscaConversa}”.`
+                      : `${msgs.length} resultado(s) para “${buscaConversa}”.`}
+                  </span>
+                  <button onClick={limparBusca} className="shrink-0 font-semibold underline hover:text-white">
+                    voltar à conversa
+                  </button>
+                </div>
+              )}
+
               <div ref={listaRef} className="flex-1 space-y-2 overflow-y-auto p-3" style={{ maxHeight: "48vh" }}>
-                {msgs.length === 0 && (
+                {msgs.length === 0 && !emBusca && (
                   <p className="py-10 text-center text-sm text-[#94A3B8]">
                     Nenhuma mensagem ainda. Escreva a primeira.
                   </p>
@@ -644,9 +859,17 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
                             {menuDe === m.id && (
                               <div className={`absolute z-20 mt-1 w-44 overflow-hidden rounded-lg border border-[#2b3f63] bg-[#0F1B2D] shadow-xl ${
                                 m.minha ? "left-0" : "right-0"}`}>
+                                <button onClick={() => { setMenuDe(null); setReagindoEm(m.id); }}
+                                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                                  <Smile className="h-3.5 w-3.5" /> Reagir
+                                </button>
                                 <button onClick={() => responder(m)}
                                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
                                   <Reply className="h-3.5 w-3.5" /> Responder
+                                </button>
+                                <button onClick={() => { setMenuDe(null); setEncaminhando(m); }}
+                                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                                  <Forward className="h-3.5 w-3.5" /> Encaminhar
                                 </button>
                                 {(m.texto || m.arqNome) && (
                                   <button onClick={() => copiar(m)}
@@ -681,6 +904,13 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
                               <Ban className="h-3.5 w-3.5 shrink-0" /> Mensagem apagada
                             </p>
                           ) : (<>
+
+                          {m.encaminhada && (
+                            <p className={`mb-0.5 flex items-center gap-1 text-[10px] italic ${
+                              m.minha ? "text-[#1a1205]/60" : "text-[#94A3B8]"}`}>
+                              <Forward className="h-3 w-3" /> Encaminhada
+                            </p>
+                          )}
 
                           {/* trecho da mensagem citada (responder) */}
                           {m.citada && (
@@ -736,6 +966,40 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
                           )}
 
                           </>)}
+
+                          {/* reações já dadas */}
+                          {!m.apagada && !!m.reacoes?.length && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {m.reacoes.map((r) => (
+                                <button
+                                  key={r.emoji} onClick={() => reagir(m, r.emoji)}
+                                  title={r.minha ? "Tirar a sua reação" : "Reagir também"}
+                                  className={`rounded-full border px-1.5 py-0.5 text-[11px] leading-none ${
+                                    r.minha
+                                      ? "border-[#D4AF37] bg-[#D4AF37]/20"
+                                      : m.minha ? "border-black/20 bg-black/10" : "border-white/10 bg-white/5"}`}
+                                >
+                                  {r.emoji}{r.qtd > 1 ? ` ${r.qtd}` : ""}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* fileira de emoji, ao escolher "Reagir" */}
+                          {reagindoEm === m.id && (
+                            <div className="mt-1 flex flex-wrap items-center gap-1 rounded-lg border border-[#2b3f63] bg-[#0F1B2D] p-1">
+                              {EMOJIS.map((e) => (
+                                <button key={e} onClick={() => reagir(m, e)}
+                                  className="rounded px-1.5 py-0.5 text-base leading-none transition hover:bg-white/10">
+                                  {e}
+                                </button>
+                              ))}
+                              <button onClick={() => setReagindoEm(null)}
+                                className="ml-auto rounded p-1 text-[#94A3B8] hover:text-white">
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          )}
 
                           <p className={`mt-0.5 text-right text-[10px] ${
                             m.apagada ? "text-[#94A3B8]" : m.minha ? "text-[#1a1205]/60" : "text-[#94A3B8]"}`}>
