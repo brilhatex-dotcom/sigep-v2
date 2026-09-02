@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { garantirChatSilencioso } from "@/lib/chatDb";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,8 @@ export async function GET() {
   if (!eu) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
 
   try {
+    await garantirChatSilencioso();
+
     const usuarios = await prisma.usuario.findMany({
       where: { login: { not: eu } },
       select: { login: true, nomeCompleto: true, perfil: true, refEfetivo: true, ativo: true },
@@ -61,15 +64,24 @@ export async function GET() {
       where: { OR: [{ de: eu }, { para: eu }] },
       orderBy: { criadoEm: "desc" },
       take: 400,
-      select: { de: true, para: true, texto: true, arqNome: true, criadoEm: true },
+      select: { de: true, para: true, texto: true, arqNome: true, arqTipo: true, apagadaEm: true, criadoEm: true },
     });
     const ultima = new Map<string, { previa: string; em: string }>();
     for (const m of recentes) {
       const outro = m.de === eu ? m.para : m.de;
       if (ultima.has(outro)) continue;
-      const previa = m.texto?.trim()
-        ? (m.de === eu ? "Você: " : "") + m.texto.trim()
-        : (m.de === eu ? "Você: " : "") + "📎 " + (m.arqNome || "anexo");
+      // a prévia acompanha o que a conversa mostra: voz, foto, apagada...
+      const quem = m.de === eu ? "Você: " : "";
+      const corpo = m.apagadaEm
+        ? "🚫 mensagem apagada"
+        : m.texto?.trim()
+        ? m.texto.trim()
+        : m.arqTipo?.startsWith("audio/")
+        ? "🎤 Mensagem de voz"
+        : m.arqTipo?.startsWith("image/")
+        ? "🖼 Foto"
+        : "📎 " + (m.arqNome || "anexo");
+      const previa = quem + corpo;
       ultima.set(outro, { previa: previa.slice(0, 90), em: m.criadoEm.toISOString() });
     }
 
