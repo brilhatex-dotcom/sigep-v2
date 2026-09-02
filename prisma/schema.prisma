@@ -583,6 +583,11 @@ model ChatMensagem {
   criadoEm DateTime  @default(now()) @map("CriadoEm")
   lidaEm   DateTime? @map("LidaEm")
 
+  // Colunas criadas em runtime por lib/chatDb.ts (o deploy nao roda db push).
+  respondeA String?   @map("RespondeA") // id da mensagem citada
+  editadaEm DateTime? @map("EditadaEm")
+  apagadaEm DateTime? @map("ApagadaEm") // apagada para todos
+
   @@index([de, para, criadoEm])
   @@index([para, lidaEm])
   @@map("chat_mensagens")

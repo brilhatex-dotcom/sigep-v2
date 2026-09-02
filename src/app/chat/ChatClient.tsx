@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MessageSquare, Search, Paperclip, Send, X, Download, FileText, Loader2, ArrowLeft, Phone, Video } from "lucide-react";
+import {
+  MessageSquare, Search, Paperclip, Send, X, Download, FileText, Loader2, ArrowLeft, Phone, Video,
+  Mic, Reply, Copy, Pencil, Trash2, Ban, Check, ChevronDown,
+} from "lucide-react";
 import Chamada from "@/components/Chamada";
 
 /* =========================================================================
@@ -25,6 +28,9 @@ type Msg = {
   id: string; minha: boolean; texto: string | null;
   arqKey: string | null; arqNome: string | null; arqTipo: string | null; arqTam: number | null;
   em: string; lida: boolean; lidaEm?: string | null;
+  editada?: boolean; apagada?: boolean;
+  // mensagem citada (responder), já com o trecho pronto para o balão
+  citada?: { id: string; minha: boolean; trecho: string } | null;
 };
 
 const LIMITE = 20 * 1024 * 1024;
@@ -50,6 +56,13 @@ function diaBR(iso: string): string {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 const ehImagem = (t: string | null) => !!t && t.startsWith("image/");
+const ehAudio = (t: string | null) => !!t && t.startsWith("audio/");
+
+// 0:07 — duração da gravação, no formato que todo mundo conhece
+function relogio(seg: number): string {
+  const m = Math.floor(seg / 60);
+  return `${m}:${String(seg % 60).padStart(2, "0")}`;
+}
 
 /* Avatar: foto do militar quando existe; iniciais quando não tem. */
 function Avatar({ c, tam = 36 }: { c: { nome: string; foto?: string | null }; tam?: number }) {
@@ -71,7 +84,9 @@ function Avatar({ c, tam = 36 }: { c: { nome: string; foto?: string | null }; ta
   );
 }
 
-export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: string }) {
+// meuNome vem da página (continua no contrato do componente) — hoje só o
+// login "eu" é usado aqui dentro.
+export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
   const [contatos, setContatos] = useState<Contato[]>([]);
   const [busca, setBusca] = useState("");
   const [aberto, setAberto] = useState<Contato | null>(null);
@@ -87,12 +102,23 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
   const [previas, setPrevias] = useState<Record<string, string>>({});
   // quando preenchido, dispara a ligacao/chamada de video
   const [ligarPara, setLigarPara] = useState<{ para: string; video: boolean } | null>(null);
+  // ---- ferramentas de mensagem (responder, editar, apagar) ----
+  const [respondendo, setRespondendo] = useState<Msg | null>(null);
+  const [editando, setEditando] = useState<{ id: string; textoOriginal: string } | null>(null);
+  const [menuDe, setMenuDe] = useState<string | null>(null); // id da mensagem com o menu aberto
+  // ---- gravacao de voz ----
+  const [gravando, setGravando] = useState(false);
+  const [segundos, setSegundos] = useState(0);
+  const gravadorRef = useRef<MediaRecorder | null>(null);
+  const pedacosRef = useRef<Blob[]>([]);
+  const cancelouRef = useRef(false);
 
   const fim = useRef<HTMLDivElement | null>(null);
   const abertoRef = useRef<Contato | null>(null); abertoRef.current = aberto;
   const ultimaRef = useRef<string | null>(null);
   const arquivoRef = useRef<HTMLInputElement | null>(null);
   const listaRef = useRef<HTMLDivElement | null>(null);
+  const campoRef = useRef<HTMLTextAreaElement | null>(null);
 
   /* ---------------- presença ---------------- */
   useEffect(() => {
@@ -164,10 +190,26 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
     return () => clearInterval(t);
   }, [aberto]);
 
-  // Busca a URL temporária das imagens recebidas, para exibir a miniatura.
+  // clique em qualquer lugar fecha o menu da mensagem
+  useEffect(() => {
+    if (!menuDe) return;
+    const fechar = () => setMenuDe(null);
+    // no tique seguinte, para o próprio clique que abriu não fechar junto
+    const t = setTimeout(() => document.addEventListener("click", fechar), 0);
+    return () => { clearTimeout(t); document.removeEventListener("click", fechar); };
+  }, [menuDe]);
+
+  // conta os segundos enquanto grava (para mostrar 0:07 igual ao WhatsApp)
+  useEffect(() => {
+    if (!gravando) return;
+    const t = setInterval(() => setSegundos((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [gravando]);
+
+  // Busca a URL temporária de imagens E áudios, para tocar/ver no balão.
   useEffect(() => {
     const faltando = msgs.filter(
-      (m) => m.arqKey && ehImagem(m.arqTipo) && !previas[m.arqKey]
+      (m) => m.arqKey && (ehImagem(m.arqTipo) || ehAudio(m.arqTipo)) && !previas[m.arqKey]
     );
     if (faltando.length === 0) return;
     let vivo = true;
@@ -208,20 +250,139 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
   async function enviarTexto() {
     const t = texto.trim();
     if (!t || !aberto || enviando) return;
+
+    // com o campo em modo de edição, o mesmo botão salva em vez de mandar nova
+    if (editando) return salvarEdicao(t);
+
     setEnviando(true); setErro("");
     try {
       const r = await fetch("/api/chat/mensagens", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ para: aberto.login, texto: t }),
+        body: JSON.stringify({
+          para: aberto.login,
+          texto: t,
+          ...(respondendo ? { respondeA: respondendo.id } : {}),
+        }),
       });
       const d = await r.json();
       if (!r.ok) { setErro(d?.error || "Não foi possível enviar."); return; }
       setTexto("");
+      setRespondendo(null);
       setMsgs((m) => [...m, d.mensagem]);
       ultimaRef.current = d.mensagem.em;
       puxarContatos();
     } catch { setErro("Sem conexão. Tente de novo."); }
     finally { setEnviando(false); }
+  }
+
+  /* ---------------- ferramentas de mensagem ---------------- */
+
+  // Responder citando: a citação fica em cima do campo até enviar ou cancelar.
+  function responder(m: Msg) {
+    setMenuDe(null);
+    setEditando(null);
+    setRespondendo(m);
+    campoRef.current?.focus();
+  }
+
+  function comecarEdicao(m: Msg) {
+    setMenuDe(null);
+    setRespondendo(null);
+    setEditando({ id: m.id, textoOriginal: m.texto || "" });
+    setTexto(m.texto || "");
+    campoRef.current?.focus();
+  }
+
+  function cancelarEdicao() {
+    setEditando(null);
+    setTexto("");
+  }
+
+  async function salvarEdicao(novoTexto: string) {
+    if (!editando) return;
+    setEnviando(true); setErro("");
+    try {
+      const r = await fetch("/api/chat/mensagens", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editando.id, texto: novoTexto }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setErro(d?.error || "Não foi possível editar."); return; }
+      setMsgs((ms) => ms.map((x) => (x.id === editando.id ? { ...x, texto: d.texto, editada: true } : x)));
+      cancelarEdicao();
+      puxarContatos();
+    } catch { setErro("Sem conexão. Tente de novo."); }
+    finally { setEnviando(false); }
+  }
+
+  // Apagar para todos: a mensagem vira "mensagem apagada" dos dois lados.
+  async function apagar(m: Msg) {
+    setMenuDe(null);
+    if (!confirm("Apagar esta mensagem para todos? Quem recebeu vai ver que uma mensagem foi apagada.")) return;
+    try {
+      const r = await fetch("/api/chat/mensagens?id=" + encodeURIComponent(m.id), { method: "DELETE" });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setErro(d?.error || "Não foi possível apagar."); return; }
+      setMsgs((ms) => ms.map((x) => (x.id === m.id
+        ? { ...x, apagada: true, texto: null, arqKey: null, arqNome: null, arqTipo: null, arqTam: null, citada: null }
+        : x)));
+      if (editando?.id === m.id) cancelarEdicao();
+      if (respondendo?.id === m.id) setRespondendo(null);
+      puxarContatos();
+    } catch { setErro("Sem conexão. Tente de novo."); }
+  }
+
+  async function copiar(m: Msg) {
+    setMenuDe(null);
+    const t = m.texto || m.arqNome || "";
+    if (!t) return;
+    try { await navigator.clipboard.writeText(t); }
+    catch { setErro("O navegador não deixou copiar. Selecione o texto à mão."); }
+  }
+
+  /* ---------------- mensagem de voz ---------------- */
+
+  async function iniciarGravacao() {
+    if (gravando || subindo) return;
+    setErro("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // o formato varia por navegador: o Safari só grava mp4/aac
+      const tipo = ["audio/webm", "audio/mp4", "audio/ogg"].find((t) =>
+        typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported?.(t));
+      const rec = new MediaRecorder(stream, tipo ? { mimeType: tipo } : undefined);
+      pedacosRef.current = [];
+      cancelouRef.current = false;
+
+      rec.ondataavailable = (e) => { if (e.data && e.data.size > 0) pedacosRef.current.push(e.data); };
+      rec.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setGravando(false);
+        const cancelou = cancelouRef.current;
+        const blob = new Blob(pedacosRef.current, { type: rec.mimeType || "audio/webm" });
+        pedacosRef.current = [];
+        setSegundos(0);
+        // toque sem querer no botão não vira mensagem
+        if (cancelou || blob.size < 1500) return;
+        const ext = (rec.mimeType || "").includes("mp4") ? "m4a" : (rec.mimeType || "").includes("ogg") ? "ogg" : "webm";
+        const agora = new Date();
+        const nome = `Mensagem de voz ${agora.toLocaleDateString("pt-BR")} ${horaBR(agora.toISOString()).replace(":", "h")}.${ext}`;
+        await enviarArquivo(new File([blob], nome, { type: blob.type || "audio/webm" }));
+      };
+
+      rec.start();
+      gravadorRef.current = rec;
+      setGravando(true);
+      setSegundos(0);
+    } catch {
+      setErro("Não foi possível usar o microfone. Autorize o acesso no navegador e tente de novo.");
+    }
+  }
+
+  function pararGravacao(enviar: boolean) {
+    cancelouRef.current = !enviar;
+    try { gravadorRef.current?.stop(); } catch {}
+    gravadorRef.current = null;
   }
 
   async function enviarArquivo(f: File) {
@@ -469,10 +630,82 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
                       {novoDia && (
                         <p className="my-3 text-center text-[11px] uppercase tracking-wider text-[#94A3B8]">{diaBR(m.em)}</p>
                       )}
-                      <div className={`flex ${m.minha ? "justify-end" : "justify-start"}`}>
-                        <div className={`max-w-[78%] rounded-2xl px-3 py-2 text-sm ${
-                          m.minha ? "rounded-br-sm bg-[#D4AF37] text-[#1a1205]" : "rounded-bl-sm bg-[#16243a] text-[#E8EEF6]"}`}>
+                      <div className={`group relative flex items-start gap-1 ${m.minha ? "justify-end" : "justify-start"}`}>
+                        {/* menu da mensagem: responder, copiar, editar, apagar */}
+                        {!m.apagada && (
+                          <div className={`relative ${m.minha ? "order-1" : "order-2"}`}>
+                            <button
+                              onClick={() => setMenuDe(menuDe === m.id ? null : m.id)}
+                              title="Opções da mensagem"
+                              className="mt-2 rounded p-1 text-[#94A3B8] opacity-60 transition hover:bg-white/10 hover:text-white md:opacity-0 md:group-hover:opacity-100"
+                            >
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            </button>
+                            {menuDe === m.id && (
+                              <div className={`absolute z-20 mt-1 w-44 overflow-hidden rounded-lg border border-[#2b3f63] bg-[#0F1B2D] shadow-xl ${
+                                m.minha ? "left-0" : "right-0"}`}>
+                                <button onClick={() => responder(m)}
+                                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                                  <Reply className="h-3.5 w-3.5" /> Responder
+                                </button>
+                                {(m.texto || m.arqNome) && (
+                                  <button onClick={() => copiar(m)}
+                                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                                    <Copy className="h-3.5 w-3.5" /> Copiar
+                                  </button>
+                                )}
+                                {m.minha && m.texto && (
+                                  <button onClick={() => comecarEdicao(m)}
+                                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                                    <Pencil className="h-3.5 w-3.5" /> Editar
+                                  </button>
+                                )}
+                                {m.minha && (
+                                  <button onClick={() => apagar(m)}
+                                    className="flex w-full items-center gap-2 border-t border-white/5 px-3 py-2 text-left text-xs text-red-300 hover:bg-red-500/10">
+                                    <Trash2 className="h-3.5 w-3.5" /> Apagar para todos
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className={`max-w-[78%] rounded-2xl px-3 py-2 text-sm ${m.minha ? "order-2" : "order-1"} ${
+                          m.apagada
+                            ? "rounded-bl-sm border border-dashed border-white/15 bg-transparent text-[#94A3B8]"
+                            : m.minha ? "rounded-br-sm bg-[#D4AF37] text-[#1a1205]" : "rounded-bl-sm bg-[#16243a] text-[#E8EEF6]"}`}>
+
+                          {m.apagada ? (
+                            <p className="flex items-center gap-1.5 italic">
+                              <Ban className="h-3.5 w-3.5 shrink-0" /> Mensagem apagada
+                            </p>
+                          ) : (<>
+
+                          {/* trecho da mensagem citada (responder) */}
+                          {m.citada && (
+                            <div className={`mb-1.5 rounded-lg border-l-2 px-2 py-1 text-[11px] ${
+                              m.minha ? "border-[#1a1205]/40 bg-black/10 text-[#1a1205]/80" : "border-[#D4AF37] bg-black/25 text-[#94A3B8]"}`}>
+                              <b className={m.minha ? "text-[#1a1205]" : "text-[#D4AF37]"}>
+                                {m.citada.minha ? "Você" : (aberto?.nome ?? "")}
+                              </b>
+                              <span className="ml-1 line-clamp-2 break-words">{m.citada.trecho}</span>
+                            </div>
+                          )}
+
                           {m.texto && <p className="whitespace-pre-wrap break-words">{m.texto}</p>}
+
+                          {/* mensagem de voz */}
+                          {m.arqKey && ehAudio(m.arqTipo) && (
+                            previas[m.arqKey] ? (
+                              // eslint-disable-next-line jsx-a11y/media-has-caption
+                              <audio controls src={previas[m.arqKey]} preload="none" className="mt-1 h-9 w-56 max-w-full" />
+                            ) : (
+                              <span className={`mt-1 flex items-center gap-2 text-xs ${m.minha ? "text-[#1a1205]/70" : "text-[#94A3B8]"}`}>
+                                <Mic className="h-3.5 w-3.5" /> Mensagem de voz…
+                              </span>
+                            )
+                          )}
 
                           {m.arqKey && ehImagem(m.arqTipo) && (
                             <button onClick={() => abrirAnexo(m.arqKey!, false)}
@@ -491,7 +724,7 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
                             </button>
                           )}
 
-                          {m.arqKey && !ehImagem(m.arqTipo) && (
+                          {m.arqKey && !ehImagem(m.arqTipo) && !ehAudio(m.arqTipo) && (
                             <button onClick={() => abrirAnexo(m.arqKey!, true)}
                               className={`mt-1 flex w-full items-center gap-2 rounded-lg border px-2 py-2 text-left text-xs ${
                                 m.minha ? "border-black/20 hover:bg-black/10" : "border-white/10 hover:bg-white/5"}`}>
@@ -502,9 +735,13 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
                             </button>
                           )}
 
-                          <p className={`mt-0.5 text-right text-[10px] ${m.minha ? "text-[#1a1205]/60" : "text-[#94A3B8]"}`}>
+                          </>)}
+
+                          <p className={`mt-0.5 text-right text-[10px] ${
+                            m.apagada ? "text-[#94A3B8]" : m.minha ? "text-[#1a1205]/60" : "text-[#94A3B8]"}`}>
                             {horaBR(m.em)}
-                            {m.minha && (m.lida
+                            {m.editada && !m.apagada && " · editada"}
+                            {m.minha && !m.apagada && (m.lida
                               ? " · lida" + (m.lidaEm ? " " + horaBR(m.lidaEm) : "")
                               : " · enviada")}
                           </p>
@@ -528,31 +765,109 @@ export default function ChatClient({ eu, meuNome }: { eu: string; meuNome: strin
                 </div>
               )}
 
+              {/* respondendo a alguém: a citação fica presa acima do campo */}
+              {respondendo && (
+                <div className="flex items-start gap-2 border-t border-white/5 bg-black/20 px-3 py-2">
+                  <span className="mt-0.5 h-8 w-0.5 shrink-0 rounded bg-[#D4AF37]" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-bold text-[#D4AF37]">
+                      Respondendo {respondendo.minha ? "você mesmo" : (aberto?.nome ?? "")}
+                    </p>
+                    <p className="truncate text-xs text-[#94A3B8]">
+                      {respondendo.texto
+                        || (ehAudio(respondendo.arqTipo) ? "🎤 Mensagem de voz"
+                            : ehImagem(respondendo.arqTipo) ? "🖼 Foto"
+                            : "📎 " + (respondendo.arqNome || "arquivo"))}
+                    </p>
+                  </div>
+                  <button onClick={() => setRespondendo(null)} title="Cancelar resposta"
+                    className="shrink-0 text-[#94A3B8] hover:text-white">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* editando uma mensagem já enviada */}
+              {editando && (
+                <div className="flex items-center gap-2 border-t border-white/5 bg-black/20 px-3 py-2">
+                  <Pencil className="h-3.5 w-3.5 shrink-0 text-[#D4AF37]" />
+                  <p className="min-w-0 flex-1 truncate text-xs text-[#94A3B8]">
+                    Editando a mensagem — quem recebeu verá “editada”.
+                  </p>
+                  <button onClick={cancelarEdicao} title="Cancelar edição"
+                    className="shrink-0 text-[#94A3B8] hover:text-white">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+
               <footer className="flex items-end gap-2 border-t border-white/5 p-2.5">
                 <input
                   ref={arquivoRef} type="file" className="hidden"
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) enviarArquivo(f); }}
                 />
-                <button
-                  onClick={() => arquivoRef.current?.click()} disabled={!!subindo}
-                  title="Anexar foto ou arquivo (até 20 MB)"
-                  className="shrink-0 rounded-lg border border-white/10 p-2 text-[#94A3B8] transition hover:border-[#D4AF37] hover:text-white disabled:opacity-40"
-                >
-                  <Paperclip className="h-4 w-4" />
-                </button>
-                <textarea
-                  value={texto} onChange={(e) => setTexto(e.target.value)} rows={1}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviarTexto(); } }}
-                  placeholder="Escreva sua mensagem…"
-                  className="max-h-28 min-h-[38px] flex-1 resize-y rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder-white/35 outline-none focus:border-[#D4AF37]"
-                />
-                <button
-                  onClick={enviarTexto} disabled={enviando || !texto.trim()}
-                  className="shrink-0 rounded-lg bg-[#D4AF37] p-2 text-[#1a1205] transition hover:brightness-110 disabled:opacity-40"
-                  title="Enviar (Enter)"
-                >
-                  {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                </button>
+
+                {gravando ? (
+                  /* gravando: o campo some e dá lugar ao contador, como no WhatsApp */
+                  <>
+                    <button
+                      onClick={() => pararGravacao(false)} title="Cancelar gravação"
+                      className="shrink-0 rounded-lg border border-red-500/40 p-2 text-red-300 transition hover:bg-red-500/10"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                    <div className="flex flex-1 items-center gap-2 rounded-lg border border-red-500/30 bg-red-950/20 px-3 py-2">
+                      <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-500" />
+                      <span className="text-sm font-semibold text-red-200">Gravando… {relogio(segundos)}</span>
+                      <span className="ml-auto text-[11px] text-red-200/70">toque no envio para mandar</span>
+                    </div>
+                    <button
+                      onClick={() => pararGravacao(true)}
+                      className="shrink-0 rounded-lg bg-[#D4AF37] p-2 text-[#1a1205] transition hover:brightness-110"
+                      title="Enviar áudio"
+                    >
+                      <Send className="h-4 w-4" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => arquivoRef.current?.click()} disabled={!!subindo}
+                      title="Anexar foto ou arquivo (até 20 MB)"
+                      className="shrink-0 rounded-lg border border-white/10 p-2 text-[#94A3B8] transition hover:border-[#D4AF37] hover:text-white disabled:opacity-40"
+                    >
+                      <Paperclip className="h-4 w-4" />
+                    </button>
+                    <textarea
+                      ref={campoRef}
+                      value={texto} onChange={(e) => setTexto(e.target.value)} rows={1}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviarTexto(); }
+                        if (e.key === "Escape" && editando) cancelarEdicao();
+                      }}
+                      placeholder={editando ? "Corrija a mensagem…" : "Escreva sua mensagem…"}
+                      className="max-h-28 min-h-[38px] flex-1 resize-y rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder-white/35 outline-none focus:border-[#D4AF37]"
+                    />
+                    {/* sem texto digitado, o botão vira microfone — igual ao WhatsApp */}
+                    {texto.trim() || editando ? (
+                      <button
+                        onClick={enviarTexto} disabled={enviando || !texto.trim()}
+                        className="shrink-0 rounded-lg bg-[#D4AF37] p-2 text-[#1a1205] transition hover:brightness-110 disabled:opacity-40"
+                        title={editando ? "Salvar edição (Enter)" : "Enviar (Enter)"}
+                      >
+                        {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : editando ? <Check className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={iniciarGravacao} disabled={!!subindo}
+                        className="shrink-0 rounded-lg bg-[#D4AF37] p-2 text-[#1a1205] transition hover:brightness-110 disabled:opacity-40"
+                        title="Gravar mensagem de voz"
+                      >
+                        <Mic className="h-4 w-4" />
+                      </button>
+                    )}
+                  </>
+                )}
               </footer>
             </>
           )}
