@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { lerListaoVarios, dataSugeridaDoTitulo } from "@/lib/promocaoListao";
+import { lerListaoVarios, dataSugeridaDoListao } from "@/lib/promocaoListao";
 import { cruzarListao, type FichaEfetivo } from "@/lib/promocaoCruzar";
 import { garantirPromocoes } from "@/lib/promocaoDb";
 
@@ -83,8 +83,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       titulo: leitura.titulo,
-      // mês que o próprio listão declara; o dia fica para o P/1 confirmar
-      dataSugerida: dataSugeridaDoTitulo(leitura.titulo),
+      /* Data do ato: o "a contar de" quando o aviso da CPPPM veio junto,
+         senão o último dia do mês do título (regra da CPPPM). */
+      dataSugerida: dataSugeridaDoListao(textos.join("\n") + "\n" + leitura.titulo),
       totalNoListao: leitura.linhas.length,
       ignoradas: leitura.ignoradas.slice(0, 20),
       achados: r.achados,

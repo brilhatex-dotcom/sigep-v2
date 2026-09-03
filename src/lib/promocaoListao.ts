@@ -307,32 +307,61 @@ export function lerListao(texto: string): ResultadoLeitura {
   return { titulo, linhas: saida, ignoradas };
 }
 
-/* --------------------------------------------- data sugerida ------------
+/* --------------------------------------------- data da promoção ---------
 
-   O título traz o mês: "RELAÇÃO DE PROMOVIDOS AGOSTO DE 2026". Não traz o
-   dia, que só está no ato — por isso a tela pede confirmação.
+   Acertar esta data importa mais do que parece: é ela o critério de
+   antiguidade DENTRO do posto (ver carimboAntiguidade em patentes.ts), e é
+   ela que ordena a escala, o quadro de antiguidade e os documentos. Com a
+   data errada, o pessoal promovido sai na ordem errada em todas essas telas.
 
-   Sugerir o mês certo importa mais do que parece: a DATA DA PROMOÇÃO é o
-   critério de antiguidade DENTRO do posto (ver carimboAntiguidade em
-   patentes.ts), e é ela que ordena a escala, o quadro de antiguidade e os
-   documentos. Deixar a data de hoje colocaria o pessoal na ordem errada.
+   A promoção NÃO vale da data em que o P/1 lança, e sim da data do ato. O
+   aviso da CPPPM diz assim: "divulga a relação dos promovidos A CONTAR DE 31
+   DE AGOSTO DE 2026" — o último dia do mês. Então:
 
-   Como todo mundo do mesmo listão recebe a mesma data, o dia escolhido não
-   muda a ordem entre eles — mas o MÊS muda a ordem em relação aos listões
-   anteriores. Daí o dia 1 como ponto de partida. */
+     1) se o texto trouxer o "a contar de", usa essa data, que é a oficial;
+     2) senão, tira o mês do título e usa o ÚLTIMO DIA desse mês, que é a
+        regra da CPPPM (confirmada pelo P/1 para agosto).
+
+   Em qualquer caso a tela mostra a data para conferência antes de lançar. */
 const MESES_PT: Record<string, number> = {
   JANEIRO: 1, FEVEREIRO: 2, MARCO: 3, ABRIL: 4, MAIO: 5, JUNHO: 6,
   JULHO: 7, AGOSTO: 8, SETEMBRO: 9, OUTUBRO: 10, NOVEMBRO: 11, DEZEMBRO: 12,
 };
 
-export function dataSugeridaDoTitulo(titulo: string): string {
-  const t = limpo(titulo);
+function mesDoTexto(t: string): number | null {
+  for (const [nome, n] of Object.entries(MESES_PT)) if (t.includes(nome)) return n;
+  return null;
+}
+
+function ultimoDiaDoMes(ano: number, mes: number): number {
+  // dia 0 do mês seguinte = último dia deste
+  return new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+}
+
+function iso(ano: number, mes: number, dia: number): string {
+  return `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+}
+
+export function dataSugeridaDoListao(texto: string): string {
+  const t = limpo(texto);
+
+  /* 1) A data oficial, quando o aviso da CPPPM veio junto:
+        "A CONTAR DE 31 DE AGOSTO DE 2026" */
+  const aContar = t.match(/A\s*CONTAR\s*DE\s*(\d{1,2})\s*DE\s*([A-Z]+)\s*DE\s*(20\d{2})/);
+  if (aContar) {
+    const mes = mesDoTexto(aContar[2]);
+    const dia = parseInt(aContar[1], 10);
+    const ano = parseInt(aContar[3], 10);
+    if (mes && dia >= 1 && dia <= ultimoDiaDoMes(ano, mes)) return iso(ano, mes, dia);
+  }
+
+  /* 2) Sem o aviso: mês do título + último dia do mês. */
   const ano = t.match(/\b(20\d{2})\b/);
   if (!ano) return "";
-  for (const [nome, n] of Object.entries(MESES_PT)) {
-    if (t.includes(nome)) return `${ano[1]}-${String(n).padStart(2, "0")}-01`;
-  }
-  return "";
+  const mes = mesDoTexto(t);
+  if (!mes) return "";
+  const a = parseInt(ano[1], 10);
+  return iso(a, mes, ultimoDiaDoMes(a, mes));
 }
 
 /* ------------------------------------------- juntar várias leituras ------
