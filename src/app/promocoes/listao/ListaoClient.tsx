@@ -20,6 +20,7 @@ import { lerArquivoListao, type ProgressoLeitura } from "@/lib/ocrListao";
 
 type Resposta = {
   titulo: string;
+  dataSugerida: string;
   totalNoListao: number;
   ignoradas: string[];
   achados: Achado[];
@@ -98,6 +99,8 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
       if (!r.ok) { setErro(d?.error || "Não foi possível ler o listão."); return; }
       setRes(d);
       setReferencia(d.titulo || "");
+      // o mês vem do próprio listão; o dia continua sendo do P/1 confirmar
+      if (d.dataSugerida) setDataPromocao(d.dataSugerida);
       // já vêm marcados só os de alta confiança — o resto é decisão do P/1
       setMarcados(new Set(
         (d.achados as Achado[]).filter((a) => a.confianca === "alta").map((a) => a.efetivoId)
@@ -308,7 +311,13 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
                   Data da promoção
                 </span>
                 <input type="date" value={dataPromocao} onChange={(e) => setDataPromocao(e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]" />
+                  className="w-full rounded-lg border border-[#D4AF37]/50 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]" />
+                <span className="mt-1 block text-[10px] leading-snug text-amber-200/90">
+                  {res.dataSugerida
+                    ? "Peguei o mês do próprio listão — confira o dia, que está no ato."
+                    : "Não achei o mês no título: informe a data do ato."}{" "}
+                  É ela que define a antiguidade dentro do posto.
+                </span>
               </label>
             </div>
 
