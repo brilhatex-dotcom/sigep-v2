@@ -644,3 +644,38 @@ model ChatChamada {
   @@index([de, estado])
   @@map("chat_chamadas")
 }
+
+// ----------------------------------------------------------
+//  PROMOCOES LANCADAS PELO LISTAO
+//  Tres vezes por ano a Comissao de Promocao publica a relacao
+//  de promovidos. A tela /promocoes/listao le esse papel, cruza
+//  com o efetivo e, depois da conferencia do P/1, promove todos
+//  de uma vez. Cada promocao aplicada vira uma linha aqui.
+//
+//  Guarda o posto ANTERIOR de proposito: e o que permite desfazer
+//  o lote inteiro se algo sair errado.
+//
+//  A tabela e criada em runtime (src/lib/promocaoDb.ts) porque o
+//  deploy nao roda db push.
+// ----------------------------------------------------------
+model PromocaoLancada {
+  id                   String    @id @default(cuid())
+  lote                 String    @map("Lote") // agrupa uma importacao inteira
+  efetivoId            String    @map("Efetivo_ID")
+  nome                 String?   @map("Nome")
+  postoAnterior        String?   @map("Posto_Anterior")
+  postoNovo            String?   @map("Posto_Novo")
+  dataPromocaoAnterior String?   @map("Data_Promocao_Anterior")
+  dataPromocao         String?   @map("Data_Promocao")
+  referencia           String?   @map("Referencia") // ex.: "RELACAO DE PROMOVIDOS AGOSTO DE 2026"
+  criterio             String?   @map("Criterio")
+  ordListao            Int?      @map("Ord_Listao")
+  aplicadoPor          String?   @map("Aplicado_Por")
+  aplicadoEm           DateTime  @default(now()) @map("Aplicado_Em")
+  desfeitoEm           DateTime? @map("Desfeito_Em")
+  desfeitoPor          String?   @map("Desfeito_Por")
+
+  @@index([lote])
+  @@index([efetivoId])
+  @@map("promocoes_lancadas")
+}
