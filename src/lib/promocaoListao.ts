@@ -314,18 +314,37 @@ export function lerListao(texto: string): ResultadoLeitura {
    ela que ordena a escala, o quadro de antiguidade e os documentos. Com a
    data errada, o pessoal promovido sai na ordem errada em todas essas telas.
 
-   A promoção NÃO vale da data em que o P/1 lança, e sim da data do ato. O
-   aviso da CPPPM diz assim: "divulga a relação dos promovidos A CONTAR DE 31
-   DE AGOSTO DE 2026" — o último dia do mês. Então:
+   A promoção NÃO vale da data em que o P/1 lança, e sim da data do ato — e
+   RETROAGE a ela. O aviso da CPPPM sai dias depois ("divulga a relação dos
+   promovidos A CONTAR DE 31 DE AGOSTO DE 2026", publicado em 2 de setembro),
+   mas quem foi promovido conta antiguidade desde a data do ato.
 
-     1) se o texto trouxer o "a contar de", usa essa data, que é a oficial;
-     2) senão, tira o mês do título e usa o ÚLTIMO DIA desse mês, que é a
-        regra da CPPPM (confirmada pelo P/1 para agosto).
+   São três promoções por ano na PMMA, em datas fixas (informadas pelo P/1):
 
-   Em qualquer caso a tela mostra a data para conferência antes de lançar. */
+        31 de março   ·   31 de agosto   ·   25 de dezembro
+
+   Repare que dezembro NÃO é o último dia do mês — por isso a regra é uma
+   tabela, e não uma conta.
+
+   A ordem de preferência:
+     1) o "a contar de" escrito no próprio texto, quando o aviso da CPPPM vem
+        junto do listão — é a data oficial e ganha de tudo;
+     2) a data fixa do mês que o título declara;
+     3) mês sem data fixa (o calendário pode mudar): o último dia do mês, só
+        para não deixar o campo vazio.
+
+   Em qualquer caso a tela mostra a data e deixa editar antes de lançar. */
 const MESES_PT: Record<string, number> = {
   JANEIRO: 1, FEVEREIRO: 2, MARCO: 3, ABRIL: 4, MAIO: 5, JUNHO: 6,
   JULHO: 7, AGOSTO: 8, SETEMBRO: 9, OUTUBRO: 10, NOVEMBRO: 11, DEZEMBRO: 12,
+};
+
+/* As três promoções do ano, por mês. Fica separado justamente para o dia ser
+   fácil de mudar se a Comissão mudar o calendário. */
+const DIA_DA_PROMOCAO: Record<number, number> = {
+  3: 31,   // 31 de março
+  8: 31,   // 31 de agosto
+  12: 25,  // 25 de dezembro — não é o último dia do mês
 };
 
 function mesDoTexto(t: string): number | null {
@@ -355,13 +374,13 @@ export function dataSugeridaDoListao(texto: string): string {
     if (mes && dia >= 1 && dia <= ultimoDiaDoMes(ano, mes)) return iso(ano, mes, dia);
   }
 
-  /* 2) Sem o aviso: mês do título + último dia do mês. */
+  /* 2) Sem o aviso: a data fixa daquele mês. */
   const ano = t.match(/\b(20\d{2})\b/);
   if (!ano) return "";
   const mes = mesDoTexto(t);
   if (!mes) return "";
   const a = parseInt(ano[1], 10);
-  return iso(a, mes, ultimoDiaDoMes(a, mes));
+  return iso(a, mes, DIA_DA_PROMOCAO[mes] ?? ultimoDiaDoMes(a, mes));
 }
 
 /* ------------------------------------------- juntar várias leituras ------
