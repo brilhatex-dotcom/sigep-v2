@@ -199,14 +199,38 @@ function lerAto(janela: string): { secao: Secao; individual: { nome: string; mat
   return { secao, individual: null };
 }
 
-/* Linha da tabela: "1 BENILTON MENEZES DE SOUSA 415790 134361" */
+/* Linha da tabela. O Diário usa duas formas, e as duas aparecem no mesmo
+   documento:
+
+     "ORD NOME ID MAT."   ->  "1 BENILTON MENEZES DE SOUSA 415790 134361"
+     "ORD NOME MAT."      ->  "5 JOÃO VICTOR DE SOUSA SALES 2428670"
+
+   Exigir os dois números, como era antes, apagava TABELAS INTEIRAS — foi
+   assim que os Aspirantes a Oficial e parte dos 2º Tenentes sumiram, e com
+   eles dois oficiais do 18º BPM.
+
+   Os números são lidos do FIM da linha para trás, no máximo dois. O mínimo de
+   cinco dígitos não é enfeite: sem ele o rodapé "4 SEGUNDA - FEIRA, 31 -
+   AGOSTO - 2026" entrava como se fosse um promovido de matrícula 2026. */
 function lerLinhaTabela(linha: string): { ord: number; nome: string; a: string; b: string } | null {
-  const t = linha.replace(/\s+/g, " ").trim();
-  const m = t.match(/^(\d{1,3})\s+(.+?)\s+(\d{4,9})\s+(\d{4,9})\b/);
-  if (!m) return null;
-  const nome = m[2].replace(/[^A-Za-zÀ-ú' ]/g, " ").replace(/\s+/g, " ").trim();
-  if (nome.length < 4) return null;
-  return { ord: parseInt(m[1], 10), nome, a: m[3], b: m[4] };
+  const toks = linha.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  if (toks.length < 3) return null;
+  if (!/^\d{1,3}$/.test(toks[0])) return null;
+
+  const numeros: string[] = [];
+  let fim = toks.length;
+  while (fim > 1 && numeros.length < 2 && /^\d{5,9}$/.test(toks[fim - 1])) {
+    numeros.unshift(toks[fim - 1]);
+    fim--;
+  }
+  if (!numeros.length) return null;
+
+  const nome = toks.slice(1, fim).join(" ")
+    .replace(/[^A-Za-zÀ-ú' ]/g, " ").replace(/\s+/g, " ").trim();
+  // nome de gente tem pelo menos duas partes; assim rodapé e título não entram
+  if (nome.split(" ").filter((p) => p.length >= 3).length < 2) return null;
+
+  return { ord: parseInt(toks[0], 10), nome, a: numeros[0], b: numeros[1] || "" };
 }
 
 /* Pedaço de nome que ficou sozinho numa linha, por causa da quebra dentro da
