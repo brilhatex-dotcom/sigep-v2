@@ -307,6 +307,34 @@ export function lerListao(texto: string): ResultadoLeitura {
   return { titulo, linhas: saida, ignoradas };
 }
 
+/* --------------------------------------------- data sugerida ------------
+
+   O título traz o mês: "RELAÇÃO DE PROMOVIDOS AGOSTO DE 2026". Não traz o
+   dia, que só está no ato — por isso a tela pede confirmação.
+
+   Sugerir o mês certo importa mais do que parece: a DATA DA PROMOÇÃO é o
+   critério de antiguidade DENTRO do posto (ver carimboAntiguidade em
+   patentes.ts), e é ela que ordena a escala, o quadro de antiguidade e os
+   documentos. Deixar a data de hoje colocaria o pessoal na ordem errada.
+
+   Como todo mundo do mesmo listão recebe a mesma data, o dia escolhido não
+   muda a ordem entre eles — mas o MÊS muda a ordem em relação aos listões
+   anteriores. Daí o dia 1 como ponto de partida. */
+const MESES_PT: Record<string, number> = {
+  JANEIRO: 1, FEVEREIRO: 2, MARCO: 3, ABRIL: 4, MAIO: 5, JUNHO: 6,
+  JULHO: 7, AGOSTO: 8, SETEMBRO: 9, OUTUBRO: 10, NOVEMBRO: 11, DEZEMBRO: 12,
+};
+
+export function dataSugeridaDoTitulo(titulo: string): string {
+  const t = limpo(titulo);
+  const ano = t.match(/\b(20\d{2})\b/);
+  if (!ano) return "";
+  for (const [nome, n] of Object.entries(MESES_PT)) {
+    if (t.includes(nome)) return `${ano[1]}-${String(n).padStart(2, "0")}-01`;
+  }
+  return "";
+}
+
 /* ------------------------------------------- juntar várias leituras ------
 
    O mesmo papel é lido de mais de um jeito (ver ocrListao.ts: uma passada
