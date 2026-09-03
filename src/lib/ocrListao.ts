@@ -18,11 +18,32 @@ export type ProgressoLeitura = {
   fase: "abrindo" | "texto" | "ocr" | "pronto";
   pagina: number;
   totalPaginas: number;
-  pct: number;          // 0 a 100 dentro da página
+  passada: number;      // 1 ou 2 (ver DUAS LEITURAS, abaixo)
+  pct: number;          // 0 a 100 do trabalho todo
   recado: string;
 };
 
 type AoAndar = (p: ProgressoLeitura) => void;
+
+/* ---------------------------------------------- DUAS LEITURAS DO MESMO PAPEL
+
+   O listão é uma TABELA com bordas, e a análise de layout do Tesseract se
+   perde nela: em algumas faixas ele lê as células da direita e descarta as da
+   esquerda (some a ordem, a barra e o nome), em outras faz o contrário.
+
+   Medido no listão de agosto/2026, que tem 270 promovidos:
+
+     modo 6, texto pronto do Tesseract ......... 224 linhas
+     modo 3, linhas remontadas pela posição .... 204 linhas
+     as duas juntas ............................ 256 linhas
+
+   Ou seja: o que uma perde a outra costuma achar. Por isso cada página é
+   lida duas vezes e as duas leituras vão juntas para o cruzamento, que junta
+   pela matrícula (ver lerListaoVarios em promocaoListao.ts). Custa o dobro do
+   tempo, mas é uma tarefa de três vezes por ano — e linha perdida aqui é
+   policial que fica sem ser promovido. */
+const MODO_TEXTO = "6";     // bloco único: melhor no texto pronto
+const MODO_POSICAO = "3";   // automático: acha mais palavras, ordem ruim
 
 // abaixo disso a página é imagem pura e precisa de OCR
 const MINIMO_TEXTO_POR_PAGINA = 200;
@@ -48,68 +69,57 @@ async function carregarPdfjs() {
   return pdfjs;
 }
 
-/* Lê um PDF: primeiro tenta o texto embutido; se não houver, desenha cada
-   página e passa para o OCR. */
-export async function lerArquivoListao(arquivo: File, aoAndar: AoAndar): Promise<string> {
+/* Lê o arquivo e devolve UMA OU DUAS versões do mesmo texto (ver acima).
+   Quem chama manda as duas para o servidor, que junta. */
+export async function lerArquivoListao(arquivo: File, aoAndar: AoAndar): Promise<string[]> {
   if (arquivo.type.startsWith("image/")) {
-    aoAndar({ fase: "ocr", pagina: 1, totalPaginas: 1, pct: 0, recado: "Lendo a imagem…" });
-    return await ocrDeImagens([await bitmapDoArquivo(arquivo)], aoAndar);
+    return await ocrDeTelas([await telaDoArquivo(arquivo)], aoAndar);
   }
 
-  aoAndar({ fase: "abrindo", pagina: 0, totalPaginas: 0, pct: 0, recado: "Abrindo o arquivo…" });
+  aoAndar({ fase: "abrindo", pagina: 0, totalPaginas: 0, passada: 0, pct: 0, recado: "Abrindo o arquivo…" });
   const pdfjs = await carregarPdfjs();
   const dados = new Uint8Array(await arquivo.arrayBuffer());
   const doc = await pdfjs.getDocument({ data: dados }).promise;
   const total = doc.numPages;
 
   /* ---- 1) tem texto dentro? ---- */
-  aoAndar({ fase: "texto", pagina: 0, totalPaginas: total, pct: 0, recado: "Vendo se o PDF já tem texto…" });
+  aoAndar({ fase: "texto", pagina: 0, totalPaginas: total, passada: 0, pct: 0, recado: "Vendo se o PDF já tem texto…" });
   let textoEmbutido = "";
   for (let p = 1; p <= total; p++) {
     const pagina = await doc.getPage(p);
     const tc = await pagina.getTextContent();
-    textoEmbutido += "\n" + linhasPorPosicao(tc.items);
+    textoEmbutido += "\n" + juntarPorAltura(
+      tc.items.filter((i: any) => i?.str).map((i: any) => ({
+        t: i.str, x: i.transform[4], y: -i.transform[5], h: Math.abs(i.height || 10),
+      }))
+    );
   }
   if (textoEmbutido.replace(/\s/g, "").length >= MINIMO_TEXTO_POR_PAGINA * total) {
-    aoAndar({ fase: "pronto", pagina: total, totalPaginas: total, pct: 100, recado: "PDF com texto: leitura exata, sem OCR." });
-    return textoEmbutido;
+    aoAndar({ fase: "pronto", pagina: total, totalPaginas: total, passada: 0, pct: 100, recado: "PDF com texto: leitura exata, sem OCR." });
+    return [textoEmbutido];
   }
 
-  /* ---- 2) é escaneado: desenha e passa no OCR ---- */
-  const trabalhador = await abrirOcr();
-  let saida = "";
-  try {
-    for (let p = 1; p <= total; p++) {
-      const pagina = await doc.getPage(p);
-      const vp = pagina.getViewport({ scale: ESCALA });
-      const tela = document.createElement("canvas");
-      tela.width = Math.floor(vp.width);
-      tela.height = Math.floor(vp.height);
-      const ctx = tela.getContext("2d");
-      if (!ctx) throw new Error("O navegador não deixou desenhar a página.");
-      // fundo branco: página escaneada em preto e branco fica com buraco sem isso
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(0, 0, tela.width, tela.height);
-      await pagina.render({ canvasContext: ctx, viewport: vp }).promise;
-
-      aoAndar({ fase: "ocr", pagina: p, totalPaginas: total, pct: 0, recado: `Lendo a página ${p} de ${total}…` });
-      const r = await trabalhador.recognize(tela);
-      saida += "\n" + (r?.data?.text || "");
-
-      // devolve a memória: são ~32 MB por página nesse tamanho
-      tela.width = 0; tela.height = 0;
-      pagina.cleanup?.();
-      aoAndar({ fase: "ocr", pagina: p, totalPaginas: total, pct: 100, recado: `Página ${p} de ${total} lida.` });
-    }
-  } finally {
-    await trabalhador.terminate().catch(() => {});
+  /* ---- 2) é escaneado: desenha cada página e lê duas vezes ---- */
+  const telas: HTMLCanvasElement[] = [];
+  for (let p = 1; p <= total; p++) {
+    const pagina = await doc.getPage(p);
+    const vp = pagina.getViewport({ scale: ESCALA });
+    const tela = document.createElement("canvas");
+    tela.width = Math.floor(vp.width);
+    tela.height = Math.floor(vp.height);
+    const ctx = tela.getContext("2d");
+    if (!ctx) throw new Error("O navegador não deixou desenhar a página.");
+    // fundo branco: página escaneada em preto e branco fica com buraco sem isso
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, tela.width, tela.height);
+    await pagina.render({ canvasContext: ctx, viewport: vp }).promise;
+    pagina.cleanup?.();
+    telas.push(tela);
   }
-
-  aoAndar({ fase: "pronto", pagina: total, totalPaginas: total, pct: 100, recado: "Leitura concluída." });
-  return saida;
+  return await ocrDeTelas(telas, aoAndar);
 }
 
-async function bitmapDoArquivo(f: File): Promise<HTMLCanvasElement> {
+async function telaDoArquivo(f: File): Promise<HTMLCanvasElement> {
   const bmp = await createImageBitmap(f);
   const tela = document.createElement("canvas");
   tela.width = bmp.width; tela.height = bmp.height;
@@ -117,19 +127,62 @@ async function bitmapDoArquivo(f: File): Promise<HTMLCanvasElement> {
   return tela;
 }
 
-async function ocrDeImagens(telas: HTMLCanvasElement[], aoAndar: AoAndar): Promise<string> {
+/* As duas passadas de OCR, na mesma ordem de página. */
+async function ocrDeTelas(telas: HTMLCanvasElement[], aoAndar: AoAndar): Promise<string[]> {
   const trabalhador = await abrirOcr();
-  let saida = "";
+  const total = telas.length;
+  const totalPassos = total * 2;
+  let passo = 0;
+  let porTexto = "";
+  let porPosicao = "";
+
   try {
-    for (let i = 0; i < telas.length; i++) {
-      aoAndar({ fase: "ocr", pagina: i + 1, totalPaginas: telas.length, pct: 0, recado: `Lendo a imagem ${i + 1}…` });
+    // passada 1: o texto pronto do Tesseract, em modo de bloco único
+    await trabalhador.setParameters({ tessedit_pageseg_mode: MODO_TEXTO as any });
+    for (let i = 0; i < total; i++) {
+      passo++;
+      aoAndar({
+        fase: "ocr", pagina: i + 1, totalPaginas: total, passada: 1,
+        pct: Math.round((passo / totalPassos) * 100),
+        recado: `Leitura 1 de 2 — página ${i + 1} de ${total}…`,
+      });
       const r = await trabalhador.recognize(telas[i]);
-      saida += "\n" + (r?.data?.text || "");
+      porTexto += "\n" + (r?.data?.text || "");
+    }
+
+    // passada 2: as palavras com a posição, para remontar as linhas na mão
+    await trabalhador.setParameters({ tessedit_pageseg_mode: MODO_POSICAO as any });
+    for (let i = 0; i < total; i++) {
+      passo++;
+      aoAndar({
+        fase: "ocr", pagina: i + 1, totalPaginas: total, passada: 2,
+        pct: Math.round((passo / totalPassos) * 100),
+        recado: `Leitura 2 de 2 — página ${i + 1} de ${total}…`,
+      });
+      const r: any = await trabalhador.recognize(telas[i], {}, { text: false, blocks: true });
+      porPosicao += "\n" + juntarPorAltura(palavrasDe(r));
+      // devolve a memória: são dezenas de MB por página nesse tamanho
+      telas[i].width = 0; telas[i].height = 0;
     }
   } finally {
     await trabalhador.terminate().catch(() => {});
   }
-  aoAndar({ fase: "pronto", pagina: telas.length, totalPaginas: telas.length, pct: 100, recado: "Leitura concluída." });
+
+  aoAndar({ fase: "pronto", pagina: total, totalPaginas: total, passada: 2, pct: 100, recado: "Leitura concluída." });
+  return [porTexto, porPosicao];
+}
+
+/* Tira as palavras (com a caixa de cada uma) do resultado do Tesseract. */
+function palavrasDe(r: any): { t: string; x: number; y: number; h: number }[] {
+  const saida: { t: string; x: number; y: number; h: number }[] = [];
+  for (const b of r?.data?.blocks || [])
+    for (const p of b?.paragraphs || [])
+      for (const l of p?.lines || [])
+        for (const w of l?.words || []) {
+          const t = (w?.text || "").trim();
+          if (!t || !w.bbox) continue;
+          saida.push({ t, x: w.bbox.x0, y: (w.bbox.y0 + w.bbox.y1) / 2, h: w.bbox.y1 - w.bbox.y0 });
+        }
   return saida;
 }
 
@@ -153,19 +206,33 @@ async function abrirOcr() {
   return worker;
 }
 
-/* Reconstrói as linhas de um PDF com texto a partir da posição de cada
-   pedaço: o pdf.js entrega fragmentos soltos, e sem juntar por altura o
-   texto sai fora de ordem. */
-function linhasPorPosicao(itens: any[]): string {
-  const linhas = new Map<number, { x: number; s: string }[]>();
-  for (const it of itens) {
-    if (!it?.str) continue;
-    const y = Math.round(it.transform[5]);
-    if (!linhas.has(y)) linhas.set(y, []);
-    linhas.get(y)!.push({ x: it.transform[4], s: it.str });
+/* Remonta as linhas a partir da posição de cada pedaço de texto.
+
+   Serve para os dois casos: as palavras que o OCR devolve com a caixa de cada
+   uma, e os fragmentos soltos que o pdf.js entrega num PDF com texto. Nos
+   dois, sem juntar por altura o texto sai fora de ordem — que é exatamente o
+   defeito que faz linha de promoção se perder.
+
+   A tolerância sai da altura MEDIANA das palavras da própria página, em vez
+   de um número fixo: assim funciona igual num escaneamento de 200 ou de
+   400 dpi. */
+function juntarPorAltura(itens: { t: string; x: number; y: number; h: number }[]): string {
+  const ps = itens.filter((i) => i.t.trim());
+  if (!ps.length) return "";
+
+  const alturas = ps.map((p) => p.h).sort((a, b) => a - b);
+  const tolerancia = Math.max(6, alturas[Math.floor(alturas.length / 2)] * 0.6);
+
+  ps.sort((a, b) => a.y - b.y);
+  const linhas: (typeof ps)[] = [];
+  let atual = [ps[0]];
+  for (let i = 1; i < ps.length; i++) {
+    if (Math.abs(ps[i].y - atual[atual.length - 1].y) <= tolerancia) atual.push(ps[i]);
+    else { linhas.push(atual); atual = [ps[i]]; }
   }
-  return [...linhas.entries()]
-    .sort((a, b) => b[0] - a[0])
-    .map(([, itens2]) => itens2.sort((a, b) => a.x - b.x).map((i) => i.s).join(" ").replace(/\s+/g, " ").trim())
+  linhas.push(atual);
+
+  return linhas
+    .map((l) => l.sort((a, b) => a.x - b.x).map((p) => p.t).join(" ").replace(/\s+/g, " ").trim())
     .join("\n");
 }

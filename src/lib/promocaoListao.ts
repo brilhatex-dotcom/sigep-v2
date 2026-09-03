@@ -70,6 +70,13 @@ function soDigitos(s: string): string {
    ou seja, está em MAIÚSCULA — por isso a lista é só de maiúsculas. */
 const D = "0-9OQILS";
 
+/* O maior trecho seguido de "coisa que pode ser dígito" dentro de um pedaço.
+   Serve para tirar a sujeira que a borda da tabela deixa colada no número. */
+function maiorTrechoNumerico(tok: string): string {
+  const achados = tok.match(new RegExp(`[${D}]+`, "g")) || [];
+  return achados.reduce((a, b) => (b.length > a.length ? b : a), "");
+}
+
 /* Um pedaço só vale como número se a MAIORIA já for dígito de verdade.
    Sem esta trava, "SILAS" ou "LILO" entrariam como matrícula. */
 function pareceNumero(tok: string, minimo = 4): boolean {
@@ -120,13 +127,17 @@ function lerQuadro(linha: string): string | null {
 /* ----------------------------------------------------------- critério --- */
 
 /* Devolve o critério e onde ele começa na linha, porque tudo que vem ANTES
-   dele é ORD + NUM + NOME + MAT, e o que vem depois é só o QPMP. */
+   dele é ORD + NUM + NOME + MAT, e o que vem depois é só o QPMP.
+
+   As expressões toleram espaço e ponto onde quiserem aparecer. No papel real
+   o OCR entrega de tudo: "T. DE SERVIÇO", "T.DESERVIÇO", "TDE SERVICO",
+   "T . DE SERVIÇO". Exigir o espaço, como era antes, jogava fora quase toda a
+   parte de cabos e soldados — que é justamente a maior do listão. */
 function acharCriterio(t: string): { criterio: string; ini: number; fim: number } | null {
   const tentativas: [RegExp, string][] = [
-    [/\bANTIGUIDADE\b/, "ANTIGUIDADE"],
-    [/\bMERECIMENTO\b/, "MERECIMENTO"],
-    [/\bT\s*\.?\s*DE\s+SERVI[CÇ]O\b/, "TEMPO DE SERVIÇO"],
-    [/\bTEMPO\s+DE\s+SERVI[CÇ]O\b/, "TEMPO DE SERVIÇO"],
+    [/A\s*N\s*T\s*I\s*G\s*U\s*I\s*D\s*A\s*D\s*E/, "ANTIGUIDADE"],
+    [/M\s*E\s*R\s*E\s*C\s*I\s*M\s*E\s*N\s*T\s*O/, "MERECIMENTO"],
+    [/T[\s.,]*(?:EMPO)?[\s.,]*DE[\s.,]*SERVI[CÇ]O/, "TEMPO DE SERVIÇO"],
   ];
   for (const [re, nome] of tentativas) {
     const m = t.match(re);
@@ -141,16 +152,21 @@ function acharCriterio(t: string): { criterio: string; ini: number; fim: number 
    conhecida) e trabalhar para os lados, em vez de tentar um único casamento
    gigante — assim um borrão no meio do nome não derruba a linha inteira. */
 export function lerLinhaDados(bruta: string): Omit<LinhaListao, "deOrdem" | "paraOrdem" | "dePosto" | "paraPosto" | "quadro"> | null {
-  const t = limpo(bruta).replace(/\|/g, " ").replace(/\s+/g, " ").trim();
+  /* As linhas da tabela vêm com as bordas das células viradas em caractere.
+     No papel real o OCR usa | [ ] { } ( ) misturados, e às vezes cola a borda
+     no número: "[2633444]" precisa virar "2633444", senão o pedaço deixa de
+     parecer número e a linha inteira se perde. */
+  const t = limpo(bruta).replace(/[|[\]{}()]/g, " ").replace(/\s+/g, " ").trim();
   if (!t) return null;
   // cabeçalho da tabela, não é dado
   if (/^ORD\b/.test(t)) return null;
 
+  /* O critério é a melhor âncora quando aparece, mas NÃO é obrigatório: em
+     página torta ele sai ilegível e a linha continua tendo tudo que importa
+     (ordem, barra, nome e matrícula). Sem critério, o corte é a matrícula. */
   const c = acharCriterio(t);
-  if (!c) return null;
-
-  const antes = t.slice(0, c.ini).trim();
-  const depois = t.slice(c.fim).trim();
+  const antes = (c ? t.slice(0, c.ini) : t).trim();
+  const depois = c ? t.slice(c.fim).trim() : "";
 
   /* Trabalha por PEDAÇOS separados por espaço, nunca por posição no meio do
      texto. Sem isso, um nome terminado em O ou S ("LEMOS") se colava na
@@ -162,8 +178,12 @@ export function lerLinhaDados(bruta: string): Omit<LinhaListao, "deOrdem" | "par
   let iMat = -1;
   let mat = "";
   for (let i = toks.length - 1; i >= 0; i--) {
-    if (!pareceNumero(toks[i], 5)) continue;
-    const cru = soDigitos(toks[i]);
+    /* A borda da célula costuma grudar no número e virar letra: no papel real
+       aparecem "J2422939", "/2432953", "f2556132". Por isso não se olha o
+       pedaço inteiro, e sim o maior trecho numérico dentro dele. */
+    const nucleo = maiorTrechoNumerico(toks[i]);
+    if (!pareceNumero(nucleo, 5)) continue;
+    const cru = soDigitos(nucleo);
     if (cru.length >= 5 && cru.length <= 8) { iMat = i; mat = cru; break; }
   }
   if (iMat < 0) return null;
@@ -192,9 +212,14 @@ export function lerLinhaDados(bruta: string): Omit<LinhaListao, "deOrdem" | "par
     .replace(/[^A-ZÀ-Ú' ]/gi, " ").replace(/\s+/g, " ").trim();
   if (nome.length < 4) return null;   // sem nome não há o que conferir
 
+  /* Sem o critério para confirmar que é linha de tabela, exige mais: ou a
+     numeração do listão, ou o número/barra. Assim um pedaço solto de texto
+     com um número comprido no meio não entra como se fosse promoção. */
+  if (!c && ord === null && !num) return null;
+
   const qpmp = (depois.match(/\d+/) || [""])[0];
 
-  return { ord, num, nome, mat, criterio: c.criterio, qpmp, bruta: bruta.trim() };
+  return { ord, num, nome, mat, criterio: c?.criterio || "", qpmp, bruta: bruta.trim() };
 }
 
 /* ------------------------------------------------------ o texto inteiro - */
@@ -280,6 +305,61 @@ export function lerListao(texto: string): ResultadoLeitura {
   }
 
   return { titulo, linhas: saida, ignoradas };
+}
+
+/* ------------------------------------------- juntar várias leituras ------
+
+   O mesmo papel é lido de mais de um jeito (ver ocrListao.ts: uma passada
+   entrega o texto na ordem do Tesseract, outra remonta as linhas pela posição
+   das palavras). Nenhuma das duas pega tudo, mas o que uma perde a outra
+   costuma achar — medido no listão de agosto/2026: 224 e 204 linhas
+   separadas, 256 das 270 quando juntas.
+
+   A chave para juntar é a MATRÍCULA. Quando a mesma matrícula aparece nas
+   duas leituras, fica a versão mais completa (a que tem ordem, barra,
+   critério e o nome mais inteiro). Se duas linhas com a mesma matrícula
+   tiverem nomes bem diferentes, as duas ficam: é erro de leitura num dos
+   números, e é melhor o P/1 ver as duas do que perder um promovido. */
+function completude(l: LinhaListao): number {
+  return (l.ord !== null ? 2 : 0) + (l.num ? 2 : 0) + (l.criterio ? 1 : 0)
+    + Math.min(l.nome.length, 40) / 40;
+}
+
+function mesmaPessoa(a: string, b: string): boolean {
+  const pa = [...new Set(a.split(" ").filter((p) => p.length > 2))];
+  const pb = [...new Set(b.split(" ").filter((p) => p.length > 2))];
+  /* Com um nome pela metade não dá para afirmar que são pessoas diferentes —
+     e o preço de errar aqui é encher a tela de linha repetida. Na dúvida,
+     trata como a mesma pessoa e fica a leitura mais completa. */
+  if (pa.length < 2 || pb.length < 2) return true;
+  const setA = new Set(pa);
+  const iguais = pb.filter((p) => setA.has(p)).length;
+  return iguais / Math.max(pa.length, pb.length) >= 0.5;
+}
+
+export function lerListaoVarios(textos: string[]): ResultadoLeitura {
+  const porChave = new Map<string, LinhaListao>();
+  const ignoradas: string[] = [];
+  let titulo = "";
+
+  for (const t of textos) {
+    const r = lerListao(t || "");
+    if (!titulo && r.titulo) titulo = r.titulo;
+    for (const l of r.linhas) {
+      let chave = l.mat;
+      const atual = porChave.get(chave);
+      if (atual && !mesmaPessoa(atual.nome, l.nome)) {
+        // mesma matrícula, gente diferente: guarda as duas para conferência
+        chave = l.mat + "|" + (l.nome.split(" ")[0] || "");
+      }
+      const anterior = porChave.get(chave);
+      if (!anterior || completude(l) > completude(anterior)) porChave.set(chave, l);
+    }
+    for (const x of r.ignoradas) if (!ignoradas.includes(x)) ignoradas.push(x);
+  }
+
+  const linhas = [...porChave.values()].sort((a, b) => (a.ord ?? 9999) - (b.ord ?? 9999));
+  return { titulo, linhas, ignoradas };
 }
 
 /* ------------------------------------------------- posto novo, no estilo -

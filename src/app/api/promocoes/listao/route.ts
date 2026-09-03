@@ -2,14 +2,18 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { lerListao } from "@/lib/promocaoListao";
+import { lerListaoVarios } from "@/lib/promocaoListao";
 import { cruzarListao, type FichaEfetivo } from "@/lib/promocaoCruzar";
 import { garantirPromocoes } from "@/lib/promocaoDb";
 
 export const dynamic = "force-dynamic";
 
 /* /api/promocoes/listao
-   POST { texto } -> lê o listão e devolve quem do 18º BPM foi promovido.
+   POST { textos: string[] } -> lê o listão e devolve quem do 18º BPM foi
+   promovido. São VÁRIOS textos porque o mesmo papel é lido de mais de um
+   jeito no navegador, e o que uma leitura perde a outra costuma achar (ver
+   ocrListao.ts). Aceita { texto } sozinho também, para o campo de correção
+   à mão da tela.
 
    NÃO promove ninguém: só monta a lista para o P/1 conferir na tela. O texto
    chega pronto do navegador (que faz o OCR, quando o PDF é escaneado) — o
@@ -27,10 +31,14 @@ export async function POST(req: Request) {
 
   try {
     const b = await req.json();
-    const texto = typeof b?.texto === "string" ? b.texto : "";
-    if (!texto.trim()) return NextResponse.json({ error: "Nenhum texto para ler." }, { status: 400 });
+    const textos: string[] = Array.isArray(b?.textos)
+      ? b.textos.filter((t: unknown) => typeof t === "string")
+      : typeof b?.texto === "string" ? [b.texto] : [];
+    if (!textos.some((t) => t.trim())) {
+      return NextResponse.json({ error: "Nenhum texto para ler." }, { status: 400 });
+    }
 
-    const leitura = lerListao(texto);
+    const leitura = lerListaoVarios(textos);
     if (leitura.linhas.length === 0) {
       return NextResponse.json({
         error:
