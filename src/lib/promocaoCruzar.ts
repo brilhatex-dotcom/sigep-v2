@@ -69,8 +69,12 @@ function limpo(s: string | null): string {
     .trim();
 }
 
+/* Só os dígitos, SEM zero à esquerda. A mesma matrícula aparece escrita de
+   jeitos diferentes conforme quem digitou — "0134361", "134.361", "134361" —
+   e comparar como texto faria a pessoa deixar de ser encontrada por causa de
+   um zero. */
 function soNum(s: string | null): string {
-  return (s || "").replace(/\D/g, "");
+  return (s || "").replace(/\D/g, "").replace(/^0+/, "");
 }
 
 /* Barra "0367/02" e "367/02" são a mesma pessoa: o listão às vezes escreve
@@ -91,6 +95,25 @@ export function parecencaNome(a: string, b: string): number {
   const setB = new Set(pb);
   const iguais = pa.filter((p) => setB.has(p)).length;
   return iguais / Math.max(pa.length, pb.length);
+}
+
+/* O nome do documento cabe INTEIRO dentro do da ficha (ou o contrário).
+
+   Acontece o tempo todo: a célula da tabela quebra o nome em duas linhas e
+   sobra só um pedaço, ou a ficha tem um "FILHO"/"JÚNIOR" que o papel não
+   trouxe. Pela conta de parecença isso derruba a nota — "JOSE CARLOS SILVA"
+   contra "JOSE CARLOS SILVA FILHO" dá 0,75 e não passava do corte de 0,80,
+   mesmo sendo obviamente a mesma pessoa.
+
+   Exige pelo menos três pedaços de nome para não casar "JOSE DA SILVA" com
+   meio batalhão, e quem entra por aqui é sempre marcado como conferir. */
+export function nomeContido(a: string, b: string): boolean {
+  const pa = [...new Set(limpo(a).split(" ").filter((p) => p.length > 2))];
+  const pb = [...new Set(limpo(b).split(" ").filter((p) => p.length > 2))];
+  if (pa.length < 3 || pb.length < 3) return false;
+  const menor = pa.length <= pb.length ? pa : pb;
+  const maior = new Set(pa.length <= pb.length ? pb : pa);
+  return menor.every((p) => maior.has(p));
 }
 
 /* ---------------------------------------------------------- cruzamento -- */
@@ -143,7 +166,17 @@ export function cruzarListao(linhas: LinhaListao[], fichas: FichaEfetivo[]): Res
         const nota = parecencaNome(linha.nome, f.nome || f.nomeGuerra || "");
         if (nota > melhorNota) { melhorNota = nota; melhor = f; }
       }
-      if (melhor && melhorNota >= 0.8) { ficha = melhor; porque.push("nome (" + Math.round(melhorNota * 100) + "%)"); }
+      if (melhor && melhorNota >= 0.8) {
+        ficha = melhor;
+        porque.push("nome (" + Math.round(melhorNota * 100) + "%)");
+      } else {
+        // nome do papel contido no da ficha (ou o contrário), e só um candidato
+        const contidos = fichas.filter((f) => nomeContido(linha.nome, f.nome || f.nomeGuerra || ""));
+        if (contidos.length === 1) {
+          ficha = contidos[0];
+          porque.push("nome (parte dele)");
+        }
+      }
     }
 
     if (!ficha) { deFora++; continue; }
