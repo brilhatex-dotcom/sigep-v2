@@ -88,11 +88,14 @@ export async function lerArquivoListao(arquivo: File, aoAndar: AoAndar): Promise
   for (let p = 1; p <= total; p++) {
     const pagina = await doc.getPage(p);
     const tc = await pagina.getTextContent();
-    textoEmbutido += "\n" + juntarPorAltura(
-      tc.items.filter((i: any) => i?.str).map((i: any) => ({
-        t: i.str, x: i.transform[4], y: -i.transform[5], h: Math.abs(i.height || 10),
-      }))
-    );
+    const largura = pagina.getViewport({ scale: 1 }).width;
+    const itens = tc.items.filter((i: any) => i?.str && i.str.trim()).map((i: any) => ({
+      t: i.str, x: i.transform[4], y: -i.transform[5],
+      h: Math.abs(i.height || 10), w: i.width || 0,
+    }));
+    for (const coluna of separarColunas(itens, largura)) {
+      textoEmbutido += "\n" + juntarPorAltura(coluna);
+    }
   }
   if (textoEmbutido.replace(/\s/g, "").length >= MINIMO_TEXTO_POR_PAGINA * total) {
     aoAndar({ fase: "pronto", pagina: total, totalPaginas: total, passada: 0, pct: 100, recado: "PDF com texto: leitura exata, sem OCR." });
@@ -206,6 +209,75 @@ async function abrirOcr() {
   return worker;
 }
 
+/* ------------------------------------------------- colunas do jornal -----
+
+   O Diário Oficial é um jornal de DUAS COLUNAS. Juntando o texto só pela
+   altura, uma frase da coluna esquerda gruda num nome da direita e sai isto:
+
+     "Promover, por antiguidade, os militares abaixo listados, de PIMENTA
+      SILVA FILHO"
+                ↑ frase da esquerda        ↑ nome da direita
+
+   Para separar, monta-se o "perfil" da página: para cada faixa vertical,
+   quantas LINHAS de texto passam por ali. Entre as colunas há um vale — não
+   um vazio, porque cabeçalhos e o título atravessam a página inteira, e foi
+   por isso que procurar faixa totalmente vazia não funcionou.
+
+   Página de coluna única (o listão da CPPPM) não tem vale nenhum e volta
+   inteira, sem corte. */
+function separarColunas(
+  itens: { t: string; x: number; y: number; h: number; w: number }[],
+  largura: number
+): { t: string; x: number; y: number; h: number }[][] {
+  if (itens.length < 40 || !largura) return [itens];
+
+  const FAIXAS = 120;
+  const perfil = new Array(FAIXAS).fill(0);
+  for (const linha of agruparPorAltura(itens)) {
+    const passa = new Array(FAIXAS).fill(false);
+    for (const i of linha) {
+      const a = Math.max(0, Math.floor((i.x / largura) * FAIXAS));
+      const b = Math.min(FAIXAS - 1, Math.ceil(((i.x + i.w) / largura) * FAIXAS));
+      for (let k = a; k <= b; k++) passa[k] = true;
+    }
+    for (let k = 0; k < FAIXAS; k++) if (passa[k]) perfil[k]++;
+  }
+
+  // referência: quanto uma faixa "normal" costuma ser usada
+  const miolo = perfil.filter((_, k) => k / FAIXAS > 0.08 && k / FAIXAS < 0.92);
+  const mediana = miolo.slice().sort((a, b) => a - b)[Math.floor(miolo.length / 2)] || 1;
+
+  let melhor = -1;
+  let menor = Infinity;
+  for (let k = Math.floor(FAIXAS * 0.35); k <= Math.ceil(FAIXAS * 0.65); k++) {
+    if (perfil[k] < menor) { menor = perfil[k]; melhor = k; }
+  }
+  // vale raso demais = página de uma coluna só
+  if (melhor < 0 || menor > mediana * 0.25) return [itens];
+
+  const corte = (melhor / FAIXAS) * largura;
+  const esquerda = itens.filter((i) => i.x + i.w / 2 < corte);
+  const direita = itens.filter((i) => i.x + i.w / 2 >= corte);
+  return [esquerda, direita].filter((c) => c.length > 0);
+}
+
+/* Agrupa os pedaços de texto em linhas pela altura. Usada tanto para montar
+   o texto final quanto para medir o perfil das colunas. */
+function agruparPorAltura<T extends { y: number; h: number }>(itens: T[]): T[][] {
+  if (!itens.length) return [];
+  const alturas = itens.map((p) => p.h).sort((a, b) => a - b);
+  const tolerancia = Math.max(6, alturas[Math.floor(alturas.length / 2)] * 0.6);
+  const ps = itens.slice().sort((a, b) => a.y - b.y);
+  const linhas: T[][] = [];
+  let atual: T[] = [ps[0]];
+  for (let i = 1; i < ps.length; i++) {
+    if (Math.abs(ps[i].y - atual[atual.length - 1].y) <= tolerancia) atual.push(ps[i]);
+    else { linhas.push(atual); atual = [ps[i]]; }
+  }
+  linhas.push(atual);
+  return linhas;
+}
+
 /* Remonta as linhas a partir da posição de cada pedaço de texto.
 
    Serve para os dois casos: as palavras que o OCR devolve com a caixa de cada
@@ -219,20 +291,7 @@ async function abrirOcr() {
 function juntarPorAltura(itens: { t: string; x: number; y: number; h: number }[]): string {
   const ps = itens.filter((i) => i.t.trim());
   if (!ps.length) return "";
-
-  const alturas = ps.map((p) => p.h).sort((a, b) => a - b);
-  const tolerancia = Math.max(6, alturas[Math.floor(alturas.length / 2)] * 0.6);
-
-  ps.sort((a, b) => a.y - b.y);
-  const linhas: (typeof ps)[] = [];
-  let atual = [ps[0]];
-  for (let i = 1; i < ps.length; i++) {
-    if (Math.abs(ps[i].y - atual[atual.length - 1].y) <= tolerancia) atual.push(ps[i]);
-    else { linhas.push(atual); atual = [ps[i]]; }
-  }
-  linhas.push(atual);
-
-  return linhas
+  return agruparPorAltura(ps)
     .map((l) => l.sort((a, b) => a.x - b.x).map((p) => p.t).join(" ").replace(/\s+/g, " ").trim())
     .join("\n");
 }

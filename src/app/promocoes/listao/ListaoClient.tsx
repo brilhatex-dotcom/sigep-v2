@@ -118,6 +118,8 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
       .map((a) => ({
         efetivoId: a.efetivoId, postoNovo: a.postoNovo,
         ordListao: a.linha.ord, criterio: a.linha.criterio,
+        // ato com data própria (o Diário traz uma por ato) manda na do lote
+        dataAto: a.linha.dataAto || "",
       }));
     if (!itens.length) { setErro("Marque pelo menos um militar."); return; }
 
@@ -221,12 +223,14 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
                 <Upload className="h-8 w-8 text-[#D4AF37]" />
                 <span className="text-base font-semibold text-white">Escolher o listão</span>
                 <span className="max-w-md text-xs text-[#94A3B8]">
-                  O PDF da relação de promovidos (mesmo escaneado) ou uma foto das páginas.
-                  A leitura acontece no seu computador — o arquivo não é enviado para lugar nenhum.
+                  O listão da CPPPM (praças) ou o Diário Oficial (oficiais) — em PDF, mesmo escaneado,
+                  ou foto das páginas. A leitura acontece no seu computador: o arquivo não é enviado
+                  para lugar nenhum.
                 </span>
               </button>
               <p className="mt-3 text-center text-[11px] text-[#94A3B8]">
-                Da primeira vez o navegador baixa o leitor de texto (uns 5 MB). Depois fica guardado.
+                PDF com texto (Diário Oficial) é lido na hora e sem erro. Escaneado passa pelo leitor de
+                texto, que o navegador baixa uma vez só (uns 5 MB) e depois guarda.
               </p>
             </>
           ) : (
@@ -373,6 +377,13 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
                     <p className="mt-0.5 text-[11px] text-[#94A3B8]">
                       {a.porque.join(" · ")}
                     </p>
+                    {/* ato com data própria e diferente da escolhida para o
+                        lote: precisa aparecer, senão passa despercebido */}
+                    {a.linha.dataAto && a.linha.dataAto !== dataPromocao && (
+                      <p className="mt-0.5 text-[11px] font-semibold text-[#D4AF37]">
+                        Este ato retroage a {a.linha.dataAto.split("-").reverse().join("/")}
+                      </p>
+                    )}
                     {a.alerta && (
                       <p className="mt-1 flex items-start gap-1 text-[11px] text-amber-200">
                         <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {a.alerta}

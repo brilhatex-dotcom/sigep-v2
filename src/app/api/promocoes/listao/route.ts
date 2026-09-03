@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { lerListaoVarios, dataSugeridaDoListao } from "@/lib/promocaoListao";
+import { lerListaoVarios, combinarLeituras, dataSugeridaDoListao } from "@/lib/promocaoListao";
+import { lerDiarioOficial } from "@/lib/promocaoDoe";
 import { cruzarListao, type FichaEfetivo } from "@/lib/promocaoCruzar";
 import { garantirPromocoes } from "@/lib/promocaoDb";
 
@@ -38,7 +39,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Nenhum texto para ler." }, { status: 400 });
     }
 
-    const leitura = lerListaoVarios(textos);
+    /* Os dois documentos que a PMMA publica têm formatos diferentes, e o
+       arquivo pode ser qualquer um dos dois: o listão da CPPPM (praças,
+       fotocopiado) ou o Diário Oficial (oficiais, com texto). Em vez de pedir
+       para o P/1 dizer qual é, tenta os dois leitores e fica com o que
+       entendeu — se por acaso o arquivo trouxer os dois, os dois entram. */
+    const leitura = combinarLeituras([
+      lerListaoVarios(textos),
+      lerDiarioOficial(textos.join("\n")),
+    ]);
     if (leitura.linhas.length === 0) {
       return NextResponse.json({
         error:

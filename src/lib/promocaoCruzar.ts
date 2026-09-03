@@ -114,21 +114,20 @@ export function cruzarListao(linhas: LinhaListao[], fichas: FichaEfetivo[]): Res
   let deFora = 0;
 
   for (const linha of linhas) {
-    const mat = linha.mat;
     const barra = barraNormal(linha.num);
 
     let ficha: FichaEfetivo | null = null;
     const porque: string[] = [];
 
-    // 1) matrícula bate — o caminho normal
-    if (mat && porMatricula.has(mat)) {
-      ficha = porMatricula.get(mat)!;
-      porque.push("matrícula " + mat);
-    }
-    // 2) da barra 18 em diante não existe matrícula: a coluna MAT traz o ID
-    if (!ficha && mat && porId.has(mat)) {
-      ficha = porId.get(mat)!;
-      porque.push("ID " + mat);
+    /* Os números que o documento deu para esta pessoa. O listão da CPPPM traz
+       um só (a coluna MAT, que é a matrícula — ou o ID, de quem é da barra 18
+       em diante). O Diário Oficial traz os dois, e às vezes com as colunas
+       trocadas de uma tabela para outra. Em vez de depender do cabeçalho,
+       tenta cada número contra matrícula E contra ID. */
+    for (const n of [linha.mat, linha.mat2 || ""]) {
+      if (!n || ficha) continue;
+      if (porMatricula.has(n)) { ficha = porMatricula.get(n)!; porque.push("matrícula " + n); }
+      else if (porId.has(n)) { ficha = porId.get(n)!; porque.push("ID " + n); }
     }
     // 3) número/barra + nome parecido
     if (!ficha && barra) {

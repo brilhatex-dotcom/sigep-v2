@@ -27,6 +27,14 @@ export type LinhaListao = {
   num: string;             // coluna NUM = número/barra (ex.: "861/93")
   nome: string;
   mat: string;             // coluna MAT = matrícula (ou o ID, da barra 18+)
+  /* Segundo número, quando o documento traz os dois (o Diário Oficial põe
+     matrícula E ID, às vezes em ordem trocada). O cruzamento tenta os dois
+     contra matrícula e contra ID, em vez de depender do cabeçalho. */
+  mat2?: string;
+  /* Data a contar do próprio ato, quando ele declara uma. No Diário cada ato
+     tem a sua — há promoção por ressarcimento de preterição que retroage a
+     outro mês. Vazio = usa a data do lote, escolhida na tela. */
+  dataAto?: string;
   criterio: string;        // ANTIGUIDADE | MERECIMENTO | TEMPO DE SERVIÇO
   qpmp: string;
   deOrdem: number;         // posto de origem (ordem de PATENTES)
@@ -88,6 +96,18 @@ function pareceNumero(tok: string, minimo = 4): boolean {
 }
 
 const ROTULO = new Map(PATENTES.map((p) => [p.ordem, p.rotulo]));
+
+/* Promoção sobe UM posto. A única exceção é a passagem de praça a oficial,
+   que pula o Aspirante: Subtenente (8) vai direto a 2º Tenente (6), pelos
+   quadros QOE e QOA — é assim no Diário Oficial de agosto/2026, com dez
+   Subtenentes. Sem essa exceção, todos eles seriam recusados como "salto
+   inválido"; sem a regra do degrau único, um erro de leitura viraria uma
+   promoção absurda. */
+export function promocaoPlausivel(de: number, para: number): boolean {
+  if (de === 99 || para === 99) return false;
+  if (de - para === 1) return true;
+  return de === 8 && para === 6;
+}
 
 /* ------------------------------------------------------- cabeçalhos ----- */
 
@@ -413,6 +433,26 @@ function mesmaPessoa(a: string, b: string): boolean {
   return iguais / Math.max(pa.length, pb.length) >= 0.5;
 }
 
+/* Junta leituras que vieram de FORMATOS diferentes (o listão da CPPPM e o
+   Diário Oficial). Os dois documentos não se repetem — um traz praças, o
+   outro oficiais — mas passar pela mesma junção evita linha duplicada se um
+   dia vierem juntos no mesmo arquivo. */
+export function combinarLeituras(partes: ResultadoLeitura[]): ResultadoLeitura {
+  const porChave = new Map<string, LinhaListao>();
+  const ignoradas: string[] = [];
+  let titulo = "";
+  for (const r of partes) {
+    if (!titulo && r.titulo) titulo = r.titulo;
+    for (const l of r.linhas) {
+      const chave = (l.mat || "nome:" + l.nome) + "|" + l.paraOrdem;
+      const anterior = porChave.get(chave);
+      if (!anterior || completude(l) > completude(anterior)) porChave.set(chave, l);
+    }
+    for (const x of r.ignoradas) if (!ignoradas.includes(x)) ignoradas.push(x);
+  }
+  return { titulo, linhas: [...porChave.values()], ignoradas };
+}
+
 export function lerListaoVarios(textos: string[]): ResultadoLeitura {
   const porChave = new Map<string, LinhaListao>();
   const ignoradas: string[] = [];
@@ -422,7 +462,8 @@ export function lerListaoVarios(textos: string[]): ResultadoLeitura {
     const r = lerListao(t || "");
     if (!titulo && r.titulo) titulo = r.titulo;
     for (const l of r.linhas) {
-      let chave = l.mat;
+      // sem número (ato que só nomeia o militar), a chave é o próprio nome
+      let chave = l.mat || "nome:" + l.nome;
       const atual = porChave.get(chave);
       if (atual && !mesmaPessoa(atual.nome, l.nome)) {
         // mesma matrícula, gente diferente: guarda as duas para conferência
