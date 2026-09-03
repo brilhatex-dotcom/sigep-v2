@@ -367,8 +367,16 @@ const DIA_DA_PROMOCAO: Record<number, number> = {
   12: 25,  // 25 de dezembro — não é o último dia do mês
 };
 
+/* O mês precisa vir como PALAVRA INTEIRA.
+
+   Sem isso, "MARCOS PAULO" fazia o sistema entender MARÇO — e o listão de
+   agosto gravava 31/03 na ficha de todo mundo. Como a data da promoção é o
+   critério de antiguidade dentro do posto, o efetivo inteiro saía na ordem
+   errada por causa de um militar chamado Marcos. */
 function mesDoTexto(t: string): number | null {
-  for (const [nome, n] of Object.entries(MESES_PT)) if (t.includes(nome)) return n;
+  for (const [nome, n] of Object.entries(MESES_PT)) {
+    if (new RegExp(`\\b${nome}\\b`).test(t)) return n;
+  }
   return null;
 }
 
@@ -381,12 +389,15 @@ function iso(ano: number, mes: number, dia: number): string {
   return `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
 }
 
-export function dataSugeridaDoListao(texto: string): string {
+export function dataSugeridaDoListao(texto: string, titulo = ""): string {
   const t = limpo(texto);
 
-  /* 1) A data oficial, quando o aviso da CPPPM veio junto:
-        "A CONTAR DE 31 DE AGOSTO DE 2026" */
-  const aContar = t.match(/A\s*CONTAR\s*DE\s*(\d{1,2})\s*DE\s*([A-Z]+)\s*DE\s*(20\d{2})/);
+  /* 1) A data oficial, quando o documento a declara:
+        "A CONTAR DE 31 DE AGOSTO DE 2026"
+     Aceita espaço entre as letras porque o Diário sai com "a cont ar de". */
+  const aContar = t.match(
+    /A\s*C\s*O\s*N\s*T\s*A\s*R\s*D\s*E\s*(\d{1,2})\s*(?:DE)?\s*([A-Z]+)\s*(?:DE)?\s*(20\d{2})/
+  );
   if (aContar) {
     const mes = mesDoTexto(aContar[2]);
     const dia = parseInt(aContar[1], 10);
@@ -394,7 +405,20 @@ export function dataSugeridaDoListao(texto: string): string {
     if (mes && dia >= 1 && dia <= ultimoDiaDoMes(ano, mes)) return iso(ano, mes, dia);
   }
 
-  /* 2) Sem o aviso: a data fixa daquele mês. */
+  /* 2) O TÍTULO do documento, que é onde o mês da promoção está escrito:
+        "RELAÇÃO DE PROMOVIDOS AGOSTO DE 2026".
+
+     Procurar no documento inteiro, como era antes, é armadilha: o listão tem
+     270 nomes e basta um "MARCOS" ou uma lei "de 24 de março" para o mês sair
+     errado. O título é curto e só fala da promoção. */
+  const doTitulo = pelaData(limpo(titulo));
+  if (doTitulo) return doTitulo;
+
+  // 3) Último recurso: o texto todo, já com o mês como palavra inteira.
+  return pelaData(t);
+}
+
+function pelaData(t: string): string {
   const ano = t.match(/\b(20\d{2})\b/);
   if (!ano) return "";
   const mes = mesDoTexto(t);
