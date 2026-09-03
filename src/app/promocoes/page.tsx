@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { FileUp, AlertTriangle } from "lucide-react";
+import { FileUp, AlertTriangle, ShieldCheck } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import PainelPromocoes from "@/components/PainelPromocoes";
@@ -36,6 +36,22 @@ export default async function PromocoesPage() {
         <p className="mb-4 text-sm text-[#94A3B8]">
           Gestão das certidões enviadas pelos militares no período de promoção.
         </p>
+
+        {/* Lançar o listão: quando sai a relação de promovidos, promove todo
+            mundo de uma vez em vez de ficha por ficha. */}
+        <Link
+          href="/promocoes/listao"
+          className="mb-3 flex items-start gap-3 rounded-xl border border-[#D4AF37]/40 bg-[#D4AF37]/[.06] p-4 transition hover:bg-[#D4AF37]/[.12]"
+        >
+          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#D4AF37]" />
+          <span className="min-w-0">
+            <span className="block text-sm font-bold text-white">Importar listão de promoções</span>
+            <span className="block text-xs text-[#94A3B8]">
+              Saiu a relação de promovidos? Jogue o PDF aqui: o sistema acha quem é do 18º BPM,
+              mostra para o senhor conferir e promove todos de uma vez.
+            </span>
+          </span>
+        </Link>
 
         {temFicha ? (
           <Link
