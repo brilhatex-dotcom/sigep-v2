@@ -92,9 +92,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       titulo: leitura.titulo,
-      /* Data do ato: o "a contar de" quando o aviso da CPPPM veio junto,
-         senão o último dia do mês do título (regra da CPPPM). */
-      dataSugerida: dataSugeridaDoListao(textos.join("\n") + "\n" + leitura.titulo),
+      /* Data do ato: o "a contar de" quando o documento declara; senão a data
+         fixa do mês que o TÍTULO diz. O título vai separado de propósito —
+         procurar o mês no documento inteiro fazia "MARCOS" virar março. */
+      dataSugerida: dataSugeridaDoListao(textos.join("\n"), leitura.titulo),
       totalNoListao: leitura.linhas.length,
       ignoradas: leitura.ignoradas.slice(0, 20),
       achados: r.achados,
