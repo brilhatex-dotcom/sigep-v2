@@ -314,8 +314,8 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
                   className="w-full rounded-lg border border-[#D4AF37]/50 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]" />
                 <span className="mt-1 block text-[10px] leading-snug text-amber-200/90">
                   {res.dataSugerida
-                    ? "Peguei o mês do próprio listão — confira o dia, que está no ato."
-                    : "Não achei o mês no título: informe a data do ato."}{" "}
+                    ? "Data a contar do ato, tirada do próprio listão (a CPPPM promove a contar do último dia do mês). Confira antes de lançar."
+                    : "Não achei o mês no listão: informe a data a contar do ato."}{" "}
                   É ela que define a antiguidade dentro do posto.
                 </span>
               </label>
