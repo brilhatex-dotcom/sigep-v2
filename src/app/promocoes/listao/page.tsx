@@ -48,8 +48,9 @@ export default async function ListaoPage() {
           <ShieldCheck className="h-6 w-6 text-[#D4AF37]" /> Importar listão de promoções
         </h1>
         <p className="mb-5 max-w-3xl text-sm text-[#94A3B8]">
-          Jogue aqui a relação de promovidos publicada pela Comissão de Promoção. O sistema lê o papel,
-          acha quem é do 18º BPM e monta a lista em ordem hierárquica.{" "}
+          Jogue aqui o <b className="text-[#E8EEF6]">listão da CPPPM</b> (praças, mesmo escaneado) ou o{" "}
+          <b className="text-[#E8EEF6]">Diário Oficial</b> (oficiais). O sistema reconhece o formato sozinho,
+          lê o documento, acha quem é do 18º BPM e monta a lista em ordem hierárquica.{" "}
           <b className="text-[#E8EEF6]">Nada é promovido sozinho</b> — o senhor confere linha por linha
           e confirma. Depois, se precisar, dá para desfazer o lançamento inteiro.
         </p>

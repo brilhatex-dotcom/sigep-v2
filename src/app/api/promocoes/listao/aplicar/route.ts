@@ -5,11 +5,13 @@ import { prisma } from "@/lib/prisma";
 import { garantirPromocoes } from "@/lib/promocaoDb";
 import { registrar } from "@/lib/auditoria";
 import { classificarPatente } from "@/lib/patentes";
+import { promocaoPlausivel } from "@/lib/promocaoListao";
 
 export const dynamic = "force-dynamic";
 
 /* /api/promocoes/listao/aplicar
-   POST { referencia, dataPromocao, itens: [{ efetivoId, postoNovo, ordListao, criterio }] }
+   POST { referencia, dataPromocao, itens: [{ efetivoId, postoNovo, ordListao,
+          criterio, dataAto? }] }
 
    Aqui é onde a promoção realmente acontece. Tudo que chega já passou pela
    conferência do P/1 na tela — mas o servidor NÃO confia na tela: refaz as
@@ -18,8 +20,9 @@ export const dynamic = "force-dynamic";
    O que é conferido de novo, item por item:
    - a ficha existe;
    - o posto novo é um posto reconhecido;
-   - o posto novo é EXATAMENTE um degrau acima do atual (nunca dois, nunca
-     para baixo) — assim um erro de leitura não vira uma promoção absurda;
+   - o posto novo é um degrau acima do atual (nunca dois, nunca para baixo) —
+     assim um erro de leitura não vira uma promoção absurda. A única exceção é
+     Subtenente direto a 2º Tenente, a passagem de praça a oficial;
    - a pessoa ainda não está nesse posto.
 
    Cada promoção vira uma linha em promocoes_lancadas com o posto ANTERIOR,
@@ -46,7 +49,7 @@ export async function POST(req: Request) {
     }
 
     const lote = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    const aplicadas: { nome: string; de: string; para: string }[] = [];
+    const aplicadas: { nome: string; de: string; para: string; em: string }[] = [];
     const recusadas: { efetivoId: string; nome: string; motivo: string }[] = [];
 
     for (const it of itens) {
@@ -76,8 +79,9 @@ export async function POST(req: Request) {
         recusadas.push({ efetivoId, nome, motivo: `Já está como ${ficha.postoGrad}.` });
         continue;
       }
-      // promoção sobe exatamente um degrau (a ordem diminui em 1)
-      if (ordemAtual - ordemNova !== 1) {
+      /* Sobe um degrau — com a exceção de Subtenente direto a 2º Tenente,
+         que é a passagem de praça a oficial (ver promocaoPlausivel). */
+      if (!promocaoPlausivel(ordemAtual, ordemNova)) {
         recusadas.push({
           efetivoId, nome,
           motivo: `Salto inválido: de ${ficha.postoGrad} para ${postoNovo}. Promoção sobe um posto de cada vez.`,
@@ -88,11 +92,19 @@ export async function POST(req: Request) {
       const postoAnterior = ficha.postoGrad || "";
       const dataAnterior = ficha.dataPromocao || "";
 
+      /* Cada ato pode ter a SUA data. No Diário Oficial de agosto/2026 há uma
+         promoção por decisão judicial que retroage a 31 de março, no meio de
+         dezenas que valem de 31 de agosto — com uma data só para o lote, esse
+         militar entraria na ordem errada de antiguidade. A data do lote é o
+         padrão; a do ato, quando existe, manda. */
+      const doAto = String(it?.dataAto || "").trim();
+      const dataFinal = /^\d{4}-\d{2}-\d{2}$/.test(doAto) ? doAto : dataPromocao;
+
       await prisma.efetivo.update({
         where: { id: efetivoId },
         data: {
           postoGrad: postoNovo,
-          dataPromocao,
+          dataPromocao: dataFinal,
           ultimaAtualizacao: new Date().toISOString(),
         },
       });
@@ -105,7 +117,7 @@ export async function POST(req: Request) {
           postoAnterior,
           postoNovo,
           dataPromocaoAnterior: dataAnterior || null,
-          dataPromocao,
+          dataPromocao: dataFinal,
           referencia: referencia || null,
           criterio: it?.criterio ? String(it.criterio).slice(0, 60) : null,
           ordListao: Number.isFinite(Number(it?.ordListao)) ? Number(it.ordListao) : null,
@@ -113,7 +125,7 @@ export async function POST(req: Request) {
         },
       });
 
-      aplicadas.push({ nome, de: postoAnterior, para: postoNovo });
+      aplicadas.push({ nome, de: postoAnterior, para: postoNovo, em: dataFinal });
     }
 
     await registrar({
