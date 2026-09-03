@@ -54,6 +54,8 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [lendo, setLendo] = useState(false);
   const [andar, setAndar] = useState<ProgressoLeitura | null>(null);
+  // as duas leituras do mesmo papel (ver ocrListao.ts)
+  const [textos, setTextos] = useState<string[]>([]);
   const [texto, setTexto] = useState("");
   const [verTexto, setVerTexto] = useState(false);
   const [res, setRes] = useState<Resposta | null>(null);
@@ -71,9 +73,13 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
   async function ler(f: File) {
     setArquivo(f); setErro(""); setRes(null); setFeito(null); setLendo(true); setAndar(null);
     try {
-      const t = await lerArquivoListao(f, setAndar);
-      setTexto(t);
-      await cruzar(t);
+      const ts = await lerArquivoListao(f, setAndar);
+      // o campo de correção mostra a leitura mais completa; as outras ficam
+      // guardadas para continuarem valendo depois de uma correção à mão
+      const ordenadas = ts.slice().sort((a, b) => b.length - a.length);
+      setTexto(ordenadas[0] || "");
+      setTextos(ordenadas.slice(1));
+      await cruzar(ts);
     } catch (e: any) {
       setErro(e?.message || "Não consegui ler este arquivo. Ele é um PDF ou uma foto do listão?");
     } finally {
@@ -82,11 +88,11 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
   }
 
   /* ------------------------------------- 2) cruzar com o efetivo -------- */
-  async function cruzar(t: string) {
+  async function cruzar(ts: string[]) {
     try {
       const r = await fetch("/api/promocoes/listao", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ texto: t }),
+        body: JSON.stringify({ textos: ts }),
       });
       const d = await r.json();
       if (!r.ok) { setErro(d?.error || "Não foi possível ler o listão."); return; }
@@ -227,16 +233,16 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
               {andar && andar.totalPaginas > 0 && (
                 <>
                   <p className="mt-1 text-xs text-[#94A3B8]">
-                    {arquivo?.name} — página {Math.max(andar.pagina, 1)} de {andar.totalPaginas}
+                    {arquivo?.name} — {andar.totalPaginas} página(s)
                   </p>
                   <div className="mx-auto mt-3 h-1.5 w-64 overflow-hidden rounded bg-white/10">
-                    <div className="h-full bg-[#D4AF37] transition-all"
-                      style={{ width: `${Math.round((andar.pagina / Math.max(andar.totalPaginas, 1)) * 100)}%` }} />
+                    <div className="h-full bg-[#D4AF37] transition-all" style={{ width: `${andar.pct}%` }} />
                   </div>
                 </>
               )}
               <p className="mt-3 text-[11px] text-[#94A3B8]">
-                Página escaneada leva alguns segundos cada. Deixe esta aba aberta.
+                Cada página é lida duas vezes, de jeitos diferentes: o que uma leitura perde,
+                a outra costuma achar. Leva alguns minutos — deixe esta aba aberta.
               </p>
             </div>
           )}
@@ -269,7 +275,7 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
               className="flex items-center gap-1.5 rounded-lg border border-red-500/40 px-3 py-2 text-sm text-red-200 transition hover:bg-red-500/10">
               <Undo2 className="h-4 w-4" /> Desfazer este lançamento
             </button>
-            <button onClick={() => { setFeito(null); setArquivo(null); setTexto(""); }}
+            <button onClick={() => { setFeito(null); setArquivo(null); setTexto(""); setTextos([]); }}
               className="rounded-lg border border-white/10 px-3 py-2 text-sm text-[#E8EEF6] transition hover:bg-white/5">
               Importar outro listão
             </button>
@@ -426,12 +432,13 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
             {verTexto && (
               <div className="rounded-lg border border-[#1d2c44] bg-[#0F1B2D] p-3">
                 <p className="mb-2 text-[11px] text-[#94A3B8]">
-                  Se alguma linha saiu torta na leitura, dá para corrigir aqui e mandar ler de novo.
+                  Esta é a leitura principal. Se alguma linha saiu torta, dá para corrigir aqui e
+                  mandar ler de novo — a outra leitura do arquivo continua valendo junto.
                   {res.ignoradas.length > 0 && ` ${res.ignoradas.length} linha(s) tinham número mas não deu para entender.`}
                 </p>
                 <textarea value={texto} onChange={(e) => setTexto(e.target.value)} rows={12}
                   className="w-full rounded-lg border border-white/10 bg-black/40 p-2 font-mono text-[11px] text-[#E8EEF6] outline-none focus:border-[#D4AF37]" />
-                <button onClick={() => cruzar(texto)}
+                <button onClick={() => cruzar([texto, ...textos])}
                   className="mt-2 rounded-lg border border-[#D4AF37]/40 px-3 py-1.5 text-xs font-semibold text-[#D4AF37] hover:bg-[#D4AF37]/10">
                   Ler de novo com este texto
                 </button>
