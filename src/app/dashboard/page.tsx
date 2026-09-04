@@ -138,8 +138,11 @@ export default async function DashboardPage() {
     .filter((a)=> !a.validade || a.validade >= hojeISO)
     .map((a)=>({
       chave:`aviso:${a.id}`,
-      tipo:"ferias_vencidas" as const, // reusa o tipo so para icone; nivel define cor
-      nivel:(a.cor==="critico"?"critico":"atencao") as "critico"|"atencao",
+      tipo:"ferias_vencidas" as const, // o tipo so serve para o "dispensar"; o nivel define a cor
+      /* Os tres niveis do aviso manual chegam inteiros ao banner. Antes o
+         "info" era rebaixado para "atencao" e todo aviso informativo saia
+         amarelo, como se fosse cobranca. */
+      nivel:(a.cor==="critico"?"critico":a.cor==="atencao"?"atencao":"info") as "critico"|"atencao"|"info",
       texto:a.texto,
     }));
 

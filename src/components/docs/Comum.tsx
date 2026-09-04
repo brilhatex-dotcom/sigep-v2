@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, Printer, FileDown, FileType2, Loader2 } from "lucide-react";
 import CarimboSigep from "@/components/CarimboSigep";
 import { padronizarBrasao } from "@/lib/imagem";
 
@@ -341,6 +341,67 @@ export function BlocoAssinatura({
   );
 }
 
+/* Imprimir · Word · PDF — os mesmos três botões da Escala de Serviço.
+
+   O "Imprimir" usa a impressora do navegador (rápido, para o papel). Word e
+   PDF são montados no SERVIDOR: o arquivo sai igual em qualquer computador,
+   sem a margem, o cabeçalho e o rodapé que cada navegador inventa no
+   "Imprimir para PDF". */
+export function BotoesDocumento({
+  tipo, dados, nomeArquivo,
+}: {
+  tipo: "oficio" | "guia";
+  /* Snapshot dos campos da folha no momento do clique. */
+  dados: () => Record<string, unknown>;
+  nomeArquivo: string;
+}) {
+  const [baixando, setBaixando] = useState<"docx" | "pdf" | null>(null);
+  const [erro, setErro] = useState("");
+
+  const baixar = async (fmt: "docx" | "pdf") => {
+    setBaixando(fmt); setErro("");
+    try {
+      const r = await fetch("/api/jms/exportar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo, fmt, dados: dados() }),
+      });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${nomeArquivo}.${fmt}`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch {
+      setErro("Não foi possível gerar o arquivo. Tente novamente.");
+    } finally {
+      setBaixando(null);
+    }
+  };
+
+  return (
+    <>
+      <button onClick={() => window.print()}
+        className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110">
+        <Printer className="h-4 w-4" /> Imprimir
+      </button>
+      <button onClick={() => baixar("docx")} disabled={baixando !== null}
+        title="Baixar em Word (.docx) para editar ou anexar"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-white transition hover:bg-white/5 disabled:opacity-40">
+        {baixando === "docx" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileType2 className="h-4 w-4" />} Word
+      </button>
+      <button onClick={() => baixar("pdf")} disabled={baixando !== null}
+        title="Baixar em PDF, pronto para anexar ou enviar"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-white transition hover:bg-white/5 disabled:opacity-40">
+        {baixando === "pdf" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} PDF
+      </button>
+      {erro && <span className="w-full text-xs text-red-300">{erro}</span>}
+    </>
+  );
+}
+
 /* Estilo comum da folha A4 e dos campos editáveis, num lugar só para todos os
    documentos imprimirem igual. */
 export const ESTILO_FOLHA = `
@@ -348,7 +409,13 @@ export const ESTILO_FOLHA = `
   .campo-ed:hover, .campo-ed:focus { background: #fdf6da; outline: none; }
   @media print {
     .campo-ed { background: transparent !important; border-bottom-color: transparent !important; }
-    .folha-diaria { margin: 0 !important; width: 100% !important; min-height: 0 !important; padding: 8mm 10mm !important; box-shadow: none !important; }
+    .folha-diaria { margin: 0 !important; width: 100% !important; min-height: 0 !important; padding: 8mm 10mm !important; box-shadow: none !important; box-decoration-break: clone; }
+    /* Nada de janela flutuante no papel: o balão do chat estava saindo
+       impresso em cima do documento. */
+    .nao-imprimir, #chat-flutuante { display: none !important; }
+    /* A folha manda no tamanho da página — o "min-h-screen" do AppShell
+       empurrava uma segunda folha em branco. */
+    html, body { height: auto !important; min-height: 0 !important; }
     @page { size: A4; margin: 0; }
   }
 `;
