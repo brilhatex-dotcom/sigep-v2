@@ -19,6 +19,8 @@ import {
   UserPlus,
   Trash2,
   Search,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import MemorandoFerias, { DadosMemorando } from "@/components/MemorandoFerias";
 import { grupoDoMilitar, rotuloDoGrupo } from "@/lib/distribuirEquipes";
@@ -171,6 +173,11 @@ export default function PlanoFerias({
   }
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [aberta, setAberta] = useState<EquipeView | null>(null);
+  /* Tela cheia da janela da equipe. Uma equipe tem quase 30 militares e a
+     janela pequena mostrava meia dúzia por vez. A escolha fica valendo
+     enquanto a pessoa estiver na tela, para não ter de maximizar de novo a
+     cada equipe que abrir. */
+  const [equipeCheia, setEquipeCheia] = useState(false);
   const [permuta, setPermuta] = useState<MembroEquipe | null>(null);
   const [novaEquipe, setNovaEquipe] = useState("");
 
@@ -1151,9 +1158,14 @@ export default function PlanoFerias({
 
       {/* modal de detalhes */}
       {aberta && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4">
-          <div className="mt-10 w-full max-w-2xl rounded-xl border border-white/10 bg-[#0F1B2D] shadow-xl">
-            <div className="flex items-center justify-between rounded-t-xl border-b border-white/10 bg-white/5 px-5 py-4 text-white">
+        <div className={`fixed inset-0 z-50 flex justify-center bg-black/60 ${
+          equipeCheia ? "items-stretch p-0" : "items-start overflow-y-auto p-4"}`}>
+          <div className={`w-full border border-white/10 bg-[#0F1B2D] shadow-xl ${
+            equipeCheia
+              ? "flex max-w-none flex-col"          // ocupa a tela toda
+              : "mt-10 max-w-2xl rounded-xl"}`}>
+            <div className={`flex shrink-0 items-center justify-between border-b border-white/10 bg-white/5 px-5 py-4 text-white ${
+              equipeCheia ? "" : "rounded-t-xl"}`}>
               <div className="flex items-center gap-2">
                 <Palmtree className="h-5 w-5 text-[#D4AF37]" />
                 <h3 className="font-bold">
@@ -1180,14 +1192,22 @@ export default function PlanoFerias({
                     </button>
                   </>
                 )}
+                <button
+                  onClick={() => setEquipeCheia((v) => !v)}
+                  aria-label={equipeCheia ? "Voltar ao tamanho normal" : "Ver em tela cheia"}
+                  title={equipeCheia ? "Voltar ao tamanho normal" : "Ver em tela cheia"}
+                  className="text-[#94A3B8] transition hover:text-white"
+                >
+                  {equipeCheia ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+                </button>
                 <button onClick={() => setAberta(null)} aria-label="Fechar" className="text-[#94A3B8] hover:text-white">
                   <X className="h-5 w-5" />
                 </button>
               </div>
             </div>
 
-            <div className="p-5">
-              <div className="mb-4 rounded-lg bg-white/5 p-3">
+            <div className={`p-5 ${equipeCheia ? "flex min-h-0 flex-1 flex-col" : ""}`}>
+              <div className="mb-4 shrink-0 rounded-lg bg-white/5 p-3">
                 {aberta.periodos.map((p, i) => (
                   <p key={i} className="text-sm text-white">
                     <span className="font-semibold">
@@ -1247,7 +1267,8 @@ export default function PlanoFerias({
                 </div>
               )}
 
-              <div className="max-h-[50vh] overflow-y-auto rounded-lg border border-white/10">
+              <div className={`overflow-y-auto rounded-lg border border-white/10 ${
+                equipeCheia ? "min-h-0 flex-1" : "max-h-[50vh]"}`}>
                 <table className="min-w-full text-sm">
                   <thead className="sticky top-0 bg-[#0F1B2D]">
                     <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wider text-[#94A3B8]">
@@ -1336,7 +1357,7 @@ export default function PlanoFerias({
                 </table>
               </div>
 
-              <div className="mt-4 flex justify-end">
+              <div className="mt-4 flex shrink-0 justify-end">
                 <button
                   onClick={() => setAberta(null)}
                   className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] transition hover:bg-white/5 hover:text-white"
