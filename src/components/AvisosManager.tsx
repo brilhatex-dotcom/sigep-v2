@@ -12,10 +12,13 @@ export type Aviso = {
   validade: string | null;
 };
 
-const CORES: Record<string, { rotulo: string; classe: string }> = {
-  critico: { rotulo: "Crítico", classe: "border-red-500/30 bg-red-500/10 text-red-200" },
-  atencao: { rotulo: "Atenção", classe: "border-amber-500/30 bg-amber-500/10 text-amber-200" },
-  info: { rotulo: "Informativo", classe: "border-sky-500/30 bg-sky-500/10 text-sky-200" },
+/* `chip` é a COR CHEIA com que o aviso sai no painel (BannerAlertas): aqui a
+   lista fica sóbria, para os botões de editar/apagar continuarem legíveis,
+   mas a etiqueta já mostra a cor de verdade. */
+const CORES: Record<string, { rotulo: string; classe: string; chip: string }> = {
+  critico: { rotulo: "Crítico", classe: "border-red-500/40 bg-red-500/10 text-red-200", chip: "bg-red-500 text-white" },
+  atencao: { rotulo: "Atenção", classe: "border-amber-500/40 bg-amber-500/10 text-amber-200", chip: "bg-amber-500 text-[#1a1205]" },
+  info: { rotulo: "Informativo", classe: "border-sky-500/40 bg-sky-500/10 text-sky-200", chip: "bg-sky-500 text-[#03202b]" },
 };
 
 export default function AvisosManager({ inicial }: { inicial: Aviso[] }) {
@@ -100,7 +103,7 @@ export default function AvisosManager({ inicial }: { inicial: Aviso[] }) {
                 key={a.id}
                 className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${c.classe}`}
               >
-                <span className="rounded bg-black/20 px-2 py-0.5 text-[10px] font-semibold uppercase">
+                <span className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ${c.chip}`}>
                   {c.rotulo}
                 </span>
                 <span className="flex-1 text-sm text-white/90">{a.texto}</span>
