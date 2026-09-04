@@ -5,7 +5,7 @@ import FatdDoc, { type FatdRegistro } from "@/components/FatdDoc";
 import PortariaDoc, { type PortariaRegistro, type PortariaModelo } from "@/components/PortariaDoc";
 import TermoDoc, { type TermoRegistro, type TermoModelo, TERMO_LABEL } from "@/components/TermoDoc";
 import SeletorEfetivo, { type MilitarLite, refMilitar } from "@/components/SeletorEfetivo";
-import { type DadosPessoa } from "@/components/FatdDoc";
+import { dadosDoTexto } from "@/lib/refMilitar";
 
 /* Modulo Disciplinar (FATD / Sindicancia / IPS / IPM). Para cada tipo:
    uma AREA DE CONTROLE no topo (criar novo + ver os passados) com os campos de
@@ -28,24 +28,10 @@ const vazio = (tipo: string): Registro => ({
 });
 function brData(iso: string) { return iso && iso.length >= 10 ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : iso || "—"; }
 
-// Resolve grau/nome/RG de um militar a partir do texto salvo (ex.: "SD PM
-// 169/24 Fulano...") casando com o efetivo. Grau = posto+quadro (sem a barra),
-// RG puxado automaticamente. Sem correspondência, devolve só o nome livre.
-function dadosDocFatd(texto: string, efetivo: MilitarLite[]): DadosPessoa | null {
-  const s = (texto || "").trim();
-  if (!s) return null;
-  const low = s.toLowerCase();
-  const m =
-    efetivo.find((e) => refMilitar(e) === s) ||
-    efetivo.find((e) => e.numeroBarra && low.includes(e.numeroBarra.toLowerCase())) ||
-    efetivo.find((e) => e.nome && low.includes(e.nome.toLowerCase()));
-  if (!m) return { grau: "", nome: s, rg: "" };
-  const nome = (m.nome || m.nomeGuerra || "").trim();
-  const ref = refMilitar(m);
-  const barra = (m.numeroBarra || "").trim();
-  const grau = ref.replace(barra, "").replace(nome, "").replace(/\s+/g, " ").trim(); // ex.: "SD PM"
-  return { grau, nome, rg: (m.rg || "").trim() };
-}
+// Resolve grau/nome/RG do militar a partir do texto salvo (ex.: "SD PM 169/24
+// Fulano..."). A regra mora em @/lib/refMilitar porque o Word do FATD é
+// montado no servidor e precisa sair idêntico ao da tela.
+const dadosDocFatd = dadosDoTexto;
 
 // Data + N dias ÚTEIS (pula sábado/domingo). Usado para o prazo do FATD
 // (3 dias úteis após o ciente), mas o campo continua editável.

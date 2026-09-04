@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { gerarFatdDocx } from "@/lib/fatdDocx";
 import { lerChefes } from "@/lib/disciplinarChefes";
 import { obter } from "@/lib/disciplinarDb";
+import { prisma } from "@/lib/prisma";
+import { dadosDoTexto, type MilitarLite } from "@/lib/refMilitar";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +27,21 @@ export async function GET(req: Request) {
     const reg = await obter(id);
     if (!reg) return NextResponse.json({ error: "FATD nao encontrado" }, { status: 404 });
 
-    const buffer = await gerarFatdDocx(reg, await lerChefes());
+    /* Grau, nome e RG vêm do efetivo, com a MESMA regra da tela — senão o
+       Word sairia sem o grau hierárquico e sem o Nº de identidade que o
+       formulário pede. */
+    const chefes = await lerChefes();
+    let efetivo: MilitarLite[] = [];
+    try {
+      efetivo = await prisma.efetivo.findMany({
+        select: { id: true, postoGrad: true, nome: true, nomeGuerra: true, numeroBarra: true, quadro: true, rg: true },
+      }) as unknown as MilitarLite[];
+    } catch { /* sem efetivo o documento ainda sai, só com o texto livre */ }
+
+    const buffer = await gerarFatdDocx(reg, chefes, {
+      mil: dadosDoTexto(reg.envolvido || "", efetivo),
+      enc: dadosDoTexto((reg.encarregado || "").trim() || (chefes.chefeP1 || ""), efetivo),
+    });
     const nome = `FATD_${String(reg.numero || "sn").replace(/[^\w]+/g, "_")}.docx`;
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,

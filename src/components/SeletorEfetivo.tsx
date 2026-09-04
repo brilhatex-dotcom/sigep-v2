@@ -7,26 +7,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
    "SD PM 169/24 Gleydson Robson Rocha da Silva"). O usuário também pode digitar
    livremente. Recebe/entrega uma string (o campo continua sendo texto livre). */
 
-export type MilitarLite = { id: string; postoGrad: string; nome: string; nomeGuerra: string; numeroBarra: string; quadro?: string; rg?: string };
-
-function abrev(p: string): string {
-  const m: Record<string, string> = {
-    "coronel": "CEL", "tenente-coronel": "TEN CEL", "tenente coronel": "TEN CEL", "major": "MAJ",
-    "capitão": "CAP", "capitao": "CAP", "1º tenente": "1º TEN", "1° tenente": "1º TEN",
-    "2º tenente": "2º TEN", "2° tenente": "2º TEN", "aspirante a oficial": "ASP OF", "aspirante": "ASP OF",
-    "subtenente": "SUB TEN", "1º sargento": "1º SGT", "2º sargento": "2º SGT", "3º sargento": "3º SGT",
-    "cabo": "CB", "soldado": "SD",
-  };
-  return m[(p || "").trim().toLowerCase()] ?? (p || "").trim().toUpperCase();
-}
-// Referência oficial: POSTO QUADRO Nº/BARRA Nome Completo (ex.: "SD PM 169/24 Gleydson ...")
-export function refMilitar(m: MilitarLite): string {
-  const posto = abrev(m.postoGrad);
-  const q = (m.quadro || "PM").trim() || "PM";
-  const barra = (m.numeroBarra || "").trim();
-  const nome = (m.nome || m.nomeGuerra || "").trim();
-  return [posto, q, barra, nome].filter(Boolean).join(" ").trim();
-}
+/* A regra da referência mora em @/lib/refMilitar porque o SERVIDOR usa a
+   mesma (o FATD em Word é montado lá). Aqui só se reexporta, para as telas
+   que já importam daqui continuarem funcionando. */
+export { refMilitar, type MilitarLite } from "@/lib/refMilitar";
+import { refMilitar, type MilitarLite } from "@/lib/refMilitar";
 
 export default function SeletorEfetivo({
   value, onChange, efetivo, placeholder,
