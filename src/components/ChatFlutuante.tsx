@@ -156,7 +156,8 @@ export default function ChatFlutuante() {
       {!aberto && (
         <button
           onClick={() => setAberto(true)}
-          className="fixed bottom-5 right-5 z-[60] flex items-center gap-2 rounded-full border border-[#D4AF37]/40 bg-[#0F1B2D] py-2.5 pl-3 pr-4 shadow-2xl transition hover:border-[#D4AF37] hover:bg-[#16243a]"
+          id="chat-flutuante"
+          className="fixed bottom-5 right-5 z-[60] flex items-center gap-2 rounded-full border border-[#D4AF37]/40 bg-[#0F1B2D] py-2.5 pl-3 pr-4 shadow-2xl transition hover:border-[#D4AF37] hover:bg-[#16243a] print:hidden"
           title="Abrir o chat"
         >
           <span className="relative">
@@ -176,7 +177,7 @@ export default function ChatFlutuante() {
 
       {/* ---------------- painel aberto ---------------- */}
       {aberto && (
-        <div className="fixed bottom-0 right-0 z-[60] flex h-[70vh] max-h-[560px] w-full flex-col overflow-hidden rounded-t-xl border border-white/10 bg-[#0F1B2D] shadow-2xl sm:bottom-5 sm:right-5 sm:w-[370px] sm:rounded-xl">
+        <div id="chat-flutuante" className="fixed bottom-0 right-0 z-[60] flex h-[70vh] max-h-[560px] w-full flex-col overflow-hidden rounded-t-xl border border-white/10 bg-[#0F1B2D] shadow-2xl print:hidden sm:bottom-5 sm:right-5 sm:w-[370px] sm:rounded-xl">
           {/* cabeçalho */}
           <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2.5">
             {conversaViva ? (

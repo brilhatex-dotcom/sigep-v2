@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Printer, Pencil, Check, Loader2, BookmarkCheck } from "lucide-react";
+import { Pencil, Check, Loader2, BookmarkCheck } from "lucide-react";
 import {
-  BuscaMilitar, Campo, Cabecalho, BlocoAssinatura, SeletorAssinatura,
+  BuscaMilitar, Campo, Cabecalho, BlocoAssinatura, SeletorAssinatura, BotoesDocumento,
   ESTILO_FOLHA, FOLHA_A4, brData, type Militar, type ModoAss,
 } from "@/components/docs/Comum";
 import { classificarPatente } from "@/lib/patentes";
@@ -188,9 +188,15 @@ export default function GuiaEncaminhamento() {
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110">
-                <Printer className="h-4 w-4" /> Imprimir
-              </button>
+              <BotoesDocumento
+                tipo="guia"
+                nomeArquivo={`guia-jms-${(numero || "sn").replace(/\W+/g, "") || "sn"}-${ano}`}
+                dados={() => ({
+                  numero, ano, dataVisita: brData(dataVisita),
+                  nome, grad, matricula, idPm, informacao, cidadeParecer,
+                  comandante, cargo: "CMT DO 18º BPM", modoAss,
+                })}
+              />
               <button onClick={registrar} disabled={registrando || registrada}
                 title={registrada ? "Esta guia já consumiu o número" : "Consome o número e guarda a guia no registro do ano"}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-white transition hover:bg-white/5 disabled:opacity-40">

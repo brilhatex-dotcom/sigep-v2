@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Printer, Pencil, Check } from "lucide-react";
+import { Pencil, Check } from "lucide-react";
 import {
-  BuscaMilitar, Campo, Cabecalho, BlocoAssinatura, SeletorAssinatura,
+  BuscaMilitar, Campo, Cabecalho, BlocoAssinatura, SeletorAssinatura, BotoesDocumento,
   ESTILO_FOLHA, FOLHA_A4, dataPorExtenso, type Militar, type ModoAss,
 } from "@/components/docs/Comum";
 import { classificarPatente } from "@/lib/patentes";
@@ -104,9 +104,14 @@ export default function OficioJms() {
             </p>
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110">
-                <Printer className="h-4 w-4" /> Imprimir
-              </button>
+              <BotoesDocumento
+                tipo="oficio"
+                nomeArquivo={`oficio-jms-${(numero || "sn").replace(/\W+/g, "") || "sn"}-${ano}`}
+                dados={() => ({
+                  numero, ano, dataDoc, setor, de, para, assunto, corpo,
+                  comandante, cargo: "CMT DO 18º BPM", modoAss,
+                })}
+              />
               <button onClick={() => setEditando((v) => !v)}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-white transition ${editando ? "bg-emerald-600 hover:bg-emerald-700" : "bg-amber-500 hover:bg-amber-600"}`}>
                 {editando ? <><Check className="h-4 w-4" /> Pronto</> : <><Pencil className="h-4 w-4" /> Editar</>}

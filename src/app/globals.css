@@ -41,6 +41,17 @@ body {
     display: none !important;
   }
 
+  /* Janelas flutuantes NAO vao para o papel. O balao do chat estava saindo
+     impresso por cima do oficio da JMS. */
+  #chat-flutuante, .nao-imprimir {
+    display: none !important;
+  }
+
+  /* "min-h-screen" (altura da tela) vira altura de PAGINA na impressao e
+     empurrava uma folha em branco depois do documento. */
+  html, body { height: auto !important; }
+  [class*="min-h-screen"] { min-height: 0 !important; }
+
   /* cards viram branco com borda fina, sem sombra/translucidez */
   .ui-card, [class*="bg-[#0F1B2D]"], [class*="bg-slate-900"] {
     background: #ffffff !important;
