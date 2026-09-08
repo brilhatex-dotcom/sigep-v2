@@ -81,6 +81,25 @@ export default function OficioJms() {
 
   const limpar = () => { setSel(null); setCorpo(""); setNumero(""); setDataVisita(""); setEditando(false); };
 
+  /* O ofício não tem "Registrar" como a guia (a numeração dele é manual), mas
+     o P/1 precisa poder conferir depois o que já saiu. Então ele se registra
+     sozinho na hora de EMITIR — imprimir, Word ou PDF. Reemitir no mesmo dia
+     não duplica: o servidor casa pelo militar + o dia. */
+  const registrarEmissao = () => {
+    if (!sel) return;
+    fetch("/api/jms/emitidos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        idPmma: sel.id,
+        nome: (sel.nomeGuerra || sel.nome || "").trim(),
+        postoGrad: sel.postoGrad || "",
+        matricula: sel.matricula || "",
+        numero, ano, dataJms: dataVisita,
+      }),
+    }).catch(() => { /* o documento já saiu; falhar o registro não pode atrapalhar */ });
+  };
+
   return (
     <>
       <div className="mb-4 rounded-xl border border-white/10 bg-[#0F1B2D] p-4 print:hidden">
@@ -111,6 +130,7 @@ export default function OficioJms() {
                   numero, ano, dataDoc, setor, de, para, assunto, corpo,
                   comandante, cargo: "CMT DO 18º BPM", modoAss,
                 })}
+                aoEmitir={registrarEmissao}
               />
               <button onClick={() => setEditando((v) => !v)}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-white transition ${editando ? "bg-emerald-600 hover:bg-emerald-700" : "bg-amber-500 hover:bg-amber-600"}`}>

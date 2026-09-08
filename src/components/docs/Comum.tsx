@@ -348,15 +348,20 @@ export function BlocoAssinatura({
    sem a margem, o cabeçalho e o rodapé que cada navegador inventa no
    "Imprimir para PDF". */
 export function BotoesDocumento({
-  tipo, dados, nomeArquivo,
+  tipo, dados, nomeArquivo, aoEmitir,
 }: {
   tipo: "oficio" | "guia";
   /* Snapshot dos campos da folha no momento do clique. */
   dados: () => Record<string, unknown>;
   nomeArquivo: string;
+  /* Chamado quando o documento SAI (imprimir, Word ou PDF) — é o momento em
+     que ele "foi feito" e entra no histórico da aba Emitidos. */
+  aoEmitir?: () => void;
 }) {
   const [baixando, setBaixando] = useState<"docx" | "pdf" | null>(null);
   const [erro, setErro] = useState("");
+
+  const imprimir = () => { aoEmitir?.(); window.print(); };
 
   const baixar = async (fmt: "docx" | "pdf") => {
     setBaixando(fmt); setErro("");
@@ -374,6 +379,7 @@ export function BotoesDocumento({
       a.download = `${nomeArquivo}.${fmt}`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
+      aoEmitir?.();
     } catch {
       setErro("Não foi possível gerar o arquivo. Tente novamente.");
     } finally {
@@ -383,7 +389,7 @@ export function BotoesDocumento({
 
   return (
     <>
-      <button onClick={() => window.print()}
+      <button onClick={imprimir}
         className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110">
         <Printer className="h-4 w-4" /> Imprimir
       </button>
