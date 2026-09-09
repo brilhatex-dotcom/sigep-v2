@@ -45,16 +45,55 @@ const ORG = [
 ];
 const DESTAQUE = ORG.length - 1;   // a linha do Batalhão sai maior e em negrito
 
-/* Tamanho de cada brasão em mm, na MESMA proporção do molde da escala
-   (MOLDE_BRASAO em lib/imagem.ts). Isto não é enfeite: a imagem enviada pelo
-   P/1 já é encaixada naquele molde antes de ser gravada, então desenhar numa
-   proporção diferente esticaria ou deixaria o brasão nadando na caixa — que
-   é o que acontecia com as armas do Estado, largas, num espaço quadrado. */
-const MOLDE: Record<"pmma" | "ma" | "bpm", [number, number]> = {
+/* Caixa MÁXIMA de cada brasão, em mm — exatamente as mesmas da tela (o
+   <Cabecalho> do histórico usa estes valores com "object-fit: contain").
+
+   A imagem é encaixada DENTRO da caixa mantendo a proporção dela. Isto não é
+   capricho: o Word e o pdf-lib ESTICAM a figura para o tamanho que a gente
+   pede, e as três logos têm proporções diferentes entre si (o 190 anos é
+   quadrado, o brasão do Batalhão é mais alto que largo). Com tamanho fixo,
+   todas saíam deformadas no arquivo baixado enquanto na tela ficavam certas —
+   que foi exatamente o que o P/1 viu. Usando a mesma caixa e o mesmo encaixe
+   da tela, o que se vê é o que sai. */
+const CAIXA: Record<"pmma" | "ma" | "bpm", [number, number]> = {
   pmma: [26, 22],
   ma: [30, 16],
   bpm: [22, 22],
 };
+
+/* Largura e altura reais da imagem, lidas do próprio arquivo: PNG traz no
+   IHDR, JPEG no marcador de início de quadro (SOF). Sem isso não dá para
+   respeitar a proporção. */
+function tamanhoDaImagem(dados: Buffer): { w: number; h: number } | null {
+  try {
+    // PNG: assinatura + IHDR com largura e altura em 32 bits
+    if (dados.length > 24 && dados[0] === 0x89 && dados[1] === 0x50) {
+      return { w: dados.readUInt32BE(16), h: dados.readUInt32BE(20) };
+    }
+    // JPEG: percorre os marcadores até um SOF (0xC0-0xCF, menos C4/C8/CC)
+    if (dados.length > 4 && dados[0] === 0xff && dados[1] === 0xd8) {
+      let i = 2;
+      while (i + 9 < dados.length) {
+        if (dados[i] !== 0xff) { i++; continue; }
+        const marca = dados[i + 1];
+        if (marca >= 0xc0 && marca <= 0xcf && marca !== 0xc4 && marca !== 0xc8 && marca !== 0xcc) {
+          return { h: dados.readUInt16BE(i + 5), w: dados.readUInt16BE(i + 7) };
+        }
+        i += 2 + dados.readUInt16BE(i + 2);
+      }
+    }
+  } catch { /* imagem estranha: cai para a caixa inteira */ }
+  return null;
+}
+
+/* Encaixa a imagem na caixa sem esticar (contain). */
+function encaixar(dados: Buffer, caixa: [number, number]): [number, number] {
+  const t = tamanhoDaImagem(dados);
+  if (!t || !t.w || !t.h) return caixa;
+  const escala = Math.min(caixa[0] / t.w, caixa[1] / t.h);
+  return [t.w * escala, t.h * escala];
+}
+
 const ENDERECO = "Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP-65.760-000";
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
@@ -189,9 +228,15 @@ export async function gerarHistoricoDocx(e: EntradaHistorico): Promise<Buffer> {
   const corpo: (Paragraph | Table)[] = [];
 
   // cabeçalho: 3 brasões + órgão
-  const iPmma = imgDocx(e.brasoes.pmma, MOLDE.pmma[0], MOLDE.pmma[1]);
-  const iMa = imgDocx(e.brasoes.ma, MOLDE.ma[0], MOLDE.ma[1]);
-  const iBpm = imgDocx(e.brasoes.bpm, MOLDE.bpm[0], MOLDE.bpm[1]);
+  const brasao = (valor: string | undefined, qual: "pmma" | "ma" | "bpm") => {
+    const img = resolverImagem(valor);
+    if (!img) return null;
+    const [w, h] = encaixar(img.data, CAIXA[qual]);
+    return imgDocx(valor, w, h);
+  };
+  const iPmma = brasao(e.brasoes.pmma, "pmma");
+  const iMa = brasao(e.brasoes.ma, "ma");
+  const iBpm = brasao(e.brasoes.bpm, "bpm");
   const cel = (larguraMm: number, filhos: Paragraph[]) =>
     new TableCell({ width: { size: mm(larguraMm), type: WidthType.DXA }, borders: SEM_BORDA, verticalAlign: VerticalAlign.TOP, children: filhos });
   corpo.push(new Table({
@@ -300,10 +345,27 @@ export async function gerarHistoricoPdf(e: EntradaHistorico): Promise<Uint8Array
   };
   const [iPmma, iMa, iBpm] = await Promise.all([embed(e.brasoes.pmma), embed(e.brasoes.ma), embed(e.brasoes.bpm)]);
   const topo = y;
-  if (iPmma) page.drawImage(iPmma, { x: esq, y: topo - PT(MOLDE.pmma[1]), width: PT(MOLDE.pmma[0]), height: PT(MOLDE.pmma[1]) });
-  if (iBpm) page.drawImage(iBpm, { x: dir - PT(MOLDE.bpm[0]), y: topo - PT(MOLDE.bpm[1]), width: PT(MOLDE.bpm[0]), height: PT(MOLDE.bpm[1]) });
-  if (iMa) page.drawImage(iMa, { x: (LARG - PT(MOLDE.ma[0])) / 2, y: topo - PT(MOLDE.ma[1]), width: PT(MOLDE.ma[0]), height: PT(MOLDE.ma[1]) });
-  y = topo - PT(MOLDE.ma[1] + 1);
+  /* O pdf-lib já entrega a largura e a altura reais da imagem embutida, então
+     aqui o contain sai direto delas. */
+  const caberBrasao = (img: { width: number; height: number }, qual: "pmma" | "ma" | "bpm"): [number, number] => {
+    const [cw, ch] = CAIXA[qual];
+    const escala = Math.min(PT(cw) / img.width, PT(ch) / img.height);
+    return [img.width * escala, img.height * escala];
+  };
+  const altoTopo = PT(Math.max(CAIXA.pmma[1], CAIXA.ma[1], CAIXA.bpm[1]));
+  if (iPmma) {
+    const [w, h] = caberBrasao(iPmma, "pmma");
+    page.drawImage(iPmma, { x: esq, y: topo - h, width: w, height: h });
+  }
+  if (iBpm) {
+    const [w, h] = caberBrasao(iBpm, "bpm");
+    page.drawImage(iBpm, { x: dir - w, y: topo - h, width: w, height: h });
+  }
+  if (iMa) {
+    const [w, h] = caberBrasao(iMa, "ma");
+    page.drawImage(iMa, { x: (LARG - w) / 2, y: topo - h, width: w, height: h });
+  }
+  y = topo - altoTopo - 2;
   ORG.forEach((l, i) => centrado(l, i === DESTAQUE ? 12 : 10.5, i === DESTAQUE ? negrito : normal, 1.5));
   centrado(ENDERECO, 8, normal, 1);
   centrado(e.contato, 8, negrito, 1);
