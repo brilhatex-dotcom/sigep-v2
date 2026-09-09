@@ -9,6 +9,8 @@ import {
 import { importarHistorico, juntar, type Importacao } from "@/lib/historicoImportar";
 import { lerTextoDoArquivo } from "@/lib/lerArquivoTexto";
 import { classificarPatente } from "@/lib/patentes";
+import { Cabecalho } from "@/components/docs/Comum";
+import HistoricoLote from "@/components/HistoricoLote";
 
 /* HISTÓRICO POLICIAL MILITAR — tela de alimentação.
 
@@ -212,6 +214,8 @@ export default function HistoricoClient() {
           </p>
         </div>
 
+        <HistoricoLote aoTerminar={carregarLista} />
+
         <div className="rounded-xl border border-white/10 bg-[#0F1B2D] p-4">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
             <Clock className="h-4 w-4 text-[#D4AF37]" /> Históricos já começados
@@ -373,6 +377,24 @@ export default function HistoricoClient() {
 
       {!carregando && (
         <>
+          {/* Cabeçalho do documento, do mesmo jeito que sai no papel. Os três
+              brasões são CLICÁVEIS e vêm da mesma configuração da Escala de
+              Serviço: trocar aqui troca na escala e em todos os documentos. */}
+          <section className="rounded-xl border border-white/10 bg-[#0F1B2D] p-4">
+            <h2 className="mb-3 text-sm font-semibold text-white">Cabeçalho do documento</h2>
+            <div className="mx-auto max-w-[190mm] rounded bg-white px-6 py-4 text-black" style={{ fontFamily: "Times New Roman, Times, serif", fontSize: "11pt" }}>
+              <Cabecalho
+                contato="TELEFONE: (99) 98509-5005 (Permanência) – 18batalhaopmma@gmail.com"
+                tamanhos={{ pmma: ["26mm", "22mm"], ma: ["30mm", "16mm"], bpm: ["22mm", "22mm"] }}
+                orgDestaque
+              />
+              <p className="mt-3 text-center font-bold underline" style={{ fontSize: "15pt" }}>HISTÓRICO POLICIAL MILITAR</p>
+            </div>
+            <p className="mt-2 text-xs text-[#7e8b99]">
+              Clique num brasão para trocar a imagem — vale para a Escala de Serviço e para todos os documentos do sistema.
+            </p>
+          </section>
+
           {/* I e II: campos. O que a ficha responde vem preenchido. */}
           {[
             { num: "I", titulo: "DADOS PESSOAIS", campos: CAMPOS_PESSOAIS },

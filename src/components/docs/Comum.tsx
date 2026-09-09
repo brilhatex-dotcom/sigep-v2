@@ -202,6 +202,8 @@ export function Cabecalho({
   brasaoAltura = "20mm",
   centroAltura = "15mm",
   fonte,
+  tamanhos,
+  orgDestaque = false,
 }: {
   contato?: string;
   /* Tamanho dos brasões e do bloco de texto — cada documento oficial usa uma
@@ -210,6 +212,12 @@ export function Cabecalho({
   brasaoAltura?: string;
   centroAltura?: string;
   fonte?: string;
+  /* Tamanho POR brasão, quando os três não são iguais. É o caso do molde da
+     escala: as armas do Estado são largas (30×16mm) e o brasão do Batalhão é
+     quadrado (22×22mm) — desenhar os dois na mesma caixa distorce. */
+  tamanhos?: { pmma: [string, string]; ma: [string, string]; bpm: [string, string] };
+  /* Última linha (o nome do Batalhão) maior e em negrito, como na escala. */
+  orgDestaque?: boolean;
 }) {
   const [brasoes, setBrasoes] = useState(PADRAO_BRASOES);
 
@@ -258,21 +266,29 @@ export function Cabecalho({
     />
   );
 
+  const dim = (chave: ChaveBrasao, padraoL: string, padraoA: string): [string, string] =>
+    tamanhos ? tamanhos[chave] : [padraoL, padraoA];
+  const [lPmma, aPmma] = dim("pmma", brasaoLargura, brasaoAltura);
+  const [lMa, aMa] = dim("ma", "auto", centroAltura);
+  const [lBpm, aBpm] = dim("bpm", brasaoLargura, brasaoAltura);
+
   return (
     <>
       <div style={{ display: "flex", alignItems: "center", gap: "4mm", fontSize: fonte }}>
-        <Brasao chave="pmma" largura={brasaoLargura} altura={brasaoAltura} />
+        <Brasao chave="pmma" largura={lPmma} altura={aPmma} />
         <div style={{ flex: 1, textAlign: "center", lineHeight: 1.15 }}>
           <div style={{ display: "flex", justifyContent: "center", marginBottom: "1mm" }}>
-            <Brasao chave="ma" largura="auto" altura={centroAltura} />
+            <Brasao chave="ma" largura={lMa} altura={aMa} />
           </div>
           <p style={{ margin: 0 }}>ESTADO DO MARANHÃO</p>
           <p style={{ margin: 0 }}>SECRETARIA DE ESTADO DA SEGURANÇA PÚBLICA</p>
           <p style={{ margin: 0 }}>POLÍCIA MILITAR DO MARANHÃO</p>
           <p style={{ margin: 0 }}>COMANDO DO POLICIAMENTO DE ÁREA I/2</p>
-          <p style={{ margin: 0 }}>18º BATALHÃO DE POLICIA MILITAR</p>
+          <p style={{ margin: 0, fontWeight: orgDestaque ? "bold" : undefined, fontSize: orgDestaque ? "1.08em" : undefined }}>
+            18º BATALHÃO DE POLÍCIA MILITAR
+          </p>
         </div>
-        <Brasao chave="bpm" largura={brasaoLargura} altura={brasaoAltura} />
+        <Brasao chave="bpm" largura={lBpm} altura={aBpm} />
       </div>
       <p style={{ textAlign: "center", fontSize: "8pt", margin: "1mm 0 0", lineHeight: 1.2 }}>
         Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP-65.760-000<br />

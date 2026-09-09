@@ -44,6 +44,17 @@ const ORG = [
   "18º BATALHÃO DE POLÍCIA MILITAR",
 ];
 const DESTAQUE = ORG.length - 1;   // a linha do Batalhão sai maior e em negrito
+
+/* Tamanho de cada brasão em mm, na MESMA proporção do molde da escala
+   (MOLDE_BRASAO em lib/imagem.ts). Isto não é enfeite: a imagem enviada pelo
+   P/1 já é encaixada naquele molde antes de ser gravada, então desenhar numa
+   proporção diferente esticaria ou deixaria o brasão nadando na caixa — que
+   é o que acontecia com as armas do Estado, largas, num espaço quadrado. */
+const MOLDE: Record<"pmma" | "ma" | "bpm", [number, number]> = {
+  pmma: [26, 22],
+  ma: [30, 16],
+  bpm: [22, 22],
+};
 const ENDERECO = "Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP-65.760-000";
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
@@ -178,9 +189,9 @@ export async function gerarHistoricoDocx(e: EntradaHistorico): Promise<Buffer> {
   const corpo: (Paragraph | Table)[] = [];
 
   // cabeçalho: 3 brasões + órgão
-  const iPmma = imgDocx(e.brasoes.pmma, 24, 20);
-  const iMa = imgDocx(e.brasoes.ma, 15, 15);
-  const iBpm = imgDocx(e.brasoes.bpm, 21, 21);
+  const iPmma = imgDocx(e.brasoes.pmma, MOLDE.pmma[0], MOLDE.pmma[1]);
+  const iMa = imgDocx(e.brasoes.ma, MOLDE.ma[0], MOLDE.ma[1]);
+  const iBpm = imgDocx(e.brasoes.bpm, MOLDE.bpm[0], MOLDE.bpm[1]);
   const cel = (larguraMm: number, filhos: Paragraph[]) =>
     new TableCell({ width: { size: mm(larguraMm), type: WidthType.DXA }, borders: SEM_BORDA, verticalAlign: VerticalAlign.TOP, children: filhos });
   corpo.push(new Table({
@@ -289,10 +300,10 @@ export async function gerarHistoricoPdf(e: EntradaHistorico): Promise<Uint8Array
   };
   const [iPmma, iMa, iBpm] = await Promise.all([embed(e.brasoes.pmma), embed(e.brasoes.ma), embed(e.brasoes.bpm)]);
   const topo = y;
-  if (iPmma) page.drawImage(iPmma, { x: esq, y: topo - PT(20), width: PT(24), height: PT(20) });
-  if (iBpm) page.drawImage(iBpm, { x: dir - PT(21), y: topo - PT(21), width: PT(21), height: PT(21) });
-  if (iMa) page.drawImage(iMa, { x: (LARG - PT(13)) / 2, y: topo - PT(15), width: PT(13), height: PT(15) });
-  y = topo - PT(15);
+  if (iPmma) page.drawImage(iPmma, { x: esq, y: topo - PT(MOLDE.pmma[1]), width: PT(MOLDE.pmma[0]), height: PT(MOLDE.pmma[1]) });
+  if (iBpm) page.drawImage(iBpm, { x: dir - PT(MOLDE.bpm[0]), y: topo - PT(MOLDE.bpm[1]), width: PT(MOLDE.bpm[0]), height: PT(MOLDE.bpm[1]) });
+  if (iMa) page.drawImage(iMa, { x: (LARG - PT(MOLDE.ma[0])) / 2, y: topo - PT(MOLDE.ma[1]), width: PT(MOLDE.ma[0]), height: PT(MOLDE.ma[1]) });
+  y = topo - PT(MOLDE.ma[1] + 1);
   ORG.forEach((l, i) => centrado(l, i === DESTAQUE ? 12 : 10.5, i === DESTAQUE ? negrito : normal, 1.5));
   centrado(ENDERECO, 8, normal, 1);
   centrado(e.contato, 8, negrito, 1);
