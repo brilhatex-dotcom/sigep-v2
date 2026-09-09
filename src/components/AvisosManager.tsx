@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Pencil, Trash2, Loader2, Inbox } from "lucide-react";
 import SlideOver from "@/components/SlideOver";
+import { confirmar } from "@/components/Avisos";
 
 export type Aviso = {
   id: string;
@@ -69,7 +70,7 @@ export default function AvisosManager({ inicial }: { inicial: Aviso[] }) {
   }
 
   async function remover(a: Aviso) {
-    if (!confirm("Remover este aviso?")) return;
+    if (!await confirmar("Remover este aviso?", { rotuloOk: "Remover", perigo: true })) return;
     setLista((l) => l.filter((x) => x.id !== a.id));
     await fetch(`/api/avisos/${a.id}`, { method: "DELETE" });
     router.refresh();

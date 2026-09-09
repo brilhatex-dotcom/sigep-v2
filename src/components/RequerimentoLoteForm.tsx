@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Save, Send, Users, AlertTriangle } from "lucide-react";
 import { usaQuadrinhoOutros, ehModeloAquisicao } from "@/lib/requerimentos";
 import { BuscaMilitarMultiplo, nomeBusca, type Militar } from "@/components/docs/Comum";
+import { avisar } from "@/components/Avisos";
 
 // quadro "2. PRODUTO CONTROLADO A SER ADQUIRIDO" das folhas de PCE
 const CAMPOS_PCE: { key: string; label: string; dica: string }[] = [
@@ -121,7 +122,7 @@ export default function RequerimentoLoteForm({
       ];
       if (d.semFicha) partes.push(`${d.semFicha} militar(es) sem ficha de efetivo foram pulados.`);
       partes.push("O documento de cada um sai pelo botão de gerar, na tela do requerimento.");
-      alert(partes.join("\n"));
+      avisar(partes.join("\n"));
 
       router.push("/requerimentos");
       router.refresh();

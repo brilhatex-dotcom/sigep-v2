@@ -11,6 +11,7 @@ import { lerArquivoParaHistorico, type Origem } from "@/lib/importarParaHistoric
 import { classificarPatente } from "@/lib/patentes";
 import { Cabecalho } from "@/components/docs/Comum";
 import HistoricoLote from "@/components/HistoricoLote";
+import { confirmar } from "@/components/Avisos";
 
 /* HISTÓRICO POLICIAL MILITAR — tela de alimentação.
 
@@ -84,8 +85,8 @@ export default function HistoricoClient() {
     finally { setCarregando(false); }
   };
 
-  const fechar = () => {
-    if (sujo && !confirm("Há alterações não salvas. Sair mesmo assim?")) return;
+  const fechar = async () => {
+    if (sujo && !(await confirmar("Há alterações não salvas. Sair mesmo assim?", { rotuloOk: "Sair sem salvar", perigo: true }))) return;
     setSel(null); setDados(VAZIO); setFicha({}); setSugestoes([]); setMsg(""); setSujo(false);
   };
 

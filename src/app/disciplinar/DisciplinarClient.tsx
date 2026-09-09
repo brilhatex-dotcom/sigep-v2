@@ -6,6 +6,7 @@ import PortariaDoc, { type PortariaRegistro, type PortariaModelo } from "@/compo
 import TermoDoc, { type TermoRegistro, type TermoModelo, TERMO_LABEL } from "@/components/TermoDoc";
 import SeletorEfetivo, { type MilitarLite, refMilitar } from "@/components/SeletorEfetivo";
 import { dadosDoTexto } from "@/lib/refMilitar";
+import { avisar, confirmar } from "@/components/Avisos";
 
 /* Modulo Disciplinar (FATD / Sindicancia / IPS / IPM). Para cada tipo:
    uma AREA DE CONTROLE no topo (criar novo + ver os passados) com os campos de
@@ -120,7 +121,7 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
 
   const salvar = async () => {
     if (!form) return;
-    if (!form.numero.trim() && !form.objeto.trim()) { alert("Informe ao menos o número ou o objeto."); return; }
+    if (!form.numero.trim() && !form.objeto.trim()) { avisar("Informe ao menos o número ou o objeto."); return; }
     setSalvando(true);
     try {
       const editando = !!form.id;
@@ -128,16 +129,16 @@ export default function DisciplinarClient({ tipo, tipoLabel, descricao, isAdmin 
       const r = await fetch(url, { method: editando ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, tipo }) });
       if (!r.ok) throw new Error();
       setForm(null); carregar();
-    } catch { alert("Não foi possível salvar."); }
+    } catch { avisar("Não foi possível salvar."); }
     finally { setSalvando(false); }
   };
   const remover = async (id: string) => {
-    if (!confirm("Remover este procedimento?")) return;
+    if (!await confirmar("Remover este procedimento?", { rotuloOk: "Remover", perigo: true })) return;
     try {
       const r = await fetch(`/api/disciplinar?id=${encodeURIComponent(id)}`, { method: "DELETE" });
       if (!r.ok) throw new Error();
       setItens((l) => l.filter((x) => x.id !== id));
-    } catch { alert("Não foi possível remover."); }
+    } catch { avisar("Não foi possível remover."); }
   };
 
   // Abre uma portaria. Prorrogação/escrivão recebem número AUTOMÁTICO (sequência

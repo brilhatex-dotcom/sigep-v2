@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import type { Achado } from "@/lib/promocaoCruzar";
 import { lerArquivoListao, type ProgressoLeitura } from "@/lib/ocrListao";
+import { avisar, confirmar } from "@/components/Avisos";
 
 /* =========================================================================
    IMPORTAR O LISTÃO DE PROMOÇÕES
@@ -124,7 +125,7 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
     if (!itens.length) { setErro("Marque pelo menos um militar."); return; }
 
     const resumo = itens.length === 1 ? "1 militar" : `${itens.length} militares`;
-    if (!confirm(`Promover ${resumo}?\n\nAs fichas serão atualizadas na hora. Dá para desfazer depois, nesta mesma tela.`)) return;
+    if (!await confirmar(`Promover ${resumo}?\n\nAs fichas serão atualizadas na hora. Dá para desfazer depois, nesta mesma tela.`)) return;
 
     setAplicando(true); setErro("");
     try {
@@ -150,7 +151,7 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
   }
 
   async function desfazer(lote: string) {
-    if (!confirm("Desfazer este lançamento? Todos voltam ao posto que tinham antes.")) return;
+    if (!await confirmar("Desfazer este lançamento? Todos voltam ao posto que tinham antes.")) return;
     try {
       const r = await fetch("/api/promocoes/listao/lotes?lote=" + encodeURIComponent(lote), { method: "DELETE" });
       const d = await r.json();
@@ -158,7 +159,7 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
       const aviso = d.naoVoltaram?.length
         ? `\n\n${d.naoVoltaram.length} não voltaram:\n` + d.naoVoltaram.map((x: any) => `• ${x.nome}: ${x.motivo}`).join("\n")
         : "";
-      alert(`${d.voltaram} militar(es) voltaram ao posto anterior.${aviso}`);
+      avisar(`${d.voltaram} militar(es) voltaram ao posto anterior.${aviso}`);
       recarregarLotes();
     } catch { setErro("Sem conexão. Tente de novo."); }
   }

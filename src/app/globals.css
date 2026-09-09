@@ -106,6 +106,21 @@ button:disabled { cursor: not-allowed; }
   .nav-progresso::after { animation: none; transform: scaleX(1); opacity: 0.65; }
 }
 
+/* --- 5. ENTRADA DOS AVISOS E DA CONFIRMACAO ---
+   Deslizar de baixo e o que faz o aviso ser NOTADO sem assustar: o olho
+   segue o movimento ate o canto e volta ao trabalho. O @media la de cima
+   ja zera isto para quem pediu movimento reduzido. */
+@keyframes aviso-entra {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.aviso-entra { animation: aviso-entra 200ms cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+@keyframes dialogo-entra {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.dialogo-entra { animation: dialogo-entra 160ms cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+
 /* ==========================================================
    >>> ADICIONAR ESTE BLOCO AO FINAL DO src/app/globals.css <<<
    Impressao (Ctrl+P): tira sidebar/efeitos, fundo branco,

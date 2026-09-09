@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Printer, FileDown, Loader2, Info } from "lucide-react";
+import { avisar } from "@/components/Avisos";
 
 /* =========================================================================
    TermoDoc — termos do procedimento apuratório (Sindicância/IPS/IPM):
@@ -76,7 +77,7 @@ export default function TermoDoc({ reg, modelo, comandante = "", onFechar }: { r
     setBaixandoWord(true);
     try {
       const res = await fetch(`/api/disciplinar/termo-docx?id=${encodeURIComponent(reg.id)}&modelo=${modelo}`);
-      if (!res.ok) { alert("Não foi possível gerar o Word."); return; }
+      if (!res.ok) { avisar("Não foi possível gerar o Word."); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -84,7 +85,7 @@ export default function TermoDoc({ reg, modelo, comandante = "", onFechar }: { r
       a.download = `${TERMO_LABEL[modelo].replace(/\s+/g, "_")}_${numRef.replace(/[^\w]+/g, "_")}.docx`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch { alert("Erro de conexão ao gerar o Word."); }
+    } catch { avisar("Erro de conexão ao gerar o Word."); }
     finally { setBaixandoWord(false); }
   }
 

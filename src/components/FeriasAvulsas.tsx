@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plane, Plus, Trash2, Search, FileText } from "lucide-react";
 import MemorandoFerias, { DadosMemorando } from "@/components/MemorandoFerias";
 import { classificarPatente } from "@/lib/patentes";
+import { avisar, confirmar } from "@/components/Avisos";
 
 /* Férias em DATAS SOLTAS (individual), fora do plano por equipes.
    Conta como "Férias" na situacao (dashboard/lotacao/efetivo/organograma). */
@@ -69,7 +70,7 @@ export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: 
   }, [busca, efetivo]);
 
   const adicionar = async () => {
-    if (!sel || !inicio || !fim) { alert("Escolha o militar e as datas (início e fim)."); return; }
+    if (!sel || !inicio || !fim) { avisar("Escolha o militar e as datas (início e fim)."); return; }
     setSalvando(true);
     try {
       const r = await fetch("/api/ferias/avulsas", {
@@ -77,13 +78,13 @@ export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: 
         body: JSON.stringify({ idPmma: sel.id, nome: nomeMil(sel), inicio, fim, obs }),
       });
       const d = await r.json();
-      if (!r.ok) { alert(d.error || "Falha ao salvar."); return; }
+      if (!r.ok) { avisar(d.error || "Falha ao salvar."); return; }
       setSel(null); setBusca(""); setInicio(""); setFim(""); setObs(""); setAbrirForm(false);
       // A avulsa entra no meio da fila: recarrega a lista E o plano acima, cujos
       // numeros de memorando sobem a partir da equipe seguinte.
       carregar();
       router.refresh();
-    } catch { alert("Falha ao salvar."); }
+    } catch { avisar("Falha ao salvar."); }
     finally { setSalvando(false); }
   };
   const abrirMemorando = (a: Avulsa) => {
@@ -107,14 +108,14 @@ export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: 
   };
 
   const remover = async (id: string) => {
-    if (!confirm("Remover estas férias avulsas?")) return;
+    if (!await confirmar("Remover estas férias avulsas?", { rotuloOk: "Remover", perigo: true })) return;
     try {
       const r = await fetch(`/api/ferias/avulsas?id=${encodeURIComponent(id)}`, { method: "DELETE" });
       if (!r.ok) throw new Error();
       // Remover tambem mexe na fila: os numeros seguintes descem um.
       carregar();
       router.refresh();
-    } catch { alert("Falha ao remover."); }
+    } catch { avisar("Falha ao remover."); }
   };
 
   return (

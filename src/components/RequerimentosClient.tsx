@@ -12,6 +12,7 @@ import {
   MODALIDADES_MATERIAL,
   modeloDaModalidade,
 } from "@/lib/requerimentos";
+import { avisar, confirmar } from "@/components/Avisos";
 
 type ModalidadeCustom = { id: string; nome: string; amparo: string };
 type Edital = { sigla: string; nomeCompleto: string; numero: string; data: string };
@@ -126,12 +127,12 @@ export default function RequerimentosClient({
   }
 
   async function removerModalidade(id: string) {
-    if (!confirm("Remover esta modalidade personalizada?")) return;
+    if (!await confirmar("Remover esta modalidade personalizada?", { rotuloOk: "Remover", perigo: true })) return;
     try {
       const r = await fetch(`/api/requerimentos/modalidades?id=${encodeURIComponent(id)}`, { method: "DELETE" });
       if (!r.ok) throw new Error();
       setCustom((l) => l.filter((m) => m.id !== id));
-    } catch { alert("Falha ao remover."); }
+    } catch { avisar("Falha ao remover."); }
   }
 
   function abrirEdicaoEdital(curso: string) {
@@ -148,10 +149,10 @@ export default function RequerimentosClient({
         body: JSON.stringify({ modalidade: editandoCurso, ...formEdital }),
       });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) { alert(d?.error || "Falha ao salvar o edital."); return; }
+      if (!r.ok) { avisar(d?.error || "Falha ao salvar o edital."); return; }
       setEditais(d.editais);
       setEditandoCurso(null);
-    } catch { alert("Falha ao salvar o edital."); }
+    } catch { avisar("Falha ao salvar o edital."); }
     finally { setSalvandoEdital(false); }
   }
 
@@ -179,7 +180,7 @@ export default function RequerimentosClient({
   const [removidos, setRemovidos] = useState<Set<string>>(new Set());
 
   async function excluir(r: Item) {
-    if (!confirm(
+    if (!await confirmar(
       `Excluir o requerimento de ${r.modalidade}${ehAdmin ? ` — ${r.requerente}` : ""}?\n\n` +
       "Some da lista e o documento gerado é apagado junto. Não dá para desfazer."
     )) return;
@@ -187,10 +188,10 @@ export default function RequerimentosClient({
     try {
       const res = await fetch(`/api/requerimentos/${r.id}`, { method: "DELETE" });
       const d = await res.json().catch(() => ({}));
-      if (!res.ok) { alert(d?.error || "Falha ao excluir."); return; }
+      if (!res.ok) { avisar(d?.error || "Falha ao excluir."); return; }
       setRemovidos((s) => new Set(s).add(r.id));
       router.refresh();
-    } catch { alert("Erro de conexão ao excluir."); }
+    } catch { avisar("Erro de conexão ao excluir."); }
     finally { setExcluindo(null); }
   }
 

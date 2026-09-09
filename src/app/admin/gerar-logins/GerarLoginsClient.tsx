@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import EncargosManager from "@/components/EncargosManager";
+import { confirmar } from "@/components/Avisos";
 
 type Preservado = { efetivoId: string; nome: string; motivo: string };
 type Previa = { totalEfetivo: number; aCorrigir: number; aCriar: number; semMatricula: number; adminsPreservados: number; preservados?: number; preservadosLista?: Preservado[] };
@@ -79,7 +80,7 @@ export default function GerarLoginsClient() {
 
   const mudarPerfil = async (efetivoId: string, acao: "promover" | "rebaixar", nome: string) => {
     const verbo = acao === "promover" ? "tornar ADMIN" : "remover o admin de";
-    if (!confirm(`Confirma ${verbo} ${nome}?`)) return;
+    if (!await confirmar(`Confirma ${verbo} ${nome}?`)) return;
     setMexendoAdm(efetivoId);
     setMsgAdm(null);
     try {
@@ -126,7 +127,7 @@ export default function GerarLoginsClient() {
   };
 
   const resetar = async (m: Militar) => {
-    if (!confirm(`Resetar a senha de ${nomeMil(m)} para 12345678? Ele tera que criar uma senha nova (e assinar o termo LGPD) no proximo acesso.`)) return;
+    if (!await confirmar(`Resetar a senha de ${nomeMil(m)} para 12345678? Ele tera que criar uma senha nova (e assinar o termo LGPD) no proximo acesso.`)) return;
     setResetando(m.efetivoId);
     setMsgReset(null);
     try {

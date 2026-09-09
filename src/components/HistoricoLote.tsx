@@ -7,6 +7,7 @@ import {
   identificacaoDoTexto, casarMilitar,
   type CandidatoMilitar, type DadosHistorico,
 } from "@/lib/historicoImportar";
+import { confirmar } from "@/components/Avisos";
 
 /* IMPORTAÇÃO EM LOTE — o P/1 joga a pasta inteira de históricos e o sistema
    diz de quem é cada arquivo, pelo ID PMMA e pela matrícula.
@@ -98,7 +99,7 @@ export default function HistoricoLote({ aoTerminar }: { aoTerminar: () => void }
 
   const importar = async () => {
     if (!prontas.length) return;
-    if (repetidos.length && !confirm(
+    if (repetidos.length && !await confirmar(
       `${repetidos.length} militar(es) aparecem em mais de um arquivo. O último lido é o que vale.\n\nImportar assim mesmo?`
     )) return;
     setGravando(true); setMsg("");

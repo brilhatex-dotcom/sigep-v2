@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { confirmar } from "@/components/Avisos";
 
 type Ficha = { id: string; postoGrad: string | null; numeroBarra: string | null; nome: string | null; nomeGuerra: string | null };
 type Interessado = { efetivoId: string; inscritoEm: string; ficha: Ficha | null };
@@ -89,7 +90,7 @@ export default function CursosClient({ perfil }: { perfil: string }) {
   };
 
   const excluir = async (cursoId: string) => {
-    if (!confirm("Excluir este curso e todos os interesses? Nao pode ser desfeito.")) return;
+    if (!await confirmar("Excluir este curso e todos os interesses? Nao pode ser desfeito.", { rotuloOk: "Excluir", perigo: true })) return;
     setOcupado(cursoId);
     try {
       const r = await fetch(`/api/cursos/${cursoId}`, { method: "DELETE" });

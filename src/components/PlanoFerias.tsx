@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import MemorandoFerias, { DadosMemorando } from "@/components/MemorandoFerias";
 import { grupoDoMilitar, rotuloDoGrupo } from "@/lib/distribuirEquipes";
+import { avisar, confirmar } from "@/components/Avisos";
 
 export type MembroEquipe = {
   efetivoId: string;
@@ -149,7 +150,7 @@ export default function PlanoFerias({
       // Exercício = ano de gozo das férias que ficam A GOZAR (alimenta o
       // relatório de férias vencidas). Vem do plano aberto, mas é editável.
       const ex = (window.prompt("Exercício das férias a gozar (ano):", anoSelecionado) || "").trim();
-      if (!/^\d{4}$/.test(ex)) { alert("Informe o exercício com 4 dígitos (ex.: 2026)."); return; }
+      if (!/^\d{4}$/.test(ex)) { avisar("Informe o exercício com 4 dígitos (ex.: 2026)."); return; }
       exercicio = ex;
       motivo = (window.prompt("Motivo/observação do adiamento (opcional):", "") || "").trim();
     } else if (!window.confirm(`Remover a marca de ADIADO de ${quem}?\n\nEle volta a sair de férias no período da equipe.`)) {
@@ -161,14 +162,14 @@ export default function PlanoFerias({
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idPmma: m.efetivoId, nome: m.nome || m.nomeGuerra || "", motivo, exercicio, postergado: !jaTem }),
       });
-      if (!r.ok) { alert("Falha ao salvar."); return; }
+      if (!r.ok) { avisar("Falha ao salvar."); return; }
       setPostergados((prev) => {
         const n = new Map(prev);
         if (jaTem) n.delete(m.efetivoId);
         else n.set(m.efetivoId, { motivo, exercicio, nome: m.nome || m.nomeGuerra || "" });
         return n;
       });
-    } catch { alert("Falha ao salvar."); }
+    } catch { avisar("Falha ao salvar."); }
     finally { setSalvandoPosterg(null); }
   }
   const [filtro, setFiltro] = useState<Filtro>("todos");
@@ -222,8 +223,8 @@ export default function PlanoFerias({
         body: JSON.stringify({ anoDestino: anoSelecionado, anoOrigem: anoAnterior }),
       });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) { alert(d?.erro || "Não foi possível aplicar o rodízio."); return; }
-      alert(
+      if (!r.ok) { avisar(d?.erro || "Não foi possível aplicar o rodízio."); return; }
+      avisar(
         `Rodízio de ${anoAnterior} aplicado em ${anoSelecionado}.\n\n` +
         `${d.resumo}\n\n` +
         `${d.total} militares · ${d.equipe1} mantidos na equipe 1.\n` +
@@ -232,7 +233,7 @@ export default function PlanoFerias({
           : `Nenhum ajuste extra foi preciso — ${anoAnterior} já estava equilibrado.`)
       );
       router.refresh();
-    } catch { alert("Falha ao aplicar o rodízio."); }
+    } catch { avisar("Falha ao aplicar o rodízio."); }
     finally { setRodiziando(false); }
   }
 
@@ -298,14 +299,14 @@ export default function PlanoFerias({
         body: JSON.stringify({ anoGozo: anoSelecionado }),
       });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) { alert(d?.erro || "Não foi possível reequilibrar."); return; }
-      alert(
+      if (!r.ok) { avisar(d?.erro || "Não foi possível reequilibrar."); return; }
+      avisar(
         `Plano de ${anoSelecionado} reequilibrado.\n\n` +
         `${d.total} militares no plano · ${d.mudaram} trocaram de equipe · ` +
         `${d.equipe1Preservada} mantidos na equipe 1.`
       );
       router.refresh();
-    } catch { alert("Falha ao reequilibrar."); }
+    } catch { avisar("Falha ao reequilibrar."); }
     finally { setReequilibrando(false); }
   }
 
@@ -350,14 +351,14 @@ export default function PlanoFerias({
 
   async function removerMembro(m: MembroEquipe) {
     const nome = [m.postoGrad, m.nomeGuerra || m.nome].filter(Boolean).join(" ");
-    if (!confirm(`Remover ${nome} do plano de ${anoSelecionado}?\n\nEle sai desta equipe e deixa de contar como "de férias" nas demais telas.`)) return;
+    if (!await confirmar(`Remover ${nome} do plano de ${anoSelecionado}?\n\nEle sai desta equipe e deixa de contar como "de férias" nas demais telas.`)) return;
     setRemovendo(m.efetivoId);
     try {
       const r = await fetch(`/api/ferias/membros?idPmma=${encodeURIComponent(m.efetivoId)}&anoGozo=${encodeURIComponent(anoSelecionado)}`, { method: "DELETE" });
       if (!r.ok) throw new Error();
       setAberta(null);
       router.refresh();
-    } catch { alert("Falha ao remover."); }
+    } catch { avisar("Falha ao remover."); }
     finally { setRemovendo(null); }
   }
   const [salvandoPermuta, setSalvandoPermuta] = useState(false);
@@ -397,15 +398,15 @@ export default function PlanoFerias({
     );
     if (!ano) return;
     const dest = ano.trim();
-    if (!/^\d{4}$/.test(dest)) { alert("Ano inválido. Use o formato AAAA (ex: 2027)."); return; }
+    if (!/^\d{4}$/.test(dest)) { avisar("Ano inválido. Use o formato AAAA (ex: 2027)."); return; }
     try {
       const r = await fetch("/api/ferias/novo-plano", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ anoDestino: dest, anoOrigem: anoSelecionado }),
       });
       const d = await r.json();
-      if (!r.ok) { alert(d.erro || "Não foi possível criar o plano."); return; }
-      alert(
+      if (!r.ok) { avisar(d.erro || "Não foi possível criar o plano."); return; }
+      avisar(
         d.modo === "rodizio"
           ? `Plano de ${dest} criado com ${d.membros || 0} militares.\n\n` +
             `Rodízio aplicado: ${d.resumo}\n` +
@@ -417,7 +418,7 @@ export default function PlanoFerias({
           : `Plano de ${dest} criado! ${d.membros || 0} militares copiados do ano ${anoSelecionado}. Agora é só ajustar as datas de cada equipe.`
       );
       onTrocarAno(dest);
-    } catch { alert("Falha ao criar o plano."); }
+    } catch { avisar("Falha ao criar o plano."); }
   }
 
   function abrirEditar(e: EquipeView) {

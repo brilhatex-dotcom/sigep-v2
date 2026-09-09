@@ -4,6 +4,7 @@ import { useRef, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Printer, Pencil, Check, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, FileDown, Loader2 } from "lucide-react";
 import CarimboSigep from "@/components/CarimboSigep";
+import { avisar } from "@/components/Avisos";
 
 export type DadosMemorando = {
   numero: string;
@@ -313,7 +314,7 @@ function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe, tipoAs
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        alert("Não foi possível gerar o Word.");
+        avisar("Não foi possível gerar o Word.");
         return;
       }
       const blob = await res.blob();
@@ -326,7 +327,7 @@ function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe, tipoAs
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch {
-      alert("Erro de conexão ao gerar o Word.");
+      avisar("Erro de conexão ao gerar o Word.");
     } finally {
       setBaixandoWord(false);
     }

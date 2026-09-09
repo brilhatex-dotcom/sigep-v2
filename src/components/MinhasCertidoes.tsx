@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { LINKS_OFICIAIS } from "@/lib/certidoes";
 import { LIMITE_CERTIDAO_BYTES as LIMITE_BYTES } from "@/lib/promocaoUpload";
+import { confirmar } from "@/components/Avisos";
 
 type Item = {
   ordem: number;
@@ -168,7 +169,7 @@ export default function MinhasCertidoes({
   async function enviarAoP1() {
     setErro("");
     if (!completo || !unificadoKey) return;
-    if (!confirm(
+    if (!await confirmar(
       "Confirmar o envio das certidões ao P/1?\n\n" +
       "O P/1 receberá seu PDF unificado para análise. " +
       "Após enviar, as certidões ficam travadas para conferência."

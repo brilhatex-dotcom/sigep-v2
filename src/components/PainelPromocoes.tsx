@@ -19,6 +19,7 @@ import {
   X,
   CalendarPlus,
 } from "lucide-react";
+import { avisar, confirmar } from "@/components/Avisos";
 
 export type LinhaParticipante = {
   efetivoId: string;
@@ -86,7 +87,7 @@ export default function PainelPromocoes({
   /* Destrava o lote de um militar (ele enviou algo errado e precisa trocar).
      Volta o status para "nao enviado", liberando upload e a geracao do PDF. */
   async function reabrir(efetivoId: string, quem: string) {
-    if (!confirm(
+    if (!await confirmar(
       `Reabrir as certidões de ${quem || "este militar"}?\n\n` +
       "Ele volta a poder trocar arquivos e gerar o PDF unificado de novo, " +
       "e precisará enviar ao P/1 outra vez."
@@ -100,7 +101,7 @@ export default function PainelPromocoes({
       });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
-        alert(j?.error || "Falha ao reabrir.");
+        avisar(j?.error || "Falha ao reabrir.");
         return;
       }
       router.refresh();
@@ -167,7 +168,7 @@ export default function PainelPromocoes({
   }
 
   async function arquivar(id: string) {
-    if (!confirm("Arquivar este período? Ele sai da tela principal, mas todas as certidões e dados são mantidos. Você pode reativar depois.")) return;
+    if (!await confirmar("Arquivar este período? Ele sai da tela principal, mas todas as certidões e dados são mantidos. Você pode reativar depois.")) return;
     setAcaoPeriodo(true);
     try {
       await fetch(`/api/promocoes/${id}`, {
