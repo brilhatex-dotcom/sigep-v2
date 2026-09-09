@@ -64,32 +64,52 @@ function desescapar(s: string): string {
 
 /* ------------------------------------------------------------ .pdf */
 
-async function lerPdf(buffer: ArrayBuffer): Promise<string> {
+/* Um pedaço de texto do PDF, com onde ele está na página. A posição importa
+   porque a Ficha Individual do SGI é uma TABELA: sem o x, "Concessão de Gozo
+   de Férias" e a data ao lado chegariam embaralhadas na mesma linha. */
+export type ItemTexto = { x: number; y: number; t: string };
+
+async function carregarPdfjs() {
   /* Mesmo pdf.js servido do próprio site que a importação do listão usa —
      ver o comentário em ocrListao.ts sobre por que ele não é empacotado. */
   const caminho = "/ocr/pdf.min.mjs";
   const pdfjs: any = await import(/* webpackIgnore: true */ caminho);
   pdfjs.GlobalWorkerOptions.workerSrc = "/ocr/pdf.worker.min.mjs";
+  return pdfjs;
+}
 
+/* Uma lista de pedaços POR PÁGINA, já agrupados por linha (mesmo y). */
+export async function lerPdfItens(buffer: ArrayBuffer): Promise<ItemTexto[][]> {
+  const pdfjs = await carregarPdfjs();
   const doc = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise;
-  let texto = "";
+  const paginas: ItemTexto[][] = [];
   for (let p = 1; p <= doc.numPages; p++) {
     const pagina = await doc.getPage(p);
     const tc = await pagina.getTextContent();
-    /* Junta por ALTURA: o pdf.js entrega pedaços soltos, e sem reagrupar por
-       linha o "IV – PROMOÇÕES" chegaria partido e a seção não seria
-       reconhecida. */
-    const linhas = new Map<number, { x: number; t: string }[]>();
+    const itens: ItemTexto[] = [];
     for (const item of tc.items as any[]) {
       if (!item?.str || !item.str.trim()) continue;
-      const y = Math.round(-item.transform[5] / 3);   // tolerância de ~3pt
-      if (!linhas.has(y)) linhas.set(y, []);
-      linhas.get(y)!.push({ x: item.transform[4], t: item.str });
+      itens.push({ x: item.transform[4], y: Math.round(-item.transform[5] / 3), t: item.str });
     }
-    for (const y of Array.from(linhas.keys()).sort((a, b) => a - b)) {
-      texto += linhas.get(y)!.sort((a, b) => a.x - b.x).map((i) => i.t).join("").replace(/\s+/g, " ").trim() + "\n";
-    }
+    paginas.push(itens);
   }
+  return paginas;
+}
+
+/* Junta os pedaços de uma página em linhas de texto. */
+export function linhasDeItens(itens: ItemTexto[]): string[] {
+  const linhas = new Map<number, ItemTexto[]>();
+  for (const i of itens) {
+    if (!linhas.has(i.y)) linhas.set(i.y, []);
+    linhas.get(i.y)!.push(i);
+  }
+  return Array.from(linhas.keys()).sort((a, b) => a - b)
+    .map((y) => linhas.get(y)!.sort((a, b) => a.x - b.x).map((i) => i.t).join("").replace(/\s+/g, " ").trim());
+}
+
+async function lerPdf(buffer: ArrayBuffer): Promise<string> {
+  const paginas = await lerPdfItens(buffer);
+  const texto = paginas.map((p) => linhasDeItens(p).join("\n")).join("\n");
   if (texto.replace(/\s/g, "").length < 200) {
     throw new Error("Este PDF não tem texto dentro (parece escaneado). Importe o Word, ou passe o PDF por um leitor de texto antes.");
   }
