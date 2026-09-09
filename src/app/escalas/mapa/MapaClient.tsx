@@ -5,6 +5,7 @@ import { ORGANOGRAMA, acharNo, pertenceAoNo, type NoOrg } from "@/lib/organogram
 import FolhaUnidadeRp from "@/components/FolhaUnidadeRp";
 import { parsePadrao, timeDoDia, incluiComReducao, podeNoDia, rotuloDias, extrasDoDia, rotuloGiro, proximosDoGiro, type GiroSemanal } from "@/lib/escalaMotor";
 import { usePulso, avisarMudanca } from "@/lib/sincronia";
+import { avisar, confirmar } from "@/components/Avisos";
 
 /* Lugares selecionáveis (DPM/CIA/Pelotão/seções) para o botão "mudar de
    lotação" no quadro de equipes. Achatado do organograma (sem a raiz). */
@@ -598,7 +599,7 @@ function RestricoesEscalaMini({
         body: JSON.stringify({ idPmma: id, nome, ...patch }),
       });
       const d = await r.json().catch(() => null);
-      if (!r.ok) { alert(d?.error || "Falha ao salvar a restrição."); return; }
+      if (!r.ok) { avisar(d?.error || "Falha ao salvar a restrição."); return; }
       setReducoes((m) => {
         const n = { ...m };
         const p = Number(d?.percentual) || 0;
@@ -626,7 +627,7 @@ function RestricoesEscalaMini({
         if (gd.length > 0) n[id] = { dias: gd, funcao: fx, refISO: gr }; else delete n[id];
         return n;
       });
-    } catch { alert("Falha ao salvar a restrição."); }
+    } catch { avisar("Falha ao salvar a restrição."); }
     finally { setSalvando(false); }
   };
 
@@ -1363,8 +1364,8 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
       : cadBase;
     const hj = hoje || toISO(new Date());
     const alvos = Object.keys(escalasAtual).filter((iso) => iso >= hj);
-    if (!alvos.length) { if (!silent) alert("Não há dias já salvos a partir de hoje para atualizar."); return; }
-    if (!silent && !confirm(`Aplicar o quadro atual (equipes) a ${alvos.length} dia(s) já salvo(s) a partir de hoje?\n\nAs permutas são preservadas; o expediente e o restante do dia não mudam.`)) return;
+    if (!alvos.length) { if (!silent) avisar("Não há dias já salvos a partir de hoje para atualizar."); return; }
+    if (!silent && !await confirmar(`Aplicar o quadro atual (equipes) a ${alvos.length} dia(s) já salvo(s) a partir de hoje?\n\nAs permutas são preservadas; o expediente e o restante do dia não mudam.`)) return;
     // ftPatrulheiro agora é lista na folha (permite acrescentar patrulheiros).
     const CAMPOS_UM = ["ftGraduado", "ftMotorista", "rpAdjunto", "rpMotorista"] as const;
     const CAMPOS_LISTA = ["ftPatrulheiro", "rpPatrulheiro", "guardaPermanente", "inteligencia"] as const;
@@ -1396,7 +1397,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
       const r = await fetch(`/api/escala-dias${qs}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ escalas: novo }) });
       if (r.ok) avisarMudanca("escala");
     } catch {}
-    if (!silent) alert("Quadro aplicado aos dias futuros. ✅");
+    if (!silent) avisar("Quadro aplicado aos dias futuros. ✅");
   };
   const aplicarQuadroFuturo = () => reaplicarQuadroCore(false);
 

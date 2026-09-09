@@ -3,6 +3,7 @@ import "./globals.css";
 import Providers from "@/components/Providers";
 import RegistrarSW from "@/components/RegistrarSW";
 import LiveRefresh from "@/components/LiveRefresh";
+import CentralAvisos from "@/components/Avisos";
 
 export const metadata: Metadata = {
   title: "SIGEP 18º BPM",
@@ -38,6 +39,8 @@ export default function RootLayout({
         <Providers>{children}</Providers>
         <RegistrarSW />
         <LiveRefresh />
+        {/* Avisos e confirmacoes do sistema, no lugar do avisar()/await confirmar() */}
+        <CentralAvisos />
       </body>
     </html>
   );

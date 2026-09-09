@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { avisar, confirmar } from "@/components/Avisos";
 
 /* Arquivo das escalas publicadas (Fase 4). Lista o historico do que foi emitido,
    agrupado por mes, e permite rebaixar a versao exata (Word/PDF). */
@@ -74,19 +75,19 @@ export default function PublicacoesClient({ isAdmin }: { isAdmin: boolean }) {
       a.href = url; a.download = `escala-${publicacao.dataEscala}.${fmt}`; a.click();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
     } catch {
-      alert("Não foi possível baixar a publicação.");
+      avisar("Não foi possível baixar a publicação.");
     } finally {
       setBaixando(null);
     }
   };
 
   const remover = async (id: string) => {
-    if (!confirm("Remover esta publicação do arquivo?")) return;
+    if (!await confirmar("Remover esta publicação do arquivo?", { rotuloOk: "Remover", perigo: true })) return;
     try {
       const r = await fetch(`/api/publicacoes?id=${encodeURIComponent(id)}`, { method: "DELETE" });
       if (!r.ok) throw new Error();
       setItens((l) => l.filter((p) => p.id !== id));
-    } catch { alert("Não foi possível remover."); }
+    } catch { avisar("Não foi possível remover."); }
   };
 
   return (

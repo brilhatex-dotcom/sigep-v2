@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { X, Printer, FileDown, Loader2, Info } from "lucide-react";
 import { imprimirElemento } from "@/lib/imprimir";
 import { assinanteFatd, type DadosPessoa } from "@/lib/refMilitar";
+import { avisar } from "@/components/Avisos";
 
 /* =========================================================================
    FatdDoc — Formulário de Apuração de Transgressão Disciplinar (FATD).
@@ -50,7 +51,7 @@ export default function FatdDoc({ reg, mil: milD, enc: encD, chefeP1 = "", coman
     setBaixandoWord(true);
     try {
       const res = await fetch(`/api/disciplinar/fatd-docx?id=${encodeURIComponent(reg.id)}`);
-      if (!res.ok) { alert("Não foi possível gerar o Word."); return; }
+      if (!res.ok) { avisar("Não foi possível gerar o Word."); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -58,7 +59,7 @@ export default function FatdDoc({ reg, mil: milD, enc: encD, chefeP1 = "", coman
       a.download = `FATD_${(reg.numero || "sn").replace(/[^\w]+/g, "_")}.docx`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch { alert("Erro de conexão ao gerar o Word."); }
+    } catch { avisar("Erro de conexão ao gerar o Word."); }
     finally { setBaixandoWord(false); }
   }
 

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ChangeEvent, PointerEvent as ReactPointerEvent } from "react";
 import { X, Upload, Trash2, Move, Loader2, Check, ImagePlus } from "lucide-react";
+import { confirmar } from "@/components/Avisos";
 
 type Ajuste = { zoom: number; x: number; y: number };
 const PADRAO: Ajuste = { zoom: 1, x: 0, y: 0 };
@@ -94,7 +95,7 @@ export default function AvatarPerfil({
   }
 
   async function excluir() {
-    if (!efetivoId || !confirm("Excluir a foto de perfil?")) return;
+    if (!efetivoId || !await confirmar("Excluir a foto de perfil?", { rotuloOk: "Excluir", perigo: true })) return;
     setOcupado("excluir"); setErro(null);
     try {
       const r = await fetch("/api/foto", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ efetivoId }) });

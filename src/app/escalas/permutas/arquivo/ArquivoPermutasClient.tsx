@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, Eye, FileDown, MapPin, Loader2 } from "lucide-react";
 import SolicitacaoPermutaDoc, { type PermutaDoc } from "@/components/SolicitacaoPermutaDoc";
+import { avisar } from "@/components/Avisos";
 
 type Item = PermutaDoc & { localId: string; localRotulo: string; lotacao: string; criadoEm: string };
 type Local = { id: string; rotulo: string };
@@ -67,7 +68,7 @@ export default function ArquivoPermutasClient() {
     setBaixando(p.id);
     try {
       const res = await fetch(`/api/permutas/docx?id=${encodeURIComponent(p.id)}`);
-      if (!res.ok) { alert("Não foi possível gerar o Word."); return; }
+      if (!res.ok) { avisar("Não foi possível gerar o Word."); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -75,7 +76,7 @@ export default function ArquivoPermutasClient() {
       a.download = `Permuta_${(p.protocolo || p.solicitante.linha).replace(/[^\w]+/g, "_")}.docx`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 4000);
-    } catch { alert("Erro ao gerar o Word."); }
+    } catch { avisar("Erro ao gerar o Word."); }
     finally { setBaixando(""); }
   };
 

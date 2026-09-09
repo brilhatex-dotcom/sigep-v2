@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Download, Loader2, Pencil, Trash2 } from "lucide-react";
 import { ehModeloAquisicao } from "@/lib/requerimentos";
+import { confirmar } from "@/components/Avisos";
 
 type Dados = {
   id: string; modalidade: string; modelo: string; status: string;
@@ -32,7 +33,7 @@ export default function RequerimentoDetalhe({
   const podeMexer = ehAdmin || dados.status === "rascunho";
 
   async function excluir() {
-    if (!confirm(
+    if (!await confirmar(
       `Excluir este requerimento de ${dados.modalidade}?\n\n` +
       "Some da lista e o documento gerado é apagado junto. Não dá para desfazer."
     )) return;

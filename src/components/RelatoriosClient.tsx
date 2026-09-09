@@ -10,6 +10,7 @@ import {
   CAMPOS, GRUPOS, MODELOS, campoPorChave, valorDoCampo,
   type MilitarRelatorio, type Modelo,
 } from "@/lib/relatorioCampos";
+import { avisar } from "@/components/Avisos";
 
 type OpcaoUnidade = { id: string; rotulo: string; nivel: number };
 
@@ -162,9 +163,9 @@ export default function RelatoriosClient({
         body: JSON.stringify({ titulo, legenda, colunas: cabecalhos, linhas: dados,
           larguras: colunasOrdenadas.map((c) => c.largura || 12) }),
       });
-      if (!r.ok) { alert("Não foi possível gerar o Word."); return; }
+      if (!r.ok) { avisar("Não foi possível gerar o Word."); return; }
       baixar(await r.blob(), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-    } catch { alert("Erro de conexão ao gerar o Word."); }
+    } catch { avisar("Erro de conexão ao gerar o Word."); }
     finally { setGerandoWord(false); }
   }
 

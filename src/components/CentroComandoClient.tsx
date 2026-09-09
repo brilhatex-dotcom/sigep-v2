@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { avisar, confirmar } from "@/components/Avisos";
 
 /* Controle de Movimentação de Efetivo (Centro de Comando).
    Registra a SAÍDA (policial transferido/deixou a unidade) e a CHEGADA
@@ -77,7 +78,7 @@ export default function CentroComandoClient() {
   const limpar = () => { setSel(null); setBusca(""); setDestino(""); setMotivo(""); setObs(""); setData(hoje()); };
 
   const registrar = async () => {
-    if (!sel) { alert("Escolha o policial no buscador."); return; }
+    if (!sel) { avisar("Escolha o policial no buscador."); return; }
     setSalvando(true);
     try {
       const r = await fetch("/api/centro-comando", {
@@ -86,17 +87,17 @@ export default function CentroComandoClient() {
       });
       if (!r.ok) throw new Error();
       limpar(); carregar();
-    } catch { alert("Não foi possível registrar a movimentação."); }
+    } catch { avisar("Não foi possível registrar a movimentação."); }
     finally { setSalvando(false); }
   };
 
   const remover = async (id: string) => {
-    if (!confirm("Remover este registro de movimentação?")) return;
+    if (!await confirmar("Remover este registro de movimentação?", { rotuloOk: "Remover", perigo: true })) return;
     try {
       const r = await fetch(`/api/centro-comando?id=${encodeURIComponent(id)}`, { method: "DELETE" });
       if (!r.ok) throw new Error();
       setItens((l) => l.filter((x) => x.id !== id));
-    } catch { alert("Não foi possível remover."); }
+    } catch { avisar("Não foi possível remover."); }
   };
 
   const termo = filtro.trim().toLowerCase();

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { confirmar } from "@/components/Avisos";
 
 /* Gestão de ENCARGOS (funções) dos logins. Busca o militar, escolhe a função e
    atribui. Dirige permissões (ex.: só o Chefe do P/1 dá o parecer da permuta e
@@ -53,7 +54,7 @@ export default function EncargosManager() {
   };
 
   const remover = async (efetivoId: string) => {
-    if (!confirm("Remover esta função?")) return;
+    if (!await confirmar("Remover esta função?", { rotuloOk: "Remover", perigo: true })) return;
     try {
       const r = await fetch("/api/admin/encargos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ efetivoId, encargo: "" }) });
       if (r.ok) carregar();

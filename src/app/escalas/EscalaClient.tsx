@@ -8,6 +8,7 @@ import { usePulso, avisarMudanca } from "@/lib/sincronia";
 import CarimboSigep from "@/components/CarimboSigep";
 import { compararAntiguidade } from "@/lib/patentes";
 import { incluiComReducao, podeNoDia, rotuloDias, ROTEM_HORARIOS_PADRAO, horariosRotemDoDia, extrasDoDia, proximosDoGiro, rotuloGiro, serveNoGiro, type GiroSemanal } from "@/lib/escalaMotor";
+import { avisar, confirmar } from "@/components/Avisos";
 
 /* =========================================================================
    SIGEP-18BPM  ·  MODULO DE ESCALAS  (Escala de Servico diaria)  ·  v2 UX
@@ -2516,7 +2517,7 @@ export default function EscalaClient() {
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
     } catch {
-      alert("Não foi possível gerar o arquivo. Tente novamente.");
+      avisar("Não foi possível gerar o arquivo. Tente novamente.");
     }
   };
 
@@ -2525,9 +2526,9 @@ export default function EscalaClient() {
     // se publica mesmo assim.
     if (conflitosDoDia.length) {
       const quem = conflitosDoDia.join(", ");
-      if (!confirm(`⚠️ ATENÇÃO — CONFLITO nesta escala de ${brCurto(data)}:\n\n${quem} está${conflitosDoDia.length > 1 ? "ão" : ""} escalado${conflitosDoDia.length > 1 ? "s" : ""} enquanto afastado${conflitosDoDia.length > 1 ? "s" : ""} (férias/curso/missão/licença).\n\nDeseja PUBLICAR mesmo assim?`)) return;
+      if (!await confirmar(`⚠️ ATENÇÃO — CONFLITO nesta escala de ${brCurto(data)}:\n\n${quem} está${conflitosDoDia.length > 1 ? "ão" : ""} escalado${conflitosDoDia.length > 1 ? "s" : ""} enquanto afastado${conflitosDoDia.length > 1 ? "s" : ""} (férias/curso/missão/licença).\n\nDeseja PUBLICAR mesmo assim?`)) return;
     } else {
-      if (!confirm(`Publicar a escala de ${brCurto(data)} no arquivo de Publicações?`)) return;
+      if (!await confirmar(`Publicar a escala de ${brCurto(data)} no arquivo de Publicações?`)) return;
     }
     try {
       const r = await fetch("/api/publicacoes", {
@@ -2536,9 +2537,9 @@ export default function EscalaClient() {
         body: JSON.stringify({ escala: e, brasoes, chefe }),
       });
       if (!r.ok) throw new Error("HTTP " + r.status);
-      alert("Escala publicada no arquivo. ✅  Veja em Escalas → Publicações.");
+      avisar("Escala publicada no arquivo. ✅  Veja em Escalas → Publicações.");
     } catch {
-      alert("Não foi possível publicar a escala.");
+      avisar("Não foi possível publicar a escala.");
     }
   };
 

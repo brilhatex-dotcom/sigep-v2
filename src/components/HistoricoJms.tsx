@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronRight, FileText, Stethoscope, Loader2, Trash2, RefreshCw, Inbox } from "lucide-react";
+import { avisar, confirmar } from "@/components/Avisos";
 
 /* Aba EMITIDOS da tela Guia JMS e Ofício: o que já foi feito, agrupado por
    mês. O mês vem fechado, mostrando só quantos foram; clicando, abre a lista
@@ -76,13 +77,13 @@ export default function HistoricoJms() {
 
   const apagar = async (i: Item) => {
     if (i.tipo !== "oficio") return;
-    if (!confirm(`Apagar o registro do ofício de ${i.postoGrad} ${i.nome}?\n\nO documento em si não é apagado — só sai desta lista.`)) return;
+    if (!await confirmar(`Apagar o registro do ofício de ${i.postoGrad} ${i.nome}?\n\nO documento em si não é apagado — só sai desta lista.`, { rotuloOk: "Apagar", perigo: true })) return;
     setApagando(i.id);
     try {
       const r = await fetch(`/api/jms/emitidos?id=${encodeURIComponent(i.id)}`, { method: "DELETE" });
       if (!r.ok) throw new Error();
       setItens((l) => l.filter((x) => x.id !== i.id));
-    } catch { alert("Não foi possível apagar."); }
+    } catch { avisar("Não foi possível apagar."); }
     finally { setApagando(null); }
   };
 

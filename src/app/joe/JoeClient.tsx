@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { joeNoPeriodo, type AutorizacaoJoe, type SaldoJoe } from "@/lib/joeSaldo";
+import { confirmar } from "@/components/Avisos";
 
 /* =========================================================================
    SIGEP-18BPM · JOE — Jornada Operacional Extraordinaria.
@@ -276,7 +277,7 @@ export default function JoeClient({ perfil }: { perfil: string }) {
   };
 
   const excluir = async (joeId: string) => {
-    if (!confirm("Excluir este JOE e todas as candidaturas? Esta ação não pode ser desfeita.")) return;
+    if (!await confirmar("Excluir este JOE e todas as candidaturas? Esta ação não pode ser desfeita.", { rotuloOk: "Excluir", perigo: true })) return;
     setOcupado(joeId);
     try {
       const r = await fetch(`/api/joe/${joeId}`, { method: "DELETE" });
@@ -557,7 +558,7 @@ function ModalSaldo({ ehAdmin, onFechar }: { ehAdmin: boolean; onFechar: () => v
   };
 
   const excluir = async (id: string) => {
-    if (!confirm("Excluir esta autorização de JOE?")) return;
+    if (!await confirmar("Excluir esta autorização de JOE?", { rotuloOk: "Excluir", perigo: true })) return;
     try {
       const r = await fetch(`/api/joe/saldo?id=${id}`, { method: "DELETE" });
       const d = await r.json().catch(() => ({}));

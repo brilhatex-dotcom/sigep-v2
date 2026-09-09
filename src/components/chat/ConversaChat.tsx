@@ -6,6 +6,7 @@ import {
   Search, Send, X, Download, FileText, Loader2, Mic, Reply, Copy, Pencil, Trash2, Ban,
   Check, ChevronDown, Smile, Forward, Paperclip, Image as ImageIcon, Camera, MapPin, Share2,
 } from "lucide-react";
+import { confirmar } from "@/components/Avisos";
 
 /* =========================================================================
    A CONVERSA — usada nos DOIS lugares onde se conversa no SIGEP: a tela
@@ -326,7 +327,7 @@ export default function ConversaChat({
   // Apagar para todos: a mensagem vira "mensagem apagada" dos dois lados.
   async function apagar(m: Msg) {
     setMenuDe(null);
-    if (!confirm("Apagar esta mensagem para todos? Quem recebeu vai ver que uma mensagem foi apagada.")) return;
+    if (!await confirmar("Apagar esta mensagem para todos? Quem recebeu vai ver que uma mensagem foi apagada.", { rotuloOk: "Apagar", perigo: true })) return;
     try {
       const r = await fetch("/api/chat/mensagens?id=" + encodeURIComponent(m.id), { method: "DELETE" });
       const d = await r.json().catch(() => ({}));

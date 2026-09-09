@@ -7,6 +7,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { avisar } from "@/components/Avisos";
 
 type Inscricao = {
   id: string;
@@ -80,16 +81,16 @@ export default function CFS2026AdminPage() {
       if (data.ok) {
         carregar();
       } else {
-        alert("Erro: " + data.error);
+        avisar("Erro: " + data.error);
       }
     } catch (err: any) {
-      alert("Erro: " + err.message);
+      avisar("Erro: " + err.message);
     }
   }
   
   function exportarCSV() {
     if (inscricoes.length === 0) {
-      alert("Nenhuma inscricao para exportar");
+      avisar("Nenhuma inscricao para exportar");
       return;
     }
     

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, FileText, Download, Loader2, RotateCcw } from "lucide-react";
 import FolhaEscalaView from "@/components/FolhaEscalaView";
+import { avisar } from "@/components/Avisos";
 
 /* =========================================================================
    Escala de Serviço — área do policial.
@@ -108,7 +109,7 @@ export default function MinhaEscalaClient() {
       const a = document.createElement("a");
       a.href = url; a.download = `escala-${pub.dataEscala}.${fmt}`; a.click();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
-    } catch { alert("Não foi possível baixar o arquivo."); }
+    } catch { avisar("Não foi possível baixar o arquivo."); }
     finally { setBaixando(null); }
   }
 

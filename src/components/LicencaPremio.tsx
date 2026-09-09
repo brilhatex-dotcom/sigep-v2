@@ -17,6 +17,7 @@ import {
   Minimize2,
 } from "lucide-react";
 import MemorandoFerias, { DadosMemorando } from "@/components/MemorandoFerias";
+import { avisar, confirmar } from "@/components/Avisos";
 
 export type MembroEquipeLicenca = {
   membroId: string;
@@ -164,7 +165,7 @@ export default function LicencaPremio({
     );
     if (!ano) return;
     const alvo = ano.trim();
-    if (!/^\d{4}$/.test(alvo)) { alert("Ano inválido. Use o formato AAAA (ex: 2027)."); return; }
+    if (!/^\d{4}$/.test(alvo)) { avisar("Ano inválido. Use o formato AAAA (ex: 2027)."); return; }
     setAbrindoAno(true);
     try {
       const r = await fetch("/api/licenca-premio/novo-ano", {
@@ -172,10 +173,10 @@ export default function LicencaPremio({
         body: JSON.stringify({ ano: alvo }),
       });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) { alert(d?.erro || "Não foi possível abrir o exercício."); return; }
-      alert(`Exercício de ${alvo} aberto com as 4 equipes.\n\nAgora lance os períodos de cada equipe e inclua os militares que fazem jus.`);
+      if (!r.ok) { avisar(d?.erro || "Não foi possível abrir o exercício."); return; }
+      avisar(`Exercício de ${alvo} aberto com as 4 equipes.\n\nAgora lance os períodos de cada equipe e inclua os militares que fazem jus.`);
       onTrocarAno(alvo);
-    } catch { alert("Falha ao abrir o exercício."); }
+    } catch { avisar("Falha ao abrir o exercício."); }
     finally { setAbrindoAno(false); }
   }
 
@@ -253,7 +254,7 @@ export default function LicencaPremio({
   }
 
   async function removerMembro(membroId: string) {
-    if (!confirm("Remover este militar da equipe de Licença-Prêmio?")) return;
+    if (!await confirmar("Remover este militar da equipe de Licença-Prêmio?", { rotuloOk: "Remover", perigo: true })) return;
     try {
       const res = await fetch("/api/licenca-premio/membros", {
         method: "DELETE",
