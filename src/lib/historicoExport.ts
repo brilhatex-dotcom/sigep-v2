@@ -32,6 +32,10 @@ export type EntradaHistorico = {
   contato: string;
 };
 
+/* Mesmo timbre da Escala de Serviço, de propósito: os brasões vêm da MESMA
+   configuração (trocar na escala troca aqui) e o nome do órgão sai com o
+   mesmo destaque na última linha. Assim os documentos do Batalhão saem todos
+   com a mesma cara. */
 const ORG = [
   "ESTADO DO MARANHÃO",
   "SECRETARIA DE ESTADO DA SEGURANÇA PÚBLICA",
@@ -39,6 +43,7 @@ const ORG = [
   "COMANDO DO POLICIAMENTO DE ÁREA I/2",
   "18º BATALHÃO DE POLÍCIA MILITAR",
 ];
+const DESTAQUE = ORG.length - 1;   // a linha do Batalhão sai maior e em negrito
 const ENDERECO = "Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP-65.760-000";
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
@@ -174,8 +179,8 @@ export async function gerarHistoricoDocx(e: EntradaHistorico): Promise<Buffer> {
 
   // cabeçalho: 3 brasões + órgão
   const iPmma = imgDocx(e.brasoes.pmma, 24, 20);
-  const iMa = imgDocx(e.brasoes.ma, 15, 14);
-  const iBpm = imgDocx(e.brasoes.bpm, 22, 20);
+  const iMa = imgDocx(e.brasoes.ma, 15, 15);
+  const iBpm = imgDocx(e.brasoes.bpm, 21, 21);
   const cel = (larguraMm: number, filhos: Paragraph[]) =>
     new TableCell({ width: { size: mm(larguraMm), type: WidthType.DXA }, borders: SEM_BORDA, verticalAlign: VerticalAlign.TOP, children: filhos });
   corpo.push(new Table({
@@ -187,7 +192,7 @@ export async function gerarHistoricoDocx(e: EntradaHistorico): Promise<Buffer> {
       cel(28, [new Paragraph({ alignment: AlignmentType.CENTER, children: iPmma ? [iPmma] : [] })]),
       cel(114, [
         new Paragraph({ alignment: AlignmentType.CENTER, children: iMa ? [iMa] : [] }),
-        ...ORG.map((l) => par([run(l, { size: 11 })], { centro: true, depois: 0 })),
+        ...ORG.map((l, i) => par([run(l, { size: i === DESTAQUE ? 12 : 10.5, b: i === DESTAQUE })], { centro: true, depois: 0 })),
         par([run(ENDERECO, { size: 8 })], { centro: true, depois: 0 }),
         par([run(e.contato, { size: 8, b: true })], { centro: true, depois: 0 }),
       ]),
@@ -285,10 +290,10 @@ export async function gerarHistoricoPdf(e: EntradaHistorico): Promise<Uint8Array
   const [iPmma, iMa, iBpm] = await Promise.all([embed(e.brasoes.pmma), embed(e.brasoes.ma), embed(e.brasoes.bpm)]);
   const topo = y;
   if (iPmma) page.drawImage(iPmma, { x: esq, y: topo - PT(20), width: PT(24), height: PT(20) });
-  if (iBpm) page.drawImage(iBpm, { x: dir - PT(22), y: topo - PT(20), width: PT(22), height: PT(20) });
-  if (iMa) page.drawImage(iMa, { x: (LARG - PT(12)) / 2, y: topo - PT(14), width: PT(12), height: PT(14) });
+  if (iBpm) page.drawImage(iBpm, { x: dir - PT(21), y: topo - PT(21), width: PT(21), height: PT(21) });
+  if (iMa) page.drawImage(iMa, { x: (LARG - PT(13)) / 2, y: topo - PT(15), width: PT(13), height: PT(15) });
   y = topo - PT(15);
-  for (const l of ORG) centrado(l, 11, normal, 1.5);
+  ORG.forEach((l, i) => centrado(l, i === DESTAQUE ? 12 : 10.5, i === DESTAQUE ? negrito : normal, 1.5));
   centrado(ENDERECO, 8, normal, 1);
   centrado(e.contato, 8, negrito, 1);
   y -= PT(4);

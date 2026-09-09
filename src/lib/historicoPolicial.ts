@@ -137,6 +137,10 @@ export const CAMPOS_FUNCIONAIS: Campo[] = [
   { chave: "especialidade", rotulo: "ESPECIALIDADE/QPMP" },
   { chave: "comportamento", rotulo: "COMPORTAMENTO" },
   { chave: "funcao", rotulo: "FUNÇÃO JÁ EXERCIDA", daFicha: true },
+  // Só o modelo do oficial abre o tempo de serviço em duas alíneas.
+  { chave: "tempoServico", rotulo: "TEMPO DE EFETIVO SERVIÇO EM FUNÇÃO", seOficial: true },
+  { chave: "arregimentada", rotulo: "a) - ARREGIMENTADA", seOficial: true },
+  { chave: "naoArregimentada", rotulo: "b) - NÃO ARREGIMENTADA", seOficial: true },
 ];
 
 export type DadosHistorico = {

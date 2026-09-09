@@ -15,12 +15,17 @@ export const dynamic = "force-dynamic";
    sempre o histórico gravado, e não um rascunho que ficou aberto no
    navegador de alguém. */
 
+/* Os MESMOS brasões da Escala de Serviço (chave "escala_brasoes"): trocar a
+   logo lá troca em todos os documentos, inclusive aqui. Os padrões abaixo só
+   valem enquanto nada foi configurado. */
 const PADRAO_BRASOES = {
-  pmma: "/brasoes/armas-ma.png",       // emblema da PMMA, à esquerda
-  ma: "/brasao-estado-ma.png",         // armas do Estado, ao centro
+  pmma: "/brasoes/pmma-190.jpg",
+  ma: "/brasao-estado-ma.png",
   bpm: "/brasoes/brasao-18bpm.png",
 };
-const CONTATO = "TELEFAX: (99) 3663-3892 – 11ciapmma@gmail.com";
+/* Contato atual do Batalhão, o mesmo da escala e do ofício da JMS. Os
+   modelos antigos ainda traziam o telefax e o e-mail da 11ª CI. */
+const CONTATO = "TELEFONE: (99) 98509-5005 (Permanência) – 18batalhaopmma@gmail.com";
 
 function ehAdmin(perfil?: string | null): boolean {
   return (perfil || "").toLowerCase() === "admin";
