@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { padronizarBrasao } from "@/lib/imagem";
+import { useAoVivo } from "@/lib/useAoVivo";
 import CarimboSigep from "@/components/CarimboSigep";
 import { compararAntiguidade } from "@/lib/patentes";
 import { incluiComReducao, podeNoDia, rotuloDias, ROTEM_HORARIOS_PADRAO, horariosRotemDoDia } from "@/lib/escalaMotor";
@@ -1824,6 +1825,10 @@ export default function EscalaClient() {
   const carregouDias = useRef(false);
   const carregouCad = useRef(false);
   const [avisoCarga, setAvisoCarga] = useState<string | null>(null);
+  /* Assinatura do que a tela tem na mão. Vem junto com a carga e é comparada
+     com /api/escala-versao — enquanto for igual, não se baixa nada. */
+  const versaoDias = useRef<string | null>(null);
+  const versaoCad = useRef<string | null>(null);
   const [efetivo, setEfetivo] = useState<Militar[]>([]);
   const [efErro, setEfErro] = useState<string | null>(null);
   const [migrado, setMigrado] = useState(false);
@@ -1890,6 +1895,7 @@ export default function EscalaClient() {
           if (d && d.escalas && typeof d.escalas === "object") {
             setEscalas(d.escalas);
             ultimoEscalasSalvo.current = JSON.stringify(d.escalas);
+            if (typeof d.versao === "string") versaoDias.current = d.versao;
             carregouDias.current = true;
             if (Object.keys(d.escalas).length > 0) return;
           }
@@ -1920,6 +1926,7 @@ export default function EscalaClient() {
         const r = await fetch("/api/escala-config");
         if (r.ok) {
           const d = await r.json();
+          if (typeof d?.versao === "string") versaoCad.current = d.versao;
           if (d && d.cad) {
             setCad(d.cad);
             ultimoCadSalvo.current = JSON.stringify(d.cad);
@@ -2006,52 +2013,66 @@ export default function EscalaClient() {
     }, 900);
   }, [escalas, ready]);
 
-  // Atualizacao ao vivo: puxa dias e equipes do servidor (15s + foco da aba),
-  // aplicando so quando nao ha edicao local pendente (nao apaga o que voce edita).
+  /* Atualização ao vivo a cada 5s (era 15s), aplicando só quando não há edição
+     local pendente — não apaga o que você está editando.
+
+     O que ficou rápido sem ficar pesado: de 5 em 5 segundos a tela pergunta
+     APENAS a assinatura (/api/escala-versao, uns 70 bytes). A escala inteira
+     só é baixada quando a assinatura muda de verdade. E o useAoVivo pausa
+     tudo depois de 5 minutos sem ninguém mexer, voltando ao primeiro toque. */
   const cadRefLive = useRef(cad); cadRefLive.current = cad;
   const escalasRefLive = useRef(escalas); escalasRefLive.current = escalas;
-  useEffect(() => {
-    const puxar = async () => {
-      if (document.hidden) return;
-      try {
-        const r = await fetch("/api/escala-dias");
-        if (r.ok) {
-          const d = await r.json();
-          if (d && d.escalas) {
-            const s = JSON.stringify(d.escalas);
-            /* NUNCA esvaziar a tela por causa de uma atualização automática.
-               O servidor até pode responder "sem dias" (falha que escapou,
-               sessão trocada, escopo diferente), mas apagar de uma vez todos
-               os escalados que o P/1 está olhando não é atualizar — é perder.
-               Chegando menos do que já está na tela, mantém o que está e
-               avisa; quem manda é o F5, não o timer de 15 segundos. */
-            const temAgora = Object.keys(escalasRefLive.current).length;
-            if (temAgora > 0 && Object.keys(d.escalas).length === 0) {
-              setAvisoCarga("O servidor respondeu sem nenhum dia de escala. Mantive o que está na tela — recarregue a página para conferir.");
-            } else if (JSON.stringify(escalasRefLive.current) === ultimoEscalasSalvo.current && s !== ultimoEscalasSalvo.current) {
-              ultimoEscalasSalvo.current = s; setEscalas(d.escalas);
-            }
-          }
-        }
-      } catch {}
-      try {
-        const r = await fetch("/api/escala-config");
-        if (r.ok) {
-          const d = await r.json();
-          if (d && d.cad) {
-            const s = JSON.stringify(d.cad);
-            if (JSON.stringify(cadRefLive.current) === ultimoCadSalvo.current && s !== ultimoCadSalvo.current) {
-              ultimoCadSalvo.current = s; setCad(d.cad);
-            }
-          }
-        }
-      } catch {}
-    };
-    const iv = setInterval(puxar, 15000);
-    const onFocus = () => puxar();
-    window.addEventListener("focus", onFocus);
-    return () => { clearInterval(iv); window.removeEventListener("focus", onFocus); };
-  }, []);
+  const puxando = useRef(false);
+
+  const baixarDias = async () => {
+    const r = await fetch("/api/escala-dias");
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d || !d.escalas) return;
+    if (typeof d.versao === "string") versaoDias.current = d.versao;
+    const s = JSON.stringify(d.escalas);
+    /* NUNCA esvaziar a tela por causa de uma atualização automática. O
+       servidor até pode responder "sem dias" (falha que escapou, sessão
+       trocada, escopo diferente), mas apagar de uma vez todos os escalados que
+       o P/1 está olhando não é atualizar — é perder. Chegando menos do que já
+       está na tela, mantém o que está e avisa; quem manda é o F5. */
+    if (Object.keys(escalasRefLive.current).length > 0 && Object.keys(d.escalas).length === 0) {
+      setAvisoCarga("O servidor respondeu sem nenhum dia de escala. Mantive o que está na tela — recarregue a página para conferir.");
+    } else if (JSON.stringify(escalasRefLive.current) === ultimoEscalasSalvo.current && s !== ultimoEscalasSalvo.current) {
+      ultimoEscalasSalvo.current = s; setEscalas(d.escalas);
+    }
+  };
+
+  const baixarCad = async () => {
+    const r = await fetch("/api/escala-config");
+    if (!r.ok) return;
+    const d = await r.json();
+    if (typeof d?.versao === "string") versaoCad.current = d.versao;
+    if (!d || !d.cad) return;
+    const s = JSON.stringify(d.cad);
+    if (JSON.stringify(cadRefLive.current) === ultimoCadSalvo.current && s !== ultimoCadSalvo.current) {
+      ultimoCadSalvo.current = s; setCad(d.cad);
+    }
+  };
+
+  const conferir = async () => {
+    if (puxando.current) return;            // não empilha se a rede estiver lenta
+    puxando.current = true;
+    try {
+      const r = await fetch("/api/escala-versao");
+      if (!r.ok) return;
+      const v = await r.json();
+      if (!v || typeof v.dias !== "string") return;
+      /* Primeira conferência: a carga inicial já trouxe a assinatura junto, então
+         aqui normalmente não baixa nada. Se por algum motivo não veio, baixa uma
+         vez para acertar o ponto de partida. */
+      if (versaoDias.current === null || v.dias !== versaoDias.current) await baixarDias();
+      if (versaoCad.current === null || v.cad !== versaoCad.current) await baixarCad();
+    } catch { /* rede caiu: tenta de novo no próximo ciclo */ }
+    finally { puxando.current = false; }
+  };
+
+  useAoVivo(conferir, 5000);
 
   // Chefe do P/1: vem do servidor (aba "Chefe do P1"), igual em todos os PCs.
   useEffect(() => {

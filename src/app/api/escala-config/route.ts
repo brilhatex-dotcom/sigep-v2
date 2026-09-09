@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { chaveEscopada } from "@/lib/escalaEscopo";
 import { lerConfig, guardarAnterior, objetoDe, quantosNoCadastro } from "@/lib/escalaGuarda";
+import { assinaturaDoValor } from "@/lib/escalaVersao";
 
 export const dynamic = "force-dynamic";
 
@@ -30,9 +31,9 @@ export async function GET(req: Request) {
     console.error("[GET /api/escala-config]", lida.erro);
     return NextResponse.json({ error: "Banco de dados indisponivel" }, { status: 503 });
   }
-  if (!lida.valor) return NextResponse.json({ cad: null });
+  if (!lida.valor) return NextResponse.json({ cad: null, versao: assinaturaDoValor(null) });
   try {
-    return NextResponse.json({ cad: JSON.parse(lida.valor) });
+    return NextResponse.json({ cad: JSON.parse(lida.valor), versao: assinaturaDoValor(lida.valor) });
   } catch (err) {
     console.error("[GET /api/escala-config] valor corrompido", err);
     return NextResponse.json({ error: "Configuracao gravada ilegivel" }, { status: 500 });
