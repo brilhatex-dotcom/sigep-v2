@@ -1177,12 +1177,20 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     [cad, planoAfast, reducaoJudicial, diasPermitidos, funcaoFixa]
   );
 
-  // Quando uma vaga do QUADRO fica vazia porque o militar do dia está afastado,
-  // devolve o tipo (Férias/Missão/…) e o nome — para a marca visual no mapa.
-  const vagaAfast = (iso: string, funcaoKey: string): { tipo: string; nome: string } | null => {
-    if (funcaoKey === "cpu" || funcaoKey === "rotem") return null; // pool: o rodízio já cobre
+  /* Quando uma vaga do QUADRO fica vazia porque o militar do dia está afastado,
+     devolve QUEM saiu e por quê — o mesmo que a linha do ROTEM já mostrava.
+
+     Antes só aparecia "Férias", sem nome: o escalante via o buraco na escala
+     mas tinha de ir procurar no plano de férias de quem era a vaga. Agora sai
+     "Vando · Férias", igual ao ROTEM, e a folha se explica sozinha.
+
+     Lista TODOS os afastados da vaga, não só o primeiro: numa linha com vaga
+     extra os dois podem estar fora ao mesmo tempo, e mostrar um só esconderia
+     metade do problema justamente no dia mais crítico. */
+  const vagasAfast = (iso: string, funcaoKey: string): { tipo: string; nome: string }[] => {
+    if (funcaoKey === "cpu" || funcaoKey === "rotem") return []; // pool: o rodízio já cobre
     const times = equipesDoPadrao(cadEff.padraoEscala);
-    if (!times.length) return null;
+    if (!times.length) return [];
     const padrao = parsePadrao(cadEff.padraoEscala);
     const idx = ((timeDoDia(diasEntre(cadEff.refRodizioISO, iso), padrao) % times.length) + times.length) % times.length;
     const team = times[idx];
@@ -1191,12 +1199,13 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     const b = q[team]?.[funcaoKey] || ""; if (b) cands.push(b);
     const nExtra = cadEff.linhasExtras?.[funcaoKey] || 0;
     for (let k = 2; k <= nExtra + 1; k++) { const id = q[team]?.[`${funcaoKey}#${k}`] || ""; if (id) cands.push(id); }
+    const out: { tipo: string; nome: string }[] = [];
     for (const id of cands) {
       if (afastado(id, iso, cadEff.afastamentos)) {
-        return { tipo: rotuloAf(afastamentoRegDe(id, iso, cadEff.afastamentos)), nome: nomeDe(id) };
+        out.push({ tipo: rotuloAf(afastamentoRegDe(id, iso, cadEff.afastamentos)), nome: nomeDe(id) });
       }
     }
-    return null;
+    return out;
   };
 
   // ROTEM é equipe FIXA com vários militares. Quando um sai (férias/etc.), os
@@ -1564,10 +1573,11 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                         title={ehCpu ? "Clique para editar o CPU deste dia" : undefined}
                       >
                         {nomes.length === 0 && ehCpu && <div className="mp-cel-vazio no-print">+</div>}
-                        {nomes.length === 0 && !ehCpu && (() => {
-                          const v = vagaAfast(iso, srv.key);
-                          return v ? <div className="mp-vaga-af" title={`${sobrenome(v.nome)} de ${v.tipo} — vaga a cobrir`}>{v.tipo}</div> : null;
-                        })()}
+                        {nomes.length === 0 && !ehCpu && vagasAfast(iso, srv.key).map((v, i) => (
+                          <div key={`a${i}`} className="mp-vaga-af" title={`${v.nome} de ${v.tipo} — vaga a cobrir`}>
+                            {sobrenome(v.nome)} · {v.tipo}
+                          </div>
+                        ))}
                         {nomes.map((n, i) => {
                           const conf = afastado(n, iso, cad.afastamentos);
                           let cls = "mp-nome";
@@ -1587,7 +1597,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                           );
                         })}
                         {srv.key === "rotem" && rotemVagas(iso).map((v, i) => (
-                          <div key={`v${i}`} className="mp-vaga-af" title={`${sobrenome(v.nome)} de ${v.tipo} — vaga a cobrir`}>
+                          <div key={`v${i}`} className="mp-vaga-af" title={`${v.nome} de ${v.tipo} — vaga a cobrir`}>
                             {sobrenome(v.nome)} · {v.tipo}
                           </div>
                         ))}
