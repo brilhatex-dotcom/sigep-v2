@@ -110,6 +110,7 @@ const NAV: Secao[] = [
       { rotulo: "Efetivo por Lotação", href: "/lotacao", Icone: Landmark, disponivel: true, adminOnly: true, lugarOk: true },
       { rotulo: "Relatórios", href: "/relatorios", Icone: Table2, disponivel: true, adminOnly: true },
       { rotulo: "Ficha Individual", href: "/ficha", Icone: Contact, disponivel: true },
+      { rotulo: "Histórico Policial", href: "/historico", Icone: BookOpen, disponivel: true, adminOnly: true },
       { rotulo: "Promoções / Certidões", href: "/promocoes", Icone: Medal, disponivel: true },
     ],
   },
@@ -172,7 +173,7 @@ const NAV: Secao[] = [
     titulo: "Próximas versões",
     cor: "#64748B",
     itens: [
-      { rotulo: "Histórico Policial Militar", Icone: BookOpen, adminOnly: true },
+      // "Histórico Policial Militar" saiu daqui: virou a aba /historico.
       { rotulo: "Motoristas / CNH", Icone: Car, adminOnly: true },
       { rotulo: "Livro do CPU", Icone: NotebookPen, adminOnly: true },
       { rotulo: "RG Militar Digital (via DAL)", Icone: CreditCard, adminOnly: true },
