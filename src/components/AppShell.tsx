@@ -61,6 +61,7 @@ import {
   NotebookPen,
   Crosshair,
   Table2,
+  Loader2,
 } from "lucide-react";
 import Relogio from "@/components/Relogio";
 import BuscaGlobal from "@/components/BuscaGlobal";
@@ -230,6 +231,28 @@ export default function AppShell({
   const pathname = usePathname();
   const [aberto, setAberto] = useState(false);
   const pagina = tituloAtual(pathname);
+
+  /* PARA ONDE ESTAMOS INDO.
+     Toda tela do sistema vai ao banco a cada visita, e o Next mantem a tela
+     ATUAL na frente ate a nova ficar pronta. Sem sinal nenhum, o usuario
+     clica e parece que nada aconteceu — entao clica de novo. Guardando o
+     destino do clique dá para acender o item no menu e correr a barra no
+     topo: a espera continua a mesma, mas deixa de parecer travamento. */
+  const [indoPara, setIndoPara] = useState<string | null>(null);
+  // Chegou: o endereco mudou, entao a tela nova esta na frente.
+  useEffect(() => { setIndoPara(null); }, [pathname]);
+  /* Rede de seguranca: se a navegacao morrer no caminho (erro, sessao caida),
+     ninguem fica com a barra correndo para sempre. */
+  useEffect(() => {
+    if (!indoPara) return;
+    const t = setTimeout(() => setIndoPara(null), 15000);
+    return () => clearTimeout(t);
+  }, [indoPara]);
+  const irPara = (href: string) => {
+    setAberto(false);
+    // Clicar na tela em que ja se esta nao navega — nao acende nada.
+    if (href !== pathname) setIndoPara(href);
+  };
   const admin = ehAdmin(perfil);
   const primeiroNome = (userName || "").split(" ")[0] || "Usuário";
 
@@ -327,26 +350,36 @@ export default function AppShell({
                   (pathname === item.href || pathname.startsWith(item.href + "/"));
 
                 if (item.disponivel && item.href) {
+                  // Item clicado, tela ainda a caminho: acende e roda.
+                  const indo = indoPara === item.href;
                   return (
                     <li key={item.rotulo}>
                       <Link
                         href={item.href}
-                        onClick={() => setAberto(false)}
+                        onClick={() => irPara(item.href!)}
+                        aria-current={ativo ? "page" : undefined}
+                        aria-busy={indo || undefined}
                         className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
                           ativo
                             ? "ui-nav-ativo font-semibold text-white"
-                            : "text-[#94A3B8] hover:bg-white/5 hover:text-white"
+                            : indo
+                              ? "bg-white/10 text-white"
+                              : "text-[#94A3B8] hover:bg-white/5 hover:text-white"
                         }`}
                       >
-                        <item.Icone
-                          className="h-[18px] w-[18px] shrink-0 transition-opacity"
-                          style={{
-                            color: ativo ? "#D4AF37" : corSecao,
-                            // fora do item ativo a cor entra suave: marca o
-                            // bloco sem transformar a barra num arco-íris
-                            opacity: ativo ? 1 : 0.75,
-                          }}
-                        />
+                        {indo ? (
+                          <Loader2 className="h-[18px] w-[18px] shrink-0 animate-spin" style={{ color: "#D4AF37" }} />
+                        ) : (
+                          <item.Icone
+                            className="h-[18px] w-[18px] shrink-0 transition-opacity"
+                            style={{
+                              color: ativo ? "#D4AF37" : corSecao,
+                              // fora do item ativo a cor entra suave: marca o
+                              // bloco sem transformar a barra num arco-íris
+                              opacity: ativo ? 1 : 0.75,
+                            }}
+                          />
+                        )}
                         {item.rotulo}
                       </Link>
                     </li>
@@ -411,6 +444,10 @@ export default function AppShell({
 
   return (
     <div className="flex min-h-screen bg-[#08111F] text-white">
+      {/* Barra de progresso: aparece no instante do clique e some quando a
+          tela nova entra. É o que diz "seu clique pegou, estou buscando". */}
+      {indoPara && <div className="nav-progresso" role="progressbar" aria-label="Carregando a tela" />}
+
       <aside className="sticky top-0 hidden h-screen md:block">{sidebar}</aside>
 
       {aberto && (
@@ -471,9 +508,12 @@ export default function AppShell({
             <Link
               href="/trocar-senha"
               title="Trocar senha"
+              onClick={() => irPara("/trocar-senha")}
               className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#94A3B8] transition hover:border-[#D4AF37]/40 hover:bg-[#D4AF37]/10 hover:text-[#D4AF37]"
             >
-              <KeyRound className="h-4 w-4" />
+              {indoPara === "/trocar-senha"
+                ? <Loader2 className="h-4 w-4 animate-spin text-[#D4AF37]" />
+                : <KeyRound className="h-4 w-4" />}
               <span className="hidden sm:inline">Senha</span>
             </Link>
 
