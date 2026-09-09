@@ -22,6 +22,90 @@ body {
   color: #0b1f3a;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
+
+/* ==========================================================
+   ACABAMENTO E ACESSIBILIDADE
+   ========================================================== */
+
+/* --- 1. FOCO PELO TECLADO ---
+   Quem preenche escala usa muito o Tab, e ate agora nao dava para ver onde o
+   cursor estava. O anel dourado so aparece na navegacao por teclado
+   (:focus-visible), entao quem usa mouse nao ve nada mudar. */
+:focus-visible {
+  outline: 2px solid #D4AF37;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+/* O navegador ainda desenha o proprio contorno em alguns campos; este tira o
+   antigo sem tirar o de cima. */
+:focus:not(:focus-visible) { outline: none; }
+
+/* --- 2. O CLIQUE RESPONDE ---
+   O botao afunda de leve enquanto esta pressionado. E o retorno que falta
+   quando a resposta do servidor demora: da para sentir que o clique pegou,
+   mesmo antes de a tela mudar. */
+button:not(:disabled):active,
+a[role="button"]:active,
+.btn:not(:disabled):active {
+  transform: scale(0.975);
+}
+button, a[role="button"], .btn {
+  transition: transform 90ms ease, background-color 160ms ease,
+              border-color 160ms ease, color 160ms ease, opacity 160ms ease;
+}
+button:disabled { cursor: not-allowed; }
+
+/* --- 3. MOVIMENTO REDUZIDO ---
+   Ha quem sinta enjoo ou desconforto com animacao, e o sistema operacional ja
+   avisa isso. Aqui o sistema obedece: some o movimento, ficam as cores. Nao e
+   so gentileza — e requisito de acessibilidade (WCAG 2.3.3). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  button:active, .btn:active { transform: none; }
+}
+
+/* --- 4. BARRA DE PROGRESSO DA NAVEGACAO ---
+   Todas as telas vao ao banco a cada visita. Sem sinal nenhum, o usuario
+   clica e a tela ANTIGA fica parada ate o servidor responder — parece
+   travamento, e a pessoa clica de novo. Esta barra corre no topo desde o
+   clique, entao a espera continua igual mas deixa de parecer defeito. */
+.nav-progresso {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  z-index: 9999;
+  background: transparent;
+  pointer-events: none;
+}
+.nav-progresso::after {
+  content: "";
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #D4AF37, #f3df9d, #D4AF37);
+  transform-origin: 0 50%;
+  /* Corre rapido ate uns 90% e desacelera: nunca "termina" sozinha, porque
+     quem termina e a pagina chegando. Barra que enche ate o fim e para
+     mente para o usuario. */
+  animation: nav-correr 8s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+  box-shadow: 0 0 8px rgba(212, 175, 55, 0.6);
+}
+@keyframes nav-correr {
+  0%   { transform: scaleX(0); }
+  40%  { transform: scaleX(0.55); }
+  75%  { transform: scaleX(0.82); }
+  100% { transform: scaleX(0.94); }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Sem corrida: fica uma faixa acesa, que informa o mesmo sem movimento. */
+  .nav-progresso::after { animation: none; transform: scaleX(1); opacity: 0.65; }
+}
+
 /* ==========================================================
    >>> ADICIONAR ESTE BLOCO AO FINAL DO src/app/globals.css <<<
    Impressao (Ctrl+P): tira sidebar/efeitos, fundo branco,
@@ -43,7 +127,7 @@ body {
 
   /* Janelas flutuantes NAO vao para o papel. O balao do chat estava saindo
      impresso por cima do oficio da JMS. */
-  #chat-flutuante, .nao-imprimir {
+  #chat-flutuante, .nao-imprimir, .nav-progresso {
     display: none !important;
   }
 
