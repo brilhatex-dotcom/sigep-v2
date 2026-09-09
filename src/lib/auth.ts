@@ -229,13 +229,30 @@ export const authOptions: NextAuthOptions = {
         token.perfil = (user as any).perfil;
         token.refEfetivo = (user as any).refEfetivo;
         token.precisaTrocar = (user as any).precisaTrocar;
-        // Cmt do BPM / Subcmt / Chefe do P/1: acesso total (entra como admin).
-        try {
-          const { temAcessoTotalPorEncargo } = await import("@/lib/encargos");
-          if (token.perfil !== "admin" && (await temAcessoTotalPorEncargo(token.refEfetivo as string))) {
-            token.perfil = "admin";
-          }
-        } catch {}
+        token.encargoPendente = true;   // ainda falta conferir o acesso por encargo
+      }
+
+      /* Cmt do BPM / Subcmt / Chefe do P/1: acesso total (entram como admin).
+
+         Esta conferência depende do banco, e ANTES era feita uma única vez, no
+         login, com o erro engolido em silêncio. Se o banco piscasse justo
+         naquele instante, a pessoa passava a SESSÃO INTEIRA sem o acesso que
+         tem de direito — e a escala aparecia vazia para ela até sair e entrar
+         de novo, sem nada na tela explicando por quê.
+
+         Agora, quando a conferência falha, ela fica PENDENTE e é refeita no
+         pedido seguinte, até dar certo. Assim que responde, a marca sai e não
+         se consulta mais: uma ida ao banco por login, como antes. */
+      if (token.encargoPendente) {
+        if (token.perfil === "admin" || !token.refEfetivo) {
+          delete token.encargoPendente;          // nada a conferir
+        } else {
+          try {
+            const { temAcessoTotalPorEncargo } = await import("@/lib/encargos");
+            if (await temAcessoTotalPorEncargo(token.refEfetivo as string)) token.perfil = "admin";
+            delete token.encargoPendente;
+          } catch { /* continua pendente: tenta de novo no proximo pedido */ }
+        }
       }
       return token;
     },

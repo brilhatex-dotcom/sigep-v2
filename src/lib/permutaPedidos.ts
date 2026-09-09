@@ -267,6 +267,21 @@ function lancarNoDia(dia: any, ficha: FichaMin, substituto: string): boolean {
   return false;
 }
 
+/* A aplicação das permutas roda junto com a leitura da escala, e a leitura
+   agora acontece de 5 em 5 segundos. Varrer a tabela de permutas inteira nesse
+   ritmo é desperdício puro: permuta autorizada não aparece de segundo em
+   segundo. Uma vez por minuto já é mais rápido do que qualquer pessoa percebe,
+   e tira o peso do caminho quente. */
+const ESPERA_APLICACAO = 60_000;
+let ultimaAplicacao = 0;
+
+export async function aplicarPermutasSeVencido(): Promise<void> {
+  const agora = Date.now();
+  if (agora - ultimaAplicacao < ESPERA_APLICACAO) return;
+  ultimaAplicacao = agora;
+  try { await aplicarPermutasNaEscala(); } catch { /* nunca bloqueia a escala */ }
+}
+
 export async function aplicarPermutasNaEscala(): Promise<void> {
   const pedidos = await lerPermutas();
   const pend = pedidos.filter((p) => p.estado === "autorizada" && (!p.aplicadaPermuta || !p.aplicadaRetorno));

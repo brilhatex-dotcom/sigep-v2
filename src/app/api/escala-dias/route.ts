@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { aplicarPermutasNaEscala } from "@/lib/permutaPedidos";
+import { aplicarPermutasSeVencido } from "@/lib/permutaPedidos";
 import { chaveEscopada } from "@/lib/escalaEscopo";
 import { lerConfig, guardarAnterior, objetoDe } from "@/lib/escalaGuarda";
+import { assinaturaDoValor } from "@/lib/escalaVersao";
 
 export const dynamic = "force-dynamic";
 
@@ -25,8 +26,10 @@ export async function GET(req: Request) {
 
   // Só na SEDE: lança na escala as permutas já autorizadas que ainda não
   // entraram. As permutas são da sede — não se aplicam à escala do interior.
+  /* Com freio: a leitura passou a ser frequente e varrer a tabela de permutas
+     toda vez era o peso maior deste caminho. Uma vez por minuto basta. */
   if (ctx.escopo === null) {
-    try { await aplicarPermutasNaEscala(); } catch { /* nao bloqueia a escala */ }
+    try { await aplicarPermutasSeVencido(); } catch { /* nao bloqueia a escala */ }
   }
 
   const lida = await lerConfig(ctx.chave);
@@ -38,9 +41,11 @@ export async function GET(req: Request) {
     console.error("[GET /api/escala-dias]", lida.erro);
     return NextResponse.json({ error: "Banco de dados indisponivel" }, { status: 503 });
   }
-  if (!lida.valor) return NextResponse.json({ escalas: {} });
+  /* A assinatura vai junto para a tela saber exatamente o que tem na mão e
+     poder comparar com /api/escala-versao sem baixar tudo de novo. */
+  if (!lida.valor) return NextResponse.json({ escalas: {}, versao: assinaturaDoValor(null) });
   try {
-    return NextResponse.json({ escalas: JSON.parse(lida.valor) });
+    return NextResponse.json({ escalas: JSON.parse(lida.valor), versao: assinaturaDoValor(lida.valor) });
   } catch (err) {
     // Existe conteúdo gravado, mas ilegível: também é erro, não "vazio".
     console.error("[GET /api/escala-dias] valor corrompido", err);
