@@ -18,10 +18,16 @@ export const dynamic = "force-dynamic";
    equipe dele no mês. O motor distribui sozinho; o escalante ainda pode
    escalar além, com confirmação.
 
-   · funcao — turno FIXO: além de restringir os dias, o militar também entra
-     GARANTIDO como EXTRA (soma, não substitui) numa função de lista
-     (ftPatrulheiro/rpPatrulheiro/guardaPermanente/inteligencia) em todo dia
-     permitido dele — sem depender de qual equipe (A/B/C/D) está de plantão.
+   · funcao — a função de lista (ftPatrulheiro/rpPatrulheiro/guardaPermanente/
+     inteligencia) em que ele entra GARANTIDO como EXTRA (soma, não substitui),
+     sem depender de qual equipe (A/B/C/D) está de plantão. Duas maneiras de
+     entrar, e a segunda tem prioridade quando existe:
+
+       - TURNO FIXO (usa "dias"): entra em TODO dia permitido dele.
+       - GIRO SEMANAL (usa "giroDias" + "giroRef"): entra UMA vez por semana,
+         num dia que GIRA. Ex.: numa semana sábado, na seguinte domingo, na
+         outra segunda, e recomeça. A ORDEM de "giroDias" é o próprio giro,
+         então aqui ela NÃO é ordenada nem deduplicada como em "dias".
 
    A chave do Config continua "reducao_judicial" para não perder o que já
    está cadastrado; registros antigos (sem "dias"/"funcao") seguem valendo.
@@ -32,7 +38,24 @@ const CHAVE = "reducao_judicial";
 
 const FUNCOES_EXTRA_VALIDAS = new Set(["ftPatrulheiro", "rpPatrulheiro", "guardaPermanente", "inteligencia"]);
 
-type Reducao = { idPmma: string; nome: string; percentual: number; dias: number[]; funcao: string; motivo: string };
+type Reducao = {
+  idPmma: string; nome: string; percentual: number; dias: number[];
+  funcao: string; motivo: string;
+  giroDias: number[];   // sequência do giro, NA ORDEM (vazio = sem giro)
+  giroRef: string;      // data do primeiro serviço do ciclo (ISO)
+};
+
+/* Dias do GIRO: mantém a ordem digitada, porque a ordem é o giro. Só tira o
+   que não é dia da semana. Repetido é permitido de propósito — "sáb, sáb,
+   dom" faz duas semanas de sábado antes do domingo, e isso é uma escala
+   legítima. */
+function giroLimpo(v: unknown): number[] {
+  if (!Array.isArray(v)) return [];
+  const out: number[] = [];
+  for (const x of v) { const n = Math.trunc(Number(x)); if (n >= 0 && n <= 6) out.push(n); }
+  return out.slice(0, 14);
+}
+const dataLimpa = (v: unknown) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || "")) ? String(v) : "");
 
 /** Normaliza a lista de dias: só 0..6, sem repetido, em ordem. 7 dias = sem restrição. */
 function diasLimpos(v: unknown): number[] {
@@ -57,6 +80,8 @@ function ler(v?: string | null): Reducao[] {
           dias: diasLimpos(x.dias),
           funcao: FUNCOES_EXTRA_VALIDAS.has(String(x.funcao || "")) ? String(x.funcao) : "",
           motivo: String(x.motivo || ""),
+          giroDias: giroLimpo(x.giroDias),
+          giroRef: dataLimpa(x.giroRef),
         }))
       : [];
   } catch { return []; }
@@ -99,16 +124,28 @@ export async function POST(req: Request) {
     const motivo = b?.motivo !== undefined ? String(b.motivo || "").trim() : (atual?.motivo ?? "");
     const funcaoBruta = b?.funcao !== undefined ? String(b.funcao || "").trim() : (atual?.funcao ?? "");
     const funcao = FUNCOES_EXTRA_VALIDAS.has(funcaoBruta) ? funcaoBruta : "";
+    const giroDias = b?.giroDias !== undefined ? giroLimpo(b.giroDias) : (atual?.giroDias ?? []);
+    const giroRef = b?.giroRef !== undefined ? dataLimpa(b.giroRef) : (atual?.giroRef ?? "");
+
+    /* Giro pela metade PODE ser gravado: o escalante monta a sequência clicando
+       nos dias, e só depois escolhe a função e a data. O que não pode é um giro
+       incompleto ESCALAR alguém — quem decide isso é o motor (serveNoGiro só
+       aceita giro com dias, função e data). Aqui a gravação é só rascunho, e a
+       tela avisa o que ainda falta. */
 
     lista = lista.filter((r) => r.idPmma !== idPmma); // idempotente
     const temTeto = pct > 0 && pct < 100;
     const temDias = dias.length > 0;
     const temFuncao = funcao !== "";
-    if (temTeto || temDias || temFuncao) {
-      lista.push({ idPmma, nome: String(b?.nome || atual?.nome || "").trim(), percentual: temTeto ? pct : 0, dias, funcao, motivo });
+    const temGiro = giroDias.length > 0;
+    if (temTeto || temDias || temFuncao || temGiro) {
+      lista.push({
+        idPmma, nome: String(b?.nome || atual?.nome || "").trim(),
+        percentual: temTeto ? pct : 0, dias, funcao, motivo, giroDias, giroRef,
+      });
     }
     await salvar(lista);
-    return NextResponse.json({ ok: true, percentual: temTeto ? pct : 0, dias, funcao, motivo });
+    return NextResponse.json({ ok: true, percentual: temTeto ? pct : 0, dias, funcao, motivo, giroDias, giroRef });
   } catch (err) {
     console.error("[POST /api/escala/reducao-judicial]", err);
     return NextResponse.json({ error: "Falha ao salvar" }, { status: 500 });

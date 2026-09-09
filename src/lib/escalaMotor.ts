@@ -34,6 +34,13 @@ export type Cadastro = {
   // pra quem so serve em dias fixos (ex.: so sabado) e nao pode depender de
   // qual equipe A/B/C/D calha de estar de plantao naquele dia.
   funcaoFixa?: Record<string, string>;
+  /* GIRO SEMANAL: militar que serve UMA vez por semana, e o dia GIRA.
+     Ex.: numa semana sábado, na seguinte domingo, na outra segunda — e
+     recomeça. Diferente de "dias permitidos", que diria que ela pode nos três
+     dias (e ela entraria três vezes); e diferente da "função fixa", que a
+     colocaria em todo dia permitido. Aqui é UM dia por semana, girando na
+     ordem que o escalante definir. idPmma -> giro. */
+  giroSemanal?: Record<string, GiroSemanal>;
   // ROTEM: horario padrao por dia da semana (0=domingo ... 6=sabado). E so o
   // ponto de partida — na folha do dia o horario continua editavel.
   rotemHorariosPadrao?: string[][];
@@ -82,20 +89,95 @@ export function podeNoDia(dias: number[] | undefined, iso: string): boolean {
   return dias.includes(new Date(+m[1], +m[2] - 1, +m[3]).getDay());
 }
 
-/* Militares com turno FIXO na função `fk`: entram como EXTRA (somando, sem
-   tirar quem o rodízio normal já coloca) em todo dia permitido deles, mesmo
-   fora do dia de plantão da equipe. */
-export function extrasFixosDoDia(
+/* ---------------------- GIRO SEMANAL ----------------------
+
+   Uma vez por semana, num dia que gira. O escalante dá a sequência de dias
+   (ex.: sábado, domingo, segunda) e a data do PRIMEIRO serviço; daí em diante
+   o sistema anda sozinho.
+
+   Como a conta é feita: contando a partir da data de referência, o tempo é
+   dividido em janelas de 7 dias. Na janela 0 o serviço cai no primeiro dia da
+   sequência, na janela 1 no segundo, e assim por diante, voltando ao começo
+   quando a lista acaba. Sempre UM serviço por janela de 7 dias — que é o que
+   "uma vez por semana" quer dizer.
+
+   Consequência que vale o escalante saber (e que a tela mostra na prévia): os
+   intervalos não são todos iguais. Com sáb -> dom -> seg, os saltos ficam em
+   8, 8 e 5 dias, fechando 21 — três semanas exatas. Isso é da natureza do
+   giro, não um defeito da conta: voltar de segunda para o sábado seguinte são
+   5 dias mesmo. */
+
+export type GiroSemanal = {
+  dias: number[];    // sequência de dias da semana (0=domingo … 6=sábado), na ordem do giro
+  funcao: string;    // função de lista onde ele entra (ftPatrulheiro, guardaPermanente, …)
+  refISO: string;    // data do PRIMEIRO serviço — a âncora do ciclo
+};
+
+const giroValido = (g?: GiroSemanal | null): g is GiroSemanal =>
+  !!g && Array.isArray(g.dias) && g.dias.length > 0 && !!g.funcao && /^\d{4}-\d{2}-\d{2}$/.test(g.refISO || "");
+
+/** Este militar serve NESTE dia, pelo giro dele? */
+export function serveNoGiro(g: GiroSemanal | undefined | null, iso: string): boolean {
+  if (!giroValido(g)) return false;
+  const d = diasEntre(g.refISO, iso);
+  if (d < 0) return false;                       // antes de começar o ciclo
+  const janela = Math.floor(d / 7);
+  const alvo = g.dias[((janela % g.dias.length) + g.dias.length) % g.dias.length];
+  const w0 = parseISO(g.refISO).getDay();        // dia da semana da âncora
+  // posição do dia-alvo dentro da janela, e posição em que este iso caiu
+  return d % 7 === (((alvo - w0) % 7) + 7) % 7;
+}
+
+/** As próximas datas de serviço do giro — é o que a tela mostra para o
+    escalante conferir ANTES de salvar, em vez de descobrir no mês seguinte. */
+export function proximosDoGiro(g: GiroSemanal | undefined | null, deISO: string, quantos = 6): string[] {
+  if (!giroValido(g)) return [];
+  const out: string[] = [];
+  let iso = deISO < g.refISO ? g.refISO : deISO;
+  // teto de segurança: no máximo ~2 anos de varredura
+  for (let i = 0; i < 800 && out.length < quantos; i++) {
+    if (serveNoGiro(g, iso)) out.push(iso);
+    iso = proxDia(iso);
+  }
+  return out;
+}
+
+const NOMES_DIA = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+const NOMES_DIA_CURTO = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+
+/** Rótulo do giro para a tela: "sáb → dom → seg, girando". */
+export function rotuloGiro(g?: GiroSemanal | null): string {
+  if (!giroValido(g)) return "";
+  if (g.dias.length === 1) return `toda ${NOMES_DIA[g.dias[0]]}`;
+  return g.dias.map((d) => NOMES_DIA_CURTO[d]).join(" → ") + ", girando";
+}
+
+/* Militares que entram como EXTRA na função `fk` — somando, sem tirar quem o
+   rodízio normal já coloca. São dois casos, e os dois caem aqui para que a
+   folha do dia, o mapa e o motor nunca discordem entre si:
+
+   - TURNO FIXO: entra em todo dia permitido dele, mesmo fora do plantão da
+     equipe;
+   - GIRO SEMANAL: entra uma vez por semana, no dia da vez do giro dele. */
+export function extrasDoDia(
   fk: string, iso: string,
-  cad: Pick<Cadastro, "funcaoFixa" | "diasPermitidos" | "afastamentos">
+  cad: Pick<Cadastro, "funcaoFixa" | "diasPermitidos" | "afastamentos" | "giroSemanal">
 ): string[] {
   const ff = cad.funcaoFixa || {};
   const dp = cad.diasPermitidos || {};
-  return Object.keys(ff)
-    .filter((id) => ff[id] === fk)
-    .filter((id) => podeNoDia(dp[id], iso))
-    .filter((id) => !afastado(id, iso, cad.afastamentos || []));
+  const gs = cad.giroSemanal || {};
+  const ids = new Set<string>();
+  for (const id of Object.keys(ff)) {
+    if (ff[id] === fk && podeNoDia(dp[id], iso)) ids.add(id);
+  }
+  for (const id of Object.keys(gs)) {
+    if (gs[id]?.funcao === fk && serveNoGiro(gs[id], iso)) ids.add(id);
+  }
+  return [...ids].filter((id) => !afastado(id, iso, cad.afastamentos || []));
 }
+
+/** @deprecated Nome antigo, de quando só existia o turno fixo. Use extrasDoDia. */
+export const extrasFixosDoDia = extrasDoDia;
 
 /** Rótulo curto dos dias permitidos, para a tela e os avisos. */
 export function rotuloDias(dias?: number[]): string {
@@ -189,7 +271,7 @@ export function assignDia(iso: string, cad: Cadastro, escalas: Record<string, an
     // (ex.: cadastrado depois do dia ter sido salvo) — soma na hora, sem
     // esperar a correcao automatica da folha diaria persistir.
     const comExtras = (fk: string, ids: string[]) => {
-      const extras = extrasFixosDoDia(fk, iso, cad).filter((id) => !ids.includes(id));
+      const extras = extrasDoDia(fk, iso, cad).filter((id) => !ids.includes(id));
       return extras.length ? [...ids, ...extras] : ids;
     };
     return {
@@ -237,7 +319,7 @@ export function assignDia(iso: string, cad: Cadastro, escalas: Record<string, an
     };
     push1(q[team]?.[fk] || "");
     for (let k = 2; k <= nExtra(fk) + 1; k++) push1(q[team]?.[`${fk}#${k}`] || "");
-    for (const id of extrasFixosDoDia(fk, iso, cad)) if (!ids.includes(id)) ids.push(id);
+    for (const id of extrasDoDia(fk, iso, cad)) if (!ids.includes(id)) ids.push(id);
     return ids;
   };
   const ovrCpu = cad.cpuOverrides?.[iso];

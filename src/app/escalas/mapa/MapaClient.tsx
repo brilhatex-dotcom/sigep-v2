@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ORGANOGRAMA, acharNo, pertenceAoNo, type NoOrg } from "@/lib/organograma";
 import FolhaUnidadeRp from "@/components/FolhaUnidadeRp";
-import { parsePadrao, timeDoDia, incluiComReducao, podeNoDia, rotuloDias } from "@/lib/escalaMotor";
+import { parsePadrao, timeDoDia, incluiComReducao, podeNoDia, rotuloDias, extrasDoDia, rotuloGiro, proximosDoGiro, type GiroSemanal } from "@/lib/escalaMotor";
 import { usePulso, avisarMudanca } from "@/lib/sincronia";
 
 /* Lugares selecionáveis (DPM/CIA/Pelotão/seções) para o botão "mudar de
@@ -64,6 +64,8 @@ type Cadastro = {
   // Turno fixo: idPmma -> funcao de lista em que ele entra como EXTRA (soma,
   // nao substitui) em todo dia permitido dele. Ver escalaMotor.ts.
   funcaoFixa?: Record<string, string>;
+  // Giro semanal: idPmma -> uma vez por semana, num dia que gira. Ver escalaMotor.ts.
+  giroSemanal?: Record<string, GiroSemanal>;
 };
 
 type Militar = {
@@ -145,16 +147,6 @@ const inicioMesISO = (iso: string) => `${iso.slice(0, 7)}-01`;
 function afastado(nome: string, data: string, lista: Afastamento[]) {
   return lista.some((a) => a.militar === nome && data >= a.inicio && data <= a.fim);
 }
-// Militares com turno FIXO na funcao `fk`: entram como EXTRA (somando, sem
-// tirar quem o rodizio normal ja coloca) em todo dia permitido deles.
-function extrasFixosDoDia(fk: string, iso: string, cad: Pick<Cadastro, "funcaoFixa" | "diasPermitidos" | "afastamentos">): string[] {
-  const ff = cad.funcaoFixa || {};
-  const dp = cad.diasPermitidos || {};
-  return Object.keys(ff)
-    .filter((id) => ff[id] === fk)
-    .filter((id) => podeNoDia(dp[id], iso))
-    .filter((id) => !afastado(id, iso, cad.afastamentos || []));
-}
 function afastamentoDe(nome: string, data: string, lista: Afastamento[]): TipoAfastamento | null {
   const a = lista.find((x) => x.militar === nome && data >= x.inicio && data <= x.fim);
   return a ? a.tipo : null;
@@ -218,7 +210,7 @@ function assignDia(iso: string, cad: Cadastro, escalas: Record<string, any>, idD
     // soma na hora, pra nao sumir do mapa so porque a folha diaria daquele
     // dia foi salva antes de o turno fixo ser cadastrado.
     const comExtras = (fk: string, ids: string[]) => {
-      const extras = extrasFixosDoDia(fk, iso, cad).filter((id) => !ids.includes(id));
+      const extras = extrasDoDia(fk, iso, cad).filter((id) => !ids.includes(id));
       return extras.length ? [...ids, ...extras] : ids;
     };
     return {
@@ -266,7 +258,7 @@ function assignDia(iso: string, cad: Cadastro, escalas: Record<string, any>, idD
     const ids: string[] = [];
     const b = q[team]?.[fk] || ""; if (b && !afastado(b, iso, a) && !capadoHoje(b)) ids.push(b);
     for (let k = 2; k <= nExtra(fk) + 1; k++) { const id = q[team]?.[`${fk}#${k}`] || ""; if (id && !afastado(id, iso, a) && !capadoHoje(id)) ids.push(id); }
-    for (const id of extrasFixosDoDia(fk, iso, cad)) if (!ids.includes(id)) ids.push(id);
+    for (const id of extrasDoDia(fk, iso, cad)) if (!ids.includes(id)) ids.push(id);
     return ids;
   };
   return {
@@ -563,7 +555,7 @@ const DIAS_CURTO = ["D", "S", "T", "Q", "Q", "S", "S"];
 const DIAS_NOME = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
 
 function RestricoesEscalaMini({
-  efetivo, nomeDe, reducoes, setReducoes, dias, setDias, funcoes, setFuncoes,
+  efetivo, nomeDe, reducoes, setReducoes, dias, setDias, funcoes, setFuncoes, giros, setGiros,
 }: {
   efetivo: Militar[];
   nomeDe: (t: string) => string;
@@ -573,15 +565,18 @@ function RestricoesEscalaMini({
   setDias: (updater: (m: Record<string, number[]>) => Record<string, number[]>) => void;
   funcoes: Record<string, string>;
   setFuncoes: (updater: (m: Record<string, string>) => Record<string, string>) => void;
+  giros: Record<string, GiroSemanal>;
+  setGiros: (updater: (m: Record<string, GiroSemanal>) => Record<string, GiroSemanal>) => void;
 }) {
   const [q, setQ] = useState("");
   const [salvando, setSalvando] = useState(false);
-  // Todo militar que tem alguma restrição (teto, dias, ou os dois).
+  const hojeISO = toISO(new Date());
+  // Todo militar que tem alguma restrição (teto, dias, giro, ou a combinação).
   const ids = useMemo(
-    () => [...new Set([...Object.keys(reducoes), ...Object.keys(dias)])]
+    () => [...new Set([...Object.keys(reducoes), ...Object.keys(dias), ...Object.keys(giros)])]
       .sort((a, b) => nomeDe(a).localeCompare(nomeDe(b))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [reducoes, dias],
+    [reducoes, dias, giros],
   );
   const jaTem = new Set(ids);
   const res = useMemo(() => {
@@ -592,7 +587,10 @@ function RestricoesEscalaMini({
   }, [q, efetivo, reducoes, dias]);
 
   /* Grava no servidor e no estado. Campo omitido = mantém o que já estava. */
-  const salvar = async (id: string, nome: string, patch: { percentual?: number; dias?: number[]; funcao?: string }) => {
+  const salvar = async (
+    id: string, nome: string,
+    patch: { percentual?: number; dias?: number[]; funcao?: string; giroDias?: number[]; giroRef?: string },
+  ) => {
     setSalvando(true);
     try {
       const r = await fetch("/api/escala/reducao-judicial", {
@@ -613,10 +611,19 @@ function RestricoesEscalaMini({
         if (ds.length) n[id] = ds; else delete n[id];
         return n;
       });
+      const gd: number[] = Array.isArray(d?.giroDias) ? d.giroDias.map(Number) : [];
+      const gr = String(d?.giroRef || "");
+      const fx = String(d?.funcao || "");
+      /* A função é a mesma nos dois casos, mas eles não convivem: com giro o
+         militar entra uma vez por semana; sem giro, em todo dia permitido. */
       setFuncoes((m) => {
         const n = { ...m };
-        const fx = String(d?.funcao || "");
-        if (fx) n[id] = fx; else delete n[id];
+        if (fx && gd.length === 0) n[id] = fx; else delete n[id];
+        return n;
+      });
+      setGiros((m) => {
+        const n = { ...m };
+        if (gd.length > 0) n[id] = { dias: gd, funcao: fx, refISO: gr }; else delete n[id];
         return n;
       });
     } catch { alert("Falha ao salvar a restrição."); }
@@ -653,17 +660,22 @@ function RestricoesEscalaMini({
           {ids.map((id) => {
             const ds = dias[id] || [];
             const pct = reducoes[id] || 0;
-            const fx = funcoes[id] || "";
+            const bruto = giros[id];                    // pode estar pela metade
+            const gd = bruto?.dias || [];
+            const gr = bruto?.refISO || "";
+            const fx = funcoes[id] || bruto?.funcao || "";
+            // Só é giro de verdade com os três: sequência, data e função.
+            const gi = gd.length > 0 && gr && fx ? { dias: gd, funcao: fx, refISO: gr } : null;
             return (
               <div key={id} className="mp-rest-linha">
                 <div className="mp-rest-topo">
                   <span className="mp-afm-nome">{nomeDe(id)}</span>
                   <span className="mp-rest-tag">
-                    {rotuloDias(ds)}{pct ? ` · máx. ${pct}%/mês` : ""}
-                    {fx ? ` · extra fixo em ${FUNCOES_EXTRA.find((f) => f.key === fx)?.label || fx}` : ""}
+                    {gi ? rotuloGiro(gi) : rotuloDias(ds)}{pct ? ` · máx. ${pct}%/mês` : ""}
+                    {fx ? ` · ${gi ? "" : "extra fixo "}em ${FUNCOES_EXTRA.find((f) => f.key === fx)?.label || fx}` : ""}
                   </span>
                   <button className="mp-afm-del" title="tirar a restrição" disabled={salvando}
-                    onClick={() => salvar(id, nomeDe(id), { percentual: 0, dias: [], funcao: "" })}>×</button>
+                    onClick={() => salvar(id, nomeDe(id), { percentual: 0, dias: [], funcao: "", giroDias: [], giroRef: "" })}>×</button>
                 </div>
                 <div className="mp-rest-controles">
                   <span className="mp-rest-rot">Entra em</span>
@@ -690,7 +702,7 @@ function RestricoesEscalaMini({
                     % do mês
                   </label>
                   <label className="mp-rest-rot">
-                    turno fixo (extra, soma)
+                    {gi ? "função do giro" : "turno fixo (extra, soma)"}
                     <select value={fx} disabled={salvando}
                       onChange={(e) => salvar(id, nomeDe(id), { funcao: e.target.value })}>
                       <option value="">nenhum</option>
@@ -698,6 +710,55 @@ function RestricoesEscalaMini({
                     </select>
                   </label>
                 </div>
+
+                {/* GIRO SEMANAL — uma vez por semana, num dia que muda */}
+                <div className="mp-rest-controles mp-rest-giro">
+                  <span className="mp-rest-rot">Giro semanal</span>
+                  <div className="mp-rest-dias">
+                    {DIAS_CURTO.map((d, i) => (
+                      <button key={i} type="button" title={`acrescentar ${DIAS_NOME[i]} ao giro`} disabled={salvando}
+                        className="mp-rest-dia"
+                        onClick={() => salvar(id, nomeDe(id), {
+                          giroDias: [...gd, i],
+                          giroRef: gr || hojeISO,
+                        })}>+{d}</button>
+                    ))}
+                  </div>
+                  {gd.length > 0 ? (
+                    <>
+                      <span className="mp-rest-giro-seq">{rotuloGiro({ dias: gd, funcao: fx || "x", refISO: gr || hojeISO })}</span>
+                      <label className="mp-rest-rot">
+                        1º serviço
+                        <input type="date" value={gr} disabled={salvando}
+                          onChange={(e) => salvar(id, nomeDe(id), { giroRef: e.target.value })} />
+                      </label>
+                      <button type="button" className="mp-rest-atalho" disabled={salvando}
+                        title="tirar o último dia da sequência"
+                        onClick={() => salvar(id, nomeDe(id), { giroDias: gd.slice(0, -1) })}>desfazer</button>
+                      <button type="button" className="mp-rest-atalho" disabled={salvando}
+                        onClick={() => salvar(id, nomeDe(id), { giroDias: [], giroRef: "" })}>limpar giro</button>
+                    </>
+                  ) : (
+                    <span className="mp-rest-giro-dica">clique nos dias na ordem do giro — ex.: +sáb, +dom, +seg</span>
+                  )}
+                </div>
+
+                {/* A prova real: as datas que vão sair de verdade. */}
+                {gi && (
+                  <div className="mp-rest-giro-prev">
+                    próximos serviços:{" "}
+                    {proximosDoGiro(gi, hojeISO, 6).map((iso) => (
+                      <span key={iso} className="mp-rest-giro-data">
+                        {iso.slice(8, 10)}/{iso.slice(5, 7)} {DIAS_CURTO[parseISO(iso).getDay()]}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {gd.length > 0 && !gi && (
+                  <div className="mp-rest-giro-prev falta">
+                    falta {(!gr ? "a data do 1º serviço" : "")}{(!gr && !fx) ? " e " : ""}{(!fx ? "a função" : "")} para o giro valer.
+                  </div>
+                )}
               </div>
             );
           })}
@@ -1004,6 +1065,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
   const [reducaoJudicial, setReducaoJudicial] = useState<Record<string, number>>({});
   const [diasPermitidos, setDiasPermitidos] = useState<Record<string, number[]>>({});
   const [funcaoFixa, setFuncaoFixa] = useState<Record<string, string>>({});
+  const [giroSemanal, setGiroSemanal] = useState<Record<string, GiroSemanal>>({});
   // Edicao do CPU direto na linha (excecao por dia).
   const [editCpu, setEditCpu] = useState<string | null>(null);
   const [buscaCpu, setBuscaCpu] = useState("");
@@ -1028,16 +1090,29 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
           const m: Record<string, number> = {};
           const dd: Record<string, number[]> = {};
           const ff: Record<string, string> = {};
+          const gs: Record<string, GiroSemanal> = {};
           for (const x of d.reducoes) {
             if (!x?.idPmma) continue;
-            if (x.percentual) m[String(x.idPmma)] = Number(x.percentual);
+            const id = String(x.idPmma);
+            if (x.percentual) m[id] = Number(x.percentual);
             // sem esta linha os dias da semana sumiam ao recarregar a página
-            if (Array.isArray(x.dias) && x.dias.length) dd[String(x.idPmma)] = x.dias.map(Number);
-            if (x.funcao) ff[String(x.idPmma)] = String(x.funcao);
+            if (Array.isArray(x.dias) && x.dias.length) dd[id] = x.dias.map(Number);
+            /* Guarda o giro CRU — até incompleto, porque o escalante monta a
+               sequência aos poucos. Quem decide se ele vale é o motor
+               (serveNoGiro exige dias + função + data). Giro e turno fixo usam
+               a mesma função mas não convivem: com giro o militar entra uma vez
+               por semana, e não em todo dia permitido. */
+            const temGiroDias = Array.isArray(x.giroDias) && x.giroDias.length > 0;
+            if (temGiroDias) {
+              gs[id] = { dias: x.giroDias.map(Number), funcao: String(x.funcao || ""), refISO: String(x.giroRef || "") };
+            } else if (x.funcao) {
+              ff[id] = String(x.funcao);
+            }
           }
           setReducaoJudicial(m);
           setDiasPermitidos(dd);
           setFuncaoFixa(ff);
+          setGiroSemanal(gs);
         }
       })
       .catch(() => {});
@@ -1193,16 +1268,18 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
       const temRj = Object.keys(reducaoJudicial).length > 0;
       const temDp = Object.keys(diasPermitidos).length > 0;
       const temFf = Object.keys(funcaoFixa).length > 0;
-      if (!planoAfast.length && !temRj && !temFf) return cad;
+      const temGs = Object.keys(giroSemanal).length > 0;
+      if (!planoAfast.length && !temRj && !temFf && !temGs) return cad;
       return {
         ...cad,
         afastamentos: [...(cad.afastamentos || []), ...planoAfast],
         ...(temRj ? { reducaoJudicial } : {}),
         ...(temDp ? { diasPermitidos } : {}),
         ...(temFf ? { funcaoFixa } : {}),
+        ...(temGs ? { giroSemanal } : {}),
       };
     },
-    [cad, planoAfast, reducaoJudicial, diasPermitidos, funcaoFixa]
+    [cad, planoAfast, reducaoJudicial, diasPermitidos, funcaoFixa, giroSemanal]
   );
 
   /* Quando uma vaga do QUADRO fica vazia porque o militar do dia está afastado,
@@ -1806,12 +1883,14 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
         <div className="mp-equipes-sub">
           Para quem <b>não entra em qualquer dia</b>: militar que estuda e só é escalado no fim de semana, ou com <b>determinação judicial</b> de trabalhar parte do mês (ex.: 50%). Dá para usar as duas coisas juntas — fim de semana <i>e</i> 50% = metade dos fins de semana da equipe dele. O motor aplica sozinho; você ainda pode escalá-lo fora disso, com confirmação.
           {" "}Se marcar um <b>turno fixo</b>, ele entra GARANTIDO nessa função em todo dia permitido dele — somando com quem o rodízio da equipe já colocaria, sem depender de qual equipe (A/B/C/D) está de plantão naquele dia.
+          {" "}Já o <b>giro semanal</b> é para quem serve <b>uma vez por semana num dia que muda</b>: você monta a sequência (ex.: sábado, domingo, segunda) e diz a data do primeiro serviço — o sistema segue o giro sozinho e mostra as próximas datas para você conferir. Quem tem giro entra <b>só</b> nos dias do giro (não em todo dia permitido), e como ele soma ao rodízio, tire o militar do rodízio normal da função se não quiser que apareça duas vezes.
         </div>
         <RestricoesEscalaMini
           efetivo={efetivo} nomeDe={nomeDe}
           reducoes={reducaoJudicial} setReducoes={setReducaoJudicial}
           dias={diasPermitidos} setDias={setDiasPermitidos}
           funcoes={funcaoFixa} setFuncoes={setFuncaoFixa}
+          giros={giroSemanal} setGiros={setGiroSemanal}
         />
       </div>
 
@@ -2045,6 +2124,20 @@ const CSS = `
 .mp-rest-atalho{ font-size:11px; color:#9fb3c8; background:#16243a; border:1px solid #2b3f63;
   border-radius:7px; padding:5px 9px; cursor:pointer; }
 .mp-rest-atalho:hover{ border-color:#D4AF37; color:#fff; }
+/* Giro semanal: linha propria, separada por um fio, para nao se confundir
+   com os "dias permitidos" logo acima — sao coisas diferentes. */
+.mp-rest-giro{ border-top:1px dashed #24344f; padding-top:8px; }
+.mp-rest-giro .mp-rest-dia{ width:auto; padding:0 7px; }
+.mp-rest-giro-seq{ font-size:12px; font-weight:700; color:#7dd3fc; background:#0c2733;
+  border:1px solid #1e556b; border-radius:7px; padding:5px 9px; white-space:nowrap; }
+.mp-rest-giro-dica{ font-size:11px; color:#6f82a0; font-style:italic; }
+/* A prova real: as datas que vao sair mesmo. E o que evita o escalante
+   descobrir no mes seguinte que o giro nao era o que ele imaginava. */
+.mp-rest-giro-prev{ margin-top:6px; font-size:11.5px; color:#9fb3c8; display:flex;
+  align-items:center; gap:6px; flex-wrap:wrap; }
+.mp-rest-giro-prev.falta{ color:#f0b24b; }
+.mp-rest-giro-data{ background:#0c2733; border:1px solid #1e556b; border-radius:6px;
+  padding:2px 7px; color:#7dd3fc; font-weight:600; white-space:nowrap; }
 .mp-afm-linha select, .mp-afm-linha input{ background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:8px; padding:6px 9px; font-size:12.5px; }
 .mp-afm-del{ background:#0a1626; color:#9fb0c7; border:1px solid #28395a; border-radius:6px; width:28px; height:30px; cursor:pointer; }
 .mp-afm-del:hover{ border-color:#e06464; color:#ffb3b3; }
