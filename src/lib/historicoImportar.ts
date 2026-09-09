@@ -1,5 +1,7 @@
 import { SECOES, CAMPOS_PESSOAIS, CAMPOS_FUNCIONAIS, type DadosHistorico } from "@/lib/historicoPolicial";
 
+export type { DadosHistorico };
+
 /* =========================================================================
    IMPORTAR UM HISTÓRICO JÁ PRONTO (Word ou PDF) para dentro do SIGEP.
 
@@ -239,4 +241,79 @@ export function juntar(atual: DadosHistorico, novo: DadosHistorico, substituir: 
     dataDoc: substituir ? (novo.dataDoc || atual.dataDoc) : (atual.dataDoc || novo.dataDoc),
     chefe: substituir ? (novo.chefe || atual.chefe) : (atual.chefe || novo.chefe),
   };
+}
+
+/* =========================================================================
+   QUEM É O DONO DESTE ARQUIVO
+
+   Na importação em lote o P/1 joga uma pasta inteira de históricos, e o
+   sistema precisa dizer de quem é cada um. A ordem de conferência vai da
+   prova mais forte para a mais fraca:
+
+     1. matrícula — campo próprio da seção I, único, sempre presente;
+     2. ID PMMA — a chave da ficha, mas ver a ressalva abaixo;
+     3. registro geral (CI);
+     4. nome completo, e só quando bater INTEIRO.
+
+   A MATRÍCULA VEM ANTES DO ID de propósito. O histórico não tem campo de ID:
+   ele só aparece no meio da transcrição dos boletins — e ali aparece também o
+   ID de OUTROS policiais citados. No histórico do Sgt Brandão, o primeiro
+   "ID nº" do documento é o de um terceiro, de uma sindicância transcrita.
+   Pegar o primeiro que aparece arquivaria o histórico dele na ficha de outro.
+   Por isso o ID só é aceito quando vem colado na matrícula do próprio titular
+   ("matrícula nº 2707958, ID nº 865114"), que é como o boletim escreve.
+
+   Nome parecido também NÃO casa. Num batalhão há Silva, Sousa e Oliveira às
+   dezenas, e gravar o histórico de um policial na ficha de outro é o tipo de
+   erro que ninguém percebe até sair um documento errado.
+   ========================================================================= */
+
+export type Identificacao = { idPmma: string; matricula: string; rg: string; nome: string };
+
+const soDigitos = (v: string) => (v || "").replace(/\D/g, "").replace(/^0+/, "");
+
+export function identificacaoDoTexto(textoBruto: string, dados: DadosHistorico): Identificacao {
+  const matricula = soDigitos(dados.campos.matricula || "");
+  const texto = textoBruto || "";
+
+  /* Só o ID que vem colado na matrícula DO TITULAR — ver o comentário acima
+     sobre por que o primeiro "ID nº" do documento não serve. */
+  let idPmma = "";
+  if (matricula) {
+    const perto = new RegExp(
+      `matr[ií]cula\\s*n?[.ºo°]?\\s*:?\\s*0*${matricula}\\b[^\\n]{0,40}?\\bID\\s*n?[.ºo°]?\\s*:?\\s*(\\d{4,9})\\b`, "i");
+    const m = texto.match(perto);
+    if (m) idPmma = m[1];
+  }
+
+  return {
+    idPmma,
+    matricula,
+    rg: soDigitos(dados.campos.rg || ""),
+    nome: crua(dados.campos.nome || ""),
+  };
+}
+
+export type CandidatoMilitar = { id: string; nome?: string | null; nomeGuerra?: string | null; matricula?: string | null; rg?: string | null; postoGrad?: string | null };
+export type Casamento = { militar: CandidatoMilitar; por: "id" | "matricula" | "rg" | "nome" } | null;
+
+export function casarMilitar(ident: Identificacao, efetivo: CandidatoMilitar[]): Casamento {
+  if (ident.matricula) {
+    const porMat = efetivo.find((e) => soDigitos(e.matricula || "") === ident.matricula);
+    if (porMat) return { militar: porMat, por: "matricula" };
+  }
+  if (ident.idPmma) {
+    const porId = efetivo.find((e) => soDigitos(e.id) === soDigitos(ident.idPmma) || e.id === ident.idPmma);
+    if (porId) return { militar: porId, por: "id" };
+  }
+  if (ident.rg) {
+    const porRg = efetivo.filter((e) => soDigitos(e.rg || "") === ident.rg);
+    if (porRg.length === 1) return { militar: porRg[0], por: "rg" };
+  }
+  if (ident.nome) {
+    // só nome INTEIRO, e só quando um único militar bate
+    const porNome = efetivo.filter((e) => crua(e.nome || "") === ident.nome);
+    if (porNome.length === 1) return { militar: porNome[0], por: "nome" };
+  }
+  return null;
 }
