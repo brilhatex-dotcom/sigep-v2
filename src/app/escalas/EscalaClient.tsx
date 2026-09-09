@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { padronizarBrasao } from "@/lib/imagem";
-import { useAoVivo } from "@/lib/useAoVivo";
+import { usePulso, avisarMudanca } from "@/lib/sincronia";
 import CarimboSigep from "@/components/CarimboSigep";
 import { compararAntiguidade } from "@/lib/patentes";
 import { incluiComReducao, podeNoDia, rotuloDias, ROTEM_HORARIOS_PADRAO, horariosRotemDoDia } from "@/lib/escalaMotor";
@@ -1826,7 +1826,7 @@ export default function EscalaClient() {
   const carregouCad = useRef(false);
   const [avisoCarga, setAvisoCarga] = useState<string | null>(null);
   /* Assinatura do que a tela tem na mão. Vem junto com a carga e é comparada
-     com /api/escala-versao — enquanto for igual, não se baixa nada. */
+     com a que vem no pulso — enquanto for igual, não se baixa nada. */
   const versaoDias = useRef<string | null>(null);
   const versaoCad = useRef<string | null>(null);
   const [efetivo, setEfetivo] = useState<Militar[]>([]);
@@ -1986,7 +1986,9 @@ export default function EscalaClient() {
           if (!r.ok) {
             const d = await r.json().catch(() => ({} as any));
             setAvisoCarga(d?.error || "Não consegui salvar as equipes no servidor.");
+            return;
           }
+          avisarMudanca("escala");
         })
         .catch(() => setAvisoCarga("Não consegui salvar as equipes no servidor."));
       try { localStorage.setItem("sigep_cadastro", s); } catch {}
@@ -2006,20 +2008,23 @@ export default function EscalaClient() {
           if (!r.ok) {
             const d = await r.json().catch(() => ({} as any));
             setAvisoCarga(d?.error || "Não consegui salvar a escala no servidor.");
+            return;
           }
+          // Gravou: as outras abas atualizam na hora, sem esperar o tique.
+          avisarMudanca("escala");
         })
         .catch(() => setAvisoCarga("Não consegui salvar a escala no servidor."));
       try { localStorage.setItem("sigep_escalas", s); } catch {}
     }, 900);
   }, [escalas, ready]);
 
-  /* Atualização ao vivo a cada 5s (era 15s), aplicando só quando não há edição
-     local pendente — não apaga o que você está editando.
+  /* Atualização ao vivo a cada 2s, aplicando só quando não há edição local
+     pendente — não apaga o que você está editando.
 
-     O que ficou rápido sem ficar pesado: de 5 em 5 segundos a tela pergunta
-     APENAS a assinatura (/api/escala-versao, uns 70 bytes). A escala inteira
-     só é baixada quando a assinatura muda de verdade. E o useAoVivo pausa
-     tudo depois de 5 minutos sem ninguém mexer, voltando ao primeiro toque. */
+     Rápido sem ser pesado: quem pergunta é o pulso do sistema (lib/sincronia),
+     que traz apenas as ASSINATURAS da escala — uns 70 bytes. A escala inteira
+     só é baixada quando a assinatura muda de verdade. E quem pergunta é uma
+     aba só: as demais recebem dela, de graça e no mesmo instante. */
   const cadRefLive = useRef(cad); cadRefLive.current = cad;
   const escalasRefLive = useRef(escalas); escalasRefLive.current = escalas;
   const puxando = useRef(false);
@@ -2055,24 +2060,19 @@ export default function EscalaClient() {
     }
   };
 
-  const conferir = async () => {
-    if (puxando.current) return;            // não empilha se a rede estiver lenta
+  /* O pulso traz a assinatura; só baixamos quando ela difere da que temos.
+     A carga inicial já trouxe a assinatura junto, então normalmente o primeiro
+     pulso não baixa nada — se por algum motivo não veio, baixa uma vez para
+     acertar o ponto de partida. */
+  usePulso(async (p) => {
+    if (!p.escala || puxando.current) return;   // não empilha se a rede estiver lenta
     puxando.current = true;
     try {
-      const r = await fetch("/api/escala-versao");
-      if (!r.ok) return;
-      const v = await r.json();
-      if (!v || typeof v.dias !== "string") return;
-      /* Primeira conferência: a carga inicial já trouxe a assinatura junto, então
-         aqui normalmente não baixa nada. Se por algum motivo não veio, baixa uma
-         vez para acertar o ponto de partida. */
-      if (versaoDias.current === null || v.dias !== versaoDias.current) await baixarDias();
-      if (versaoCad.current === null || v.cad !== versaoCad.current) await baixarCad();
-    } catch { /* rede caiu: tenta de novo no próximo ciclo */ }
+      if (versaoDias.current === null || p.escala.dias !== versaoDias.current) await baixarDias();
+      if (versaoCad.current === null || p.escala.cad !== versaoCad.current) await baixarCad();
+    } catch { /* rede caiu: o próximo pulso tenta de novo */ }
     finally { puxando.current = false; }
-  };
-
-  useAoVivo(conferir, 5000);
+  });
 
   // Chefe do P/1: vem do servidor (aba "Chefe do P1"), igual em todos os PCs.
   useEffect(() => {

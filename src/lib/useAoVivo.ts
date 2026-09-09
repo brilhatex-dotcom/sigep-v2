@@ -26,7 +26,11 @@ import { useEffect, useRef } from "react";
    na hora, e já atualiza — sem esperar o próximo ciclo.
    ========================================================================= */
 
-export const OCIOSO_MS = 5 * 60 * 1000;   // 5 min parado = pessoa não está ali
+/* 15 min, e não 5: com o consumo folgado que o Batalhão tem, vale mais a pena
+   deixar o banco acordado durante o expediente do que economizar uma cota que
+   sobra. Banco acordado = sem partida a frio = sistema respondendo na hora.
+   Fora do expediente ninguém mexe por 15 minutos, então ele dorme igual. */
+export const OCIOSO_MS = 15 * 60 * 1000;
 const EVENTOS = ["mousedown", "mousemove", "keydown", "scroll", "touchstart", "wheel"] as const;
 
 /* A decisão, isolada para poder ser testada sem navegador: atualiza só com a

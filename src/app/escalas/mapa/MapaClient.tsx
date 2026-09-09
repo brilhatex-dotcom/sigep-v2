@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ORGANOGRAMA, acharNo, pertenceAoNo, type NoOrg } from "@/lib/organograma";
 import FolhaUnidadeRp from "@/components/FolhaUnidadeRp";
 import { parsePadrao, timeDoDia, incluiComReducao, podeNoDia, rotuloDias } from "@/lib/escalaMotor";
+import { usePulso, avisarMudanca } from "@/lib/sincronia";
 
 /* Lugares selecionáveis (DPM/CIA/Pelotão/seções) para o botão "mudar de
    lotação" no quadro de equipes. Achatado do organograma (sem a raiz). */
@@ -1056,34 +1057,59 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
   const ultimoCadSalvo = useRef<string>(JSON.stringify(SEED_CADASTRO));
   const cadRef = useRef(cad); cadRef.current = cad;
 
-  // Atualizacao ao vivo: puxa do servidor a cada 15s e ao focar a aba, pra que
-  // mudancas de outro PC aparecam sem F5. Nao sobrescreve edicao local pendente:
-  // so aplica o cad do servidor quando o local ja esta salvo (limpo).
-  useEffect(() => {
-    const puxar = async () => {
-      if (document.hidden) return;
-      try {
-        const r = await fetch(`/api/escala-dias${qs}`);
-        if (r.ok) { const d = await r.json(); if (d && d.escalas && Object.keys(d.escalas).length > 0) setEscalas(d.escalas); }
-      } catch {}
-      try {
-        const r = await fetch(`/api/escala-config${qs}`);
-        if (r.ok) {
-          const d = await r.json();
-          if (d && d.cad) {
-            const s = JSON.stringify(d.cad);
-            if (JSON.stringify(cadRef.current) === ultimoCadSalvo.current && s !== ultimoCadSalvo.current) {
-              ultimoCadSalvo.current = s; setCad(d.cad);
-            }
+  /* Atualizacao ao vivo pelo pulso do sistema (lib/sincronia): mudancas de
+     outro PC aparecem sem F5, e mudancas de outra ABA aparecem na hora.
+     Nao sobrescreve edicao local pendente: so aplica o cad do servidor quando
+     o local ja esta salvo (limpo).
+
+     As assinaturas do pulso valem para a SEDE. Numa unidade destacada (escopo
+     preenchido) elas nao servem de referencia, entao ali o pulso vale apenas
+     como batida de relogio e a conferencia e feita buscando mesmo. */
+  const versaoPulso = useRef<string>("");
+  const puxandoMapa = useRef(false);
+
+  const puxar = async () => {
+    if (puxandoMapa.current) return;
+    puxandoMapa.current = true;
+    try {
+      const r = await fetch(`/api/escala-dias${qs}`);
+      if (r.ok) { const d = await r.json(); if (d && d.escalas && Object.keys(d.escalas).length > 0) setEscalas(d.escalas); }
+    } catch {}
+    try {
+      const r = await fetch(`/api/escala-config${qs}`);
+      if (r.ok) {
+        const d = await r.json();
+        if (d && d.cad) {
+          const s = JSON.stringify(d.cad);
+          if (JSON.stringify(cadRef.current) === ultimoCadSalvo.current && s !== ultimoCadSalvo.current) {
+            ultimoCadSalvo.current = s; setCad(d.cad);
           }
         }
-      } catch {}
-    };
-    const iv = setInterval(puxar, 15000);
-    const onFocus = () => puxar();
-    window.addEventListener("focus", onFocus);
-    return () => { clearInterval(iv); window.removeEventListener("focus", onFocus); };
-  }, []);
+      }
+    } catch {}
+    puxandoMapa.current = false;
+  };
+
+  const ultimaBuscaEscopo = useRef(0);
+
+  usePulso((p) => {
+    if (!p.escala) return;
+    if (escopo) {
+      /* Unidade destacada: a assinatura do pulso e a da SEDE, nao serve de
+         referencia aqui. Entao o pulso vale so como batida de relogio, e a
+         conferencia sai no maximo de 15 em 15s — o mesmo ritmo de antes, e
+         nao de 2 em 2, que seria buscar a escala inteira o tempo todo. */
+      const agora = Date.now();
+      if (agora - ultimaBuscaEscopo.current < 15000) return;
+      ultimaBuscaEscopo.current = agora;
+      puxar();
+      return;
+    }
+    const marca = `${p.escala.dias}|${p.escala.cad}`;
+    if (marca === versaoPulso.current) return;   // nada mudou: nem toca no servidor
+    versaoPulso.current = marca;
+    puxar();
+  });
 
   useEffect(() => {
     // cache local só vale para a SEDE (escopo vazio) — evita misturar unidades.
@@ -1129,7 +1155,9 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     if (cadSaveTimer.current) clearTimeout(cadSaveTimer.current);
     cadSaveTimer.current = setTimeout(() => {
       ultimoCadSalvo.current = s;
-      fetch(`/api/escala-config${qs}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cad }) }).catch(() => {});
+      fetch(`/api/escala-config${qs}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cad }) })
+        .then((r) => { if (r.ok) avisarMudanca("escala"); })   // outras abas atualizam na hora
+        .catch(() => {});
       if (!escopo) { try { localStorage.setItem("sigep_cadastro", s); } catch {} } // cache só da sede
     }, 800);
   }, [cad]);
@@ -1287,7 +1315,10 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     }
     if (silent && !mudou) return; // nada mudou de fato
     setEscalas(novo);
-    try { await fetch(`/api/escala-dias${qs}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ escalas: novo }) }); } catch {}
+    try {
+      const r = await fetch(`/api/escala-dias${qs}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ escalas: novo }) });
+      if (r.ok) avisarMudanca("escala");
+    } catch {}
     if (!silent) alert("Quadro aplicado aos dias futuros. ✅");
   };
   const aplicarQuadroFuturo = () => reaplicarQuadroCore(false);
