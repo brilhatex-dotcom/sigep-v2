@@ -7,7 +7,7 @@ import { padronizarBrasao } from "@/lib/imagem";
 import { usePulso, avisarMudanca } from "@/lib/sincronia";
 import CarimboSigep from "@/components/CarimboSigep";
 import { compararAntiguidade } from "@/lib/patentes";
-import { incluiComReducao, podeNoDia, rotuloDias, ROTEM_HORARIOS_PADRAO, horariosRotemDoDia } from "@/lib/escalaMotor";
+import { incluiComReducao, podeNoDia, rotuloDias, ROTEM_HORARIOS_PADRAO, horariosRotemDoDia, extrasDoDia, proximosDoGiro, rotuloGiro, serveNoGiro, type GiroSemanal } from "@/lib/escalaMotor";
 
 /* =========================================================================
    SIGEP-18BPM  ·  MODULO DE ESCALAS  (Escala de Servico diaria)  ·  v2 UX
@@ -151,6 +151,8 @@ type Cadastro = {
   // Dias da semana em que o militar pode ser escalado (0=dom ... 6=sab).
   // Ausente/vazio = todos. Ex.: [0,6] = so fim de semana (quem estuda).
   diasPermitidos?: Record<string, number[]>;
+  // Giro semanal: idPmma -> uma vez por semana, num dia que gira. Ver escalaMotor.ts.
+  giroSemanal?: Record<string, GiroSemanal>;
   // Turno fixo: idPmma -> funcao de lista em que ele entra como EXTRA (soma,
   // nao substitui) em todo dia permitido dele. Ver escalaMotor.ts.
   funcaoFixa?: Record<string, string>;
@@ -514,16 +516,6 @@ function sobrenome(n: string): string {
 function afastado(nome: string, data: string, lista: Afastamento[]): boolean {
   return lista.some((a) => a.militar === nome && data >= a.inicio && data <= a.fim);
 }
-// Militares com turno FIXO na funcao `fk`: entram como EXTRA (somando, sem
-// tirar quem o rodizio normal ja coloca) em todo dia permitido deles.
-function extrasFixosDoDia(fk: string, iso: string, cad: Pick<Cadastro, "funcaoFixa" | "diasPermitidos" | "afastamentos">): string[] {
-  const ff = cad.funcaoFixa || {};
-  const dp = cad.diasPermitidos || {};
-  return Object.keys(ff)
-    .filter((id) => ff[id] === fk)
-    .filter((id) => podeNoDia(dp[id], iso))
-    .filter((id) => !afastado(id, iso, cad.afastamentos || []));
-}
 function afastamentoDe(nome: string, data: string, lista: Afastamento[]): Afastamento | null {
   return lista.find((a) => a.militar === nome && data >= a.inicio && data <= a.fim) || null;
 }
@@ -669,7 +661,7 @@ function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
       if (id && !afastado(id, iso, cad.afastamentos) && !capadoHoje(id)) { out.push(nm(id)); idsOut.push(id); }
     }
     // turno fixo: soma quem tem essa funcao como extra fixo, no dia permitido dele
-    for (const id of extrasFixosDoDia(fk, iso, cad)) if (!idsOut.includes(id)) { out.push(nm(id)); idsOut.push(id); }
+    for (const id of extrasDoDia(fk, iso, cad)) if (!idsOut.includes(id)) { out.push(nm(id)); idsOut.push(id); }
     return out;
   };
 
@@ -1789,6 +1781,7 @@ export default function EscalaClient() {
   const [reducaoJudicial, setReducaoJudicial] = useState<Record<string, number>>({});
   const [diasPermitidos, setDiasPermitidos] = useState<Record<string, number[]>>({});
   const [funcaoFixa, setFuncaoFixa] = useState<Record<string, string>>({});
+  const [giroSemanal, setGiroSemanal] = useState<Record<string, GiroSemanal>>({});
   const [data, setData] = useState<string>(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -1870,15 +1863,28 @@ export default function EscalaClient() {
           const m: Record<string, number> = {};
           const dd: Record<string, number[]> = {};
           const ff: Record<string, string> = {};
+          const gs: Record<string, GiroSemanal> = {};
           for (const x of d.reducoes) {
             if (!x?.idPmma) continue;
-            if (x.percentual) m[String(x.idPmma)] = Number(x.percentual);
-            if (Array.isArray(x.dias) && x.dias.length) dd[String(x.idPmma)] = x.dias.map(Number);
-            if (x.funcao) ff[String(x.idPmma)] = String(x.funcao);
+            const id = String(x.idPmma);
+            if (x.percentual) m[id] = Number(x.percentual);
+            if (Array.isArray(x.dias) && x.dias.length) dd[id] = x.dias.map(Number);
+            /* Guarda o giro CRU — até incompleto, porque o escalante monta a
+               sequência aos poucos. Quem decide se ele vale é o motor
+               (serveNoGiro exige dias + função + data). Giro e turno fixo usam
+               a mesma função mas não convivem: com giro o militar entra uma vez
+               por semana, e não em todo dia permitido. */
+            const temGiroDias = Array.isArray(x.giroDias) && x.giroDias.length > 0;
+            if (temGiroDias) {
+              gs[id] = { dias: x.giroDias.map(Number), funcao: String(x.funcao || ""), refISO: String(x.giroRef || "") };
+            } else if (x.funcao) {
+              ff[id] = String(x.funcao);
+            }
           }
           setReducaoJudicial(m);
           setDiasPermitidos(dd);
           setFuncaoFixa(ff);
+          setGiroSemanal(gs);
         }
       })
       .catch(() => {});
@@ -2261,15 +2267,17 @@ export default function EscalaClient() {
     const temRj = Object.keys(reducaoJudicial).length > 0;
     const temDp = Object.keys(diasPermitidos).length > 0;
     const temFf = Object.keys(funcaoFixa).length > 0;
-    if (todos.length === 0 && !temRj && !temFf) return cad;
+    const temGs = Object.keys(giroSemanal).length > 0;
+    if (todos.length === 0 && !temRj && !temFf && !temGs) return cad;
     return {
       ...cad,
       afastamentos: [...(cad.afastamentos || []), ...todos],
       ...(temRj ? { reducaoJudicial } : {}),
       ...(temDp ? { diasPermitidos } : {}),
       ...(temFf ? { funcaoFixa } : {}),
+      ...(temGs ? { giroSemanal } : {}),
     };
-  }, [cad, feriasAvulsas, planoAfast, reducaoJudicial, diasPermitidos, funcaoFixa]);
+  }, [cad, feriasAvulsas, planoAfast, reducaoJudicial, diasPermitidos, funcaoFixa, giroSemanal]);
 
   // Auto-preenche na FOLHA os campos vindos do QUADRO (FT, RP, Guarda,
   // Inteligência) que estão VAZIOS, para os dias de HOJE em diante já salvos.
@@ -2332,7 +2340,7 @@ export default function EscalaClient() {
           const idsAtuais = new Set(
             atual.map((sl) => { const n = semTags(sl?.titular || "").trim(); return n ? (nameToId[n] || n) : ""; }).filter(Boolean)
           );
-          const faltando = extrasFixosDoDia(k, iso, cadEff).filter((id) => !idsAtuais.has(id));
+          const faltando = extrasDoDia(k, iso, cadEff).filter((id) => !idsAtuais.has(id));
           if (faltando.length) {
             clonar();
             const preenchidos = asSlots((dia as any)[k]).filter((sl) => semTags(sl?.titular || "").trim());
