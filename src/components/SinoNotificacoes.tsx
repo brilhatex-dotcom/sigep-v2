@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, ArrowLeftRight, Check, MessageSquare, FileSignature } from "lucide-react";
+import { usePulso, useMudancaDeOutraAba, avisarMudanca } from "@/lib/sincronia";
 
 type Notificacao = { id: string; texto: string; em: string; href?: string };
 const CHAVE_VISTAS = "sigep_notif_vistas";
@@ -44,39 +45,34 @@ export default function SinoNotificacoes() {
     bolinhaNoIcone(n);
   }
 
-  async function buscar() {
-    try {
-      // Permutas (todos) + alertas de segurança (só admin) + chat (todos).
-      const [rp, rs, rc, rf] = await Promise.all([
-        fetch("/api/permutas/notificacoes").then((r) => r.json()).catch(() => ({ notificacoes: [] })),
-        fetch("/api/seguranca/alertas").then((r) => r.json()).catch(() => ({ notificacoes: [] })),
-        fetch("/api/chat/notificacoes").then((r) => r.json()).catch(() => ({ notificacoes: [] })),
-        fetch("/api/ferias/notificacoes").then((r) => r.json()).catch(() => ({ notificacoes: [] })),
-      ]);
-      const lista: Notificacao[] = [
-        ...(rs.notificacoes || []),
-        ...(rf.notificacoes || []),
-        ...(rc.notificacoes || []),
-        ...(rp.notificacoes || []),
-      ];
-      setNots(lista);
-      // limpa das "vistas" ids que nao existem mais (permutas ja resolvidas),
-      // para nao crescer sem limite
-      const idsAtuais = new Set(lista.map((n) => n.id));
-      const podadas = new Set([...vistasRef.current].filter((id) => idsAtuais.has(id)));
-      vistasRef.current = podadas;
-      salvarVistas(podadas);
-      recalcular(lista);
-    } catch { /* silencioso */ }
+  function aplicar(lista: Notificacao[]) {
+    setNots(lista);
+    // limpa das "vistas" ids que nao existem mais (permutas ja resolvidas),
+    // para nao crescer sem limite
+    const idsAtuais = new Set(lista.map((n) => n.id));
+    const podadas = new Set([...vistasRef.current].filter((id) => idsAtuais.has(id)));
+    vistasRef.current = podadas;
+    salvarVistas(podadas);
+    recalcular(lista);
   }
 
-  useEffect(() => {
+  useEffect(() => { vistasRef.current = lerVistas(); }, []);
+
+  /* As notificações agora chegam pelo pulso do sistema (lib/sincronia), junto
+     com o resto: uma requisição por minuto, feita por UMA aba só, no lugar das
+     quatro que cada aba fazia por conta própria. E o sino passa a acender no
+     mesmo instante em que a escala se atualiza, em vez de até um minuto depois. */
+  usePulso((p) => { if (p.notificacoes) aplicar(p.notificacoes); });
+
+  /* Outra aba leu o sino: as "vistas" ficam no localStorage, que é comum às
+     abas, mas cada uma guarda a sua cópia em memória. Sem este aviso, o P/1
+     lia as notificações numa aba e a outra continuava com a bolinha vermelha
+     acesa até dar F5. */
+  useMudancaDeOutraAba((o) => {
+    if (o !== "notificacoes") return;
     vistasRef.current = lerVistas();
-    buscar();
-    const t = setInterval(buscar, 60000);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    recalcular(nots);
+  });
 
   function abrir() {
     const novo = !aberto;
@@ -89,6 +85,7 @@ export default function SinoNotificacoes() {
       salvarVistas(vistas);
       setNaoVistas(0);
       bolinhaNoIcone(0);
+      avisarMudanca("notificacoes");   // apaga a bolinha nas outras abas também
     }
   }
 

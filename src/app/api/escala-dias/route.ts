@@ -42,7 +42,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Banco de dados indisponivel" }, { status: 503 });
   }
   /* A assinatura vai junto para a tela saber exatamente o que tem na mão e
-     poder comparar com /api/escala-versao sem baixar tudo de novo. */
+     poder comparar com a assinatura do /api/pulso sem baixar tudo de novo. */
   if (!lida.valor) return NextResponse.json({ escalas: {}, versao: assinaturaDoValor(null) });
   try {
     return NextResponse.json({ escalas: JSON.parse(lida.valor), versao: assinaturaDoValor(lida.valor) });
