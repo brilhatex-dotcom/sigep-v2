@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Save, FileDown, FileType2, Loader2, Check, Sparkles, ArrowLeft, Clock } from "lucide-react";
+import { Search, Save, FileDown, FileType2, Loader2, Check, Sparkles, ArrowLeft, Clock, Upload, X } from "lucide-react";
 import {
   SECOES, CAMPOS_PESSOAIS, CAMPOS_FUNCIONAIS, rotulosFormacao,
   VAZIO, type DadosHistorico,
 } from "@/lib/historicoPolicial";
+import { importarHistorico, juntar, type Importacao } from "@/lib/historicoImportar";
+import { lerTextoDoArquivo } from "@/lib/lerArquivoTexto";
 import { classificarPatente } from "@/lib/patentes";
 
 /* HISTÓRICO POLICIAL MILITAR — tela de alimentação.
@@ -103,6 +105,39 @@ export default function HistoricoClient() {
       return { ...d, secoes: { ...d.secoes, [chave]: [atual, ...novas].filter(Boolean).join("\n") } };
     });
     setSujo(true); setMsg("");
+  };
+
+  /* ---------------------------------------------------- importar arquivo */
+  const [lendo, setLendo] = useState(false);
+  const [previa, setPrevia] = useState<Importacao | null>(null);
+  const [substituir, setSubstituir] = useState(false);
+
+  /* O arquivo é lido AQUI, no navegador, e só o resultado entra no formulário
+     — nada sobe para o servidor. Um histórico traz dados pessoais e punições
+     de um policial; quanto menos ele viajar, melhor. */
+  const escolherArquivo = async (arquivo: File | null | undefined) => {
+    if (!arquivo) return;
+    setLendo(true); setMsg(""); setPrevia(null);
+    try {
+      const texto = await lerTextoDoArquivo(arquivo);
+      const lido = importarHistorico(texto);
+      if (lido.achadas.length === 0) {
+        setMsg("Não reconheci nenhuma seção neste arquivo. Ele é mesmo um Histórico Policial Militar no modelo do 18º BPM?");
+        return;
+      }
+      setPrevia(lido);
+      setSubstituir(false);
+    } catch (e: any) {
+      setMsg(e?.message || "Não consegui ler este arquivo.");
+    } finally { setLendo(false); }
+  };
+
+  const aplicarImportacao = () => {
+    if (!previa) return;
+    setDados((d) => juntar(d, previa.dados, substituir));
+    setPrevia(null);
+    setSujo(true);
+    setMsg("✅ Arquivo importado. Confira as seções e clique em Salvar.");
   };
 
   const salvar = async () => {
@@ -256,6 +291,11 @@ export default function HistoricoClient() {
         )}
         <span className="ml-auto" />
         {sujo && <span className="text-xs text-amber-300">alterações não salvas</span>}
+        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-white transition hover:bg-white/5">
+          {lendo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Importar arquivo
+          <input type="file" accept=".docx,.doc,.pdf,.txt" className="hidden" disabled={lendo}
+            onChange={(e) => { escolherArquivo(e.target.files?.[0]); e.currentTarget.value = ""; }} />
+        </label>
         <button onClick={salvar} disabled={salvando}
           className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-50">
           {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar
@@ -271,6 +311,64 @@ export default function HistoricoClient() {
       </div>
 
       {msg && <p className={`text-sm ${msg.startsWith("✅") ? "text-emerald-300" : "text-red-300"}`}>{msg}</p>}
+
+      {/* Conferência antes de aplicar: o arquivo nunca entra sozinho. */}
+      {previa && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4" onClick={() => setPrevia(null)}>
+          <div className="mt-10 w-full max-w-2xl rounded-xl border border-white/10 bg-[#0F1B2D]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
+              <Upload className="h-4 w-4 text-[#D4AF37]" />
+              <h3 className="text-sm font-semibold text-white">O que o arquivo trouxe</h3>
+              <button onClick={() => setPrevia(null)} className="ml-auto rounded p-1 text-[#94A3B8] hover:text-white"><X className="h-4 w-4" /></button>
+            </div>
+
+            <div className="max-h-[60vh] overflow-y-auto p-4">
+              <p className="mb-3 text-xs text-[#94A3B8]">
+                {previa.achadas.length} seç{previa.achadas.length === 1 ? "ão reconhecida" : "ões reconhecidas"} ·{" "}
+                {Object.keys(previa.dados.campos).length} campo(s) de identificação.
+              </p>
+              <ul className="mb-4 grid gap-1 sm:grid-cols-2">
+                {previa.achadas.map((a) => (
+                  <li key={a.secao} className="flex items-center gap-2 text-xs text-white">
+                    <span className="w-10 shrink-0 text-right font-semibold text-[#D4AF37]">{a.secao}</span>
+                    <span className="truncate">{a.titulo}</span>
+                    <span className="ml-auto shrink-0 text-[#7e8b99]">{a.tamanho} linha(s)</span>
+                  </li>
+                ))}
+              </ul>
+
+              {previa.ignoradas.length > 0 && (
+                <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+                  <p className="mb-1 text-xs font-semibold text-amber-300">
+                    {previa.ignoradas.length} linha(s) que não entraram em nenhuma seção
+                  </p>
+                  <ul className="space-y-0.5 text-[11px] text-[#cbd5e1]">
+                    {previa.ignoradas.slice(0, 8).map((l, i) => <li key={i} className="truncate">{l}</li>)}
+                  </ul>
+                  <p className="mt-1 text-[11px] text-[#7e8b99]">Confira se falta algo e lance à mão depois de importar.</p>
+                </div>
+              )}
+
+              <label className="flex items-start gap-2 text-xs text-[#cbd5e1]">
+                <input type="checkbox" checked={substituir} onChange={(e) => setSubstituir(e.target.checked)} className="mt-0.5" />
+                <span>
+                  Substituir o que já está preenchido.
+                  <span className="block text-[11px] text-[#7e8b99]">
+                    Desmarcado, o arquivo só preenche o que estiver em branco — não apaga nada que você já escreveu.
+                  </span>
+                </span>
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-white/10 px-4 py-3">
+              <button onClick={() => setPrevia(null)} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#94A3B8] hover:text-white">Cancelar</button>
+              <button onClick={aplicarImportacao} className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] hover:brightness-110">
+                <Check className="h-4 w-4" /> Trazer para o formulário
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {carregando && <p className="flex items-center gap-2 text-sm text-[#94A3B8]"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</p>}
 
       {!carregando && (
