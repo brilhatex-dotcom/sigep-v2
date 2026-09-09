@@ -37,11 +37,11 @@ export default function CriarPeriodo() {
   }
 
   return (
-    <div className="mx-auto max-w-md rounded-xl border border-white/10 bg-[#0F1B2D] p-6">
+    <div className="mx-auto max-w-md rounded-xl border border-white/10 bg-painel p-6">
       <h2 className="mb-1 text-lg font-semibold text-white">
         Abrir período de promoção
       </h2>
-      <p className="mb-4 text-sm text-[#94A3B8]">
+      <p className="mb-4 text-sm text-apagado">
         Nenhum período aberto. Crie um para começar a receber as certidões.
       </p>
       <label className="mb-1 block text-sm font-medium text-white">Nome</label>
@@ -49,7 +49,7 @@ export default function CriarPeriodo() {
         value={nome}
         onChange={(e) => setNome(e.target.value)}
         placeholder="Ex.: Promoção 01/08/2026"
-        className="mb-3 w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white placeholder-[#94A3B8] outline-none focus:border-[#D4AF37]/50"
+        className="mb-3 w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white placeholder-apagado outline-none focus:border-ouro/50"
       />
       <label className="mb-1 block text-sm font-medium text-white">
         Data alvo (opcional)
@@ -58,13 +58,13 @@ export default function CriarPeriodo() {
         type="date"
         value={dataAlvo}
         onChange={(e) => setDataAlvo(e.target.value)}
-        className="mb-4 w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+        className="mb-4 w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
       />
       {erro && <p className="mb-3 text-sm text-red-300">{erro}</p>}
       <button
         onClick={criar}
         disabled={salvando}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#D4AF37] py-2.5 font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-60"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-ouro py-2.5 font-semibold text-ouro-texto transition hover:brightness-110 disabled:opacity-60"
       >
         {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
         {salvando ? "Criando..." : "Abrir período"}

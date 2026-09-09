@@ -115,13 +115,13 @@ export default function MinhaEscalaClient() {
 
   /* ================= tela ================= */
   if (carregando) {
-    return <p className="py-10 text-center text-sm text-[#94A3B8]">Carregando…</p>;
+    return <p className="py-10 text-center text-sm text-apagado">Carregando…</p>;
   }
   if (metas.length === 0) {
     return (
-      <div className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-8 text-center">
+      <div className="rounded-xl border border-azul-frio bg-painel p-8 text-center">
         <CalendarDays className="mx-auto mb-2 h-8 w-8 text-[#5b6b85]" />
-        <p className="text-sm text-[#94A3B8]">Nenhuma escala publicada ainda.</p>
+        <p className="text-sm text-apagado">Nenhuma escala publicada ainda.</p>
         <p className="mt-1 text-xs text-[#5b6b85]">Assim que o P/1 publicar, ela aparece aqui automaticamente.</p>
       </div>
     );
@@ -130,19 +130,19 @@ export default function MinhaEscalaClient() {
   return (
     <>
       {/* seletor de dia */}
-      <div className="mb-4 rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-3">
+      <div className="mb-4 rounded-xl border border-azul-frio bg-painel p-3">
         <div className="flex items-center gap-2">
           <button
             onClick={() => anterior && setDia(anterior.dataEscala)}
             disabled={!anterior}
             title="Dia publicado anterior"
-            className="rounded-lg border border-white/10 p-2 text-[#94A3B8] transition hover:border-[#D4AF37] hover:text-white disabled:opacity-30"
+            className="rounded-lg border border-white/10 p-2 text-apagado transition hover:border-ouro hover:text-white disabled:opacity-30"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
 
           <label className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2">
-            <CalendarDays className="h-4 w-4 shrink-0 text-[#D4AF37]" />
+            <CalendarDays className="h-4 w-4 shrink-0 text-ouro" />
             <input
               type="date"
               value={dia}
@@ -155,7 +155,7 @@ export default function MinhaEscalaClient() {
             onClick={() => proximo && setDia(proximo.dataEscala)}
             disabled={!proximo}
             title="Próximo dia publicado"
-            className="rounded-lg border border-white/10 p-2 text-[#94A3B8] transition hover:border-[#D4AF37] hover:text-white disabled:opacity-30"
+            className="rounded-lg border border-white/10 p-2 text-apagado transition hover:border-ouro hover:text-white disabled:opacity-30"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -169,8 +169,8 @@ export default function MinhaEscalaClient() {
               onClick={() => setDia(p.dataEscala)}
               className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition ${
                 p.dataEscala === dia
-                  ? "bg-[#D4AF37] text-[#1a1205]"
-                  : "bg-white/5 text-[#94A3B8] hover:bg-white/10 hover:text-white"
+                  ? "bg-ouro text-ouro-texto"
+                  : "bg-white/5 text-apagado hover:bg-white/10 hover:text-white"
               }`}
             >
               {rotuloDia(p.dataEscala)}
@@ -181,21 +181,21 @@ export default function MinhaEscalaClient() {
 
       {/* a folha */}
       {buscandoFolha ? (
-        <div className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-10 text-center">
-          <Loader2 className="mx-auto h-5 w-5 animate-spin text-[#D4AF37]" />
-          <p className="mt-2 text-sm text-[#94A3B8]">Abrindo a escala…</p>
+        <div className="rounded-xl border border-azul-frio bg-painel p-10 text-center">
+          <Loader2 className="mx-auto h-5 w-5 animate-spin text-ouro" />
+          <p className="mt-2 text-sm text-apagado">Abrindo a escala…</p>
         </div>
       ) : !metaDoDia ? (
-        <div className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-8 text-center">
+        <div className="rounded-xl border border-azul-frio bg-painel p-8 text-center">
           <CalendarDays className="mx-auto mb-2 h-8 w-8 text-[#5b6b85]" />
           <p className="text-sm text-white">Não há escala publicada para este dia.</p>
-          <p className="mt-1 text-xs text-[#94A3B8]">
+          <p className="mt-1 text-xs text-apagado">
             Use as setas ou os atalhos acima para ir a um dia publicado.
           </p>
           {metas[0] && (
             <button
               onClick={() => setDia(metas[0].dataEscala)}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/40 px-3 py-1.5 text-xs font-semibold text-[#D4AF37] hover:bg-[#D4AF37]/10"
+              className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-ouro/40 px-3 py-1.5 text-xs font-semibold text-ouro hover:bg-ouro/10"
             >
               <RotateCcw className="h-3.5 w-3.5" /> Ver a mais recente
             </button>
@@ -214,14 +214,14 @@ export default function MinhaEscalaClient() {
           <div className="mt-3 flex flex-wrap justify-center gap-2">
             <button
               onClick={() => baixar("pdf")} disabled={baixando !== null}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-[#94A3B8] transition hover:border-[#D4AF37] hover:text-white disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-apagado transition hover:border-ouro hover:text-white disabled:opacity-50"
             >
               {baixando === "pdf" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
               Baixar PDF
             </button>
             <button
               onClick={() => baixar("docx")} disabled={baixando !== null}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-[#94A3B8] transition hover:border-[#D4AF37] hover:text-white disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-apagado transition hover:border-ouro hover:text-white disabled:opacity-50"
             >
               {baixando === "docx" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
               Baixar Word
@@ -233,7 +233,7 @@ export default function MinhaEscalaClient() {
           </p>
         </>
       ) : (
-        <div className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-8 text-center text-sm text-[#94A3B8]">
+        <div className="rounded-xl border border-azul-frio bg-painel p-8 text-center text-sm text-apagado">
           Não foi possível abrir esta escala.
         </div>
       )}

@@ -74,16 +74,16 @@ export default function EncargosClient() {
   const baseOpcoes = useMemo(() =>
     ORDEM_BASE.map((id) => opcoes.find((o) => o.id === id)).filter(Boolean) as Opcao[], [opcoes]);
 
-  if (carregando) return <div className="text-sm text-[#94A3B8]">Carregando encargos…</div>;
+  if (carregando) return <div className="text-sm text-apagado">Carregando encargos…</div>;
 
   return (
-    <div className="space-y-6 text-[#cdd9ea]">
+    <div className="space-y-6 text-texto-2">
       {msg && <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{msg}</div>}
 
       {/* Comando e Seções do BPM */}
       <section>
-        <h2 className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-[#D4AF37]"><ShieldCheck className="h-4 w-4" /> Comando e Seções (18º BPM)</h2>
-        <p className="mb-3 text-xs text-[#94A3B8]">Cmt do BPM, Subcmt e Chefe do P/1 têm <b>acesso total</b> (entram como admin). Os demais têm acesso conforme a função.</p>
+        <h2 className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-ouro"><ShieldCheck className="h-4 w-4" /> Comando e Seções (18º BPM)</h2>
+        <p className="mb-3 text-xs text-apagado">Cmt do BPM, Subcmt e Chefe do P/1 têm <b>acesso total</b> (entram como admin). Os demais têm acesso conforme a função.</p>
         <div className="grid gap-2">
           {baseOpcoes.map((o) => (
             <SlotEncargo key={o.id} encId={o.id} rotulo={o.label} titular={titularDe(o.id)} efetivo={efetivo} no={null} onDefinir={definir} />
@@ -93,12 +93,12 @@ export default function EncargosClient() {
 
       {/* Comando dos Lugares */}
       <section>
-        <h2 className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-[#D4AF37]"><Building2 className="h-4 w-4" /> Comando dos Lugares (CIA / DPM / Pelotão)</h2>
-        <p className="mb-3 text-xs text-[#94A3B8]">O <b>Cmt do lugar</b> assina a escala da unidade e aprova o que o sargenteante enviar. O <b>sargenteante</b> monta a escala e encaminha ao Cmt. Onde não houver sargenteante, o próprio Cmt publica já autorizado.</p>
+        <h2 className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-ouro"><Building2 className="h-4 w-4" /> Comando dos Lugares (CIA / DPM / Pelotão)</h2>
+        <p className="mb-3 text-xs text-apagado">O <b>Cmt do lugar</b> assina a escala da unidade e aprova o que o sargenteante enviar. O <b>sargenteante</b> monta a escala e encaminha ao Cmt. Onde não houver sargenteante, o próprio Cmt publica já autorizado.</p>
         <div className="grid gap-3">
           {lugares.map((l) => (
-            <div key={l.noId} className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-3">
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-white"><Building2 className="h-4 w-4 text-[#D4AF37]" /> {l.rotulo}</div>
+            <div key={l.noId} className="rounded-xl border border-azul-frio bg-painel p-3">
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-white"><Building2 className="h-4 w-4 text-ouro" /> {l.rotulo}</div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <SlotEncargo encId={`cmt_${l.noId}`} rotulo="Comandante" titular={titularDe(`cmt_${l.noId}`)} efetivo={efetivo} no={l.no} onDefinir={definir} />
                 <SlotEncargo encId={`sarg_${l.noId}`} rotulo="Sargenteante" titular={titularDe(`sarg_${l.noId}`)} efetivo={efetivo} no={l.no} onDefinir={definir} />
@@ -134,9 +134,9 @@ function SlotEncargo({
   }, [efetivo, no, todos, q]);
 
   return (
-    <div className="rounded-lg border border-[#22314d] bg-[#0b1626] p-2.5">
+    <div className="rounded-lg border border-borda-forte bg-campo p-2.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">{rotulo}</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-apagado">{rotulo}</span>
         {titular
           ? <button onClick={() => onDefinir(titular.efetivoId, "")} className="inline-flex items-center gap-1 rounded border border-red-500/30 px-1.5 py-0.5 text-[11px] text-red-300 hover:bg-red-500/10"><X className="h-3 w-3" /> remover</button>
           : <span className="text-[11px] text-[#64748b]">vago</span>}
@@ -148,15 +148,15 @@ function SlotEncargo({
       {!abrir
         ? <button onClick={() => setAbrir(true)} className="mt-2 rounded border border-white/15 px-2 py-1 text-xs text-white hover:bg-white/5">{titular ? "Trocar" : "Atribuir"}</button>
         : (
-          <div className="mt-2 rounded-md border border-[#22314d] bg-[#0a1220] p-2">
-            <div className="flex items-center gap-1 rounded border border-white/10 bg-[#0b1626] px-2">
+          <div className="mt-2 rounded-md border border-borda-forte bg-[#0a1220] p-2">
+            <div className="flex items-center gap-1 rounded border border-white/10 bg-campo px-2">
               <Search className="h-3.5 w-3.5 text-[#64748b]" />
               <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome, nº ou posto…"
                 className="w-full bg-transparent py-1 text-sm text-white outline-none placeholder:text-[#4b5c74]" />
               <button onClick={() => { setAbrir(false); setQ(""); }} className="text-[#64748b] hover:text-white"><X className="h-4 w-4" /></button>
             </div>
             {no && (
-              <label className="mt-1 flex items-center gap-1.5 text-[11px] text-[#94A3B8]">
+              <label className="mt-1 flex items-center gap-1.5 text-[11px] text-apagado">
                 <input type="checkbox" checked={todos} onChange={(e) => setTodos(e.target.checked)} /> mostrar todo o efetivo (não só o desta unidade)
               </label>
             )}
@@ -164,7 +164,7 @@ function SlotEncargo({
               {candidatos.length === 0 && <div className="px-1 py-2 text-xs text-[#64748b]">Nenhum militar encontrado.</div>}
               {candidatos.map((m) => (
                 <button key={m.id} onClick={() => { onDefinir(m.id, encId); setAbrir(false); setQ(""); }}
-                  className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-sm text-[#cdd9ea] hover:bg-white/5">
+                  className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-sm text-texto-2 hover:bg-white/5">
                   <span>{nomeMil(m)}</span>
                   <span className="truncate text-[10px] text-[#64748b]">{m.lotacao}</span>
                 </button>

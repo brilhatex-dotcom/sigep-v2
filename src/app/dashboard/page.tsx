@@ -247,7 +247,7 @@ export default async function DashboardPage() {
       <div className="mx-auto max-w-6xl space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Centro de Comando — 18º BPM</h1>
-          <p className="text-sm text-[#94A3B8]">Visão estratégica do efetivo.</p>
+          <p className="text-sm text-apagado">Visão estratégica do efetivo.</p>
         </div>
 
         <FraseRotativa />
@@ -256,7 +256,7 @@ export default async function DashboardPage() {
         {/* Centro de Comando P1 */}
         <section className="ui-card p-5">
           <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-            <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Centro de Comando · P1
+            <span className="h-4 w-1 rounded bg-ouro" /> Centro de Comando · P1
           </h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
             <Mini Icone={Users} cor="#D4AF37" valor={total} rotulo="Efetivo total" href="/efetivo" />
@@ -272,14 +272,14 @@ export default async function DashboardPage() {
         <div className="grid gap-4 lg:grid-cols-2">
           <section className="ui-card p-5">
             <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-              <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Efetivo por posto
+              <span className="h-4 w-1 rounded bg-ouro" /> Efetivo por posto
             </h2>
             <BarrasPosto dados={postos} />
           </section>
 
           <section className="ui-card p-5">
             <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-              <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Efetivo por situação
+              <span className="h-4 w-1 rounded bg-ouro" /> Efetivo por situação
             </h2>
             <div className="space-y-2.5">
               {situacoes.map((s)=>(
@@ -289,17 +289,17 @@ export default async function DashboardPage() {
                   className="flex items-center gap-3 rounded-md px-1 py-0.5 transition hover:bg-white/5"
                   title={`Ver militares em ${s.rotulo}`}
                 >
-                  <span className="w-28 shrink-0 truncate text-xs text-[#94A3B8]">{s.rotulo}</span>
+                  <span className="w-28 shrink-0 truncate text-xs text-apagado">{s.rotulo}</span>
                   <div className="h-5 flex-1 overflow-hidden rounded bg-white/5">
                     <div className="h-full rounded bg-gradient-to-r from-sky-500/60 to-sky-400" style={{width:`${(s.valor/maxSit)*100}%`}} />
                   </div>
                   <span className="w-16 shrink-0 text-right text-xs font-semibold text-white">
-                    {s.valor} <span className="text-[#94A3B8]">{s.pct}%</span>
+                    {s.valor} <span className="text-apagado">{s.pct}%</span>
                   </span>
                 </Link>
               ))}
             </div>
-            <div className="mt-4 flex gap-4 border-t border-white/10 pt-3 text-xs text-[#94A3B8]">
+            <div className="mt-4 flex gap-4 border-t border-white/10 pt-3 text-xs text-apagado">
               <span>♂ Masculino: <b className="text-white">{masc}</b></span>
               <span>♀ Feminino: <b className="text-white">{fem}</b></span>
             </div>
@@ -318,7 +318,7 @@ export default async function DashboardPage() {
               </h2>
             </div>
             {equipesEmFerias.length===0 && avulsasEmFerias.length===0 ? (
-              <p className="py-8 text-center text-sm text-[#94A3B8]">Ninguém de férias hoje.</p>
+              <p className="py-8 text-center text-sm text-apagado">Ninguém de férias hoje.</p>
             ):(
               <ul className="space-y-3">
                 {avulsasEmFerias.map((nome,i)=>(
@@ -340,20 +340,20 @@ export default async function DashboardPage() {
                             {e.qtd} {e.qtd===1?"militar":"militares"}
                           </span>
                         </p>
-                        <p className="mt-1 text-[12px] text-[#94A3B8]">
+                        <p className="mt-1 text-[12px] text-apagado">
                           {e.inicioBR} <span className="text-[#5b6b85]">até</span> {e.fimBR}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xl font-bold text-[#D4AF37]">{e.restam}</p>
-                        <p className="text-[10px] text-[#94A3B8]">dias p/ voltar</p>
+                        <p className="text-xl font-bold text-ouro">{e.restam}</p>
+                        <p className="text-[10px] text-apagado">dias p/ voltar</p>
                       </div>
                     </div>
                     {/* lista NOMINAL de quem está de férias nesta equipe */}
                     {e.nomes.length>0 && (
                       <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/5 pt-3">
                         {e.nomes.map((n,j)=>(
-                          <span key={j} className="rounded-full bg-[#0a1626] px-2.5 py-1 text-[11px] text-[#cdd9ea]">{n}</span>
+                          <span key={j} className="rounded-full bg-campo px-2.5 py-1 text-[11px] text-texto-2">{n}</span>
                         ))}
                       </div>
                     )}
@@ -361,31 +361,31 @@ export default async function DashboardPage() {
                 ))}
               </ul>
             )}
-            <Link href="/ferias" className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[#D4AF37] hover:underline print:hidden">
+            <Link href="/ferias" className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-ouro hover:underline print:hidden">
               Ver plano completo <ChevronRight className="h-4 w-4" />
             </Link>
           </section>
 
           <section className="ui-card p-5">
             <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-              <Cake className="h-4 w-4 text-[#D4AF37]" /> Aniversariantes de {MESES[mesAtual]} ({aniversariantes.length})
+              <Cake className="h-4 w-4 text-ouro" /> Aniversariantes de {MESES[mesAtual]} ({aniversariantes.length})
             </h2>
             {aniversariantes.length===0 ? (
-              <p className="py-8 text-center text-sm text-[#94A3B8]">Nenhum aniversariante este mês.</p>
+              <p className="py-8 text-center text-sm text-apagado">Nenhum aniversariante este mês.</p>
             ):(
               <ul className="relative space-y-3 before:absolute before:left-[15px] before:top-2 before:h-[calc(100%-1rem)] before:w-px before:bg-white/10">
                 {aniversariantes.map((m)=>(
                   <li key={m.id} className="relative flex items-center gap-3">
-                    <span className={`z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-4 ring-[#0F1B2D] ${m.faltam===0?"bg-[#D4AF37] text-[#1a1205]":"bg-[#D4AF37]/15 text-[#D4AF37]"}`}>
+                    <span className={`z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-4 ring-painel ${m.faltam===0?"bg-ouro text-ouro-texto":"bg-ouro/15 text-ouro"}`}>
                       {String(m.dia).padStart(2,"0")}
                     </span>
                     <div>
                       <p className="text-sm text-white/90">
-                        <span className="text-[#94A3B8]">{m.postoGrad?`${m.postoGrad} `:""}</span>
+                        <span className="text-apagado">{m.postoGrad?`${m.postoGrad} `:""}</span>
                         {m.nomeGuerra||m.nome}
-                        {m.faltam===0 && <span className="ml-2 rounded-full bg-[#D4AF37] px-2 py-0.5 text-[9px] font-bold uppercase text-[#1a1205]">🎉 hoje</span>}
+                        {m.faltam===0 && <span className="ml-2 rounded-full bg-ouro px-2 py-0.5 text-[9px] font-bold uppercase text-ouro-texto">🎉 hoje</span>}
                       </p>
-                      <p className="text-[11px] text-[#94A3B8]">
+                      <p className="text-[11px] text-apagado">
                         completa {m.idadeCompleta} anos {m.faltam>0?`· faltam ${m.faltam} dia(s)`:""}
                       </p>
                     </div>
@@ -413,12 +413,12 @@ function Mini({ Icone, cor, valor, rotulo, href }:{
         <Icone className="h-4 w-4" style={{color:cor}} />
       </div>
       <p className="text-xl font-bold text-white">{valor}</p>
-      <p className="text-[11px] text-[#94A3B8]">{rotulo}</p>
+      <p className="text-[11px] text-apagado">{rotulo}</p>
     </>
   );
   if (href) {
     return (
-      <Link href={href} className="group block rounded-xl border border-white/5 bg-white/5 p-3 transition hover:border-[#D4AF37]/50 hover:bg-white/10" title={`Ver ${rotulo}`}>
+      <Link href={href} className="group block rounded-xl border border-white/5 bg-white/5 p-3 transition hover:border-ouro/50 hover:bg-white/10" title={`Ver ${rotulo}`}>
         {conteudo}
       </Link>
     );

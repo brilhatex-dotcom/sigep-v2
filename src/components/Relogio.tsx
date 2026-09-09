@@ -19,7 +19,7 @@ export default function Relogio() {
   }, []);
 
   if (!agora) {
-    return <span className="text-sm text-[#94A3B8]">--:--:--</span>;
+    return <span className="text-sm text-apagado">--:--:--</span>;
   }
 
   const dias = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
@@ -35,9 +35,9 @@ export default function Relogio() {
     <div className="text-right leading-tight">
       <p className="font-mono text-sm font-semibold text-white">
         {hh}:{mm}
-        <span className="text-[#94A3B8]">:{ss}</span>
+        <span className="text-apagado">:{ss}</span>
       </p>
-      <p className="text-[11px] text-[#94A3B8]">
+      <p className="text-[11px] text-apagado">
         {dias[agora.getDay()]}, {agora.getDate()} {meses[agora.getMonth()]}{" "}
         {agora.getFullYear()}
       </p>

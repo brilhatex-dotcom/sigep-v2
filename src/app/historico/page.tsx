@@ -18,7 +18,7 @@ export default async function HistoricoPage() {
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-5xl">
         <h1 className="mb-1 text-2xl font-bold text-white">Histórico Policial Militar</h1>
-        <p className="mb-5 text-sm text-[#94A3B8]">
+        <p className="mb-5 text-sm text-apagado">
           Alimente as seções uma vez e gere o histórico no padrão, em Word ou PDF.
         </p>
         <HistoricoClient />

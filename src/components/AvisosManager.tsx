@@ -18,7 +18,7 @@ export type Aviso = {
    mas a etiqueta já mostra a cor de verdade. */
 const CORES: Record<string, { rotulo: string; classe: string; chip: string }> = {
   critico: { rotulo: "Crítico", classe: "border-red-500/40 bg-red-500/10 text-red-200", chip: "bg-red-500 text-white" },
-  atencao: { rotulo: "Atenção", classe: "border-amber-500/40 bg-amber-500/10 text-amber-200", chip: "bg-amber-500 text-[#1a1205]" },
+  atencao: { rotulo: "Atenção", classe: "border-amber-500/40 bg-amber-500/10 text-amber-200", chip: "bg-amber-500 text-ouro-texto" },
   info: { rotulo: "Informativo", classe: "border-sky-500/40 bg-sky-500/10 text-sky-200", chip: "bg-sky-500 text-[#03202b]" },
 };
 
@@ -79,21 +79,21 @@ export default function AvisosManager({ inicial }: { inicial: Aviso[] }) {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-[#94A3B8]">
+        <p className="text-sm text-apagado">
           Avisos aparecem no banner do dashboard até a validade ou remoção.
         </p>
         <button
           onClick={abrirNovo}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-3 py-2 text-sm font-semibold text-ouro-texto transition hover:brightness-110"
         >
           <Plus className="h-4 w-4" /> Novo aviso
         </button>
       </div>
 
       {lista.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-white/10 bg-[#0F1B2D] py-16 text-center">
-          <Inbox className="h-10 w-10 text-[#94A3B8]/40" />
-          <p className="text-sm text-[#94A3B8]">Nenhum aviso cadastrado.</p>
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-white/10 bg-painel py-16 text-center">
+          <Inbox className="h-10 w-10 text-apagado/40" />
+          <p className="text-sm text-apagado">Nenhum aviso cadastrado.</p>
         </div>
       ) : (
         <ul className="space-y-2">
@@ -109,7 +109,7 @@ export default function AvisosManager({ inicial }: { inicial: Aviso[] }) {
                 </span>
                 <span className="flex-1 text-sm text-white/90">{a.texto}</span>
                 {a.validade && (
-                  <span className="text-xs text-[#94A3B8]">até {a.validade}</span>
+                  <span className="text-xs text-apagado">até {a.validade}</span>
                 )}
                 <button onClick={() => abrirEdicao(a)} className="rounded p-1.5 hover:bg-white/10" aria-label="Editar">
                   <Pencil className="h-4 w-4" />
@@ -134,14 +134,14 @@ export default function AvisosManager({ inicial }: { inicial: Aviso[] }) {
           onChange={(e) => setTexto(e.target.value)}
           rows={3}
           placeholder="Ex.: Reunião de comando sexta às 14h."
-          className="mb-4 w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+          className="mb-4 w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
         />
 
         <label className="mb-1 block text-sm font-medium text-white">Cor / nível</label>
         <select
           value={cor}
           onChange={(e) => setCor(e.target.value)}
-          className="mb-4 w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+          className="mb-4 w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
         >
           <option value="info">Informativo (azul)</option>
           <option value="atencao">Atenção (amarelo)</option>
@@ -155,16 +155,16 @@ export default function AvisosManager({ inicial }: { inicial: Aviso[] }) {
           type="date"
           value={validade}
           onChange={(e) => setValidade(e.target.value)}
-          className="mb-1 w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+          className="mb-1 w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
         />
-        <p className="mb-5 text-xs text-[#94A3B8]">
+        <p className="mb-5 text-xs text-apagado">
           Sem data, o aviso fica até ser removido.
         </p>
 
         <button
           onClick={salvar}
           disabled={salvando || !texto.trim()}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#D4AF37] py-2.5 font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-60"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-ouro py-2.5 font-semibold text-ouro-texto transition hover:brightness-110 disabled:opacity-60"
         >
           {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {editando ? "Salvar alterações" : "Criar aviso"}

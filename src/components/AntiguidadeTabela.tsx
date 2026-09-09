@@ -57,8 +57,8 @@ function corSituacao(s: string | null): string {
   if (v.includes("jms")) return "bg-red-500/15 text-red-300";
   if (v.includes("feria")) return "bg-sky-500/15 text-sky-300";
   if (v.includes("licenca") || v === "lp" || v === "ltip") return "bg-amber-500/15 text-amber-300";
-  if (v.includes("reserva")) return "bg-white/10 text-[#94A3B8]";
-  return "bg-white/5 text-[#94A3B8]";
+  if (v.includes("reserva")) return "bg-white/10 text-apagado";
+  return "bg-white/5 text-apagado";
 }
 
 function escHtml(v: unknown): string {
@@ -164,39 +164,39 @@ export default function AntiguidadeTabela({
             onClick={() => mudarFiltro("postoGrad", filtros.postoGrad === r.rotulo ? "" : r.rotulo)}
             className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs ring-1 transition ${
               filtros.postoGrad === r.rotulo
-                ? "bg-[#D4AF37] text-[#1a1205] ring-transparent"
-                : "bg-[#0F1B2D] text-[#94A3B8] ring-white/10 hover:text-white"
+                ? "bg-ouro text-ouro-texto ring-transparent"
+                : "bg-painel text-apagado ring-white/10 hover:text-white"
             }`}
           >
             {r.rotulo}
-            <span className={`font-bold ${filtros.postoGrad === r.rotulo ? "text-[#1a1205]" : "text-white"}`}>{r.qtd}</span>
+            <span className={`font-bold ${filtros.postoGrad === r.rotulo ? "text-ouro-texto" : "text-white"}`}>{r.qtd}</span>
           </button>
         ))}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <p className="text-sm text-[#94A3B8]">
+        <p className="text-sm text-apagado">
           <span className="font-semibold text-white">{filtrados.length}</span> de {comRank.length} militares
         </p>
         <div className="ml-auto flex flex-wrap gap-2">
           {temFiltro && (
-            <button onClick={limpar} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#94A3B8] transition hover:bg-white/5 hover:text-white">
+            <button onClick={limpar} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-apagado transition hover:bg-white/5 hover:text-white">
               <FilterX className="h-4 w-4" /> Limpar
             </button>
           )}
-          <button onClick={exportarCsv} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#94A3B8] transition hover:border-emerald-500/40 hover:text-white">
+          <button onClick={exportarCsv} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-apagado transition hover:border-emerald-500/40 hover:text-white">
             <FileSpreadsheet className="h-4 w-4" /> Excel
           </button>
-          <button onClick={imprimir} className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-medium text-[#1a1205] transition hover:brightness-110">
+          <button onClick={imprimir} className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-3 py-1.5 text-sm font-medium text-ouro-texto transition hover:brightness-110">
             <Printer className="h-4 w-4" /> Imprimir / PDF
           </button>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-white/5 bg-[#0F1B2D]">
+      <div className="overflow-x-auto rounded-xl border border-white/5 bg-painel">
         <table className="min-w-full text-sm">
-          <thead className="sticky top-0 z-10 bg-[#0F1B2D]">
-            <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wider text-[#94A3B8]">
+          <thead className="sticky top-0 z-10 bg-painel">
+            <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wider text-apagado">
               {COLUNAS.map((c) => (
                 <th key={c.key as string} className="px-3 py-2.5 font-semibold">{c.label}</th>
               ))}
@@ -208,7 +208,7 @@ export default function AntiguidadeTabela({
                     <select
                       value={filtros[c.key as string] ?? ""}
                       onChange={(e) => mudarFiltro(c.key as string, e.target.value)}
-                      className="w-full rounded border border-white/10 bg-[#0b1626] px-1.5 py-1 text-xs font-normal text-white outline-none focus:border-[#D4AF37]/50"
+                      className="w-full rounded border border-white/10 bg-campo px-1.5 py-1 text-xs font-normal text-white outline-none focus:border-ouro/50"
                     >
                       <option value="">Todas</option>
                       {situacoes.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -218,7 +218,7 @@ export default function AntiguidadeTabela({
                       value={filtros[c.key as string] ?? ""}
                       onChange={(e) => mudarFiltro(c.key as string, e.target.value)}
                       placeholder="filtrar"
-                      className="w-full rounded border border-white/10 bg-[#0b1626] px-1.5 py-1 text-xs font-normal text-white placeholder-[#94A3B8] outline-none focus:border-[#D4AF37]/50"
+                      className="w-full rounded border border-white/10 bg-campo px-1.5 py-1 text-xs font-normal text-white placeholder-apagado outline-none focus:border-ouro/50"
                     />
                   ))}
                 </th>
@@ -228,30 +228,30 @@ export default function AntiguidadeTabela({
           <tbody className="divide-y divide-white/5">
             {filtrados.map((m) => (
               <tr key={m.id} className="hover:bg-white/5">
-                <td className="px-3 py-2 text-[#94A3B8]">{m.rank}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.postoGrad ?? "—"}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.numeroBarra ?? "—"}</td>
+                <td className="px-3 py-2 text-apagado">{m.rank}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-apagado">{m.postoGrad ?? "—"}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-apagado">{m.numeroBarra ?? "—"}</td>
                 <td className="px-3 py-2">
-                  <button onClick={() => router.push(`/efetivo/${encodeURIComponent(m.id)}`)} className="text-left font-medium text-white hover:text-[#D4AF37]">
+                  <button onClick={() => router.push(`/efetivo/${encodeURIComponent(m.id)}`)} className="text-left font-medium text-white hover:text-ouro">
                     {m.nome ?? "—"}
                   </button>
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.nomeGuerra ?? "—"}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.matricula ?? "—"}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.id}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.rg ?? "—"}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.cpf ?? "—"}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-apagado">{m.nomeGuerra ?? "—"}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-apagado">{m.matricula ?? "—"}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-apagado">{m.id}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-apagado">{m.rg ?? "—"}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-apagado">{m.cpf ?? "—"}</td>
                 <td className="px-3 py-2">
                   <span className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${corSituacao(m.situacao)}`}>
                     {m.situacao && m.situacao.trim() ? m.situacao : "—"}
                   </span>
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.lotacao ?? "—"}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-apagado">{m.lotacao ?? "—"}</td>
               </tr>
             ))}
             {filtrados.length === 0 && (
               <tr>
-                <td colSpan={COLUNAS.length} className="px-4 py-10 text-center text-[#94A3B8]">
+                <td colSpan={COLUNAS.length} className="px-4 py-10 text-center text-apagado">
                   Nenhum militar encontrado com esses filtros.
                 </td>
               </tr>

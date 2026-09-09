@@ -36,13 +36,13 @@ export default async function NovoRequerimentoPage({
         <div className="mx-auto max-w-4xl">
           <Link
             href="/requerimentos"
-            className="mb-3 inline-flex items-center gap-1.5 text-sm text-[#94A3B8] transition hover:text-white"
+            className="mb-3 inline-flex items-center gap-1.5 text-sm text-apagado transition hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" /> Voltar
           </Link>
           <h1 className="mb-1 text-2xl font-bold text-white">Requerimento em lote</h1>
-          <p className="mb-5 text-sm text-[#94A3B8]">
-            Modalidade: <span className="font-semibold text-[#D4AF37]">{modalidade}</span>
+          <p className="mb-5 text-sm text-apagado">
+            Modalidade: <span className="font-semibold text-ouro">{modalidade}</span>
             {modelo === "cursos" ? " · modelo de cursos" : modelo === "aquisicao_restrito" ? " · formulário do Exército (SisFPC)" : modelo === "aquisicao_permitido" ? " · formulário da DAL/PMMA" : ""}
           </p>
 
@@ -73,13 +73,13 @@ export default async function NovoRequerimentoPage({
       <div className="mx-auto max-w-4xl">
         <Link
           href="/requerimentos"
-          className="mb-3 inline-flex items-center gap-1.5 text-sm text-[#94A3B8] transition hover:text-white"
+          className="mb-3 inline-flex items-center gap-1.5 text-sm text-apagado transition hover:text-white"
         >
           <ArrowLeft className="h-4 w-4" /> Voltar
         </Link>
         <h1 className="mb-1 text-2xl font-bold text-white">Novo requerimento</h1>
-        <p className="mb-5 text-sm text-[#94A3B8]">
-          Modalidade: <span className="font-semibold text-[#D4AF37]">{modalidade}</span>
+        <p className="mb-5 text-sm text-apagado">
+          Modalidade: <span className="font-semibold text-ouro">{modalidade}</span>
           {modelo === "cursos" ? " · modelo de cursos" : modelo === "aquisicao_restrito" ? " · formulário do Exército (SisFPC)" : modelo === "aquisicao_permitido" ? " · formulário da DAL/PMMA" : ""}
         </p>
 

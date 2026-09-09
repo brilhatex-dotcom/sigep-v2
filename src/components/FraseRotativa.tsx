@@ -43,16 +43,16 @@ export default function FraseRotativa() {
   }, []);
 
   return (
-    <div className="mb-5 min-h-[58px] rounded-xl border border-white/10 border-l-[3px] border-l-[#D4AF37] bg-gradient-to-r from-[#D4AF37]/10 to-transparent px-5 py-3.5 print:hidden">
+    <div className="mb-5 min-h-[58px] rounded-xl border border-white/10 border-l-[3px] border-l-ouro bg-gradient-to-r from-ouro/10 to-transparent px-5 py-3.5 print:hidden">
       {frase ? (
         <>
           <p className="text-sm italic text-[#e8edf5]">{frase.texto}</p>
           {frase.ref && (
-            <p className="mt-1 text-xs font-semibold not-italic text-[#D4AF37]">{frase.ref}</p>
+            <p className="mt-1 text-xs font-semibold not-italic text-ouro">{frase.ref}</p>
           )}
         </>
       ) : (
-        <p className="text-sm italic text-[#94A3B8]">Carregando...</p>
+        <p className="text-sm italic text-apagado">Carregando...</p>
       )}
     </div>
   );

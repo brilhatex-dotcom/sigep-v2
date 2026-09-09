@@ -74,7 +74,7 @@ export default function RequerimentoDetalhe({
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold text-white">{dados.modalidade}</h1>
-        <p className="text-sm text-[#94A3B8]">
+        <p className="text-sm text-apagado">
           {dados.postoGrad} {dados.nomeCompleto} · mat. {dados.matricula}
         </p>
       </div>
@@ -84,7 +84,7 @@ export default function RequerimentoDetalhe({
       <section className="ui-card p-6 space-y-3">
         {ehModeloAquisicao(dados.modelo) ? (
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-apagado">
               Produto controlado a ser adquirido
             </p>
             <p className="mt-0.5 text-sm text-white">{dados.pce || "—"}</p>
@@ -92,11 +92,11 @@ export default function RequerimentoDetalhe({
         ) : (
           <>
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Amparo legal</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-apagado">Amparo legal</p>
               <p className="mt-0.5 text-sm text-white">{dados.amparoLegal || "—"}</p>
             </div>
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Informações adicionais</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-apagado">Informações adicionais</p>
               <p className="mt-0.5 whitespace-pre-wrap text-sm text-white">{dados.infoAdicional || "—"}</p>
             </div>
           </>
@@ -109,20 +109,20 @@ export default function RequerimentoDetalhe({
 
       <section className="ui-card p-6">
         <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-          <FileText className="h-4 w-4 text-[#D4AF37]" /> Documento
+          <FileText className="h-4 w-4 text-ouro" /> Documento
         </h2>
-        <p className="mb-4 text-[12px] text-[#94A3B8]">
+        <p className="mb-4 text-[12px] text-apagado">
           Gere o documento no formato oficial. Baixe o Word para assinar (no sistema ou via gov.br).
         </p>
         <div className="flex flex-wrap gap-3">
           <button onClick={gerar} disabled={gerando}
-            className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-60">
+            className="inline-flex items-center gap-2 rounded-lg bg-ouro px-4 py-2 text-sm font-semibold text-ouro-texto transition hover:brightness-110 disabled:opacity-60">
             {gerando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
             {gerando ? "Gerando..." : (temDocx ? "Gerar novamente" : "Gerar documento")}
           </button>
           {temDocx && (
             <button onClick={baixar}
-              className="inline-flex items-center gap-2 rounded-lg border border-[#2b3f63] bg-[#16243a] px-4 py-2 text-sm font-semibold text-[#E8EEF6] transition hover:border-[#D4AF37]">
+              className="inline-flex items-center gap-2 rounded-lg border border-borda bg-painel-3 px-4 py-2 text-sm font-semibold text-texto transition hover:border-ouro">
               <Download className="h-4 w-4" /> Baixar Word (.docx)
             </button>
           )}
@@ -134,15 +134,15 @@ export default function RequerimentoDetalhe({
       {ehModeloAquisicao(dados.modelo) && (
         <section className="ui-card p-6">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-            <FileText className="h-4 w-4 text-[#D4AF37]" /> Declaração de parecer favorável
+            <FileText className="h-4 w-4 text-ouro" /> Declaração de parecer favorável
           </h2>
-          <p className="mb-4 text-[12px] text-[#94A3B8]">
+          <p className="mb-4 text-[12px] text-apagado">
             Anexo obrigatório deste requerimento. Assinada pelo Chefe do P/1 e pelo Cmt do 18º BPM —
             os nomes vêm da configuração do comando, e o produto e o calibre saem do que está aqui.
           </p>
           <a
             href={`/api/requerimentos/${dados.id}/parecer`}
-            className="inline-flex items-center gap-2 rounded-lg border border-[#2b3f63] bg-[#16243a] px-4 py-2 text-sm font-semibold text-[#E8EEF6] transition hover:border-[#D4AF37]"
+            className="inline-flex items-center gap-2 rounded-lg border border-borda bg-painel-3 px-4 py-2 text-sm font-semibold text-texto transition hover:border-ouro"
           >
             <Download className="h-4 w-4" /> Baixar declaração (.docx)
           </a>
@@ -154,7 +154,7 @@ export default function RequerimentoDetalhe({
           <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-white">
             Corrigir ou remover
           </h2>
-          <p className="mb-4 text-[12px] text-[#94A3B8]">
+          <p className="mb-4 text-[12px] text-apagado">
             Ao editar, o documento já gerado é descartado — gere de novo depois de salvar, para
             sair com o texto novo.
           </p>

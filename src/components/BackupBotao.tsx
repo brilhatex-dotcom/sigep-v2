@@ -74,7 +74,7 @@ export default function BackupBotao() {
           Enviar backup por e-mail
         </button>
       </div>
-      {msg && <p className="text-xs text-[#94A3B8]">{msg}</p>}
+      {msg && <p className="text-xs text-apagado">{msg}</p>}
     </div>
   );
 }

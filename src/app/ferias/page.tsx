@@ -160,12 +160,12 @@ export default async function FeriasPage({
         <h1 className="mb-1 text-2xl font-bold text-white">
           Plano de Férias {anoSelecionado}
         </h1>
-        <p className="mb-5 text-sm text-[#94A3B8]">
+        <p className="mb-5 text-sm text-apagado">
           {totalMilitares} militares em {equipesAno.length} equipes · ano de gozo {anoSelecionado}.
         </p>
 
         {anos.length === 0 ? (
-          <div className="rounded-xl border border-white/10 bg-[#0F1B2D] p-8 text-center text-sm text-[#94A3B8]">
+          <div className="rounded-xl border border-white/10 bg-painel p-8 text-center text-sm text-apagado">
             Nenhum plano de férias cadastrado ainda.
           </div>
         ) : (

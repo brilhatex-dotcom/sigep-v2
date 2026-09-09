@@ -63,7 +63,7 @@ export default async function EfetivoPage({
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-6xl">
         <h1 className="mb-1 text-2xl font-bold text-white">Cadastro de Efetivo</h1>
-        <p className="mb-5 text-sm text-[#94A3B8]">{lista.length} militares cadastrados.</p>
+        <p className="mb-5 text-sm text-apagado">{lista.length} militares cadastrados.</p>
         <EfetivoLista militares={lista} buscaInicial={searchParams.q ?? ""} situacaoInicial={searchParams.situacao ?? ""} />
       </div>
     </AppShell>

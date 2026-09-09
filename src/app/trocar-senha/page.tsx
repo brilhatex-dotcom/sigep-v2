@@ -34,10 +34,10 @@ export default async function TrocarSenhaPage() {
   const precisaTrocar = ((dadosExtra as any)?.precisaTrocar ?? false) as boolean;
 
   return (
-    <div className="min-h-screen bg-[#08111F] flex items-center justify-center px-4 py-10">
+    <div className="min-h-screen bg-fundo flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#0F1B2D] border-2 border-[#D4AF37] mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-painel border-2 border-ouro mb-4">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
@@ -52,14 +52,14 @@ export default async function TrocarSenhaPage() {
               <path d="M7 11V7a5 5 0 0110 0v4" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-[#E8EEF6]">Trocar Senha</h1>
-          <p className="text-sm text-[#E8EEF6]/60 mt-1">
+          <h1 className="text-2xl font-bold text-texto">Trocar Senha</h1>
+          <p className="text-sm text-texto/60 mt-1">
             {usuario.nomeCompleto ?? usuario.login} — Login: {usuario.login}
           </p>
         </div>
 
         {precisaTrocar && (
-          <div className="mb-4 p-3 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/40 text-[#D4AF37] text-sm">
+          <div className="mb-4 p-3 rounded-lg bg-ouro/10 border border-ouro/40 text-ouro text-sm">
             Sua senha foi resetada pelo administrador. Defina uma nova senha pessoal para continuar.
           </div>
         )}

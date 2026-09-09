@@ -36,7 +36,7 @@ function Foto({ c, tam = 32 }: { c: { nome: string; foto?: string | null }; tam?
     return <img src={c.foto} alt={c.nome} style={st} onError={() => setFalhou(true)} className="rounded-full object-cover" />;
   }
   return (
-    <span style={st} className="grid place-items-center rounded-full bg-[#16243a] text-[10px] font-bold text-[#D4AF37]">
+    <span style={st} className="grid place-items-center rounded-full bg-painel-3 text-[10px] font-bold text-ouro">
       {c.nome.slice(0, 2).toUpperCase()}
     </span>
   );
@@ -157,11 +157,11 @@ export default function ChatFlutuante() {
         <button
           onClick={() => setAberto(true)}
           id="chat-flutuante"
-          className="fixed bottom-5 right-5 z-[60] flex items-center gap-2 rounded-full border border-[#D4AF37]/40 bg-[#0F1B2D] py-2.5 pl-3 pr-4 shadow-2xl transition hover:border-[#D4AF37] hover:bg-[#16243a] print:hidden"
+          className="fixed bottom-5 right-5 z-[60] flex items-center gap-2 rounded-full border border-ouro/40 bg-painel py-2.5 pl-3 pr-4 shadow-2xl transition hover:border-ouro hover:bg-painel-3 print:hidden"
           title="Abrir o chat"
         >
           <span className="relative">
-            <MessageSquare className="h-5 w-5 text-[#D4AF37]" />
+            <MessageSquare className="h-5 w-5 text-ouro" />
             {naoLidas > 0 && (
               <span className="absolute -right-2 -top-2 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                 {naoLidas > 9 ? "9+" : naoLidas}
@@ -177,47 +177,47 @@ export default function ChatFlutuante() {
 
       {/* ---------------- painel aberto ---------------- */}
       {aberto && (
-        <div id="chat-flutuante" className="fixed bottom-0 right-0 z-[60] flex h-[70vh] max-h-[560px] w-full flex-col overflow-hidden rounded-t-xl border border-white/10 bg-[#0F1B2D] shadow-2xl print:hidden sm:bottom-5 sm:right-5 sm:w-[370px] sm:rounded-xl">
+        <div id="chat-flutuante" className="fixed bottom-0 right-0 z-[60] flex h-[70vh] max-h-[560px] w-full flex-col overflow-hidden rounded-t-xl border border-white/10 bg-painel shadow-2xl print:hidden sm:bottom-5 sm:right-5 sm:w-[370px] sm:rounded-xl">
           {/* cabeçalho */}
           <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2.5">
             {conversaViva ? (
               <>
-                <button onClick={() => setConversa(null)} className="text-[#94A3B8] hover:text-white" title="Voltar">
+                <button onClick={() => setConversa(null)} className="text-apagado hover:text-white" title="Voltar">
                   <ArrowLeft className="h-4 w-4" />
                 </button>
                 <Foto c={conversaViva} tam={30} />
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1 truncate text-sm font-bold text-white">
                     {conversaViva.nome}
-                    {conversaViva.silenciada && <BellOff className="h-3 w-3 shrink-0 text-[#94A3B8]" />}
+                    {conversaViva.silenciada && <BellOff className="h-3 w-3 shrink-0 text-apagado" />}
                   </p>
-                  <p className="text-[11px] text-[#94A3B8]">
+                  <p className="text-[11px] text-apagado">
                     {conversaViva.online ? <span className="text-emerald-400">● online</span> : "offline"}
                   </p>
                 </div>
                 <button onClick={() => setLigarPara({ para: conversaViva.login, video: false })}
-                  title="Ligar" className="rounded p-1.5 text-[#94A3B8] hover:text-emerald-300">
+                  title="Ligar" className="rounded p-1.5 text-apagado hover:text-emerald-300">
                   <Phone className="h-4 w-4" />
                 </button>
                 <button onClick={() => setLigarPara({ para: conversaViva.login, video: true })}
-                  title="Chamada de vídeo" className="rounded p-1.5 text-[#94A3B8] hover:text-[#D4AF37]">
+                  title="Chamada de vídeo" className="rounded p-1.5 text-apagado hover:text-ouro">
                   <Video className="h-4 w-4" />
                 </button>
               </>
             ) : (
               <>
-                <MessageSquare className="h-4 w-4 text-[#D4AF37]" />
+                <MessageSquare className="h-4 w-4 text-ouro" />
                 <p className="flex-1 text-sm font-bold text-white">
                   Chat
                   <span className="ml-2 text-xs font-normal text-emerald-400">● {online.length} online</span>
                 </p>
                 <Link href="/chat" title="Abrir em tela cheia"
-                  className="rounded p-1.5 text-[#94A3B8] hover:text-white">
+                  className="rounded p-1.5 text-apagado hover:text-white">
                   <Maximize2 className="h-3.5 w-3.5" />
                 </Link>
               </>
             )}
-            <button onClick={() => setAberto(false)} className="rounded p-1.5 text-[#94A3B8] hover:text-white" title="Minimizar">
+            <button onClick={() => setAberto(false)} className="rounded p-1.5 text-apagado hover:text-white" title="Minimizar">
               <Minus className="h-4 w-4" />
             </button>
           </div>
@@ -234,22 +234,22 @@ export default function ChatFlutuante() {
             <>
               <div className="border-b border-white/5 p-2.5">
                 <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-2.5">
-                  <Search className="h-3.5 w-3.5 shrink-0 text-[#94A3B8]" />
+                  <Search className="h-3.5 w-3.5 shrink-0 text-apagado" />
                   <input
                     value={busca} onChange={(e) => setBusca(e.target.value)}
                     placeholder="Buscar militar pelo nome…"
                     className="w-full bg-transparent py-1.5 text-sm text-white placeholder-white/35 outline-none"
                   />
-                  {busca && <button onClick={() => setBusca("")} className="text-[#94A3B8] hover:text-white"><X className="h-3 w-3" /></button>}
+                  {busca && <button onClick={() => setBusca("")} className="text-apagado hover:text-white"><X className="h-3 w-3" /></button>}
                 </div>
                 {!busca && (
                   <div className="mt-2 flex gap-1.5 text-[11px]">
                     <button onClick={() => setSoOnline(true)}
-                      className={`rounded-full px-2.5 py-0.5 ${soOnline ? "bg-emerald-500/20 text-emerald-300" : "bg-white/5 text-[#94A3B8]"}`}>
+                      className={`rounded-full px-2.5 py-0.5 ${soOnline ? "bg-emerald-500/20 text-emerald-300" : "bg-white/5 text-apagado"}`}>
                       Online ({online.length})
                     </button>
                     <button onClick={() => setSoOnline(false)}
-                      className={`rounded-full px-2.5 py-0.5 ${!soOnline ? "bg-white/15 text-white" : "bg-white/5 text-[#94A3B8]"}`}>
+                      className={`rounded-full px-2.5 py-0.5 ${!soOnline ? "bg-white/15 text-white" : "bg-white/5 text-apagado"}`}>
                       Todos ({contatos.length})
                     </button>
                   </div>
@@ -257,7 +257,7 @@ export default function ChatFlutuante() {
               </div>
               <div className="flex-1 overflow-y-auto">
                 {lista.length === 0 ? (
-                  <p className="px-4 py-8 text-center text-sm text-[#94A3B8]">
+                  <p className="px-4 py-8 text-center text-sm text-apagado">
                     {busca ? "Ninguém encontrado com esse nome." : "Ninguém online agora."}
                   </p>
                 ) : lista.map((c) => (
@@ -265,57 +265,57 @@ export default function ChatFlutuante() {
                     <button onClick={() => abrir(c)} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
                       <span className="relative shrink-0">
                         <Foto c={c} tam={32} />
-                        <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#0F1B2D] ${c.online ? "bg-emerald-400" : "bg-slate-600"}`} />
+                        <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-painel ${c.online ? "bg-emerald-400" : "bg-slate-600"}`} />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1.5">
-                          {c.fixada && <Pin className="h-3 w-3 shrink-0 text-[#D4AF37]" />}
+                          {c.fixada && <Pin className="h-3 w-3 shrink-0 text-ouro" />}
                           <span className="truncate text-sm font-medium text-white">{c.nome}</span>
-                          {c.silenciada && <BellOff className="h-3 w-3 shrink-0 text-[#94A3B8]" />}
-                          {c.admin && <span className="shrink-0 rounded bg-[#D4AF37]/15 px-1 text-[9px] font-bold text-[#D4AF37]">P/1</span>}
+                          {c.silenciada && <BellOff className="h-3 w-3 shrink-0 text-apagado" />}
+                          {c.admin && <span className="shrink-0 rounded bg-ouro/15 px-1 text-[9px] font-bold text-ouro">P/1</span>}
                         </span>
-                        <span className="block truncate text-[11px] text-[#94A3B8]">{c.previa || c.postoGrad || ""}</span>
+                        <span className="block truncate text-[11px] text-apagado">{c.previa || c.postoGrad || ""}</span>
                       </span>
                     </button>
 
                     {c.naoLidas > 0 ? (
-                      <span className="shrink-0 rounded-full bg-[#D4AF37] px-1.5 text-[10px] font-bold text-[#1a1205]">{c.naoLidas}</span>
+                      <span className="shrink-0 rounded-full bg-ouro px-1.5 text-[10px] font-bold text-ouro-texto">{c.naoLidas}</span>
                     ) : c.naoLidaManual ? (
-                      <span title="Marcada como não lida" className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#D4AF37]" />
+                      <span title="Marcada como não lida" className="h-2.5 w-2.5 shrink-0 rounded-full bg-ouro" />
                     ) : null}
 
                     <button
                       onClick={(e) => { e.stopPropagation(); setMenuContato(menuContato === c.login ? null : c.login); }}
                       title="Opções da conversa"
-                      className="shrink-0 rounded p-1 text-[#94A3B8] transition hover:bg-white/10 hover:text-white"
+                      className="shrink-0 rounded p-1 text-apagado transition hover:bg-white/10 hover:text-white"
                     >
                       <ChevronDown className="h-3.5 w-3.5" />
                     </button>
 
                     {menuContato === c.login && (
                       <div onClick={(e) => e.stopPropagation()}
-                        className="absolute right-2 top-10 z-30 w-48 overflow-hidden rounded-lg border border-[#2b3f63] bg-[#0F1B2D] shadow-xl">
+                        className="absolute right-2 top-10 z-30 w-48 overflow-hidden rounded-lg border border-borda bg-painel shadow-xl">
                         <button onClick={() => organizar(c, c.fixada ? "desfixar" : "fixar")}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-texto hover:bg-white/5">
                           <Pin className="h-3.5 w-3.5" /> {c.fixada ? "Desafixar" : "Fixar no topo"}
                         </button>
                         <button onClick={() => organizar(c, c.naoLidaManual ? "lida" : "naoLida")}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-texto hover:bg-white/5">
                           <MailOpen className="h-3.5 w-3.5" />
                           {c.naoLidaManual ? "Marcar como lida" : "Marcar como não lida"}
                         </button>
                         <button onClick={() => organizar(c, c.arquivada ? "desarquivar" : "arquivar")}
-                          className="flex w-full items-center gap-2 border-t border-white/5 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                          className="flex w-full items-center gap-2 border-t border-white/5 px-3 py-2 text-left text-xs text-texto hover:bg-white/5">
                           <Archive className="h-3.5 w-3.5" /> {c.arquivada ? "Desarquivar" : "Arquivar"}
                         </button>
                         {c.silenciada ? (
                           <button onClick={() => organizar(c, "desilenciar")}
-                            className="flex w-full items-center gap-2 border-t border-white/5 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                            className="flex w-full items-center gap-2 border-t border-white/5 px-3 py-2 text-left text-xs text-texto hover:bg-white/5">
                             <Bell className="h-3.5 w-3.5" /> Reativar som
                           </button>
                         ) : (
                           <div className="border-t border-white/5">
-                            <p className="flex items-center gap-2 px-3 pt-2 text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+                            <p className="flex items-center gap-2 px-3 pt-2 text-[10px] font-semibold uppercase tracking-wide text-apagado">
                               <BellOff className="h-3 w-3" /> Silenciar
                             </p>
                             <div className="flex gap-1 px-2 pb-2 pt-1">
@@ -325,7 +325,7 @@ export default function ChatFlutuante() {
                                 { rot: "Sempre", horas: 0 },
                               ].map((o) => (
                                 <button key={o.rot} onClick={() => organizar(c, "silenciar", o.horas)}
-                                  className="flex-1 rounded border border-[#2b3f63] px-1 py-1 text-[10px] text-[#E8EEF6] transition hover:bg-white/10">
+                                  className="flex-1 rounded border border-borda px-1 py-1 text-[10px] text-texto transition hover:bg-white/10">
                                   {o.rot}
                                 </button>
                               ))}

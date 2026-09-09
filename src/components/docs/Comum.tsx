@@ -57,26 +57,26 @@ export function BuscaMilitar({
         <span className="text-sm font-semibold text-white">
           {nomeBusca(sel)}{sel.matricula ? ` · mat ${sel.matricula}` : ""}
         </span>
-        <button onClick={onLimpar} className="text-xs text-[#94A3B8] underline hover:text-white">trocar militar</button>
+        <button onClick={onLimpar} className="text-xs text-apagado underline hover:text-white">trocar militar</button>
       </div>
     );
   }
 
   return (
     <div className="relative">
-      <label className="mb-1 block text-xs text-[#94A3B8]">{rotulo}</label>
+      <label className="mb-1 block text-xs text-apagado">{rotulo}</label>
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-apagado" />
         <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar militar por nome ou matrícula..."
-          className="w-full rounded-lg border border-white/10 bg-[#0b1626] py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+          className="w-full rounded-lg border border-white/10 bg-campo py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-ouro/50" />
       </div>
       {busca.trim() !== "" && (
-        <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-white/10 bg-[#0b1626] shadow-xl">
-          {resultados.length === 0 ? <div className="px-3 py-2 text-xs text-[#94A3B8]">Nenhum militar.</div> :
+        <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-white/10 bg-campo shadow-xl">
+          {resultados.length === 0 ? <div className="px-3 py-2 text-xs text-apagado">Nenhum militar.</div> :
             resultados.map((m) => (
               <button key={m.id} onClick={() => { setBusca(""); onEscolher(m); }}
                 className="block w-full px-3 py-2 text-left text-sm text-white hover:bg-white/5">
-                {nomeBusca(m)} {m.matricula && <span className="text-xs text-[#94A3B8]">mat {m.matricula}</span>}
+                {nomeBusca(m)} {m.matricula && <span className="text-xs text-apagado">mat {m.matricula}</span>}
               </button>
             ))}
         </div>
@@ -116,29 +116,29 @@ export function BuscaMilitarMultiplo({
 
   return (
     <div className="relative">
-      <label className="mb-1 block text-xs text-[#94A3B8]">{rotulo}</label>
+      <label className="mb-1 block text-xs text-apagado">{rotulo}</label>
       {selecionados.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1.5">
           {selecionados.map((m) => (
-            <span key={m.id} className="inline-flex items-center gap-1.5 rounded-full border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-2.5 py-1 text-xs text-white">
+            <span key={m.id} className="inline-flex items-center gap-1.5 rounded-full border border-ouro/40 bg-ouro/10 px-2.5 py-1 text-xs text-white">
               {nomeBusca(m)}
-              <button onClick={() => onRemover(m.id)} className="text-[#94A3B8] hover:text-red-300" title="remover">×</button>
+              <button onClick={() => onRemover(m.id)} className="text-apagado hover:text-red-300" title="remover">×</button>
             </span>
           ))}
         </div>
       )}
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-apagado" />
         <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Adicionar militar por nome ou matrícula..."
-          className="w-full rounded-lg border border-white/10 bg-[#0b1626] py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+          className="w-full rounded-lg border border-white/10 bg-campo py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-ouro/50" />
       </div>
       {busca.trim() !== "" && (
-        <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-white/10 bg-[#0b1626] shadow-xl">
-          {resultados.length === 0 ? <div className="px-3 py-2 text-xs text-[#94A3B8]">Nenhum militar.</div> :
+        <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-white/10 bg-campo shadow-xl">
+          {resultados.length === 0 ? <div className="px-3 py-2 text-xs text-apagado">Nenhum militar.</div> :
             resultados.map((m) => (
               <button key={m.id} onClick={() => { setBusca(""); onAdicionar(m); }}
                 className="block w-full px-3 py-2 text-left text-sm text-white hover:bg-white/5">
-                {nomeBusca(m)} {m.matricula && <span className="text-xs text-[#94A3B8]">mat {m.matricula}</span>}
+                {nomeBusca(m)} {m.matricula && <span className="text-xs text-apagado">mat {m.matricula}</span>}
               </button>
             ))}
         </div>
@@ -317,11 +317,11 @@ export function SeletorAssinatura({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs text-[#94A3B8]">Assinatura do Comandante:</span>
+      <span className="text-xs text-apagado">Assinatura do Comandante:</span>
       {opcoes.map((o) => (
         <button key={o} onClick={() => onChange(o)}
           className={`rounded px-2 py-1 text-xs transition ${
-            modo === o ? "bg-[#D4AF37] text-[#1a1205]" : "border border-white/10 text-[#94A3B8] hover:text-white"
+            modo === o ? "bg-ouro text-ouro-texto" : "border border-white/10 text-apagado hover:text-white"
           }`}>
           {ROTULO_ASS[o]}
         </button>
@@ -406,7 +406,7 @@ export function BotoesDocumento({
   return (
     <>
       <button onClick={imprimir}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110">
+        className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-3 py-1.5 text-sm font-semibold text-ouro-texto transition hover:brightness-110">
         <Printer className="h-4 w-4" /> Imprimir
       </button>
       <button onClick={() => baixar("docx")} disabled={baixando !== null}

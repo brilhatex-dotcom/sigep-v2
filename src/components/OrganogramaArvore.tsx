@@ -25,13 +25,13 @@ function Caixa({
   const estiloCaixa = critico
     ? "border-red-500/60 bg-red-950/40"
     : destaque
-    ? "border-[#D4AF37]/40 bg-[#D4AF37]/10"
-    : "border-white/10 bg-[#0F1B2D] hover:border-[#D4AF37]/40";
+    ? "border-ouro/40 bg-ouro/10"
+    : "border-white/10 bg-painel hover:border-ouro/40";
 
   const estiloTitulo = critico
     ? "text-red-300"
     : destaque
-    ? "text-[#D4AF37]"
+    ? "text-ouro"
     : "text-white";
 
   return (
@@ -43,11 +43,11 @@ function Caixa({
         {critico && <AlertTriangle className="mr-1 inline h-3.5 w-3.5 text-red-400" />}
         {no.rotulo}
       </p>
-      {no.cidade && <p className="text-[10px] text-[#94A3B8]">{no.cidade}</p>}
+      {no.cidade && <p className="text-[10px] text-apagado">{no.cidade}</p>}
 
       <div className="mt-1 flex items-center justify-center gap-1.5">
         {/* efetivo total lotado */}
-        <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-[#94A3B8]">
+        <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-apagado">
           <Users className="h-3 w-3" /> {qtd}
         </span>
 

@@ -33,7 +33,7 @@ export default async function PromocoesPage() {
         <h1 className="mb-1 text-2xl font-bold text-white">
           Promoções — Certidões
         </h1>
-        <p className="mb-4 text-sm text-[#94A3B8]">
+        <p className="mb-4 text-sm text-apagado">
           Gestão das certidões enviadas pelos militares no período de promoção.
         </p>
 
@@ -41,12 +41,12 @@ export default async function PromocoesPage() {
             mundo de uma vez em vez de ficha por ficha. */}
         <Link
           href="/promocoes/listao"
-          className="mb-3 flex items-start gap-3 rounded-xl border border-[#D4AF37]/40 bg-[#D4AF37]/[.06] p-4 transition hover:bg-[#D4AF37]/[.12]"
+          className="mb-3 flex items-start gap-3 rounded-xl border border-ouro/40 bg-ouro/[.06] p-4 transition hover:bg-ouro/[.12]"
         >
-          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#D4AF37]" />
+          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-ouro" />
           <span className="min-w-0">
             <span className="block text-sm font-bold text-white">Importar listão de promoções</span>
-            <span className="block text-xs text-[#94A3B8]">
+            <span className="block text-xs text-apagado">
               Saiu a relação de promovidos? Jogue o PDF aqui: o sistema acha quem é do 18º BPM,
               mostra para o senhor conferir e promove todos de uma vez.
             </span>
@@ -56,7 +56,7 @@ export default async function PromocoesPage() {
         {temFicha ? (
           <Link
             href="/promocoes/minhas-certidoes"
-            className="mb-5 inline-flex items-center gap-2 rounded-lg border border-[#D4AF37]/40 px-3 py-2 text-sm font-medium text-[#D4AF37] transition hover:bg-[#D4AF37]/10"
+            className="mb-5 inline-flex items-center gap-2 rounded-lg border border-ouro/40 px-3 py-2 text-sm font-medium text-ouro transition hover:bg-ouro/10"
           >
             <FileUp className="h-4 w-4" />
             Enviar as minhas certidões

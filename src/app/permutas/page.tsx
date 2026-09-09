@@ -17,7 +17,7 @@ export default async function PermutasPage() {
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-4xl">
         <h1 className="mb-1 text-2xl font-bold text-white">Permutas de Serviço</h1>
-        <p className="mb-5 text-sm text-[#94A3B8]">
+        <p className="mb-5 text-sm text-apagado">
           Solicite a troca do seu serviço com um colega. Ele confirma o
           &ldquo;concordo&rdquo; e o P/1 defere. Aprovado, entra na escala.
         </p>

@@ -202,13 +202,13 @@ export default function NovoEfetivoForm() {
       {SECOES.map((secao) => (
         <section key={secao.titulo} className="ui-card p-6">
           <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-            <span className="h-4 w-1 rounded bg-[#D4AF37]" />
+            <span className="h-4 w-1 rounded bg-ouro" />
             {secao.titulo}
           </h2>
           <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
             {secao.campos.map((c) => (
               <div key={c.key} className={c.tipo === "area" ? "sm:col-span-2 md:col-span-3" : ""}>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-apagado">
                   {c.label}
                 </label>
                 {c.tipo === "area" ? (
@@ -216,14 +216,14 @@ export default function NovoEfetivoForm() {
                     value={form[c.key] ?? ""}
                     onChange={(e) => mudar(c.key, e.target.value)}
                     rows={3}
-                    className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                    className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
                   />
                 ) : c.key === "postoGrad" ? (
                   // posto: dropdown com a hierarquia oficial
                   <select
                     value={form[c.key] ?? ""}
                     onChange={(e) => mudar(c.key, e.target.value)}
-                    className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                    className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
                   >
                     <option value="">Selecione...</option>
                     {POSTOS.map((p) => (
@@ -235,7 +235,7 @@ export default function NovoEfetivoForm() {
                   <select
                     value={form[c.key] ?? ""}
                     onChange={(e) => mudar(c.key, e.target.value)}
-                    className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                    className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
                   >
                     <option value="">Selecione...</option>
                     {SITUACOES.map((s) => (
@@ -252,16 +252,16 @@ export default function NovoEfetivoForm() {
                       onFocus={() => setLotFocado(true)}
                       autoComplete="off"
                       placeholder="Digite e escolha a lotação..."
-                      className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                      className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
                     />
                     {lotFocado && sugestoesLot.length > 0 && (
-                      <ul className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-white/10 bg-[#0b1626] py-1 shadow-xl">
+                      <ul className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-white/10 bg-campo py-1 shadow-xl">
                         {sugestoesLot.map((s) => (
                           <li key={s}>
                             <button
                               type="button"
                               onClick={() => { mudar("lotacao", s); setLotFocado(false); }}
-                              className="block w-full px-3 py-2 text-left text-sm text-[#E8EEF6] transition hover:bg-[#D4AF37]/15 hover:text-white"
+                              className="block w-full px-3 py-2 text-left text-sm text-texto transition hover:bg-ouro/15 hover:text-white"
                             >
                               {s}
                             </button>
@@ -275,8 +275,8 @@ export default function NovoEfetivoForm() {
                     type="text"
                     value={form[c.key] ?? ""}
                     onChange={(e) => mudar(c.key, e.target.value)}
-                    className={`w-full rounded-lg border bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50 ${
-                      c.key === "id" ? "border-[#D4AF37]/40" : "border-white/10"
+                    className={`w-full rounded-lg border bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50 ${
+                      c.key === "id" ? "border-ouro/40" : "border-white/10"
                     }`}
                   />
                 )}
@@ -290,14 +290,14 @@ export default function NovoEfetivoForm() {
         <button
           onClick={salvar}
           disabled={salvando}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-lg bg-ouro px-5 py-2.5 text-sm font-semibold text-ouro-texto transition hover:brightness-110 disabled:opacity-60"
         >
           {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           {salvando ? "Cadastrando..." : "Cadastrar militar"}
         </button>
         <button
           onClick={() => router.push("/efetivo")}
-          className="rounded-lg border border-white/10 px-5 py-2.5 text-sm text-[#94A3B8] transition hover:bg-white/5 hover:text-white"
+          className="rounded-lg border border-white/10 px-5 py-2.5 text-sm text-apagado transition hover:bg-white/5 hover:text-white"
         >
           Cancelar
         </button>

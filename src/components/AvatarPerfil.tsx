@@ -152,36 +152,36 @@ export default function AvatarPerfil({
 
       {aberto && montado && createPortal((
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" onClick={() => setAberto(false)}>
-          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0F1B2D] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-painel p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="font-bold text-white">Foto de perfil</h3>
-              <button onClick={() => setAberto(false)} className="text-[#94A3B8] hover:text-white"><X className="h-5 w-5" /></button>
+              <button onClick={() => setAberto(false)} className="text-apagado hover:text-white"><X className="h-5 w-5" /></button>
             </div>
 
             <div className="flex flex-col items-center gap-3">
               <div
                 onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}
                 style={{ touchAction: "none", cursor: modo === "posicionar" ? "grab" : "default" }}
-                className={modo === "posicionar" ? "ring-2 ring-[#D4AF37] rounded-full" : ""}
+                className={modo === "posicionar" ? "ring-2 ring-ouro rounded-full" : ""}
               >
                 <Circulo src={src} ajuste={ajuste} size={240} inicial={inicial} />
               </div>
 
               {modo === "posicionar" ? (
                 <div className="w-full space-y-3">
-                  <p className="text-center text-xs text-[#94A3B8]">Arraste a foto no círculo e ajuste o zoom.</p>
+                  <p className="text-center text-xs text-apagado">Arraste a foto no círculo e ajuste o zoom.</p>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-[#94A3B8]">Zoom</span>
+                    <span className="text-xs text-apagado">Zoom</span>
                     <input type="range" min={1} max={4} step={0.05} value={ajuste.zoom}
                       onChange={(e) => setAjuste((a) => ({ ...a, zoom: Number(e.target.value) }))}
-                      className="flex-1 accent-[#D4AF37]" />
+                      className="flex-1 accent-ouro" />
                   </div>
                   <div className="flex justify-between gap-2">
-                    <button onClick={() => setAjuste(PADRAO)} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-[#94A3B8] hover:bg-white/5 hover:text-white">Centralizar</button>
+                    <button onClick={() => setAjuste(PADRAO)} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-apagado hover:bg-white/5 hover:text-white">Centralizar</button>
                     <div className="flex gap-2">
-                      <button onClick={() => setModo("ver")} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-[#94A3B8] hover:bg-white/5 hover:text-white">Cancelar</button>
+                      <button onClick={() => setModo("ver")} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-apagado hover:bg-white/5 hover:text-white">Cancelar</button>
                       <button onClick={salvarPosicao} disabled={ocupado === "posicao"}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-xs font-semibold text-[#1a1205] hover:brightness-110 disabled:opacity-60">
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-3 py-1.5 text-xs font-semibold text-ouro-texto hover:brightness-110 disabled:opacity-60">
                         {ocupado === "posicao" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Salvar posição
                       </button>
                     </div>
@@ -190,7 +190,7 @@ export default function AvatarPerfil({
               ) : podeEditar ? (
                 <div className="grid w-full grid-cols-2 gap-2">
                   <button onClick={() => inputRef.current?.click()} disabled={ocupado === "upload"}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-2 text-sm font-semibold text-[#1a1205] hover:brightness-110 disabled:opacity-60">
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-ouro px-3 py-2 text-sm font-semibold text-ouro-texto hover:brightness-110 disabled:opacity-60">
                     {ocupado === "upload" ? <Loader2 className="h-4 w-4 animate-spin" /> : (tem ? <Upload className="h-4 w-4" /> : <ImagePlus className="h-4 w-4" />)}
                     {tem ? "Trocar foto" : "Adicionar foto"}
                   </button>
@@ -204,7 +204,7 @@ export default function AvatarPerfil({
                   </button>
                 </div>
               ) : (
-                <p className="text-xs text-[#94A3B8]">Sua conta não está vinculada a uma ficha.</p>
+                <p className="text-xs text-apagado">Sua conta não está vinculada a uma ficha.</p>
               )}
 
               {erro && <p className="w-full rounded-lg border border-red-800 bg-red-950/50 px-3 py-2 text-xs text-red-300">{erro}</p>}

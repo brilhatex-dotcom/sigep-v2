@@ -29,7 +29,7 @@ type Item = {
 
 function selo(status: string) {
   const mapa: Record<string, { txt: string; cls: string; Icone: any }> = {
-    rascunho: { txt: "Rascunho", cls: "bg-white/10 text-[#94A3B8]", Icone: FileEdit },
+    rascunho: { txt: "Rascunho", cls: "bg-white/10 text-apagado", Icone: FileEdit },
     enviado: { txt: "Enviado", cls: "bg-sky-500/15 text-sky-300", Icone: Clock },
     deferido: { txt: "Deferido", cls: "bg-emerald-500/15 text-emerald-300", Icone: CheckCircle2 },
     indeferido: { txt: "Indeferido", cls: "bg-red-500/15 text-red-300", Icone: XCircle },
@@ -266,7 +266,7 @@ export default function RequerimentosClient({
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">Requerimentos</h1>
-          <p className="text-sm text-[#94A3B8]">
+          <p className="text-sm text-apagado">
             {ehAdmin
               ? temFicha
                 ? "Analise os requerimentos enviados ou crie o seu próprio."
@@ -278,7 +278,7 @@ export default function RequerimentosClient({
           {temFicha && (
             <button
               onClick={() => abrirEscolha(false)}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110"
+              className="inline-flex items-center gap-2 rounded-lg bg-ouro px-4 py-2 text-sm font-semibold text-ouro-texto transition hover:brightness-110"
             >
               <Plus className="h-4 w-4" /> Novo requerimento
             </button>
@@ -287,7 +287,7 @@ export default function RequerimentosClient({
             <button
               onClick={() => abrirEscolha(true)}
               title="O mesmo requerimento para vários militares de uma vez, escolhidos no buscador"
-              className="inline-flex items-center gap-2 rounded-lg border border-[#D4AF37]/40 px-4 py-2 text-sm font-semibold text-[#D4AF37] transition hover:bg-[#D4AF37]/10"
+              className="inline-flex items-center gap-2 rounded-lg border border-ouro/40 px-4 py-2 text-sm font-semibold text-ouro transition hover:bg-ouro/10"
             >
               <Users className="h-4 w-4" /> Em lote (vários PMs)
             </button>
@@ -319,14 +319,14 @@ export default function RequerimentosClient({
               onClick={() => setAba(a.id)}
               className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
                 ativo
-                  ? "bg-[#D4AF37] text-[#1a1205]"
-                  : "border border-white/10 bg-white/5 text-[#94A3B8] hover:text-white"
+                  ? "bg-ouro text-ouro-texto"
+                  : "border border-white/10 bg-white/5 text-apagado hover:text-white"
               }`}
             >
               {a.rotulo}
               <span
                 className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${
-                  ativo ? "bg-[#1a1205]/20 text-[#1a1205]" : "bg-white/10 text-[#94A3B8]"
+                  ativo ? "bg-ouro-texto/20 text-ouro-texto" : "bg-white/10 text-apagado"
                 }`}
               >
                 {contagem[a.id] ?? 0}
@@ -339,19 +339,19 @@ export default function RequerimentosClient({
       {/* barra de ferramentas: busca + modalidade + ordenacao */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px]">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-apagado" />
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder={ehAdmin ? "Buscar por requerente ou modalidade..." : "Buscar por modalidade..."}
-            className="w-full rounded-lg border border-white/10 bg-[#0F1B2D] py-2 pl-9 pr-3 text-sm text-[#E8EEF6] placeholder:text-[#94A3B8]/60 focus:border-[#D4AF37]/40 focus:outline-none"
+            className="w-full rounded-lg border border-white/10 bg-painel py-2 pl-9 pr-3 text-sm text-texto placeholder:text-apagado/60 focus:border-ouro/40 focus:outline-none"
           />
         </div>
 
         <select
           value={filtroModalidade}
           onChange={(e) => setFiltroModalidade(e.target.value)}
-          className="rounded-lg border border-white/10 bg-[#0F1B2D] px-3 py-2 text-sm text-[#E8EEF6] focus:border-[#D4AF37]/40 focus:outline-none"
+          className="rounded-lg border border-white/10 bg-painel px-3 py-2 text-sm text-texto focus:border-ouro/40 focus:outline-none"
         >
           <option value="">Todas as modalidades</option>
           {modalidadesPresentes.map((m) => (
@@ -361,7 +361,7 @@ export default function RequerimentosClient({
 
         <button
           onClick={() => setMaisAntigos((v) => !v)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-[#94A3B8] transition hover:text-white"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-apagado transition hover:text-white"
           title="Alternar ordenação"
         >
           <ArrowDownUp className="h-4 w-4" />
@@ -371,8 +371,8 @@ export default function RequerimentosClient({
 
       {lista.length === 0 ? (
         <div className="ui-card p-10 text-center">
-          <FileText className="mx-auto mb-3 h-10 w-10 text-[#94A3B8]/40" />
-          <p className="text-sm text-[#94A3B8]">
+          <FileText className="mx-auto mb-3 h-10 w-10 text-apagado/40" />
+          <p className="text-sm text-apagado">
             {busca || filtroModalidade
               ? "Nenhum requerimento corresponde aos filtros."
               : ehAdmin
@@ -391,12 +391,12 @@ export default function RequerimentosClient({
                   className="flex w-full items-center gap-2 px-4 py-3 text-left transition hover:bg-white/5"
                 >
                   <ChevronDown
-                    className={`h-4 w-4 shrink-0 text-[#94A3B8] transition ${aberto ? "rotate-180" : ""}`}
+                    className={`h-4 w-4 shrink-0 text-apagado transition ${aberto ? "rotate-180" : ""}`}
                   />
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#D4AF37]">
+                  <span className="text-xs font-bold uppercase tracking-wider text-ouro">
                     {rotuloMes(g.mes)}
                   </span>
-                  <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-[#94A3B8]">
+                  <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-apagado">
                     {g.itens.length}
                   </span>
                 </button>
@@ -413,7 +413,7 @@ export default function RequerimentosClient({
                           >
                             <div className="min-w-0">
                               <p className="truncate text-sm font-semibold text-white">{r.modalidade}</p>
-                              <p className="text-[12px] text-[#94A3B8]">
+                              <p className="text-[12px] text-apagado">
                                 {ehAdmin ? `${r.requerente} · ` : ""}{dataBR(r.criadoEm)}
                               </p>
                             </div>
@@ -426,7 +426,7 @@ export default function RequerimentosClient({
                               onClick={() => excluir(r)}
                               disabled={excluindo === r.id}
                               title="Excluir este requerimento"
-                              className="shrink-0 rounded-lg border border-white/10 p-1.5 text-[#94A3B8] transition hover:border-red-500/40 hover:text-red-300 disabled:opacity-40"
+                              className="shrink-0 rounded-lg border border-white/10 p-1.5 text-apagado transition hover:border-red-500/40 hover:text-red-300 disabled:opacity-40"
                             >
                               {excluindo === r.id
                                 ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -452,30 +452,30 @@ export default function RequerimentosClient({
               <div>
                 <h2 className="text-lg font-bold text-white">Escolha a modalidade</h2>
                 {lote && (
-                  <p className="text-xs text-[#94A3B8]">
+                  <p className="text-xs text-apagado">
                     Em lote — no passo seguinte você escolhe os militares no buscador.
                   </p>
                 )}
               </div>
-              <button onClick={() => setEscolhendo(false)} className="rounded-lg p-1.5 text-[#94A3B8] hover:bg-white/5 hover:text-white">
+              <button onClick={() => setEscolhendo(false)} className="rounded-lg p-1.5 text-apagado hover:bg-white/5 hover:text-white">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">Requerimentos comuns</p>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ouro">Requerimentos comuns</p>
             <div className="mb-5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
               {MODALIDADES_COMUM.map((m) => (
                 <button
                   key={m}
                   onClick={() => novo(m)}
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-[#E8EEF6] transition hover:border-[#D4AF37]/40 hover:bg-[#D4AF37]/10"
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-texto transition hover:border-ouro/40 hover:bg-ouro/10"
                 >
                   {m}
                 </button>
               ))}
             </div>
 
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ouro">
               Armamento e material bélico
             </p>
             <div className="mb-5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
@@ -483,29 +483,29 @@ export default function RequerimentosClient({
                 <button
                   key={m}
                   onClick={() => novo(m)}
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-[#E8EEF6] transition hover:border-[#D4AF37]/40 hover:bg-[#D4AF37]/10"
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-texto transition hover:border-ouro/40 hover:bg-ouro/10"
                 >
                   {m}
                 </button>
               ))}
             </div>
 
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">Cursos</p>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ouro">Cursos</p>
             <div className="mb-5 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
               {MODALIDADES_CURSOS.filter((m) => m !== "OUTROS").map((m) => (
                 <div key={m} className="flex items-stretch gap-1">
                   <button
                     onClick={() => novo(m)}
-                    className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center text-sm text-[#E8EEF6] transition hover:border-[#D4AF37]/40 hover:bg-[#D4AF37]/10"
+                    className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center text-sm text-texto transition hover:border-ouro/40 hover:bg-ouro/10"
                   >
                     {m}
                     {editais?.[m]?.numero && (
-                      <span className="mt-0.5 block truncate text-[10px] text-[#94A3B8]">edital {editais[m].numero}</span>
+                      <span className="mt-0.5 block truncate text-[10px] text-apagado">edital {editais[m].numero}</span>
                     )}
                   </button>
                   {ehAdmin && (
                     <button onClick={() => abrirEdicaoEdital(m)} title={`Editar edital do ${m}`}
-                      className="rounded-lg border border-white/10 px-2 text-[#94A3B8] transition hover:border-[#D4AF37]/40 hover:text-[#D4AF37]">
+                      className="rounded-lg border border-white/10 px-2 text-apagado transition hover:border-ouro/40 hover:text-ouro">
                       <Settings className="h-3.5 w-3.5" />
                     </button>
                   )}
@@ -517,10 +517,10 @@ export default function RequerimentosClient({
                 quadrinho OUTROS do formulario impresso */}
             {(custom.length > 0 || ehAdmin) && (
               <>
-                <p className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
+                <p className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-ouro">
                   Personalizadas
                   {ehAdmin && !novaModalidade && (
-                    <button onClick={() => setNovaModalidade(true)} className="inline-flex items-center gap-1 normal-case text-[#94A3B8] hover:text-white">
+                    <button onClick={() => setNovaModalidade(true)} className="inline-flex items-center gap-1 normal-case text-apagado hover:text-white">
                       <Plus className="h-3.5 w-3.5" /> nova modalidade
                     </button>
                   )}
@@ -530,12 +530,12 @@ export default function RequerimentosClient({
                     {custom.map((m) => (
                       <div key={m.id} className="flex items-stretch gap-1">
                         <button onClick={() => novo(m.nome)}
-                          className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-[#E8EEF6] transition hover:border-[#D4AF37]/40 hover:bg-[#D4AF37]/10">
+                          className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-texto transition hover:border-ouro/40 hover:bg-ouro/10">
                           {m.nome}
                         </button>
                         {ehAdmin && (
                           <button onClick={() => removerModalidade(m.id)} title="remover"
-                            className="rounded-lg border border-white/10 px-2 text-[#94A3B8] transition hover:border-red-500/40 hover:text-red-300">
+                            className="rounded-lg border border-white/10 px-2 text-apagado transition hover:border-red-500/40 hover:text-red-300">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         )}
@@ -544,23 +544,23 @@ export default function RequerimentosClient({
                   </div>
                 )}
                 {novaModalidade && (
-                  <div className="mb-3 rounded-lg border border-[#D4AF37]/30 bg-[#0b1626] p-3">
-                    <p className="mb-2 text-[11px] text-[#94A3B8]">
+                  <div className="mb-3 rounded-lg border border-ouro/30 bg-campo p-3">
+                    <p className="mb-2 text-[11px] text-apagado">
                       Sem quadrinho próprio no papel — sai marcada em “OUTROS”, com este nome entre parênteses.
                     </p>
                     <input value={nomeNovaMod} onChange={(e) => setNomeNovaMod(e.target.value)}
                       placeholder="Nome da modalidade (ex: ALTERAÇÃO DE NOME DE GUERRA)"
-                      className="mb-2 w-full rounded-lg border border-white/10 bg-[#0F1B2D] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                      className="mb-2 w-full rounded-lg border border-white/10 bg-painel px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
                     <textarea value={amparoNovaMod} onChange={(e) => setAmparoNovaMod(e.target.value)} rows={2}
                       placeholder="Amparo legal padrão (opcional — o requerente pode ajustar depois)"
-                      className="mb-2 w-full rounded-lg border border-white/10 bg-[#0F1B2D] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                      className="mb-2 w-full rounded-lg border border-white/10 bg-painel px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
                     <div className="flex items-center gap-2">
                       <button onClick={salvarNovaModalidade} disabled={salvandoMod || !nomeNovaMod.trim()}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-40">
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-3 py-1.5 text-sm font-semibold text-ouro-texto transition hover:brightness-110 disabled:opacity-40">
                         {salvandoMod ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Salvar
                       </button>
                       <button onClick={() => { setNovaModalidade(false); setNomeNovaMod(""); setAmparoNovaMod(""); }}
-                        className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#94A3B8] hover:text-white">
+                        className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-apagado hover:text-white">
                         Cancelar
                       </button>
                       {msgMod && <span className="text-xs text-red-300">{msgMod}</span>}
@@ -579,48 +579,48 @@ export default function RequerimentosClient({
           <div className="ui-card w-full max-w-md p-6">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-bold text-white">Edital do {editandoCurso}</h2>
-              <button onClick={() => setEditandoCurso(null)} className="rounded-lg p-1.5 text-[#94A3B8] hover:bg-white/5 hover:text-white">
+              <button onClick={() => setEditandoCurso(null)} className="rounded-lg p-1.5 text-apagado hover:bg-white/5 hover:text-white">
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <p className="mb-4 text-xs text-[#94A3B8]">
+            <p className="mb-4 text-xs text-apagado">
               Atualize aqui sempre que sair um edital novo. Todo requerimento criado a partir de agora já
               nasce com este texto — os já enviados não mudam.
             </p>
             <div className="space-y-3">
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Sigla (aparece como “OUTROS (INSCRIÇÃO NO ... PM)”)</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-apagado">Sigla (aparece como “OUTROS (INSCRIÇÃO NO ... PM)”)</label>
                 <input value={formEdital.sigla} onChange={(e) => setFormEdital((f) => ({ ...f, sigla: e.target.value }))}
                   placeholder="Ex: CEFS"
-                  className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                  className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
               </div>
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Nome completo do curso</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-apagado">Nome completo do curso</label>
                 <input value={formEdital.nomeCompleto} onChange={(e) => setFormEdital((f) => ({ ...f, nomeCompleto: e.target.value }))}
                   placeholder="Ex: CURSO ESPECIAL DE FORMAÇÃO DE SARGENTOS (CEFS)"
-                  className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                  className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Nº do edital</label>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-apagado">Nº do edital</label>
                   <input value={formEdital.numero} onChange={(e) => setFormEdital((f) => ({ ...f, numero: e.target.value }))}
                     placeholder="Ex: 002/2025-DE"
-                    className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                    className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Data do edital</label>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-apagado">Data do edital</label>
                   <input value={formEdital.data} onChange={(e) => setFormEdital((f) => ({ ...f, data: e.target.value }))}
                     placeholder="Ex: 04/04/2025"
-                    className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                    className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
                 </div>
               </div>
             </div>
             <div className="mt-4 flex items-center gap-2">
               <button onClick={salvarEdital} disabled={salvandoEdital}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-40">
+                className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-4 py-2 text-sm font-semibold text-ouro-texto transition hover:brightness-110 disabled:opacity-40">
                 {salvandoEdital ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Salvar edital
               </button>
-              <button onClick={() => setEditandoCurso(null)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:text-white">
+              <button onClick={() => setEditandoCurso(null)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-apagado hover:text-white">
                 Cancelar
               </button>
             </div>

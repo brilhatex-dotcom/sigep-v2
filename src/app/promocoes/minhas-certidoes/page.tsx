@@ -30,7 +30,7 @@ export default async function MinhasCertidoesPage() {
         {ehAdmin && (
           <Link
             href="/promocoes"
-            className="mb-3 inline-flex items-center gap-1.5 text-sm text-[#D4AF37] hover:underline"
+            className="mb-3 inline-flex items-center gap-1.5 text-sm text-ouro hover:underline"
           >
             <ArrowLeft className="h-4 w-4" /> Voltar ao painel do P/1
           </Link>
@@ -55,7 +55,7 @@ async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
   const periodo = await periodoAtivo();
   if (!periodo) {
     return (
-      <div className="mt-4 rounded-xl ui-card p-6 text-sm text-[#94A3B8]">
+      <div className="mt-4 rounded-xl ui-card p-6 text-sm text-apagado">
         Nenhum período de promoção está aberto no momento. Quando o
         administrador abrir, as certidões aparecerão aqui para envio.
       </div>
@@ -85,8 +85,8 @@ async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
 
   return (
     <>
-      <p className="mb-5 text-sm text-[#94A3B8]">
-        Período: <span className="font-semibold text-[#D4AF37]">{periodo.nome}</span>.
+      <p className="mb-5 text-sm text-apagado">
+        Período: <span className="font-semibold text-ouro">{periodo.nome}</span>.
         Envie cada certidão em PDF. Quando as {TOTAL_CERTIDOES} estiverem
         enviadas, gere o PDF unificado e envie ao P/1.
       </p>

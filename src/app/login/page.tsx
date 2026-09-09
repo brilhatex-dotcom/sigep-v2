@@ -245,7 +245,7 @@ export default function LoginPage() {
               <button
                 onClick={entrar}
                 disabled={carregando}
-                className="btn-dourado flex w-full items-center justify-center gap-2 rounded-lg py-3 font-bold text-[#1a1205] disabled:opacity-70"
+                className="btn-dourado flex w-full items-center justify-center gap-2 rounded-lg py-3 font-bold text-ouro-texto disabled:opacity-70"
               >
                 <ShieldCheck className="h-5 w-5" />
                 {carregando ? "ENTRANDO..." : "ENTRAR"}

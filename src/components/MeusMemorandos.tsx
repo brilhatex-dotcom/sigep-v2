@@ -69,22 +69,22 @@ function Andamento({ m }: { m: Memo }) {
   return (
     <div className="mt-3 grid gap-2 sm:grid-cols-2">
       <div className={`rounded border p-2.5 text-xs ${m.assinaturaMilitar ? "border-emerald-500/40 bg-emerald-950/25" : "border-white/10"}`}>
-        <p className="mb-0.5 font-bold uppercase tracking-wide text-[#94A3B8]">1. Militar interessado (você)</p>
+        <p className="mb-0.5 font-bold uppercase tracking-wide text-apagado">1. Militar interessado (você)</p>
         {m.assinaturaMilitar ? (
           <>
             <p className="flex items-center gap-1 font-semibold text-emerald-300"><Check className="h-3 w-3" /> {m.assinaturaMilitar.nome}</p>
-            <p className="text-[#94A3B8]">{dataHora(m.assinaturaMilitar.em)}</p>
+            <p className="text-apagado">{dataHora(m.assinaturaMilitar.em)}</p>
             <p className="mt-0.5 font-mono text-[10px] text-[#5b6b85]">{m.assinaturaMilitar.id}</p>
           </>
         ) : <p className="text-[#5b6b85]">aguardando a sua assinatura</p>}
       </div>
       <div className={`rounded border p-2.5 text-xs ${m.assinaturaChefe ? "border-emerald-500/40 bg-emerald-950/25" : "border-white/10"}`}>
-        <p className="mb-0.5 font-bold uppercase tracking-wide text-[#94A3B8]">2. Seção (P/1)</p>
+        <p className="mb-0.5 font-bold uppercase tracking-wide text-apagado">2. Seção (P/1)</p>
         {m.assinaturaChefe ? (
           <>
             <p className="flex items-center gap-1 font-semibold text-emerald-300"><Check className="h-3 w-3" /> {m.assinaturaChefe.nome}</p>
-            <p className="text-[#94A3B8]">{m.assinaturaChefe.cargo}</p>
-            <p className="text-[#94A3B8]">{dataHora(m.assinaturaChefe.em)}</p>
+            <p className="text-apagado">{m.assinaturaChefe.cargo}</p>
+            <p className="text-apagado">{dataHora(m.assinaturaChefe.em)}</p>
             <p className="mt-0.5 font-mono text-[10px] text-[#5b6b85]">{m.assinaturaChefe.id}</p>
           </>
         ) : <p className="text-[#5b6b85]">aguardando a assinatura da seção</p>}
@@ -186,23 +186,23 @@ export default function MeusMemorandos() {
     }
   }
 
-  if (carregando) return <p className="py-6 text-center text-sm text-[#94A3B8]">Carregando memorandos…</p>;
+  if (carregando) return <p className="py-6 text-center text-sm text-apagado">Carregando memorandos…</p>;
   if (memos.length === 0) return null;
 
   return (
     <div className="mb-8">
       <h2 className="mb-1 flex items-center gap-2 text-lg font-bold text-white">
-        <FileSignature className="h-5 w-5 text-[#D4AF37]" /> Meus memorandos
+        <FileSignature className="h-5 w-5 text-ouro" /> Meus memorandos
       </h2>
-      <p className="mb-3 text-sm text-[#94A3B8]">
+      <p className="mb-3 text-sm text-apagado">
         Quando a sua equipe de férias se aproximar, assine aqui o seu memorando.
       </p>
 
       {/* como funciona — bem explicado, o militar não precisa perguntar nada */}
-      <ol className="mb-4 grid gap-2 rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-3 text-xs text-[#cdd9ea] sm:grid-cols-3">
-        <li className="flex gap-2"><span className="font-bold text-[#D4AF37]">1.</span> Você confere o documento e clica em <b>Assinar memorando</b> (confirma com a sua senha).</li>
-        <li className="flex gap-2"><span className="font-bold text-[#D4AF37]">2.</span> O P/1 e os auxiliares recebem o aviso na hora e o chefe da seção assina.</li>
-        <li className="flex gap-2"><span className="font-bold text-[#D4AF37]">3.</span> Você recebe o aviso no celular de que ficou pronto — aí é só baixar.</li>
+      <ol className="mb-4 grid gap-2 rounded-xl border border-azul-frio bg-painel p-3 text-xs text-texto-2 sm:grid-cols-3">
+        <li className="flex gap-2"><span className="font-bold text-ouro">1.</span> Você confere o documento e clica em <b>Assinar memorando</b> (confirma com a sua senha).</li>
+        <li className="flex gap-2"><span className="font-bold text-ouro">2.</span> O P/1 e os auxiliares recebem o aviso na hora e o chefe da seção assina.</li>
+        <li className="flex gap-2"><span className="font-bold text-ouro">3.</span> Você recebe o aviso no celular de que ficou pronto — aí é só baixar.</li>
       </ol>
 
       {msg && (
@@ -223,18 +223,18 @@ export default function MeusMemorandos() {
           const chave = m.ref + m.tipo;
           const faltaMinha = m.estado === "pendente";
           return (
-            <div key={chave} className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-4">
+            <div key={chave} className="rounded-xl border border-azul-frio bg-painel p-4">
               {/* cabeçalho do cartão */}
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-bold text-white">
                     {m.tipo === "memorando_lp" ? "Licença-Prêmio" : "Férias"} {m.anoGozo}
-                    <span className="ml-2 text-xs font-normal text-[#94A3B8]">Equipe {m.numeroEquipe}</span>
+                    <span className="ml-2 text-xs font-normal text-apagado">Equipe {m.numeroEquipe}</span>
                   </p>
                   <ul className="mt-0.5 space-y-0.5">
                     {m.periodos.map((p, i) => (
-                      <li key={i} className="text-xs text-[#94A3B8]">
-                        {p.rotulo}: <b className="text-[#cdd9ea]">{p.inicioBR}</b> a <b className="text-[#cdd9ea]">{p.fimBR || "—"}</b>
+                      <li key={i} className="text-xs text-apagado">
+                        {p.rotulo}: <b className="text-texto-2">{p.inicioBR}</b> a <b className="text-texto-2">{p.fimBR || "—"}</b>
                         {p.apresBR ? ` · apresentação ${p.apresBR}` : ""}
                       </li>
                     ))}
@@ -249,14 +249,14 @@ export default function MeusMemorandos() {
                     <Clock className="h-3.5 w-3.5" /> aguardando a seção
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 rounded-full bg-[#D4AF37]/20 px-2.5 py-1 text-[11px] font-bold uppercase text-[#D4AF37]">
+                  <span className="flex items-center gap-1 rounded-full bg-ouro/20 px-2.5 py-1 text-[11px] font-bold uppercase text-ouro">
                     <AlertCircle className="h-3.5 w-3.5" /> falta a sua assinatura
                   </span>
                 )}
               </div>
 
               {/* o que fazer agora */}
-              <p className="mb-3 rounded bg-white/[.03] px-2.5 py-2 text-xs text-[#cdd9ea]">
+              <p className="mb-3 rounded bg-white/[.03] px-2.5 py-2 text-xs text-texto-2">
                 {faltaMinha && (
                   <>
                     <b>O que fazer agora:</b> clique em <b>Ver memorando</b> para conferir na tela (sem baixar) e
@@ -279,7 +279,7 @@ export default function MeusMemorandos() {
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => setVendo(m)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-[#cdd9ea] transition hover:border-[#D4AF37] hover:text-white"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-texto-2 transition hover:border-ouro hover:text-white"
                 >
                   <Eye className="h-3.5 w-3.5" /> Ver memorando (sem baixar)
                 </button>
@@ -287,7 +287,7 @@ export default function MeusMemorandos() {
                 {faltaMinha && (
                   <button
                     onClick={() => { setAssinando(m); setSenha(""); setErro(""); }}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-2 text-xs font-bold text-[#1a1205] transition hover:brightness-110"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-3 py-2 text-xs font-bold text-ouro-texto transition hover:brightness-110"
                   >
                     <FileSignature className="h-3.5 w-3.5" /> Assinar memorando
                   </button>
@@ -296,7 +296,7 @@ export default function MeusMemorandos() {
                 <button
                   onClick={() => baixar(m)}
                   disabled={baixando === chave}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-[#cdd9ea] transition hover:border-[#D4AF37] hover:text-white disabled:opacity-60"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-texto-2 transition hover:border-ouro hover:text-white disabled:opacity-60"
                 >
                   {baixando === chave ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                   {baixando === chave ? "Gerando…" : "Baixar memorando"}
@@ -325,33 +325,33 @@ export default function MeusMemorandos() {
       {/* confirmação da assinatura */}
       {assinando && (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-xl border border-white/15 bg-[#0F1B2D] p-5">
+          <div className="w-full max-w-sm rounded-xl border border-white/15 bg-painel p-5">
             <h3 className="mb-1 flex items-center gap-2 text-base font-bold text-white">
-              <FileSignature className="h-5 w-5 text-[#D4AF37]" /> Assinar memorando
+              <FileSignature className="h-5 w-5 text-ouro" /> Assinar memorando
             </h3>
-            <p className="mb-3 text-sm text-[#94A3B8]">
+            <p className="mb-3 text-sm text-apagado">
               {assinando.tipo === "memorando_lp" ? "Licença-Prêmio" : "Férias"} {assinando.anoGozo} ·{" "}
               {assinando.inicioBR} a {assinando.fimBR || "—"}
             </p>
-            <p className="mb-3 rounded bg-white/[.04] px-2.5 py-2 text-xs text-[#cdd9ea]">
+            <p className="mb-3 rounded bg-white/[.04] px-2.5 py-2 text-xs text-texto-2">
               Ao assinar, você dá ciência do período. O P/1 é avisado na hora e a seção completa a assinatura.
             </p>
-            <label className="mb-1 block text-xs font-medium text-[#cdd9ea]" htmlFor="senha-memo">Confirme sua senha</label>
+            <label className="mb-1 block text-xs font-medium text-texto-2" htmlFor="senha-memo">Confirme sua senha</label>
             <input
               id="senha-memo" type="password" value={senha} autoFocus
               onChange={(e) => setSenha(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") confirmarAssinatura(); }}
               placeholder="sua senha do SIGEP"
-              className="mb-3 w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white placeholder-white/35 outline-none focus:border-[#D4AF37]"
+              className="mb-3 w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white placeholder-white/35 outline-none focus:border-ouro"
             />
             {erro && <p className="mb-3 text-xs text-red-300">{erro}</p>}
             <div className="flex justify-end gap-2">
               <button onClick={() => { setAssinando(null); setErro(""); }}
-                className="rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-[#94A3B8] hover:text-white">
+                className="rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-apagado hover:text-white">
                 Cancelar
               </button>
               <button onClick={confirmarAssinatura} disabled={enviando || !senha.trim()}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2 text-xs font-bold text-[#1a1205] hover:brightness-110 disabled:opacity-50">
+                className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-4 py-2 text-xs font-bold text-ouro-texto hover:brightness-110 disabled:opacity-50">
                 {enviando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                 Confirmar e assinar
               </button>

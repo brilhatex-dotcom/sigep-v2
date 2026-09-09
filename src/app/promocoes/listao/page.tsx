@@ -40,18 +40,18 @@ export default async function ListaoPage() {
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-6xl">
         <Link href="/promocoes"
-          className="mb-3 inline-flex items-center gap-1.5 text-sm text-[#94A3B8] transition hover:text-white">
+          className="mb-3 inline-flex items-center gap-1.5 text-sm text-apagado transition hover:text-white">
           <ArrowLeft className="h-4 w-4" /> Promoções
         </Link>
 
         <h1 className="mb-1 flex items-center gap-2 text-2xl font-bold text-white">
-          <ShieldCheck className="h-6 w-6 text-[#D4AF37]" /> Importar listão de promoções
+          <ShieldCheck className="h-6 w-6 text-ouro" /> Importar listão de promoções
         </h1>
-        <p className="mb-5 max-w-3xl text-sm text-[#94A3B8]">
-          Jogue aqui o <b className="text-[#E8EEF6]">listão da CPPPM</b> (praças, mesmo escaneado) ou o{" "}
-          <b className="text-[#E8EEF6]">Diário Oficial</b> (oficiais). O sistema reconhece o formato sozinho,
+        <p className="mb-5 max-w-3xl text-sm text-apagado">
+          Jogue aqui o <b className="text-texto">listão da CPPPM</b> (praças, mesmo escaneado) ou o{" "}
+          <b className="text-texto">Diário Oficial</b> (oficiais). O sistema reconhece o formato sozinho,
           lê o documento, acha quem é do 18º BPM e monta a lista em ordem hierárquica.{" "}
-          <b className="text-[#E8EEF6]">Nada é promovido sozinho</b> — o senhor confere linha por linha
+          <b className="text-texto">Nada é promovido sozinho</b> — o senhor confere linha por linha
           e confirma. Depois, se precisar, dá para desfazer o lançamento inteiro.
         </p>
 

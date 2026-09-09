@@ -99,36 +99,36 @@ export default async function MinhasFeriasPage() {
 
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
-      <div className="mx-auto max-w-2xl text-[#cdd9ea]">
+      <div className="mx-auto max-w-2xl text-texto-2">
         <h1 className="mb-1 flex items-center gap-2 text-2xl font-bold text-white">
           <Palmtree className="h-6 w-6 text-teal-300" /> Minhas Férias
         </h1>
-        <p className="mb-5 text-sm text-[#94A3B8]">Suas férias registradas — plano por equipe e datas soltas. Você vê apenas as suas.</p>
+        <p className="mb-5 text-sm text-apagado">Suas férias registradas — plano por equipe e datas soltas. Você vê apenas as suas.</p>
 
         {/* Memorandos: assinar / ver na tela / baixar. Fica no topo porque é o
             que exige ação do militar; some sozinho quando não há nenhum. */}
         <MeusMemorandos />
 
         {!meuId ? (
-          <div className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-6 text-center text-sm text-[#94A3B8]">Seu login não está vinculado a uma ficha. Procure o P/1.</div>
+          <div className="rounded-xl border border-azul-frio bg-painel p-6 text-center text-sm text-apagado">Seu login não está vinculado a uma ficha. Procure o P/1.</div>
         ) : periodos.length === 0 ? (
-          <div className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-6 text-center text-sm text-[#94A3B8]">Nenhuma férias registrada para você no momento.</div>
+          <div className="rounded-xl border border-azul-frio bg-painel p-6 text-center text-sm text-apagado">Nenhuma férias registrada para você no momento.</div>
         ) : (
           <ul className="space-y-3">
             {periodos.map((p, i) => (
-              <li key={i} className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-4">
+              <li key={i} className="rounded-xl border border-azul-frio bg-painel p-4">
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <span className="text-sm font-bold text-white">{p.rotulo}</span>
                   <div className="flex items-center gap-1.5">
                     {p.origem === "plano" && euAdiei && (
                       <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-300">adiado</span>
                     )}
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${p.origem === "avulsa" ? "bg-[#3a2f10] text-[#f3df9d]" : "bg-teal-950/60 text-teal-300"}`}>{p.origem}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${p.origem === "avulsa" ? "bg-[#3a2f10] text-ouro-claro" : "bg-teal-950/60 text-teal-300"}`}>{p.origem}</span>
                   </div>
                 </div>
-                <p className="text-sm text-[#cdd9ea]">
+                <p className="text-sm text-texto-2">
                   <b>{dBR(p.inicio)}</b> a <b>{dBR(p.fim)}</b>
-                  {p.apres ? <span className="text-[#94A3B8]"> · apresentação: {dBR(p.apres)}</span> : null}
+                  {p.apres ? <span className="text-apagado"> · apresentação: {dBR(p.apres)}</span> : null}
                 </p>
                 {p.origem === "plano" && euAdiei && (
                   <p className="mt-1 text-xs text-amber-300/90">Você adiou estas férias — permanece no serviço normal neste período.</p>
@@ -142,20 +142,20 @@ export default async function MinhasFeriasPage() {
         {minhasEquipes.length > 0 && (
           <div className="mt-8">
             <h2 className="mb-1 text-lg font-bold text-white">Plano de férias da minha equipe</h2>
-            <p className="mb-4 text-sm text-[#94A3B8]">A equipe em que você está lotado no plano e os militares que saem no mesmo período.</p>
+            <p className="mb-4 text-sm text-apagado">A equipe em que você está lotado no plano e os militares que saem no mesmo período.</p>
             {minhasEquipes.map((eq, i) => (
-              <div key={i} className="mb-4 rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-4">
+              <div key={i} className="mb-4 rounded-xl border border-azul-frio bg-painel p-4">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <span className="text-sm font-bold text-white">Equipe {eq.numeroEquipe}</span>
                   <span className="rounded-full bg-teal-950/60 px-2 py-0.5 text-[10px] font-bold uppercase text-teal-300">ano {eq.anoGozo}</span>
-                  <span className="text-xs text-[#94A3B8]">{eq.colegas.length} militar(es)</span>
+                  <span className="text-xs text-apagado">{eq.colegas.length} militar(es)</span>
                 </div>
                 {eq.periodos.length > 0 && (
                   <ul className="mb-3 space-y-1">
                     {eq.periodos.map((p, j) => (
-                      <li key={j} className="text-sm text-[#cdd9ea]">
-                        <span className="text-[#94A3B8]">{p.rotulo}:</span> <b>{dBR(p.inicio)}</b> a <b>{dBR(p.fim)}</b>
-                        {p.apres ? <span className="text-[#94A3B8]"> · apresentação: {dBR(p.apres)}</span> : null}
+                      <li key={j} className="text-sm text-texto-2">
+                        <span className="text-apagado">{p.rotulo}:</span> <b>{dBR(p.inicio)}</b> a <b>{dBR(p.fim)}</b>
+                        {p.apres ? <span className="text-apagado"> · apresentação: {dBR(p.apres)}</span> : null}
                       </li>
                     ))}
                   </ul>
@@ -168,8 +168,8 @@ export default async function MinhasFeriasPage() {
                       className={
                         "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs " +
                         (c.eu
-                          ? "border-[#D4AF37]/50 bg-[#D4AF37]/10 font-bold text-[#D4AF37]"
-                          : "border-white/10 bg-white/5 text-[#cdd9ea]")
+                          ? "border-ouro/50 bg-ouro/10 font-bold text-ouro"
+                          : "border-white/10 bg-white/5 text-texto-2")
                       }
                     >
                       {[c.postoGrad, c.nomeGuerra || c.nome].filter(Boolean).join(" ") || "—"}

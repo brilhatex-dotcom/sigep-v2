@@ -108,11 +108,11 @@ export default function AuditoriaClient({ linhas, integridade }: { linhas: Linha
         value={busca}
         onChange={(e) => setBusca(e.target.value)}
         placeholder="Filtrar por pessoa, ação, militar, IP..."
-        className="mb-4 w-full rounded-lg border border-[#28395a] bg-[#0a1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]"
+        className="mb-4 w-full rounded-lg border border-borda bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro"
       />
 
       {filtradas.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-[#2b3f63] p-8 text-center text-sm text-[#94A3B8]">
+        <div className="rounded-lg border border-dashed border-borda p-8 text-center text-sm text-apagado">
           Nenhum registro encontrado.
         </div>
       ) : (
@@ -123,31 +123,31 @@ export default function AuditoriaClient({ linhas, integridade }: { linhas: Linha
             const temDetalhe = !!(antes || depois || l.detalhe || l.ip || l.dispositivo);
             const expandido = aberto === l.id;
             return (
-              <div key={l.id} className="rounded-lg border border-[#1d2c44] bg-[#0F1B2D]">
+              <div key={l.id} className="rounded-lg border border-azul-frio bg-painel">
                 <button
                   onClick={() => temDetalhe && setAberto(expandido ? null : l.id)}
                   className="flex w-full items-center gap-3 px-4 py-2.5 text-left"
                   style={{ cursor: temDetalhe ? "pointer" : "default" }}
                 >
-                  <span className="w-32 shrink-0 text-xs text-[#6f82a0]">{dataHora(l.quando)}</span>
+                  <span className="w-32 shrink-0 text-xs text-apagado-2">{dataHora(l.quando)}</span>
                   <span className="shrink-0 text-sm font-semibold" style={{ color: corAcao(l.acao) }}>
                     {rotuloAcao(l.acao)}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-sm text-[#cdd9ea]">
+                  <span className="min-w-0 flex-1 truncate text-sm text-texto-2">
                     {l.alvoNome ? <>· {l.alvoNome}</> : null}
-                    {l.detalhe ? <span className="text-[#94A3B8]"> — {l.detalhe}</span> : null}
+                    {l.detalhe ? <span className="text-apagado"> — {l.detalhe}</span> : null}
                   </span>
-                  <span className="shrink-0 text-xs text-[#94A3B8]">{l.autorNome || l.autorLogin || "—"}</span>
-                  {temDetalhe && <span className="shrink-0 text-[#6f82a0]">{expandido ? "▲" : "▼"}</span>}
+                  <span className="shrink-0 text-xs text-apagado">{l.autorNome || l.autorLogin || "—"}</span>
+                  {temDetalhe && <span className="shrink-0 text-apagado-2">{expandido ? "▲" : "▼"}</span>}
                 </button>
 
                 {expandido && (
-                  <div className="border-t border-[#1d2c44] px-4 py-3">
-                    <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#94A3B8]">
-                      <span>📱 <b className="text-[#cdd9ea]">Dispositivo:</b> {l.dispositivo || "—"}</span>
-                      <span>🌐 <b className="text-[#cdd9ea]">IP:</b> {l.ip
+                  <div className="border-t border-azul-frio px-4 py-3">
+                    <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-apagado">
+                      <span>📱 <b className="text-texto-2">Dispositivo:</b> {l.dispositivo || "—"}</span>
+                      <span>🌐 <b className="text-texto-2">IP:</b> {l.ip
                         ? <a href={`https://ipinfo.io/${encodeURIComponent(l.ip)}`} target="_blank" rel="noreferrer" className="text-sky-300 underline hover:text-sky-200">{l.ip}</a>
-                        : "—"}{l.ip && <span className="text-[#6f82a0]"> (clique p/ localização aproximada)</span>}</span>
+                        : "—"}{l.ip && <span className="text-apagado-2"> (clique p/ localização aproximada)</span>}</span>
                       <span>{l.lacrado ? "🔒 lacrado" : "○ sem lacre (anterior a este recurso)"}</span>
                     </div>
                     {(antes || depois) && (
@@ -157,7 +157,7 @@ export default function AuditoriaClient({ linhas, integridade }: { linhas: Linha
                           <CamposObj obj={antes} />
                         </div>
                         <div>
-                          <p className="mb-1 text-[11px] font-semibold uppercase text-[#9fe6bd]">Depois</p>
+                          <p className="mb-1 text-[11px] font-semibold uppercase text-ok-claro">Depois</p>
                           <CamposObj obj={depois} />
                         </div>
                       </div>
@@ -175,14 +175,14 @@ export default function AuditoriaClient({ linhas, integridade }: { linhas: Linha
 
 function CamposObj({ obj }: { obj: Record<string, any> | null }) {
   if (!obj || Object.keys(obj).length === 0) {
-    return <p className="text-xs text-[#6f82a0]">—</p>;
+    return <p className="text-xs text-apagado-2">—</p>;
   }
   return (
     <ul className="space-y-0.5">
       {Object.entries(obj).map(([k, v]) => (
         <li key={k} className="text-xs">
-          <span className="text-[#6f82a0]">{k}:</span>{" "}
-          <span className="text-[#cdd9ea]">{v === null || v === "" ? "—" : String(v)}</span>
+          <span className="text-apagado-2">{k}:</span>{" "}
+          <span className="text-texto-2">{v === null || v === "" ? "—" : String(v)}</span>
         </li>
       ))}
     </ul>

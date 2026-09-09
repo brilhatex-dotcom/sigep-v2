@@ -91,7 +91,7 @@ export default function TermoDoc({ reg, modelo, comandante = "", onFechar }: { r
 
   const conteudo = (
     <div id="termo-overlay" className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 print:bg-white">
-      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 bg-[#0b1626] px-3 py-2 shadow print:hidden">
+      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 bg-campo px-3 py-2 shadow print:hidden">
         <span className="mr-auto inline-flex items-center gap-1.5 text-xs text-[#8fa3bf]">
           <Info className="h-3.5 w-3.5" /> {TERMO_LABEL[modelo]} — clique no documento para ajustar qualquer texto antes de imprimir.
         </span>

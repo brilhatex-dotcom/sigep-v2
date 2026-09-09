@@ -93,7 +93,7 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
 
   if (sucesso) {
     return (
-      <div className="bg-[#0F1B2D] border border-[#D4AF37]/40 rounded-xl p-6 text-center">
+      <div className="bg-painel border border-ouro/40 rounded-xl p-6 text-center">
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/40 mb-3">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -108,8 +108,8 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
             <polyline points="20 6 9 17 4 12" />
           </svg>
         </div>
-        <p className="text-[#E8EEF6] font-medium">Senha alterada com sucesso!</p>
-        <p className="text-sm text-[#E8EEF6]/60 mt-1">Redirecionando para o login...</p>
+        <p className="text-texto font-medium">Senha alterada com sucesso!</p>
+        <p className="text-sm text-texto/60 mt-1">Redirecionando para o login...</p>
       </div>
     );
   }
@@ -117,11 +117,11 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-[#0F1B2D] border border-[#D4AF37]/20 rounded-xl p-6 space-y-4"
+      className="bg-painel border border-ouro/20 rounded-xl p-6 space-y-4"
     >
       {!precisaTrocar && (
         <div>
-          <label className="block text-sm font-medium text-[#E8EEF6] mb-1">
+          <label className="block text-sm font-medium text-texto mb-1">
             Senha atual
           </label>
           <input
@@ -130,7 +130,7 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
             value={senhaAtual}
             onChange={(e) => setSenhaAtual(e.target.value)}
             maxLength={40}
-            className="w-full px-3 py-2 rounded-lg bg-[#08111F] border border-[#D4AF37]/30 text-[#E8EEF6] placeholder-[#E8EEF6]/30 focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] tracking-widest"
+            className="w-full px-3 py-2 rounded-lg bg-fundo border border-ouro/30 text-texto placeholder-texto/30 focus:outline-none focus:border-ouro focus:ring-1 focus:ring-ouro tracking-widest"
             placeholder="Digite sua senha atual"
             required
           />
@@ -138,8 +138,8 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
       )}
 
       <div>
-        <label className="block text-sm font-medium text-[#E8EEF6] mb-1">
-          Nova senha <span className="text-[#E8EEF6]/50 font-normal">(mínimo 8 caracteres — misture letras com números ou símbolos)</span>
+        <label className="block text-sm font-medium text-texto mb-1">
+          Nova senha <span className="text-texto/50 font-normal">(mínimo 8 caracteres — misture letras com números ou símbolos)</span>
         </label>
         <input
           type={mostrar ? 'text' : 'password'}
@@ -147,14 +147,14 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
           value={novaSenha}
           onChange={(e) => setNovaSenha(e.target.value)}
           maxLength={40}
-          className="w-full px-3 py-2 rounded-lg bg-[#08111F] border border-[#D4AF37]/30 text-[#E8EEF6] placeholder-[#E8EEF6]/30 focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] tracking-widest"
+          className="w-full px-3 py-2 rounded-lg bg-fundo border border-ouro/30 text-texto placeholder-texto/30 focus:outline-none focus:border-ouro focus:ring-1 focus:ring-ouro tracking-widest"
           placeholder="Digite a nova senha"
           required
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-[#E8EEF6] mb-1">
+        <label className="block text-sm font-medium text-texto mb-1">
           Confirmar nova senha
         </label>
         <input
@@ -163,45 +163,45 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
           value={confirmar}
           onChange={(e) => setConfirmar(e.target.value)}
           maxLength={40}
-          className="w-full px-3 py-2 rounded-lg bg-[#08111F] border border-[#D4AF37]/30 text-[#E8EEF6] placeholder-[#E8EEF6]/30 focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] tracking-widest"
+          className="w-full px-3 py-2 rounded-lg bg-fundo border border-ouro/30 text-texto placeholder-texto/30 focus:outline-none focus:border-ouro focus:ring-1 focus:ring-ouro tracking-widest"
           placeholder="Repita a nova senha"
           required
         />
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-[#E8EEF6]/70 cursor-pointer select-none">
+      <label className="flex items-center gap-2 text-sm text-texto/70 cursor-pointer select-none">
         <input
           type="checkbox"
           checked={mostrar}
           onChange={(e) => setMostrar(e.target.checked)}
-          className="accent-[#D4AF37]"
+          className="accent-ouro"
         />
         Mostrar senhas
       </label>
 
       {/* Termo de Consentimento LGPD — aceite obrigatório e registrado */}
-      <div className="rounded-lg border border-[#D4AF37]/25 bg-[#08111F] p-3">
+      <div className="rounded-lg border border-ouro/25 bg-fundo p-3">
         <button
           type="button"
           onClick={() => setVerTermo((v) => !v)}
-          className="flex w-full items-center justify-between text-left text-sm font-medium text-[#E8EEF6]"
+          className="flex w-full items-center justify-between text-left text-sm font-medium text-texto"
         >
           <span>📄 {TERMO_TITULO}</span>
-          <span className="text-[#D4AF37]">{verTermo ? '▲ ocultar' : '▼ ler'}</span>
+          <span className="text-ouro">{verTermo ? '▲ ocultar' : '▼ ler'}</span>
         </button>
         {verTermo && (
-          <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1 text-[12px] leading-relaxed text-[#E8EEF6]/75">
+          <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1 text-[12px] leading-relaxed text-texto/75">
             {TERMO_BLOCOS.map((b) => (
-              <p key={b.t}><b className="text-[#E8EEF6]">{b.t}</b> {b.c}</p>
+              <p key={b.t}><b className="text-texto">{b.t}</b> {b.c}</p>
             ))}
           </div>
         )}
-        <label className="mt-3 flex items-start gap-2 text-sm text-[#E8EEF6]/85 cursor-pointer select-none">
+        <label className="mt-3 flex items-start gap-2 text-sm text-texto/85 cursor-pointer select-none">
           <input
             type="checkbox"
             checked={aceite}
             onChange={(e) => setAceite(e.target.checked)}
-            className="mt-0.5 accent-[#D4AF37]"
+            className="mt-0.5 accent-ouro"
           />
           <span>Li e <b>aceito</b> o Termo de Consentimento (LGPD) e assumo a responsabilidade pelo uso pessoal e sigiloso das minhas credenciais.</span>
         </label>
@@ -216,7 +216,7 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
       <button
         type="submit"
         disabled={carregando || !aceite}
-        className="w-full py-2.5 rounded-lg bg-[#D4AF37] text-[#08111F] font-semibold hover:bg-[#D4AF37]/90 disabled:opacity-50 disabled:cursor-not-allowed transition"
+        className="w-full py-2.5 rounded-lg bg-ouro text-fundo font-semibold hover:bg-ouro/90 disabled:opacity-50 disabled:cursor-not-allowed transition"
       >
         {carregando ? 'Salvando...' : 'Trocar senha'}
       </button>
@@ -226,7 +226,7 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
           type="button"
           onClick={() => router.back()}
           disabled={carregando}
-          className="w-full py-2 rounded-lg border border-[#D4AF37]/30 text-[#E8EEF6] hover:bg-[#D4AF37]/10 transition text-sm"
+          className="w-full py-2 rounded-lg border border-ouro/30 text-texto hover:bg-ouro/10 transition text-sm"
         >
           Cancelar
         </button>

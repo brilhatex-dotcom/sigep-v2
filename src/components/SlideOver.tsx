@@ -44,7 +44,7 @@ export default function SlideOver({
       <aside
         role="dialog"
         aria-modal="true"
-        className={`absolute right-0 top-0 flex h-full w-full ${largura} flex-col border-l border-white/10 bg-[#0F1B2D] shadow-2xl transition-transform duration-300 ${
+        className={`absolute right-0 top-0 flex h-full w-full ${largura} flex-col border-l border-white/10 bg-painel shadow-2xl transition-transform duration-300 ${
           aberto ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -52,7 +52,7 @@ export default function SlideOver({
           <h2 className="font-bold text-white">{titulo}</h2>
           <button
             onClick={onFechar}
-            className="rounded-lg p-1.5 text-[#94A3B8] transition hover:bg-white/5 hover:text-white"
+            className="rounded-lg p-1.5 text-apagado transition hover:bg-white/5 hover:text-white"
             aria-label="Fechar"
           >
             <X className="h-5 w-5" />

@@ -55,7 +55,7 @@ export default async function DetalheRequerimentoPage({
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-3xl">
-        <Link href="/requerimentos" className="mb-3 inline-flex items-center gap-1.5 text-sm text-[#94A3B8] transition hover:text-white">
+        <Link href="/requerimentos" className="mb-3 inline-flex items-center gap-1.5 text-sm text-apagado transition hover:text-white">
           <ArrowLeft className="h-4 w-4" /> Voltar
         </Link>
         <RequerimentoDetalhe dados={dados} ehAdmin={ehAdmin} />

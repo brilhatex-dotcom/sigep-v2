@@ -94,13 +94,13 @@ export default async function EditarRequerimentoPage({
       <div className="mx-auto max-w-4xl">
         <Link
           href={`/requerimentos/${r.id}`}
-          className="mb-3 inline-flex items-center gap-1.5 text-sm text-[#94A3B8] transition hover:text-white"
+          className="mb-3 inline-flex items-center gap-1.5 text-sm text-apagado transition hover:text-white"
         >
           <ArrowLeft className="h-4 w-4" /> Voltar
         </Link>
         <h1 className="mb-1 text-2xl font-bold text-white">Editar requerimento</h1>
-        <p className="mb-5 text-sm text-[#94A3B8]">
-          Modalidade: <span className="font-semibold text-[#D4AF37]">{r.modalidade}</span>
+        <p className="mb-5 text-sm text-apagado">
+          Modalidade: <span className="font-semibold text-ouro">{r.modalidade}</span>
           {r.postoGrad || r.nomeCompleto ? ` · ${[r.postoGrad, r.nomeCompleto].filter(Boolean).join(" ")}` : ""}
         </p>
 

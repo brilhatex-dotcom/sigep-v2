@@ -12,12 +12,12 @@ export default function BarrasPosto({
     <div className="space-y-2.5">
       {dados.map((d, i) => (
         <div key={d.rotulo} className="flex items-center gap-3">
-          <span className="w-28 shrink-0 truncate text-xs text-[#94A3B8]">
+          <span className="w-28 shrink-0 truncate text-xs text-apagado">
             {d.rotulo}
           </span>
           <div className="h-5 flex-1 overflow-hidden rounded bg-white/5">
             <div
-              className="ui-fade h-full rounded bg-gradient-to-r from-[#D4AF37]/70 to-[#D4AF37]"
+              className="ui-fade h-full rounded bg-gradient-to-r from-ouro/70 to-ouro"
               style={{
                 width: `${(d.valor / max) * 100}%`,
                 animationDelay: `${i * 0.04}s`,

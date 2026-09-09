@@ -93,7 +93,7 @@ export default function SinoNotificacoes() {
     <div className="relative">
       <button
         onClick={abrir}
-        className="relative rounded-lg p-2 text-[#94A3B8] transition hover:bg-white/5 hover:text-white"
+        className="relative rounded-lg p-2 text-apagado transition hover:bg-white/5 hover:text-white"
         aria-label={naoVistas > 0 ? `${naoVistas} notificação(ões)` : "Notificações"}
         title="Notificações"
       >
@@ -108,16 +108,16 @@ export default function SinoNotificacoes() {
       {aberto && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setAberto(false)} />
-          <div className="absolute right-0 z-50 mt-2 w-80 max-w-[92vw] overflow-hidden rounded-xl border border-white/10 bg-[#0F1B2D] shadow-2xl">
+          <div className="absolute right-0 z-50 mt-2 w-80 max-w-[92vw] overflow-hidden rounded-xl border border-white/10 bg-painel shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5">
               <p className="text-sm font-semibold text-white">Notificações</p>
-              {nots.length > 0 && <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-[#94A3B8]">{nots.length}</span>}
+              {nots.length > 0 && <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-apagado">{nots.length}</span>}
             </div>
             <div className="max-h-80 overflow-y-auto">
               {nots.length === 0 ? (
                 <div className="flex flex-col items-center gap-1 px-4 py-8 text-center">
                   <Check className="h-6 w-6 text-emerald-400" />
-                  <p className="text-sm text-[#94A3B8]">Sem notificações no momento.</p>
+                  <p className="text-sm text-apagado">Sem notificações no momento.</p>
                 </div>
               ) : (
                 <ul className="divide-y divide-white/5">
@@ -128,13 +128,13 @@ export default function SinoNotificacoes() {
                         className="flex w-full items-start gap-2 px-4 py-3 text-left transition hover:bg-white/5"
                       >
                         {n.id.startsWith("chat:")
-                          ? <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-[#D4AF37]" />
+                          ? <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-ouro" />
                           : n.id.startsWith("memo")
-                          ? <FileSignature className="mt-0.5 h-4 w-4 shrink-0 text-[#D4AF37]" />
-                          : <ArrowLeftRight className="mt-0.5 h-4 w-4 shrink-0 text-[#D4AF37]" />}
+                          ? <FileSignature className="mt-0.5 h-4 w-4 shrink-0 text-ouro" />
+                          : <ArrowLeftRight className="mt-0.5 h-4 w-4 shrink-0 text-ouro" />}
                         <span className="min-w-0">
                           <span className="block text-sm text-white">{n.texto}</span>
-                          <span className="block text-[11px] text-[#94A3B8]">{quando(n.em)}</span>
+                          <span className="block text-[11px] text-apagado">{quando(n.em)}</span>
                         </span>
                       </button>
                     </li>
@@ -144,7 +144,7 @@ export default function SinoNotificacoes() {
             </div>
             <button
               onClick={() => { setAberto(false); router.push("/permutas"); }}
-              className="block w-full border-t border-white/10 px-4 py-2.5 text-center text-xs font-medium text-[#D4AF37] hover:bg-white/5"
+              className="block w-full border-t border-white/10 px-4 py-2.5 text-center text-xs font-medium text-ouro hover:bg-white/5"
             >
               Ver permutas
             </button>

@@ -97,7 +97,7 @@ export default function MapaEfetivo({ unidades }: { unidades: UnidadeMapa[] }) {
   return (
     <div className={cheia ? "fixed inset-0 z-[100] bg-[#0a1220] p-3" : ""}>
       <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-4 text-xs text-[#94A3B8]">
+        <div className="flex flex-wrap gap-4 text-xs text-apagado">
           <span className="inline-flex items-center gap-1.5"><i style={{ width: 12, height: 12, borderRadius: 3, background: "#16a34a", display: "inline-block" }} /> Efetivo OK</span>
           <span className="inline-flex items-center gap-1.5"><i style={{ width: 12, height: 12, borderRadius: 3, background: "#dc2626", display: "inline-block" }} /> Efetivo baixo</span>
           <span className="inline-flex items-center gap-1.5"><i style={{ width: 12, height: 12, borderRadius: 3, background: "#D4AF37", display: "inline-block" }} /> Sede</span>

@@ -23,7 +23,7 @@ const URG: Record<string, { rotulo: string; classe: string }> = {
   vencida: { rotulo: "🔴 Vencida", classe: "bg-red-500/15 text-red-300" },
   proxima: { rotulo: "🟡 Próxima", classe: "bg-amber-500/15 text-amber-300" },
   normal: { rotulo: "🟢 Em dia", classe: "bg-emerald-500/15 text-emerald-300" },
-  sem: { rotulo: "— sem retorno", classe: "bg-white/5 text-[#94A3B8]" },
+  sem: { rotulo: "— sem retorno", classe: "bg-white/5 text-apagado" },
 };
 
 export default function JmsTabela({ linhas }: { linhas: LinhaJms[] }) {
@@ -82,12 +82,12 @@ export default function JmsTabela({ linhas }: { linhas: LinhaJms[] }) {
         </h2>
         <div className="ml-auto flex items-center gap-2">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94A3B8]" />
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-apagado" />
             <input
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar..."
-              className="w-40 rounded-lg border border-white/10 bg-[#0b1626] py-1.5 pl-8 pr-2 text-xs text-white outline-none focus:border-[#D4AF37]/50 print:hidden"
+              className="w-40 rounded-lg border border-white/10 bg-campo py-1.5 pl-8 pr-2 text-xs text-white outline-none focus:border-ouro/50 print:hidden"
             />
           </div>
           <BotoesExport nomeArquivo="jms-18bpm" colunas={colunas} linhas={dadosExport} />
@@ -95,14 +95,14 @@ export default function JmsTabela({ linhas }: { linhas: LinhaJms[] }) {
       </div>
 
       {filtradas.length === 0 ? (
-        <p className="py-10 text-center text-sm text-[#94A3B8]">
+        <p className="py-10 text-center text-sm text-apagado">
           Nenhum militar em JMS no momento.
         </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-white/10 text-left text-[11px] uppercase tracking-wider text-[#94A3B8]">
+              <tr className="border-b border-white/10 text-left text-[11px] uppercase tracking-wider text-apagado">
                 <th className="py-2 pr-2">#</th>
                 <th className="py-2 pr-3">Militar</th>
                 <th className="py-2 pr-3">Início</th>
@@ -116,15 +116,15 @@ export default function JmsTabela({ linhas }: { linhas: LinhaJms[] }) {
             <tbody className="divide-y divide-white/5">
               {filtradas.map((l, i) => (
                 <tr key={l.id}>
-                  <td className="py-2 pr-2 text-[#94A3B8]">{i + 1}</td>
+                  <td className="py-2 pr-2 text-apagado">{i + 1}</td>
                   <td className="py-2 pr-3">
                     <span className="font-medium text-white">{l.nome}</span>
-                    <span className="block text-[11px] text-[#94A3B8]">{l.postoGrad}</span>
+                    <span className="block text-[11px] text-apagado">{l.postoGrad}</span>
                   </td>
-                  <td className="py-2 pr-3 text-[#94A3B8]">{l.inicioBR}</td>
+                  <td className="py-2 pr-3 text-apagado">{l.inicioBR}</td>
                   <td className="py-2 pr-3 font-semibold text-white">{l.dias}</td>
-                  <td className="py-2 pr-3 text-[#94A3B8]">{l.retornoBR}</td>
-                  <td className="py-2 pr-3 text-[#94A3B8]">{l.motivo}</td>
+                  <td className="py-2 pr-3 text-apagado">{l.retornoBR}</td>
+                  <td className="py-2 pr-3 text-apagado">{l.motivo}</td>
                   <td className="py-2 pr-3">
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${URG[l.urgencia].classe}`}>
                       {URG[l.urgencia].rotulo}
@@ -133,7 +133,7 @@ export default function JmsTabela({ linhas }: { linhas: LinhaJms[] }) {
                   <td className="py-2 print:hidden">
                     <button
                       onClick={() => abrir(l)}
-                      className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-[#94A3B8] transition hover:border-[#D4AF37]/40 hover:text-white"
+                      className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-apagado transition hover:border-ouro/40 hover:text-white"
                     >
                       <Pencil className="h-3 w-3" /> Editar
                     </button>
@@ -152,18 +152,18 @@ export default function JmsTabela({ linhas }: { linhas: LinhaJms[] }) {
       >
         <label className="mb-1 block text-sm font-medium text-white">Início do JMS</label>
         <input type="date" value={ini} onChange={(e) => setIni(e.target.value)}
-          className="mb-4 w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+          className="mb-4 w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
 
         <label className="mb-1 block text-sm font-medium text-white">Retorno previsto</label>
         <input type="date" value={ret} onChange={(e) => setRet(e.target.value)}
-          className="mb-4 w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+          className="mb-4 w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
 
         <label className="mb-1 block text-sm font-medium text-white">Motivo</label>
         <input value={mot} onChange={(e) => setMot(e.target.value)} placeholder="Ex.: Doença, cirurgia..."
-          className="mb-5 w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+          className="mb-5 w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
 
         <button onClick={salvar} disabled={salvando}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#D4AF37] py-2.5 font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-60">
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-ouro py-2.5 font-semibold text-ouro-texto transition hover:brightness-110 disabled:opacity-60">
           {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           Salvar alterações
         </button>

@@ -44,21 +44,21 @@ export default function BotoesExport({
     <div className="flex items-center gap-1 print:hidden">
       <button
         onClick={() => window.print()}
-        className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-[#94A3B8] transition hover:border-[#D4AF37]/40 hover:text-white"
+        className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-apagado transition hover:border-ouro/40 hover:text-white"
         title="Imprimir / PDF"
       >
         <Printer className="h-3.5 w-3.5" /> PDF
       </button>
       <button
         onClick={excel}
-        className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-[#94A3B8] transition hover:border-[#22C55E]/40 hover:text-white"
+        className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-apagado transition hover:border-[#22C55E]/40 hover:text-white"
         title="Exportar Excel"
       >
         <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
       </button>
       <button
         onClick={csv}
-        className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-[#94A3B8] transition hover:border-sky-500/40 hover:text-white"
+        className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-apagado transition hover:border-sky-500/40 hover:text-white"
         title="Exportar CSV"
       >
         <FileText className="h-3.5 w-3.5" /> CSV

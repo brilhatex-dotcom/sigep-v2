@@ -34,8 +34,8 @@ function corSituacao(s: string | null): string {
   if (v.includes("jms")) return "bg-red-500/15 text-red-300";
   if (v.includes("féria") || v.includes("feria")) return "bg-sky-500/15 text-sky-300";
   if (v.includes("licen") || v === "lp" || v === "ltip") return "bg-amber-500/15 text-amber-300";
-  if (v.includes("reserva")) return "bg-white/10 text-[#94A3B8]";
-  return "bg-white/5 text-[#94A3B8]";
+  if (v.includes("reserva")) return "bg-white/10 text-apagado";
+  return "bg-white/5 text-apagado";
 }
 
 export default function LotacaoLista({
@@ -134,13 +134,13 @@ export default function LotacaoLista({
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">Efetivo por Lotação</h1>
-          <p className="text-sm text-[#94A3B8]">
+          <p className="text-sm text-apagado">
             {totalMil} militares em {grupos.length} lotações.
           </p>
         </div>
         <button
           onClick={imprimir}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-medium text-[#1a1205] transition hover:brightness-110"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-3 py-1.5 text-sm font-medium text-ouro-texto transition hover:brightness-110"
         >
           <Printer className="h-4 w-4" /> Imprimir / PDF
         </button>
@@ -148,11 +148,11 @@ export default function LotacaoLista({
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="relative">
-          <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+          <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-apagado" />
           <select
             value={filtro}
             onChange={(e) => setFiltro(e.target.value)}
-            className="rounded-lg border border-white/10 bg-[#0b1626] py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+            className="rounded-lg border border-white/10 bg-campo py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-ouro/50"
           >
             <option value="">Todas as lotações (na tela)</option>
             {grupos.map((g) => (
@@ -162,24 +162,24 @@ export default function LotacaoLista({
         </div>
         <button
           onClick={() => setPainel((v) => !v)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-sm text-[#94A3B8] transition hover:border-[#D4AF37]/40 hover:text-white"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-sm text-apagado transition hover:border-ouro/40 hover:text-white"
         >
           <CheckSquare className="h-4 w-4" /> Selecionar p/ impressão ({sel.size}/{grupos.length})
         </button>
       </div>
 
       {painel && (
-        <div className="mb-4 rounded-xl border border-white/10 bg-[#0F1B2D] p-4">
+        <div className="mb-4 rounded-xl border border-white/10 bg-painel p-4">
           <div className="mb-2 flex items-center gap-3 text-sm">
             <span className="font-semibold text-white">Lotações na impressão</span>
-            <button onClick={marcarTodas} className="text-[#D4AF37] hover:underline">marcar todas</button>
-            <button onClick={limparTodas} className="text-[#94A3B8] hover:underline">limpar</button>
+            <button onClick={marcarTodas} className="text-ouro hover:underline">marcar todas</button>
+            <button onClick={limparTodas} className="text-apagado hover:underline">limpar</button>
           </div>
           <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 md:grid-cols-3">
             {grupos.map((g) => (
-              <label key={g.lotacao} className="flex items-center gap-2 text-sm text-[#cdd9ea]">
+              <label key={g.lotacao} className="flex items-center gap-2 text-sm text-texto-2">
                 <input type="checkbox" checked={sel.has(g.lotacao)} onChange={() => toggle(g.lotacao)} />
-                {g.lotacao} <span className="text-xs text-[#94A3B8]">({g.lista.length})</span>
+                {g.lotacao} <span className="text-xs text-apagado">({g.lista.length})</span>
               </label>
             ))}
           </div>
@@ -190,22 +190,22 @@ export default function LotacaoLista({
         {visiveis.map((g) => (
           <section key={g.lotacao} className="ui-card overflow-hidden">
             <div className="flex items-center gap-2 border-b border-white/10 bg-white/5 px-5 py-3">
-              <Building2 className="h-4 w-4 text-[#D4AF37]" />
+              <Building2 className="h-4 w-4 text-ouro" />
               <h2 className="font-semibold text-white">{g.lotacao}</h2>
-              <span className="ml-auto rounded-full bg-[#D4AF37]/15 px-2.5 py-0.5 text-xs font-bold text-[#D4AF37]">
+              <span className="ml-auto rounded-full bg-ouro/15 px-2.5 py-0.5 text-xs font-bold text-ouro">
                 {g.lista.length}
               </span>
             </div>
             <ul className="divide-y divide-white/5">
               {g.lista.map((m, i) => (
                 <li key={m.id} className={`group flex items-center gap-3 px-5 py-2.5 transition hover:bg-white/5 ${ehAfastado(m.situacao) ? "bg-amber-500/5" : ""}`}>
-                  <span className="w-6 shrink-0 text-center text-xs font-semibold text-[#D4AF37]">{i + 1}</span>
+                  <span className="w-6 shrink-0 text-center text-xs font-semibold text-ouro">{i + 1}</span>
                   <Link href={`/efetivo/${encodeURIComponent(m.id)}`} className="flex flex-1 items-center gap-3">
-                    <span className="w-24 shrink-0 text-xs text-[#94A3B8]">{m.postoGrad ?? "—"}</span>
-                    <span className="w-14 shrink-0 text-xs text-[#94A3B8]">{m.numeroBarra ?? "—"}</span>
+                    <span className="w-24 shrink-0 text-xs text-apagado">{m.postoGrad ?? "—"}</span>
+                    <span className="w-14 shrink-0 text-xs text-apagado">{m.numeroBarra ?? "—"}</span>
                     <span className="flex-1 text-sm text-white">
                       {m.nome ?? "—"}
-                      {m.nomeGuerra && <span className="ml-2 text-xs text-[#94A3B8]">({m.nomeGuerra})</span>}
+                      {m.nomeGuerra && <span className="ml-2 text-xs text-apagado">({m.nomeGuerra})</span>}
                     </span>
                     <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${corSituacao(m.situacao)}`}>
                       {m.situacao ?? "—"}
@@ -214,13 +214,13 @@ export default function LotacaoLista({
                   {isAdmin && (
                     <Link
                       href={`/efetivo/${encodeURIComponent(m.id)}/editar`}
-                      className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-[#94A3B8] transition hover:border-[#D4AF37]/40 hover:text-white"
+                      className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-apagado transition hover:border-ouro/40 hover:text-white"
                       title="Editar"
                     >
                       <Pencil className="h-3 w-3" /> Editar
                     </Link>
                   )}
-                  <ChevronRight className="h-4 w-4 text-white/20 transition group-hover:text-[#D4AF37]" />
+                  <ChevronRight className="h-4 w-4 text-white/20 transition group-hover:text-ouro" />
                 </li>
               ))}
             </ul>

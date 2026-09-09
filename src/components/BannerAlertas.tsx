@@ -19,7 +19,7 @@ export type Alerta = {
    na frente, e o crítico ainda pisca devagar. */
 const NIVEIS = {
   critico: { rotulo: "Crítico", classe: "bg-red-500 text-white", Icone: AlertTriangle, pisca: true },
-  atencao: { rotulo: "Atenção", classe: "bg-amber-500 text-[#1a1205]", Icone: AlertTriangle, pisca: false },
+  atencao: { rotulo: "Atenção", classe: "bg-amber-500 text-ouro-texto", Icone: AlertTriangle, pisca: false },
   info: { rotulo: "Informativo", classe: "bg-sky-500 text-[#03202b]", Icone: Info, pisca: false },
 } as const;
 

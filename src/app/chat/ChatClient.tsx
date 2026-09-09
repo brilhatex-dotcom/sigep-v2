@@ -38,7 +38,7 @@ function Avatar({ c, tam = 36 }: { c: { nome: string; foto?: string | null }; ta
       className="rounded-full object-cover" />;
   }
   return (
-    <span style={st} className="grid place-items-center rounded-full bg-[#16243a] text-xs font-bold text-[#D4AF37]">
+    <span style={st} className="grid place-items-center rounded-full bg-painel-3 text-xs font-bold text-ouro">
       {c.nome.slice(0, 2).toUpperCase()}
     </span>
   );
@@ -195,14 +195,14 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
         aoFechar={() => setLigarPara(null)}
       />
       <h1 className="mb-1 flex items-center gap-2 text-2xl font-bold text-white">
-        <MessageSquare className="h-6 w-6 text-[#D4AF37]" /> Chat
+        <MessageSquare className="h-6 w-6 text-ouro" /> Chat
         {totalNaoLidas > 0 && (
           <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-xs font-bold text-red-300">
             {totalNaoLidas} não lida{totalNaoLidas > 1 ? "s" : ""}
           </span>
         )}
       </h1>
-      <p className="mb-4 text-sm text-[#94A3B8]">
+      <p className="mb-4 text-sm text-apagado">
         Converse com qualquer militar do batalhão. Envie fotos e arquivos de até 20 MB.
       </p>
 
@@ -226,10 +226,10 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
 
       <div className={`grid gap-3 md:grid-cols-[280px_1fr] ${instalado ? "" : "hidden"}`}>
         {/* ---------- lista de contatos ---------- */}
-        <aside className={`rounded-xl border border-[#1d2c44] bg-[#0F1B2D] ${aberto ? "hidden md:block" : ""}`}>
+        <aside className={`rounded-xl border border-azul-frio bg-painel ${aberto ? "hidden md:block" : ""}`}>
           <div className="border-b border-white/5 p-2.5">
             <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-2.5">
-              <Search className="h-3.5 w-3.5 shrink-0 text-[#94A3B8]" />
+              <Search className="h-3.5 w-3.5 shrink-0 text-apagado" />
               <input
                 value={busca} onChange={(e) => setBusca(e.target.value)}
                 placeholder="Buscar militar..."
@@ -240,7 +240,7 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
           {(qtdArquivadas > 0 || verArquivadas) && (
             <button
               onClick={() => setVerArquivadas((v) => !v)}
-              className="flex w-full items-center gap-2 border-b border-white/5 px-3 py-2 text-left text-xs text-[#94A3B8] transition hover:bg-white/5 hover:text-white"
+              className="flex w-full items-center gap-2 border-b border-white/5 px-3 py-2 text-left text-xs text-apagado transition hover:bg-white/5 hover:text-white"
             >
               <Archive className="h-3.5 w-3.5" />
               {verArquivadas ? "Voltar às conversas" : `Arquivadas (${qtdArquivadas})`}
@@ -248,9 +248,9 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
           )}
           <div className="max-h-[62vh] overflow-y-auto">
             {carregando ? (
-              <p className="p-4 text-center text-sm text-[#94A3B8]">Carregando…</p>
+              <p className="p-4 text-center text-sm text-apagado">Carregando…</p>
             ) : filtrados.length === 0 ? (
-              <p className="p-4 text-center text-sm text-[#94A3B8]">Nenhum militar encontrado.</p>
+              <p className="p-4 text-center text-sm text-apagado">Nenhum militar encontrado.</p>
             ) : filtrados.map((c) => (
               <div
                 key={c.login}
@@ -262,53 +262,53 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
                     <Avatar c={c} tam={36} />
                     <span
                       title={c.online ? "Online" : "Offline"}
-                      className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#0F1B2D] ${
+                      className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-painel ${
                         c.online ? "bg-emerald-400" : "bg-slate-600"}`}
                     />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5">
-                      {c.fixada && <Pin className="h-3 w-3 shrink-0 text-[#D4AF37]" />}
+                      {c.fixada && <Pin className="h-3 w-3 shrink-0 text-ouro" />}
                       <span className="truncate text-sm font-semibold text-white">{c.nome}</span>
-                      {c.silenciada && <BellOff className="h-3 w-3 shrink-0 text-[#94A3B8]" />}
-                      {c.admin && <span className="shrink-0 rounded bg-[#D4AF37]/15 px-1 text-[9px] font-bold uppercase text-[#D4AF37]">P/1</span>}
+                      {c.silenciada && <BellOff className="h-3 w-3 shrink-0 text-apagado" />}
+                      {c.admin && <span className="shrink-0 rounded bg-ouro/15 px-1 text-[9px] font-bold uppercase text-ouro">P/1</span>}
                     </span>
-                    <span className="block truncate text-xs text-[#94A3B8]">
+                    <span className="block truncate text-xs text-apagado">
                       {c.previa || c.postoGrad || c.lotacao || c.login}
                     </span>
                   </span>
                 </button>
 
                 {c.naoLidas > 0 ? (
-                  <span className="shrink-0 rounded-full bg-[#D4AF37] px-1.5 py-0.5 text-[10px] font-bold text-[#1a1205]">
+                  <span className="shrink-0 rounded-full bg-ouro px-1.5 py-0.5 text-[10px] font-bold text-ouro-texto">
                     {c.naoLidas}
                   </span>
                 ) : c.naoLidaManual ? (
-                  <span title="Marcada como não lida" className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#D4AF37]" />
+                  <span title="Marcada como não lida" className="h-2.5 w-2.5 shrink-0 rounded-full bg-ouro" />
                 ) : null}
 
                 <button
                   onClick={(e) => { e.stopPropagation(); setMenuContato(menuContato === c.login ? null : c.login); }}
                   title="Opções da conversa"
-                  className="shrink-0 rounded p-1 text-[#94A3B8] opacity-60 transition hover:bg-white/10 hover:text-white md:opacity-0 md:group-hover/linha:opacity-100"
+                  className="shrink-0 rounded p-1 text-apagado opacity-60 transition hover:bg-white/10 hover:text-white md:opacity-0 md:group-hover/linha:opacity-100"
                 >
                   <ChevronDown className="h-3.5 w-3.5" />
                 </button>
 
                 {menuContato === c.login && (
                   <div onClick={(e) => e.stopPropagation()}
-                    className="absolute right-2 top-11 z-30 w-48 overflow-hidden rounded-lg border border-[#2b3f63] bg-[#0F1B2D] shadow-xl">
+                    className="absolute right-2 top-11 z-30 w-48 overflow-hidden rounded-lg border border-borda bg-painel shadow-xl">
                     <button onClick={() => organizar(c, c.fixada ? "desfixar" : "fixar")}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-texto hover:bg-white/5">
                       <Pin className="h-3.5 w-3.5" /> {c.fixada ? "Desafixar" : "Fixar no topo"}
                     </button>
                     <button onClick={() => organizar(c, c.naoLidaManual ? "lida" : "naoLida")}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-texto hover:bg-white/5">
                       <MailOpen className="h-3.5 w-3.5" />
                       {c.naoLidaManual ? "Marcar como lida" : "Marcar como não lida"}
                     </button>
                     <button onClick={() => organizar(c, c.arquivada ? "desarquivar" : "arquivar")}
-                      className="flex w-full items-center gap-2 border-t border-white/5 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                      className="flex w-full items-center gap-2 border-t border-white/5 px-3 py-2 text-left text-xs text-texto hover:bg-white/5">
                       <Archive className="h-3.5 w-3.5" /> {c.arquivada ? "Desarquivar" : "Arquivar"}
                     </button>
 
@@ -316,12 +316,12 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
                         continua chegando normalmente na conversa */}
                     {c.silenciada ? (
                       <button onClick={() => organizar(c, "desilenciar")}
-                        className="flex w-full items-center gap-2 border-t border-white/5 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                        className="flex w-full items-center gap-2 border-t border-white/5 px-3 py-2 text-left text-xs text-texto hover:bg-white/5">
                         <Bell className="h-3.5 w-3.5" /> Reativar som
                       </button>
                     ) : (
                       <div className="border-t border-white/5">
-                        <p className="flex items-center gap-2 px-3 pt-2 text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+                        <p className="flex items-center gap-2 px-3 pt-2 text-[10px] font-semibold uppercase tracking-wide text-apagado">
                           <BellOff className="h-3 w-3" /> Silenciar
                         </p>
                         <div className="flex gap-1 px-2 pb-2 pt-1">
@@ -333,7 +333,7 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
                             <button
                               key={o.rot}
                               onClick={() => organizar(c, "silenciar", o.horas)}
-                              className="flex-1 rounded border border-[#2b3f63] px-1 py-1 text-[10px] text-[#E8EEF6] transition hover:bg-white/10"
+                              className="flex-1 rounded border border-borda px-1 py-1 text-[10px] text-texto transition hover:bg-white/10"
                             >
                               {o.rot}
                             </button>
@@ -349,28 +349,28 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
         </aside>
 
         {/* ---------- conversa ---------- */}
-        <section className={`flex min-h-[62vh] flex-col rounded-xl border border-[#1d2c44] bg-[#0F1B2D] ${conversaViva ? "" : "hidden md:flex"}`}>
+        <section className={`flex min-h-[62vh] flex-col rounded-xl border border-azul-frio bg-painel ${conversaViva ? "" : "hidden md:flex"}`}>
           {!conversaViva ? (
-            <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-[#94A3B8]">
+            <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-apagado">
               Escolha um militar na lista para começar a conversa.
             </div>
           ) : (
             <>
               <header className="flex items-center gap-2.5 border-b border-white/5 px-3 py-2.5">
-                <button onClick={() => setAberto(null)} className="md:hidden text-[#94A3B8] hover:text-white">
+                <button onClick={() => setAberto(null)} className="md:hidden text-apagado hover:text-white">
                   <ArrowLeft className="h-4 w-4" />
                 </button>
                 <span className="relative">
                   <Avatar c={conversaViva} tam={36} />
-                  <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#0F1B2D] ${
+                  <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-painel ${
                     conversaViva.online ? "bg-emerald-400" : "bg-slate-600"}`} />
                 </span>
                 <div className="min-w-0">
                   <p className="flex items-center gap-1.5 truncate text-sm font-bold text-white">
                     {[conversaViva.postoGrad, conversaViva.nome].filter(Boolean).join(" ")}
-                    {conversaViva.silenciada && <BellOff className="h-3 w-3 shrink-0 text-[#94A3B8]" />}
+                    {conversaViva.silenciada && <BellOff className="h-3 w-3 shrink-0 text-apagado" />}
                   </p>
-                  <p className="text-xs text-[#94A3B8]">
+                  <p className="text-xs text-apagado">
                     {conversaViva.online ? <span className="text-emerald-400">● online agora</span> : "offline"}
                     {conversaViva.lotacao ? " · " + conversaViva.lotacao : ""}
                   </p>
@@ -379,14 +379,14 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
                   <button
                     onClick={() => setLigarPara({ para: conversaViva.login, video: false })}
                     title="Ligar (voz)"
-                    className="rounded-lg border border-white/10 p-2 text-[#94A3B8] transition hover:border-emerald-400 hover:text-emerald-300"
+                    className="rounded-lg border border-white/10 p-2 text-apagado transition hover:border-emerald-400 hover:text-emerald-300"
                   >
                     <Phone className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => setLigarPara({ para: conversaViva.login, video: true })}
                     title="Chamada de vídeo"
-                    className="rounded-lg border border-white/10 p-2 text-[#94A3B8] transition hover:border-[#D4AF37] hover:text-[#D4AF37]"
+                    className="rounded-lg border border-white/10 p-2 text-apagado transition hover:border-ouro hover:text-ouro"
                   >
                     <Video className="h-4 w-4" />
                   </button>

@@ -119,42 +119,42 @@ export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: 
   };
 
   return (
-    <section className="mt-6 rounded-xl border border-white/10 bg-[#0F1B2D] p-5">
+    <section className="mt-6 rounded-xl border border-white/10 bg-painel p-5">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
           <Plane className="h-4 w-4 text-[#3B82F6]" /> Férias em datas soltas (individual)
         </h2>
         {isAdmin && (
-          <button onClick={() => setAbrirForm((v) => !v)} className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/40 px-3 py-1.5 text-sm font-medium text-[#D4AF37] transition hover:bg-[#D4AF37]/10">
+          <button onClick={() => setAbrirForm((v) => !v)} className="inline-flex items-center gap-1.5 rounded-lg border border-ouro/40 px-3 py-1.5 text-sm font-medium text-ouro transition hover:bg-ouro/10">
             <Plus className="h-4 w-4" /> Nova férias avulsa
           </button>
         )}
       </div>
-      <p className="mb-4 text-xs text-[#94A3B8]">Para quem tira férias fora das equipes/datas do plano. Conta como “Férias” na situação (dashboard, lotação, organograma…).</p>
+      <p className="mb-4 text-xs text-apagado">Para quem tira férias fora das equipes/datas do plano. Conta como “Férias” na situação (dashboard, lotação, organograma…).</p>
 
       {abrirForm && isAdmin && (
-        <div className="mb-4 rounded-lg border border-white/10 bg-[#0b1626] p-4">
+        <div className="mb-4 rounded-lg border border-white/10 bg-campo p-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="relative sm:col-span-2">
-              <label className="mb-1 block text-xs text-[#94A3B8]">Militar</label>
+              <label className="mb-1 block text-xs text-apagado">Militar</label>
               {sel ? (
-                <div className="flex items-center justify-between rounded-lg border border-[#D4AF37]/40 bg-[#0F1B2D] px-3 py-2 text-sm text-white">
+                <div className="flex items-center justify-between rounded-lg border border-ouro/40 bg-painel px-3 py-2 text-sm text-white">
                   <span>{nomeMil(sel)}{sel.matricula ? ` · mat ${sel.matricula}` : ""}</span>
-                  <button onClick={() => { setSel(null); setBusca(""); }} className="text-xs text-[#94A3B8] hover:text-white">trocar</button>
+                  <button onClick={() => { setSel(null); setBusca(""); }} className="text-xs text-apagado hover:text-white">trocar</button>
                 </div>
               ) : (
                 <>
                   <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-apagado" />
                     <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar militar por nome ou matrícula..."
-                      className="w-full rounded-lg border border-white/10 bg-[#0F1B2D] py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                      className="w-full rounded-lg border border-white/10 bg-painel py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-ouro/50" />
                   </div>
                   {busca.trim() !== "" && (
-                    <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-white/10 bg-[#0b1626] shadow-xl">
-                      {resultados.length === 0 ? <div className="px-3 py-2 text-xs text-[#94A3B8]">Nenhum militar.</div> :
+                    <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-white/10 bg-campo shadow-xl">
+                      {resultados.length === 0 ? <div className="px-3 py-2 text-xs text-apagado">Nenhum militar.</div> :
                         resultados.map((m) => (
                           <button key={m.id} onClick={() => { setSel(m); setBusca(""); }} className="block w-full px-3 py-2 text-left text-sm text-white hover:bg-white/5">
-                            {nomeMil(m)} {m.matricula && <span className="text-xs text-[#94A3B8]">mat {m.matricula}</span>}
+                            {nomeMil(m)} {m.matricula && <span className="text-xs text-apagado">mat {m.matricula}</span>}
                           </button>
                         ))}
                     </div>
@@ -163,27 +163,27 @@ export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: 
               )}
             </div>
             <div>
-              <label className="mb-1 block text-xs text-[#94A3B8]">Início</label>
-              <input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} className="w-full rounded-lg border border-white/10 bg-[#0F1B2D] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+              <label className="mb-1 block text-xs text-apagado">Início</label>
+              <input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} className="w-full rounded-lg border border-white/10 bg-painel px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-[#94A3B8]">Fim</label>
-              <input type="date" value={fim} onChange={(e) => setFim(e.target.value)} className="w-full rounded-lg border border-white/10 bg-[#0F1B2D] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+              <label className="mb-1 block text-xs text-apagado">Fim</label>
+              <input type="date" value={fim} onChange={(e) => setFim(e.target.value)} className="w-full rounded-lg border border-white/10 bg-painel px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
             </div>
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs text-[#94A3B8]">Observação (opcional)</label>
-              <input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="ex: saldo de férias, período abonado..." className="w-full rounded-lg border border-white/10 bg-[#0F1B2D] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+              <label className="mb-1 block text-xs text-apagado">Observação (opcional)</label>
+              <input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="ex: saldo de férias, período abonado..." className="w-full rounded-lg border border-white/10 bg-painel px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
             </div>
           </div>
           <div className="mt-3 flex gap-2">
-            <button onClick={adicionar} disabled={salvando} className="rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-60">{salvando ? "Salvando..." : "Adicionar"}</button>
-            <button onClick={() => setAbrirForm(false)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-white">Cancelar</button>
+            <button onClick={adicionar} disabled={salvando} className="rounded-lg bg-ouro px-4 py-2 text-sm font-semibold text-ouro-texto transition hover:brightness-110 disabled:opacity-60">{salvando ? "Salvando..." : "Adicionar"}</button>
+            <button onClick={() => setAbrirForm(false)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-apagado hover:bg-white/5 hover:text-white">Cancelar</button>
           </div>
         </div>
       )}
 
       {avulsas.length === 0 ? (
-        <p className="py-4 text-center text-sm text-[#94A3B8]">Nenhuma férias avulsa em {ano}.</p>
+        <p className="py-4 text-center text-sm text-apagado">Nenhuma férias avulsa em {ano}.</p>
       ) : (
         <ul className="space-y-2">
           {avulsas.map((a) => (
@@ -191,15 +191,15 @@ export default function FeriasAvulsas({ ano, isAdmin }: { ano: string; isAdmin: 
               <div>
                 <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-white">
                   {a.nome || a.idPmma}
-                  <span className="rounded border border-[#D4AF37]/30 px-1.5 py-0.5 text-[10px] font-medium text-[#D4AF37]" title="Número do memorando na numeração contínua do plano de férias">
+                  <span className="rounded border border-ouro/30 px-1.5 py-0.5 text-[10px] font-medium text-ouro" title="Número do memorando na numeração contínua do plano de férias">
                     Memo nº {numeroMemo(a)}/{anoMemo(a, ano)}
                   </span>
                 </p>
-                <p className="text-xs text-[#94A3B8]">{brData(a.inicio)} a {brData(a.fim)}{a.obs ? ` · ${a.obs}` : ""}</p>
+                <p className="text-xs text-apagado">{brData(a.inicio)} a {brData(a.fim)}{a.obs ? ` · ${a.obs}` : ""}</p>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => abrirMemorando(a)} className="inline-flex items-center gap-1 rounded border border-[#D4AF37]/30 px-2 py-1 text-xs text-[#D4AF37] transition hover:bg-[#D4AF37] hover:text-[#1a1205]"><FileText className="h-3 w-3" /> Memorando</button>
-                {isAdmin && <button onClick={() => remover(a.id)} className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-[#94A3B8] transition hover:border-red-500/40 hover:text-red-300"><Trash2 className="h-3 w-3" /> remover</button>}
+                <button onClick={() => abrirMemorando(a)} className="inline-flex items-center gap-1 rounded border border-ouro/30 px-2 py-1 text-xs text-ouro transition hover:bg-ouro hover:text-ouro-texto"><FileText className="h-3 w-3" /> Memorando</button>
+                {isAdmin && <button onClick={() => remover(a.id)} className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-apagado transition hover:border-red-500/40 hover:text-red-300"><Trash2 className="h-3 w-3" /> remover</button>}
               </div>
             </li>
           ))}

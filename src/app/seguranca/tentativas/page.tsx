@@ -31,7 +31,7 @@ export default async function TentativasPage() {
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-6xl">
         <h1 className="mb-1 text-2xl font-bold text-white">Tentativas de Acesso</h1>
-        <p className="mb-4 text-sm text-[#94A3B8]">
+        <p className="mb-4 text-sm text-apagado">
           Registros de <b>senha incorreta</b> e <b>conta bloqueada</b>, com IP, localização (GPS quando permitido e aproximada por IP) e dispositivo. Exibindo os {linhas.length} eventos mais recentes.
         </p>
         <TentativasClient linhas={linhas} />

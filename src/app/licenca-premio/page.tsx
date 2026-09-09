@@ -151,7 +151,7 @@ export default async function LicencaPremioPage({
         <h1 className="mb-1 text-2xl font-bold text-white">
           Licença-Prêmio {anoSelecionado}
         </h1>
-        <p className="mb-5 text-sm text-[#94A3B8]">
+        <p className="mb-5 text-sm text-apagado">
           {totalMilitares} militares em 4 equipes · 3 meses cada · ano {anoSelecionado}.
         </p>
 

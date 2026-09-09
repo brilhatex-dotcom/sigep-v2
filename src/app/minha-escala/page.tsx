@@ -18,9 +18,9 @@ export default async function MinhaEscalaPage() {
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-3xl">
         <h1 className="mb-1 flex items-center gap-2 text-2xl font-bold text-white">
-          <ClipboardList className="h-6 w-6 text-[#D4AF37]" /> Escala de Serviço
+          <ClipboardList className="h-6 w-6 text-ouro" /> Escala de Serviço
         </h1>
-        <p className="mb-5 text-sm text-[#94A3B8]">
+        <p className="mb-5 text-sm text-apagado">
           A escala publicada pelo P/1, aberta aqui mesmo. Escolha a data para ver outro dia.
         </p>
         <MinhaEscalaClient />

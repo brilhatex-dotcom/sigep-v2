@@ -282,11 +282,11 @@ export default function Chamada({
   if (recebendo) {
     return (
       <div className="fixed inset-0 z-[95] grid place-items-center bg-black/80 p-4 backdrop-blur-sm">
-        <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-[#0F1B2D] p-6 text-center shadow-2xl">
-          <div className="mx-auto mb-3 grid h-16 w-16 animate-pulse place-items-center rounded-full bg-[#D4AF37]/20">
-            {ativa!.video ? <Video className="h-7 w-7 text-[#D4AF37]" /> : <Phone className="h-7 w-7 text-[#D4AF37]" />}
+        <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-painel p-6 text-center shadow-2xl">
+          <div className="mx-auto mb-3 grid h-16 w-16 animate-pulse place-items-center rounded-full bg-ouro/20">
+            {ativa!.video ? <Video className="h-7 w-7 text-ouro" /> : <Phone className="h-7 w-7 text-ouro" />}
           </div>
-          <p className="text-sm text-[#94A3B8]">{ativa!.video ? "Chamada de vídeo" : "Ligação"} recebida</p>
+          <p className="text-sm text-apagado">{ativa!.video ? "Chamada de vídeo" : "Ligação"} recebida</p>
           <p className="mb-6 text-lg font-bold text-white">{nomeDe(ativa!.outro)}</p>
           <div className="flex justify-center gap-3">
             <button onClick={recusar}
@@ -318,7 +318,7 @@ export default function Chamada({
       <div className="flex items-center justify-between px-4 py-3">
         <div>
           <p className="text-sm font-bold text-white">{quem}</p>
-          <p className="text-xs text-[#94A3B8]">
+          <p className="text-xs text-apagado">
             {estado !== "falando" && <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />}
             {rotulo}
           </p>
@@ -330,7 +330,7 @@ export default function Chamada({
           className={`h-full w-full ${comVideo ? "object-cover" : "hidden"}`} />
         {!comVideo && (
           <div className="grid h-full place-items-center">
-            <div className="grid h-28 w-28 place-items-center rounded-full bg-[#16243a] text-3xl font-bold text-[#D4AF37]">
+            <div className="grid h-28 w-28 place-items-center rounded-full bg-painel-3 text-3xl font-bold text-ouro">
               {quem.slice(0, 2).toUpperCase()}
             </div>
           </div>

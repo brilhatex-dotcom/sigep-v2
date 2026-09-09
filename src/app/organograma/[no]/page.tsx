@@ -21,7 +21,7 @@ function corSituacao(s: string | null): string {
   if (v.includes("jms")) return "bg-red-500/15 text-red-300";
   if (v.includes("féria") || v.includes("feria")) return "bg-sky-500/15 text-sky-300";
   if (v.includes("licen") || v === "lp" || v === "ltip") return "bg-amber-500/15 text-amber-300";
-  return "bg-white/5 text-[#94A3B8]";
+  return "bg-white/5 text-apagado";
 }
 
 export default async function NoOrganogramaPage({
@@ -77,14 +77,14 @@ export default async function NoOrganogramaPage({
       <div className="mx-auto max-w-4xl">
         <Link
           href="/organograma"
-          className="mb-3 inline-flex items-center gap-1.5 text-sm text-[#94A3B8] transition hover:text-white"
+          className="mb-3 inline-flex items-center gap-1.5 text-sm text-apagado transition hover:text-white"
         >
           <ArrowLeft className="h-4 w-4" /> Voltar ao organograma
         </Link>
 
         <div className="mb-5">
           <h1 className="text-2xl font-bold text-white">{no.rotulo}</h1>
-          <p className="text-sm text-[#94A3B8]">
+          <p className="text-sm text-apagado">
             {no.cidade ? `${no.cidade} · ` : ""}
             <span className="inline-flex items-center gap-1">
               <Users className="h-3.5 w-3.5" /> {lista.length} militares
@@ -93,11 +93,11 @@ export default async function NoOrganogramaPage({
         </div>
 
         {lista.length === 0 ? (
-          <div className="rounded-xl border border-white/10 bg-[#0F1B2D] p-8 text-center text-sm text-[#94A3B8]">
+          <div className="rounded-xl border border-white/10 bg-painel p-8 text-center text-sm text-apagado">
             Nenhum militar com lotação correspondente a esta unidade.
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-white/5 bg-[#0F1B2D]">
+          <div className="overflow-hidden rounded-xl border border-white/5 bg-painel">
             <ul className="divide-y divide-white/5">
               {lista.map((m) => (
                 <li key={m.id}>
@@ -105,16 +105,16 @@ export default async function NoOrganogramaPage({
                     href={`/efetivo/${encodeURIComponent(m.id)}`}
                     className="group flex items-center gap-3 px-5 py-2.5 transition hover:bg-white/5"
                   >
-                    <span className="w-24 shrink-0 text-xs text-[#94A3B8]">{m.postoGrad ?? "—"}</span>
+                    <span className="w-24 shrink-0 text-xs text-apagado">{m.postoGrad ?? "—"}</span>
                     <span className="flex-1 text-sm text-white">
                       {m.nome ?? "—"}
-                      {m.nomeGuerra && <span className="ml-2 text-xs text-[#94A3B8]">({m.nomeGuerra})</span>}
+                      {m.nomeGuerra && <span className="ml-2 text-xs text-apagado">({m.nomeGuerra})</span>}
                     </span>
-                    <span className="hidden text-xs text-[#94A3B8] sm:inline">{m.lotacao ?? ""}</span>
+                    <span className="hidden text-xs text-apagado sm:inline">{m.lotacao ?? ""}</span>
                     <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${corSituacao(m.sit)}`}>
                       {m.sit}
                     </span>
-                    <ChevronRight className="h-4 w-4 text-white/20 transition group-hover:text-[#D4AF37]" />
+                    <ChevronRight className="h-4 w-4 text-white/20 transition group-hover:text-ouro" />
                   </Link>
                 </li>
               ))}

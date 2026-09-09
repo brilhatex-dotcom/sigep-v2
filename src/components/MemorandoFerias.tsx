@@ -358,7 +358,7 @@ function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe, tipoAs
     <div id="memorando-overlay" className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 print:bg-white">
 
       {/* BARRA DE FERRAMENTAS */}
-      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-1 bg-[#0b1626] px-3 py-2 shadow print:hidden">
+      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-1 bg-campo px-3 py-2 shadow print:hidden">
 
         <div className={`items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 px-2 py-1 ${somenteLeitura ? "hidden" : "flex"}`}>
           <button onMouseDown={(e) => { e.preventDefault(); fmt("bold"); }} title="Negrito (Ctrl+B)"

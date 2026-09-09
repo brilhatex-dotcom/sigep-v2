@@ -110,7 +110,7 @@ export default async function OrganogramaPage() {
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-6xl">
         <h1 className="mb-1 text-2xl font-bold text-white">Organograma — {lugar ? lugar.no.rotulo : "18º BPM"}</h1>
-        <p className="mb-5 text-sm text-[#94A3B8]">
+        <p className="mb-5 text-sm text-apagado">
           {lugar ? "Estrutura e efetivo da sua unidade." : "Estrutura do batalhão (Memorando 116/2022). Clique em uma CIA ou pelotão para ver o efetivo."}
         </p>
 
@@ -154,7 +154,7 @@ export default async function OrganogramaPage() {
         {admin && (
           <div className="mt-8">
             <h2 className="mb-1 text-xl font-bold text-white">Mapa do efetivo</h2>
-            <p className="mb-3 text-sm text-[#94A3B8]">Cidades das unidades no Maranhão. <span className="text-emerald-400">Verde</span> = efetivo OK; <span className="text-red-400">vermelho</span> = efetivo abaixo do mínimo.</p>
+            <p className="mb-3 text-sm text-apagado">Cidades das unidades no Maranhão. <span className="text-emerald-400">Verde</span> = efetivo OK; <span className="text-red-400">vermelho</span> = efetivo abaixo do mínimo.</p>
             <MapaEfetivoWrapper unidades={unidadesMapa} />
           </div>
         )}

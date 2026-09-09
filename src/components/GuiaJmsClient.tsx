@@ -21,7 +21,7 @@ export default function GuiaJmsClient() {
     <button
       onClick={() => setAba(id)}
       className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-        aba === id ? "bg-[#D4AF37] text-[#1a1205]" : "border border-white/10 text-[#94A3B8] hover:bg-white/5 hover:text-white"
+        aba === id ? "bg-ouro text-ouro-texto" : "border border-white/10 text-apagado hover:bg-white/5 hover:text-white"
       }`}
     >
       <Icone className="h-4 w-4" /> {rotulo}

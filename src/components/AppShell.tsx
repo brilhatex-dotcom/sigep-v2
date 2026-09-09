@@ -317,9 +317,9 @@ export default function AppShell({
         />
         <div>
           <p className="text-sm font-extrabold leading-tight tracking-wide">
-            SIGEP-<span className="text-[#D4AF37]">18BPM</span>
+            SIGEP-<span className="text-ouro">18BPM</span>
           </p>
-          <p className="text-[10px] uppercase leading-tight tracking-wider text-[#94A3B8]">
+          <p className="text-[10px] uppercase leading-tight tracking-wider text-apagado">
             Gestão de Efetivo
           </p>
         </div>
@@ -334,7 +334,7 @@ export default function AppShell({
           return (
           <div key={secao.titulo} className="mb-5">
             <p
-              className="flex items-center gap-2 px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#94A3B8]/60"
+              className="flex items-center gap-2 px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-apagado/60"
             >
               <span
                 aria-hidden
@@ -364,7 +364,7 @@ export default function AppShell({
                             ? "ui-nav-ativo font-semibold text-white"
                             : indo
                               ? "bg-white/10 text-white"
-                              : "text-[#94A3B8] hover:bg-white/5 hover:text-white"
+                              : "text-apagado hover:bg-white/5 hover:text-white"
                         }`}
                       >
                         {indo ? (
@@ -388,13 +388,13 @@ export default function AppShell({
 
                 return (
                   <li key={item.rotulo}>
-                    <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-[#94A3B8]/40">
+                    <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-apagado/40">
                       <item.Icone
                         className="h-[18px] w-[18px] shrink-0"
                         style={{ color: corSecao, opacity: 0.45 }}
                       />
                       {item.rotulo}
-                      <span className="ml-auto rounded bg-white/5 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-[#94A3B8]/60">
+                      <span className="ml-auto rounded bg-white/5 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-apagado/60">
                         em breve
                       </span>
                     </div>
@@ -408,7 +408,7 @@ export default function AppShell({
 
         {/* Conta: visivel a todos os perfis */}
         <div className="mb-5">
-          <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-[#94A3B8]/60">
+          <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-apagado/60">
             Conta
           </p>
           <ul className="space-y-1">
@@ -419,13 +419,13 @@ export default function AppShell({
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
                   pathname === "/trocar-senha" || pathname.startsWith("/trocar-senha/")
                     ? "ui-nav-ativo font-semibold text-white"
-                    : "text-[#94A3B8] hover:bg-white/5 hover:text-white"
+                    : "text-apagado hover:bg-white/5 hover:text-white"
                 }`}
               >
                 <KeyRound
                   className={`h-[18px] w-[18px] ${
                     pathname === "/trocar-senha" || pathname.startsWith("/trocar-senha/")
-                      ? "text-[#D4AF37]"
+                      ? "text-ouro"
                       : ""
                   }`}
                 />
@@ -436,14 +436,14 @@ export default function AppShell({
         </div>
       </nav>
 
-      <div className="border-t border-white/5 px-5 py-3 text-[10px] text-[#94A3B8]/50">
+      <div className="border-t border-white/5 px-5 py-3 text-[10px] text-apagado/50">
         18º BPM · Presidente Dutra - MA
       </div>
     </div>
   );
 
   return (
-    <div className="flex min-h-screen bg-[#08111F] text-white">
+    <div className="flex min-h-screen bg-fundo text-white">
       {/* Barra de progresso: aparece no instante do clique e some quando a
           tela nova entra. É o que diz "seu clique pegou, estou buscando". */}
       {indoPara && <div className="nav-progresso" role="progressbar" aria-label="Carregando a tela" />}
@@ -469,7 +469,7 @@ export default function AppShell({
 
           {/* breadcrumb + saudacao */}
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-[11px] text-[#94A3B8]">
+            <div className="flex items-center gap-1.5 text-[11px] text-apagado">
               <span>SIGEP</span>
               <ChevronRight className="h-3 w-3" />
               <span className="truncate text-white/80">{pagina}</span>
@@ -490,7 +490,7 @@ export default function AppShell({
             <div className="hidden items-center gap-3 border-l border-white/10 pl-4 sm:flex">
               <div className="text-right leading-tight">
                 <p className="text-sm font-semibold text-white">{nomeExibir}</p>
-                <p className="text-[11px] uppercase tracking-wide text-[#D4AF37]">
+                <p className="text-[11px] uppercase tracking-wide text-ouro">
                   {perfil}
                 </p>
               </div>
@@ -509,17 +509,17 @@ export default function AppShell({
               href="/trocar-senha"
               title="Trocar senha"
               onClick={() => irPara("/trocar-senha")}
-              className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#94A3B8] transition hover:border-[#D4AF37]/40 hover:bg-[#D4AF37]/10 hover:text-[#D4AF37]"
+              className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-apagado transition hover:border-ouro/40 hover:bg-ouro/10 hover:text-ouro"
             >
               {indoPara === "/trocar-senha"
-                ? <Loader2 className="h-4 w-4 animate-spin text-[#D4AF37]" />
+                ? <Loader2 className="h-4 w-4 animate-spin text-ouro" />
                 : <KeyRound className="h-4 w-4" />}
               <span className="hidden sm:inline">Senha</span>
             </Link>
 
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}
-              className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#94A3B8] transition hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300"
+              className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-apagado transition hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300"
             >
               <LogOut className="h-4 w-4" />
               <span className="hidden sm:inline">Sair</span>

@@ -57,23 +57,23 @@ export default function TentativasClient({ linhas }: { linhas: Linha[] }) {
   const bloqueios = dados.filter((l) => l.acao === "login_bloqueado").length;
 
   return (
-    <div className="text-[#cdd9ea]">
+    <div className="text-texto-2">
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <div className="flex flex-1 items-center gap-2 rounded-lg border border-[#22314d] bg-[#0b1626] px-3">
+        <div className="flex flex-1 items-center gap-2 rounded-lg border border-borda-forte bg-campo px-3">
           <Search className="h-4 w-4 text-[#64748b]" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por login, IP, cidade…"
             className="w-full bg-transparent py-2 text-sm text-white outline-none placeholder:text-[#4b5c74]" />
         </div>
-        <label className="flex items-center gap-2 text-sm text-[#94A3B8]">
+        <label className="flex items-center gap-2 text-sm text-apagado">
           <input type="checkbox" checked={soBloqueio} onChange={(e) => setSoBloqueio(e.target.checked)} /> só bloqueios
         </label>
         <span className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-200">{bloqueios} bloqueio(s)</span>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#1d2c44]">
+      <div className="overflow-x-auto rounded-xl border border-azul-frio">
         <table className="w-full min-w-[820px] text-left text-sm">
           <thead>
-            <tr className="bg-[#0F1B2D] text-[11px] uppercase tracking-wide text-[#94A3B8]">
+            <tr className="bg-painel text-[11px] uppercase tracking-wide text-apagado">
               <th className="px-3 py-2"><Clock className="mr-1 inline h-3.5 w-3.5" />Quando</th>
               <th className="px-3 py-2">Login</th>
               <th className="px-3 py-2">Status</th>
@@ -91,8 +91,8 @@ export default function TentativasClient({ linhas }: { linhas: Linha[] }) {
               const bloq = l.acao === "login_bloqueado";
               const temMapa = !!(l.p.lat && l.p.lng);
               return (
-                <tr key={l.id} className="border-t border-[#16243a] align-top">
-                  <td className="whitespace-nowrap px-3 py-2 text-[#cdd9ea]">{quandoBR(l.quando)}</td>
+                <tr key={l.id} className="border-t border-painel-3 align-top">
+                  <td className="whitespace-nowrap px-3 py-2 text-texto-2">{quandoBR(l.quando)}</td>
                   <td className="px-3 py-2">
                     <div className="font-semibold text-white">{l.login || "—"}</div>
                     {l.nome && <div className="text-[11px] text-[#64748b]">{l.nome}</div>}
@@ -102,20 +102,20 @@ export default function TentativasClient({ linhas }: { linhas: Linha[] }) {
                       ? <span className="inline-flex items-center gap-1 rounded border border-red-500/40 bg-red-500/10 px-1.5 py-0.5 text-[11px] text-red-200"><Lock className="h-3 w-3" /> bloqueada</span>
                       : <span className="inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[11px] text-amber-200"><ShieldAlert className="h-3 w-3" /> senha errada{l.p.tentativa ? ` ${l.p.tentativa}` : ""}</span>}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-[#cdd9ea]">{l.ip || "—"}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-texto-2">{l.ip || "—"}</td>
                   <td className="px-3 py-2">
                     {temMapa
                       ? <div><span className="text-white">{l.p.cidade || `${l.p.lat}, ${l.p.lng}`}</span>
                           <span className={`ml-1 rounded px-1 py-0.5 text-[10px] ${l.p.fonte === "GPS" ? "bg-emerald-500/15 text-emerald-300" : "bg-sky-500/15 text-sky-300"}`}>{l.p.fonte}</span></div>
                       : <span className="text-[#64748b]">{l.p.cidade || (l.p.gpsNegado ? `GPS ${l.p.gpsNegado}` : "—")}</span>}
                   </td>
-                  <td className="px-3 py-2 text-[12px] text-[#94A3B8]">
+                  <td className="px-3 py-2 text-[12px] text-apagado">
                     {l.p.plataforma || "—"}{l.p.fuso ? <div className="text-[10px] text-[#64748b]">fuso {l.p.fuso}</div> : null}
                   </td>
                   <td className="px-3 py-2">
                     {temMapa
                       ? <a href={`https://www.google.com/maps?q=${l.p.lat},${l.p.lng}`} target="_blank" rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 rounded-md border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-2 py-1 text-xs text-[#f3df9d] hover:bg-[#D4AF37]/20"><MapPin className="h-3.5 w-3.5" /> Ver</a>
+                          className="inline-flex items-center gap-1 rounded-md border border-ouro/40 bg-ouro/10 px-2 py-1 text-xs text-ouro-claro hover:bg-ouro/20"><MapPin className="h-3.5 w-3.5" /> Ver</a>
                       : <span className="text-[11px] text-[#4b5c74]">sem coord.</span>}
                   </td>
                 </tr>

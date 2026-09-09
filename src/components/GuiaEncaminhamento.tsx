@@ -136,37 +136,37 @@ export default function GuiaEncaminhamento() {
 
   return (
     <>
-      <div className="mb-4 rounded-xl border border-white/10 bg-[#0F1B2D] p-4 print:hidden">
+      <div className="mb-4 rounded-xl border border-white/10 bg-painel p-4 print:hidden">
         <BuscaMilitar sel={sel} onEscolher={escolher} onLimpar={limpar} rotulo="Militar a encaminhar" />
 
         {sel && (
           <>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <label className="text-xs text-[#94A3B8]">Data da visita médica</label>
+              <label className="text-xs text-apagado">Data da visita médica</label>
               <input type="date" value={dataVisita} onChange={(e) => setDataVisita(e.target.value)}
-                className="rounded-lg border border-white/10 bg-[#0b1626] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
-              <label className="ml-2 text-xs text-[#94A3B8]">Ano</label>
+                className="rounded-lg border border-white/10 bg-campo px-2 py-1.5 text-sm text-white outline-none focus:border-ouro/50" />
+              <label className="ml-2 text-xs text-apagado">Ano</label>
               <input value={ano} onChange={(e) => setAno(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                className="w-20 rounded-lg border border-white/10 bg-[#0b1626] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
-              <span className={`text-xs ${registrada ? "text-emerald-300" : "text-[#94A3B8]"}`}>
+                className="w-20 rounded-lg border border-white/10 bg-campo px-2 py-1.5 text-sm text-white outline-none focus:border-ouro/50" />
+              <span className={`text-xs ${registrada ? "text-emerald-300" : "text-apagado"}`}>
                 {registrada ? `nº ${numero}/${ano} — registrada` : `próximo número livre: ${numero}/${ano}`}
               </span>
             </div>
 
             {/* De onde a numeração do ano continua */}
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[#94A3B8]">
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-apagado">
               {editandoSerie ? (
                 <>
                   <span>Última guia emitida no papel em {ano}:</span>
                   <input autoFocus value={rascunhoSerie}
                     onChange={(e) => setRascunhoSerie(e.target.value.replace(/\D/g, "").slice(0, 4))}
                     placeholder="028"
-                    className="w-20 rounded-lg border border-[#D4AF37]/50 bg-[#0b1626] px-2 py-1 text-sm text-white outline-none" />
+                    className="w-20 rounded-lg border border-ouro/50 bg-campo px-2 py-1 text-sm text-white outline-none" />
                   <button onClick={salvarSerie} disabled={salvandoSerie}
-                    className="inline-flex items-center gap-1 rounded-lg bg-[#D4AF37] px-2.5 py-1 text-xs font-semibold text-[#1a1205] disabled:opacity-50">
+                    className="inline-flex items-center gap-1 rounded-lg bg-ouro px-2.5 py-1 text-xs font-semibold text-ouro-texto disabled:opacity-50">
                     {salvandoSerie ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />} Salvar
                   </button>
-                  <button onClick={() => setEditandoSerie(false)} className="text-[#94A3B8] hover:text-white">cancelar</button>
+                  <button onClick={() => setEditandoSerie(false)} className="text-apagado hover:text-white">cancelar</button>
                   <span className="w-full text-[11px] text-[#7e8b99]">
                     Informe o número da última guia que saiu no papel. A próxima do sistema sai logo depois dela.
                   </span>
@@ -180,7 +180,7 @@ export default function GuiaEncaminhamento() {
                   </span>
                   <button
                     onClick={() => { setRascunhoSerie(String(ultimaPapel || "")); setEditandoSerie(true); }}
-                    className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-0.5 text-[11px] text-[#94A3B8] transition hover:border-[#D4AF37]/40 hover:text-white">
+                    className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-0.5 text-[11px] text-apagado transition hover:border-ouro/40 hover:text-white">
                     <Pencil className="h-3 w-3" /> ajustar
                   </button>
                 </>
@@ -218,13 +218,13 @@ export default function GuiaEncaminhamento() {
                 Modo edição: dá para mexer em qualquer parte do documento — rótulos, títulos, cabeçalho e o texto da informação.
               </p>
             )}
-            {msg && <p className="mt-2 text-xs text-[#94A3B8]">{msg}</p>}
+            {msg && <p className="mt-2 text-xs text-apagado">{msg}</p>}
           </>
         )}
-        {!sel && <p className="mt-2 text-xs text-[#94A3B8]">Busque o militar. O número da guia é automático e sequencial por ano — só é consumido quando a guia é registrada.</p>}
+        {!sel && <p className="mt-2 text-xs text-apagado">Busque o militar. O número da guia é automático e sequencial por ano — só é consumido quando a guia é registrada.</p>}
       </div>
 
-      {carregando && <p className="text-center text-sm text-[#94A3B8] print:hidden">Carregando...</p>}
+      {carregando && <p className="text-center text-sm text-apagado print:hidden">Carregando...</p>}
 
       {sel && !carregando && (
         <div

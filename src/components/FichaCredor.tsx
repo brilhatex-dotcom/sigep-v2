@@ -112,12 +112,12 @@ export default function FichaCredor() {
   return (
     <>
       {/* ----- barra de comando (não sai na impressão) ----- */}
-      <div className="mb-4 rounded-xl border border-white/10 bg-[#0F1B2D] p-4 print:hidden">
+      <div className="mb-4 rounded-xl border border-white/10 bg-painel p-4 print:hidden">
         <BuscaMilitar sel={sel} onEscolher={escolher} onLimpar={limpar} rotulo="Militar (credor)" />
 
         {sel && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110">
+            <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-3 py-1.5 text-sm font-semibold text-ouro-texto transition hover:brightness-110">
               <Printer className="h-4 w-4" /> Imprimir
             </button>
             <button onClick={salvar} disabled={salvando || !mudados.length}
@@ -127,17 +127,17 @@ export default function FichaCredor() {
               {mudados.length ? `Salvar ${mudados.length} correção(ões) no cadastro` : "Nada a salvar no cadastro"}
             </button>
             {mudados.length > 0 && (
-              <button onClick={() => setCampos(original)} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#94A3B8] transition hover:text-white">
+              <button onClick={() => setCampos(original)} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-apagado transition hover:text-white">
                 <RotateCcw className="h-4 w-4" /> Desfazer
               </button>
             )}
-            {msg && <span className="text-xs text-[#94A3B8]">{msg}</span>}
+            {msg && <span className="text-xs text-apagado">{msg}</span>}
           </div>
         )}
-        {!sel && <p className="mt-2 text-xs text-[#94A3B8]">Busque o militar e a ficha sai preenchida com os dados do cadastro. Dá para ajustar qualquer campo na folha antes de imprimir.</p>}
+        {!sel && <p className="mt-2 text-xs text-apagado">Busque o militar e a ficha sai preenchida com os dados do cadastro. Dá para ajustar qualquer campo na folha antes de imprimir.</p>}
       </div>
 
-      {carregando && <p className="text-center text-sm text-[#94A3B8] print:hidden">Carregando a ficha...</p>}
+      {carregando && <p className="text-center text-sm text-apagado print:hidden">Carregando a ficha...</p>}
 
       {/* ----- a folha ----- */}
       {sel && !carregando && (

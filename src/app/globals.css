@@ -5,6 +5,44 @@
 :root {
   --sigep-navy: #0b1f3a;
   --sigep-dourado: #c8a047;
+
+  /* ==========================================================
+     A PALETA, EM UM LUGAR SO
+
+     Os mesmos nomes existem no tailwind.config.ts (para as classes)
+     e aqui (para os blocos de <style> escritos a mao, como o Mapa de
+     Escala). Mudar a cara do sistema passa a ser mexer nestes dois
+     arquivos, e nao cacar hexadecimal em 106 arquivos.
+
+     Duas duplicatas acidentais foram fundidas aqui: #0a1626 virou
+     --campo (era 1 de diferenca no vermelho para #0b1626) e #9fb0c7
+     virou --apagado. As duas bordas que faziam a mesma coisa
+     (#28395a e #2b3f63) viraram --borda.
+     ========================================================== */
+  --ouro: #D4AF37;
+  --ouro-claro: #f3df9d;
+  --ouro-texto: #1a1205;
+  --ouro-fosco: #6b5320;
+
+  --fundo: #08111F;
+  --painel: #0F1B2D;
+  --campo: #0b1626;
+  --painel-2: #13223a;
+  --painel-3: #16243a;
+  --azul-frio: #1d2c44;
+
+  --borda: #2b3f63;
+  --borda-forte: #22314d;
+
+  --texto: #E8EEF6;
+  --texto-2: #cdd9ea;
+  --apagado: #94A3B8;
+  --apagado-2: #6f82a0;
+
+  --ok-claro: #9fe6bd;
+  --erro-claro: #ffb3b3;
+  --erro-fundo: #7a1f1f;
+  --ok-fundo: #10301f;
 }
 
 html,
@@ -152,7 +190,7 @@ button:disabled { cursor: not-allowed; }
   [class*="min-h-screen"] { min-height: 0 !important; }
 
   /* cards viram branco com borda fina, sem sombra/translucidez */
-  .ui-card, [class*="bg-[#0F1B2D]"], [class*="bg-slate-900"] {
+  .ui-card, .bg-painel, .bg-campo, [class*="bg-slate-900"] {
     background: #ffffff !important;
     border: 1px solid #cccccc !important;
     box-shadow: none !important;
@@ -160,7 +198,7 @@ button:disabled { cursor: not-allowed; }
   }
 
   /* textos claros viram escuros para leitura no papel */
-  .text-white, [class*="text-[#94A3B8]"], [class*="text-white"] {
+  .text-white, .text-apagado, .text-texto, .text-texto-2, [class*="text-white"] {
     color: #000000 !important;
   }
 

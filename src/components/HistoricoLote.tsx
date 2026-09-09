@@ -118,25 +118,25 @@ export default function HistoricoLote({ aoTerminar }: { aoTerminar: () => void }
   };
 
   return (
-    <div className="rounded-xl border border-white/10 bg-[#0F1B2D] p-4">
+    <div className="rounded-xl border border-white/10 bg-painel p-4">
       <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-white">
-        <Users className="h-4 w-4 text-[#D4AF37]" /> Importar vários de uma vez
+        <Users className="h-4 w-4 text-ouro" /> Importar vários de uma vez
       </h2>
-      <p className="mb-3 text-xs text-[#94A3B8]">
+      <p className="mb-3 text-xs text-apagado">
         Escolha os arquivos — históricos prontos (Word ou PDF) ou a Ficha Individual do SGI — e o sistema
         reconhece qual é qual e de quem é cada um, pela matrícula e pelo ID PMMA. Nada é gravado antes de
         você conferir a lista.
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
-        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110">
+        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-ouro px-3 py-1.5 text-sm font-semibold text-ouro-texto transition hover:brightness-110">
           {lendo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Escolher arquivos
           <input type="file" multiple accept=".docx,.doc,.pdf,.txt" className="hidden" disabled={lendo}
             onChange={(e) => { escolherArquivos(e.target.files); e.currentTarget.value = ""; }} />
         </label>
-        {andar && <span className="text-xs text-[#94A3B8]">{andar}</span>}
+        {andar && <span className="text-xs text-apagado">{andar}</span>}
         {linhas.length > 0 && (
-          <button onClick={() => setLinhas([])} className="text-xs text-[#94A3B8] underline hover:text-white">limpar</button>
+          <button onClick={() => setLinhas([])} className="text-xs text-apagado underline hover:text-white">limpar</button>
         )}
       </div>
 
@@ -159,7 +159,7 @@ export default function HistoricoLote({ aoTerminar }: { aoTerminar: () => void }
                     ? <Check className="h-4 w-4 shrink-0 text-emerald-300" />
                     : <AlertTriangle className="h-4 w-4 shrink-0 text-amber-300" />}
                 <span className="flex items-center gap-1.5 text-white">
-                  <FileText className="h-3.5 w-3.5 text-[#94A3B8]" />
+                  <FileText className="h-3.5 w-3.5 text-apagado" />
                   <span className="max-w-[220px] truncate" title={l.arquivo}>{l.arquivo}</span>
                 </span>
 
@@ -175,7 +175,7 @@ export default function HistoricoLote({ aoTerminar }: { aoTerminar: () => void }
                     <select
                       value={l.militarId}
                       onChange={(e) => trocarMilitar(i, e.target.value)}
-                      className="ml-auto max-w-[280px] rounded-lg border border-white/10 bg-[#0b1626] px-2 py-1 text-xs text-white outline-none focus:border-[#D4AF37]/50"
+                      className="ml-auto max-w-[280px] rounded-lg border border-white/10 bg-campo px-2 py-1 text-xs text-white outline-none focus:border-ouro/50"
                     >
                       <option value="">— não importar este —</option>
                       {efetivo.map((m) => (
@@ -214,12 +214,12 @@ export default function HistoricoLote({ aoTerminar }: { aoTerminar: () => void }
 
           <div className="mt-3 flex items-center gap-2">
             <button onClick={importar} disabled={gravando || prontas.length === 0}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-40">
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-4 py-2 text-sm font-semibold text-ouro-texto transition hover:brightness-110 disabled:opacity-40">
               {gravando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
               Importar {prontas.length} histórico(s)
             </button>
             {(semDono.length > 0 || comErro.length > 0) && (
-              <span className="inline-flex items-center gap-1 text-xs text-[#94A3B8]">
+              <span className="inline-flex items-center gap-1 text-xs text-apagado">
                 <X className="h-3.5 w-3.5" /> {semDono.length + comErro.length} ficam de fora
               </span>
             )}

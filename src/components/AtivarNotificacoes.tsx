@@ -125,7 +125,7 @@ export default function AtivarNotificacoes() {
 
   if (estado === "carregando") {
     return (
-      <div className="rounded-xl border border-white/10 bg-[#0F1B2D] p-4 text-sm text-[#94A3B8]">
+      <div className="rounded-xl border border-white/10 bg-painel p-4 text-sm text-apagado">
         Verificando suporte a notificações...
       </div>
     );
@@ -133,8 +133,8 @@ export default function AtivarNotificacoes() {
 
   if (estado === "indisponivel") {
     return (
-      <div className="rounded-xl border border-white/10 bg-[#0F1B2D] p-4 text-sm text-[#94A3B8]">
-        <div className="flex items-center gap-2 text-[#E8EEF6]">
+      <div className="rounded-xl border border-white/10 bg-painel p-4 text-sm text-apagado">
+        <div className="flex items-center gap-2 text-texto">
           <BellOff className="h-4 w-4" />
           <span className="font-medium">Notificações indisponíveis</span>
         </div>
@@ -153,7 +153,7 @@ export default function AtivarNotificacoes() {
           <BellOff className="h-4 w-4" />
           <span className="font-medium">Permissão bloqueada</span>
         </div>
-        <p className="mt-1 text-[#94A3B8]">
+        <p className="mt-1 text-apagado">
           Você bloqueou as notificações. Reative nas configurações do navegador
           (ícone de cadeado na barra de endereço) e recarregue a página.
         </p>
@@ -162,16 +162,16 @@ export default function AtivarNotificacoes() {
   }
 
   return (
-    <div className="rounded-xl border border-white/10 bg-[#0F1B2D] p-4">
-      <div className="flex items-center gap-2 text-[#E8EEF6]">
+    <div className="rounded-xl border border-white/10 bg-painel p-4">
+      <div className="flex items-center gap-2 text-texto">
         {estado === "ativo" ? (
-          <BellRing className="h-5 w-5 text-[#D4AF37]" />
+          <BellRing className="h-5 w-5 text-ouro" />
         ) : (
-          <Bell className="h-5 w-5 text-[#94A3B8]" />
+          <Bell className="h-5 w-5 text-apagado" />
         )}
         <span className="font-semibold">Notificações no celular</span>
       </div>
-      <p className="mt-1 text-sm text-[#94A3B8]">
+      <p className="mt-1 text-sm text-apagado">
         {estado === "ativo"
           ? "Ativadas neste dispositivo. Você receberá avisos do SIGEP mesmo fora do sistema."
           : "Receba avisos do SIGEP (escala, requerimentos, comunicados) direto no aparelho."}
@@ -182,7 +182,7 @@ export default function AtivarNotificacoes() {
           <button
             onClick={ativar}
             disabled={ocupado}
-            className="flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#08111F] transition hover:bg-[#D4AF37]/90 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-ouro px-4 py-2 text-sm font-semibold text-fundo transition hover:bg-ouro/90 disabled:opacity-50"
           >
             <Bell className="h-4 w-4" />
             {ocupado ? "Ativando..." : "Ativar notificações"}
@@ -194,7 +194,7 @@ export default function AtivarNotificacoes() {
             <button
               onClick={testar}
               disabled={ocupado}
-              className="flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#08111F] transition hover:bg-[#D4AF37]/90 disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg bg-ouro px-4 py-2 text-sm font-semibold text-fundo transition hover:bg-ouro/90 disabled:opacity-50"
             >
               <Send className="h-4 w-4" />
               {ocupado ? "Enviando..." : "Enviar teste"}
@@ -202,7 +202,7 @@ export default function AtivarNotificacoes() {
             <button
               onClick={desativar}
               disabled={ocupado}
-              className="flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2 text-sm text-[#94A3B8] transition hover:border-red-500/40 hover:text-red-300 disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2 text-sm text-apagado transition hover:border-red-500/40 hover:text-red-300 disabled:opacity-50"
             >
               <BellOff className="h-4 w-4" />
               Desativar
@@ -211,7 +211,7 @@ export default function AtivarNotificacoes() {
         )}
       </div>
 
-      {msg && <p className="mt-3 text-sm text-[#E8EEF6]/80">{msg}</p>}
+      {msg && <p className="mt-3 text-sm text-texto/80">{msg}</p>}
     </div>
   );
 }

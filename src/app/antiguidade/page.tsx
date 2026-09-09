@@ -144,7 +144,7 @@ export default async function AntiguidadePage({
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-6xl">
         <h1 className="mb-1 text-2xl font-bold text-white">Efetivo por Antiguidade</h1>
-        <p className="mb-5 text-sm text-[#94A3B8]">
+        <p className="mb-5 text-sm text-apagado">
           Ordenado por posto e, dentro de cada posto, por data de promoção. Situação atualizada (férias/JMS/licença-prêmio de hoje).
         </p>
         <AntiguidadeTabela militares={linhas} postoInicial={searchParams.posto ?? ""} />

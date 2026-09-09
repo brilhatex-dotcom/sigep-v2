@@ -176,9 +176,9 @@ function ModalSituacoes({ inicial, onFechar, onSalvo }: {
       <div className="ui-card mt-10 w-full max-w-xl p-6" onClick={(e) => e.stopPropagation()}>
         <div className="mb-1 flex items-center justify-between">
           <h2 className="text-lg font-bold text-white">Situações do efetivo</h2>
-          <button onClick={onFechar} className="rounded-lg p-1.5 text-[#94A3B8] hover:bg-white/5 hover:text-white">✕</button>
+          <button onClick={onFechar} className="rounded-lg p-1.5 text-apagado hover:bg-white/5 hover:text-white">✕</button>
         </div>
-        <p className="mb-4 text-xs text-[#94A3B8]">
+        <p className="mb-4 text-xs text-apagado">
           Marque <b>&ldquo;afastamento&rdquo;</b> quando a situação tira o militar do serviço (sai da escala/organograma e aparece destacado). Ex.: Prisão Provisória.
         </p>
 
@@ -188,12 +188,12 @@ function ModalSituacoes({ inicial, onFechar, onSalvo }: {
               <input
                 value={s.nome}
                 onChange={(e) => editarNome(i, e.target.value)}
-                className="flex-1 rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                className="flex-1 rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
               />
-              <label className="flex shrink-0 items-center gap-1.5 text-xs text-[#cdd9ea]">
+              <label className="flex shrink-0 items-center gap-1.5 text-xs text-texto-2">
                 <input type="checkbox" checked={s.afastamento} onChange={() => toggleAf(i)} /> afastamento
               </label>
-              <button type="button" onClick={() => remover(i)} title="Remover" className="shrink-0 rounded-lg border border-white/10 px-2 py-2 text-xs text-[#94A3B8] hover:border-red-500/40 hover:text-red-300">🗑</button>
+              <button type="button" onClick={() => remover(i)} title="Remover" className="shrink-0 rounded-lg border border-white/10 px-2 py-2 text-xs text-apagado hover:border-red-500/40 hover:text-red-300">🗑</button>
             </div>
           ))}
         </div>
@@ -204,18 +204,18 @@ function ModalSituacoes({ inicial, onFechar, onSalvo }: {
             onChange={(e) => setNovo(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
             placeholder="Nova situação (ex.: Prisão Provisória)"
-            className="flex-1 rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+            className="flex-1 rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
           />
-          <button type="button" onClick={add} className="shrink-0 rounded-lg border border-[#D4AF37]/40 px-3 py-2 text-sm text-[#D4AF37] hover:bg-[#D4AF37]/10">+ Adicionar</button>
+          <button type="button" onClick={add} className="shrink-0 rounded-lg border border-ouro/40 px-3 py-2 text-sm text-ouro hover:bg-ouro/10">+ Adicionar</button>
         </div>
 
         {erro && <p className="mb-3 text-sm text-red-300">{erro}</p>}
 
         <div className="flex items-center gap-3">
-          <button type="button" onClick={salvar} disabled={salvando} className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-60">
+          <button type="button" onClick={salvar} disabled={salvando} className="inline-flex items-center gap-2 rounded-lg bg-ouro px-5 py-2.5 text-sm font-semibold text-ouro-texto transition hover:brightness-110 disabled:opacity-60">
             {salvando ? "Salvando..." : "Salvar situações"}
           </button>
-          <button type="button" onClick={onFechar} className="rounded-lg border border-white/10 px-5 py-2.5 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-white">Cancelar</button>
+          <button type="button" onClick={onFechar} className="rounded-lg border border-white/10 px-5 py-2.5 text-sm text-apagado hover:bg-white/5 hover:text-white">Cancelar</button>
         </div>
       </div>
     </div>
@@ -362,7 +362,7 @@ export default function EfetivoForm({
         <button
           onClick={salvar}
           disabled={salvando}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-lg bg-ouro px-5 py-2.5 text-sm font-semibold text-ouro-texto transition hover:brightness-110 disabled:opacity-60"
         >
           <Save className="h-4 w-4" />
           {salvando ? "Salvando..." : "Salvar alterações"}
@@ -389,10 +389,10 @@ export default function EfetivoForm({
         return (
           <section key={secao.titulo} className="ui-card p-6">
             <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-              <span className="h-4 w-1 rounded bg-[#D4AF37]" />
+              <span className="h-4 w-1 rounded bg-ouro" />
               {secao.titulo}
               {!editavel && (
-                <span className="ml-1 inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-normal normal-case tracking-normal text-[#94A3B8]">
+                <span className="ml-1 inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-normal normal-case tracking-normal text-apagado">
                   <Lock className="h-3 w-3" /> somente admin
                 </span>
               )}
@@ -402,14 +402,14 @@ export default function EfetivoForm({
             {secao.titulo === "Identificação e dados funcionais" && (
               <div className="mb-4 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
                 <div>
-                  <label className="mb-1 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+                  <label className="mb-1 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-apagado">
                     <Lock className="h-3 w-3" /> ID PMMA (não editável)
                   </label>
                   <input
                     type="text"
                     value={form.id}
                     disabled
-                    className="w-full cursor-not-allowed rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white/60 outline-none"
+                    className="w-full cursor-not-allowed rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white/60 outline-none"
                   />
                 </div>
               </div>
@@ -421,7 +421,7 @@ export default function EfetivoForm({
                   key={c.key}
                   className={c.tipo === "area" ? "sm:col-span-2 md:col-span-3" : ""}
                 >
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-apagado">
                     {c.label}
                   </label>
                   {c.tipo === "area" ? (
@@ -430,14 +430,14 @@ export default function EfetivoForm({
                       onChange={(e) => mudar(c.key, e.target.value)}
                       disabled={!editavel}
                       rows={3}
-                      className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50 disabled:opacity-50"
+                      className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50 disabled:opacity-50"
                     />
                   ) : c.key === "postoGrad" && editavel ? (
                     // posto: dropdown com a hierarquia oficial
                     <select
                       value={form[c.key]}
                       onChange={(e) => mudar(c.key, e.target.value)}
-                      className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                      className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
                     >
                       <option value="">Selecione...</option>
                       {POSTOS.map((p) => (
@@ -454,7 +454,7 @@ export default function EfetivoForm({
                       <select
                         value={form[c.key]}
                         onChange={(e) => mudar(c.key, e.target.value)}
-                        className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                        className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
                       >
                         <option value="">Selecione...</option>
                         {situacoesLista.map((s) => (
@@ -469,7 +469,7 @@ export default function EfetivoForm({
                           type="button"
                           onClick={() => setGerenciandoSit(true)}
                           title="Adicionar / editar situações"
-                          className="shrink-0 whitespace-nowrap rounded-lg border border-white/10 px-2.5 py-2 text-xs text-[#94A3B8] transition hover:border-[#D4AF37]/40 hover:text-white"
+                          className="shrink-0 whitespace-nowrap rounded-lg border border-white/10 px-2.5 py-2 text-xs text-apagado transition hover:border-ouro/40 hover:text-white"
                         >
                           ⚙ Situações
                         </button>
@@ -485,16 +485,16 @@ export default function EfetivoForm({
                         onFocus={() => setLotFocado(true)}
                         autoComplete="off"
                         placeholder="Digite e escolha a lotação..."
-                        className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                        className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
                       />
                       {lotFocado && sugestoesLot.length > 0 && (
-                        <ul className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-white/10 bg-[#0b1626] py-1 shadow-xl">
+                        <ul className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-white/10 bg-campo py-1 shadow-xl">
                           {sugestoesLot.map((s) => (
                             <li key={s}>
                               <button
                                 type="button"
                                 onClick={() => { mudar("lotacao", s); setLotFocado(false); }}
-                                className="block w-full px-3 py-2 text-left text-sm text-[#E8EEF6] transition hover:bg-[#D4AF37]/15 hover:text-white"
+                                className="block w-full px-3 py-2 text-left text-sm text-texto transition hover:bg-ouro/15 hover:text-white"
                               >
                                 {s}
                               </button>
@@ -509,7 +509,7 @@ export default function EfetivoForm({
                       value={form[c.key]}
                       onChange={(e) => mudar(c.key, e.target.value)}
                       disabled={!editavel}
-                      className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50 disabled:opacity-50"
+                      className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50 disabled:opacity-50"
                     />
                   )}
                 </div>
@@ -529,14 +529,14 @@ export default function EfetivoForm({
         <button
           onClick={salvar}
           disabled={salvando}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-lg bg-ouro px-5 py-2.5 text-sm font-semibold text-ouro-texto transition hover:brightness-110 disabled:opacity-60"
         >
           <Save className="h-4 w-4" />
           {salvando ? "Salvando..." : "Salvar alterações"}
         </button>
         <button
           onClick={() => router.push(`/efetivo/${encodeURIComponent(militar.id ?? "")}`)}
-          className="rounded-lg border border-white/10 px-5 py-2.5 text-sm text-[#94A3B8] transition hover:bg-white/5 hover:text-white"
+          className="rounded-lg border border-white/10 px-5 py-2.5 text-sm text-apagado transition hover:bg-white/5 hover:text-white"
         >
           Cancelar
         </button>

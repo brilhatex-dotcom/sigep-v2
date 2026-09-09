@@ -88,7 +88,7 @@ function relogio(seg: number): string {
 const CAMINHO_SIGEP = /^\/[A-Za-z0-9][A-Za-z0-9\-_/[\]?=&.%]*$/;
 
 function TextoComLinks({ texto, minha, aoAbrir }: { texto: string; minha: boolean; aoAbrir: (h: string) => void }) {
-  const cor = minha ? "text-[#1a1205] underline decoration-[#1a1205]/40" : "text-[#7cc4ff] underline";
+  const cor = minha ? "text-ouro-texto underline decoration-ouro-texto/40" : "text-[#7cc4ff] underline";
   return (
     <p className="whitespace-pre-wrap break-words">
       {texto.split(/(\s+)/).map((p, i) => {
@@ -617,21 +617,21 @@ export default function ConversaChat({
       {encaminhando && (
         <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-auto bg-black/60 p-4"
           onClick={() => setEncaminhando(null)}>
-          <div className="mt-16 w-full max-w-md overflow-hidden rounded-xl border border-[#2b3f63] bg-[#0F1B2D]"
+          <div className="mt-16 w-full max-w-md overflow-hidden rounded-xl border border-borda bg-painel"
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3 border-b border-white/5 p-4">
               <div className="min-w-0">
                 <p className="flex items-center gap-1.5 text-sm font-bold text-white">
-                  <Forward className="h-4 w-4 text-[#D4AF37]" /> Encaminhar para
+                  <Forward className="h-4 w-4 text-ouro" /> Encaminhar para
                 </p>
-                <p className="mt-0.5 truncate text-xs text-[#94A3B8]">
+                <p className="mt-0.5 truncate text-xs text-apagado">
                   {encaminhando.texto
                     || (ehAudio(encaminhando.arqTipo) ? "🎤 Mensagem de voz"
                         : ehImagem(encaminhando.arqTipo) ? "🖼 Foto"
                         : "📎 " + (encaminhando.arqNome || "arquivo"))}
                 </p>
               </div>
-              <button onClick={() => setEncaminhando(null)} className="shrink-0 text-[#94A3B8] hover:text-white">
+              <button onClick={() => setEncaminhando(null)} className="shrink-0 text-apagado hover:text-white">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -639,16 +639,16 @@ export default function ConversaChat({
               {contatos.filter((c) => !c.arquivada).map((c) => (
                 <button key={c.login} onClick={() => encaminharPara(c)}
                   className="flex w-full items-center gap-2.5 border-b border-white/5 px-3 py-2.5 text-left transition hover:bg-white/5">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#16243a] text-[10px] font-bold text-[#D4AF37]">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-painel-3 text-[10px] font-bold text-ouro">
                     {c.nome.slice(0, 2).toUpperCase()}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm text-white">{c.nome}</span>
-                    <span className="block truncate text-[11px] text-[#94A3B8]">
+                    <span className="block truncate text-[11px] text-apagado">
                       {[c.postoGrad, c.lotacao].filter(Boolean).join(" · ") || c.login}
                     </span>
                   </span>
-                  <Send className="h-3.5 w-3.5 shrink-0 text-[#D4AF37]" />
+                  <Send className="h-3.5 w-3.5 shrink-0 text-ouro" />
                 </button>
               ))}
             </div>
@@ -660,31 +660,31 @@ export default function ConversaChat({
       {compartilhar && (
         <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-auto bg-black/60 p-4"
           onClick={() => setCompartilhar(false)}>
-          <div className="mt-16 w-full max-w-md overflow-hidden rounded-xl border border-[#2b3f63] bg-[#0F1B2D]"
+          <div className="mt-16 w-full max-w-md overflow-hidden rounded-xl border border-borda bg-painel"
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3 border-b border-white/5 p-4">
               <div className="min-w-0">
                 <p className="flex items-center gap-1.5 text-sm font-bold text-white">
-                  <Share2 className="h-4 w-4 text-[#D4AF37]" /> Mandar item do SIGEP
+                  <Share2 className="h-4 w-4 text-ouro" /> Mandar item do SIGEP
                 </p>
-                <p className="mt-0.5 text-xs text-[#94A3B8]">
+                <p className="mt-0.5 text-xs text-apagado">
                   Vai como mensagem com o atalho — quem recebe abre direto na tela certa.
                 </p>
               </div>
-              <button onClick={() => setCompartilhar(false)} className="shrink-0 text-[#94A3B8] hover:text-white">
+              <button onClick={() => setCompartilhar(false)} className="shrink-0 text-apagado hover:text-white">
                 <X className="h-4 w-4" />
               </button>
             </div>
             <div className="max-h-[55vh] overflow-y-auto">
               {gruposSigep === null ? (
-                <p className="flex items-center justify-center gap-2 p-6 text-sm text-[#94A3B8]">
+                <p className="flex items-center justify-center gap-2 p-6 text-sm text-apagado">
                   <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
                 </p>
               ) : gruposSigep.length === 0 ? (
-                <p className="p-6 text-center text-sm text-[#94A3B8]">Nada para compartilhar no momento.</p>
+                <p className="p-6 text-center text-sm text-apagado">Nada para compartilhar no momento.</p>
               ) : gruposSigep.map((g) => (
                 <div key={g.titulo}>
-                  <p className="bg-black/25 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-[#D4AF37]">
+                  <p className="bg-black/25 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-ouro">
                     {g.titulo}
                   </p>
                   {g.itens.map((it) => (
@@ -693,9 +693,9 @@ export default function ConversaChat({
                       <span className="shrink-0 text-base leading-none">{it.icone}</span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm text-white">{it.titulo}</span>
-                        <span className="block truncate text-[11px] text-[#94A3B8]">{it.sub}</span>
+                        <span className="block truncate text-[11px] text-apagado">{it.sub}</span>
                       </span>
-                      <Send className="h-3.5 w-3.5 shrink-0 text-[#D4AF37]" />
+                      <Send className="h-3.5 w-3.5 shrink-0 text-ouro" />
                     </button>
                   ))}
                 </div>
@@ -708,7 +708,7 @@ export default function ConversaChat({
       {/* ---------------- busca dentro da conversa ---------------- */}
       {buscaVisivel && (
         <div className="flex items-center gap-2 border-b border-white/5 bg-black/20 px-2.5 py-1.5">
-          <Search className="h-3.5 w-3.5 shrink-0 text-[#94A3B8]" />
+          <Search className="h-3.5 w-3.5 shrink-0 text-apagado" />
           <input
             autoFocus
             value={buscaConversa}
@@ -721,14 +721,14 @@ export default function ConversaChat({
             className="min-w-0 flex-1 bg-transparent py-1 text-xs text-white placeholder-white/35 outline-none"
           />
           <button onClick={() => { limparBusca(); setBuscaVisivel(false); }}
-            title="Fechar a busca" className="shrink-0 text-[#94A3B8] hover:text-white">
+            title="Fechar a busca" className="shrink-0 text-apagado hover:text-white">
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
 
       {emBusca && (
-        <div className="flex items-center gap-2 border-b border-white/5 bg-[#D4AF37]/10 px-3 py-2 text-xs text-[#D4AF37]">
+        <div className="flex items-center gap-2 border-b border-white/5 bg-ouro/10 px-3 py-2 text-xs text-ouro">
           <Search className="h-3.5 w-3.5 shrink-0" />
           <span className="min-w-0 flex-1 truncate">
             {msgs.length === 0
@@ -752,7 +752,7 @@ export default function ConversaChat({
       <div ref={listaRef} className={`flex-1 overflow-y-auto ${t.lista}`}
         style={alturaMaxLista ? { maxHeight: alturaMaxLista } : undefined}>
         {msgs.length === 0 && !emBusca && (
-          <p className="py-10 text-center text-sm text-[#94A3B8]">
+          <p className="py-10 text-center text-sm text-apagado">
             Nenhuma mensagem ainda. Escreva a primeira.
           </p>
         )}
@@ -761,7 +761,7 @@ export default function ConversaChat({
           return (
             <div key={m.id}>
               {novoDia && (
-                <p className="my-3 text-center text-[11px] uppercase tracking-wider text-[#94A3B8]">{diaBR(m.em)}</p>
+                <p className="my-3 text-center text-[11px] uppercase tracking-wider text-apagado">{diaBR(m.em)}</p>
               )}
               <div className={`group relative flex items-start gap-1 ${m.minha ? "justify-end" : "justify-start"}`}>
                 {/* menu da mensagem: reagir, responder, encaminhar, copiar… */}
@@ -770,34 +770,34 @@ export default function ConversaChat({
                     <button
                       onClick={(e) => { e.stopPropagation(); setMenuDe(menuDe === m.id ? null : m.id); }}
                       title="Opções da mensagem"
-                      className="mt-2 rounded p-1 text-[#94A3B8] opacity-60 transition hover:bg-white/10 hover:text-white md:opacity-0 md:group-hover:opacity-100"
+                      className="mt-2 rounded p-1 text-apagado opacity-60 transition hover:bg-white/10 hover:text-white md:opacity-0 md:group-hover:opacity-100"
                     >
                       <ChevronDown className="h-3.5 w-3.5" />
                     </button>
                     {menuDe === m.id && (
-                      <div className={`absolute z-20 mt-1 w-44 overflow-hidden rounded-lg border border-[#2b3f63] bg-[#0F1B2D] shadow-xl ${
+                      <div className={`absolute z-20 mt-1 w-44 overflow-hidden rounded-lg border border-borda bg-painel shadow-xl ${
                         m.minha ? "left-0" : "right-0"}`}>
                         <button onClick={() => { setMenuDe(null); setReagindoEm(m.id); }}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-texto hover:bg-white/5">
                           <Smile className="h-3.5 w-3.5" /> Reagir
                         </button>
                         <button onClick={() => responder(m)}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-texto hover:bg-white/5">
                           <Reply className="h-3.5 w-3.5" /> Responder
                         </button>
                         <button onClick={() => { setMenuDe(null); setEncaminhando(m); }}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-texto hover:bg-white/5">
                           <Forward className="h-3.5 w-3.5" /> Encaminhar
                         </button>
                         {(m.texto || m.arqNome) && (
                           <button onClick={() => copiar(m)}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-texto hover:bg-white/5">
                             <Copy className="h-3.5 w-3.5" /> Copiar
                           </button>
                         )}
                         {m.minha && m.texto && (
                           <button onClick={() => comecarEdicao(m)}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#E8EEF6] hover:bg-white/5">
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-texto hover:bg-white/5">
                             <Pencil className="h-3.5 w-3.5" /> Editar
                           </button>
                         )}
@@ -814,8 +814,8 @@ export default function ConversaChat({
 
                 <div className={`max-w-[78%] rounded-2xl ${t.balao} ${m.minha ? "order-2" : "order-1"} ${
                   m.apagada
-                    ? "rounded-bl-sm border border-dashed border-white/15 bg-transparent text-[#94A3B8]"
-                    : m.minha ? "rounded-br-sm bg-[#D4AF37] text-[#1a1205]" : "rounded-bl-sm bg-[#16243a] text-[#E8EEF6]"}`}>
+                    ? "rounded-bl-sm border border-dashed border-white/15 bg-transparent text-apagado"
+                    : m.minha ? "rounded-br-sm bg-ouro text-ouro-texto" : "rounded-bl-sm bg-painel-3 text-texto"}`}>
 
                   {m.apagada ? (
                     <p className="flex items-center gap-1.5 italic">
@@ -825,7 +825,7 @@ export default function ConversaChat({
 
                   {m.encaminhada && (
                     <p className={`mb-0.5 flex items-center gap-1 text-[10px] italic ${
-                      m.minha ? "text-[#1a1205]/60" : "text-[#94A3B8]"}`}>
+                      m.minha ? "text-ouro-texto/60" : "text-apagado"}`}>
                       <Forward className="h-3 w-3" /> Encaminhada
                     </p>
                   )}
@@ -833,8 +833,8 @@ export default function ConversaChat({
                   {/* trecho da mensagem citada (responder) */}
                   {m.citada && (
                     <div className={`mb-1.5 rounded-lg border-l-2 px-2 py-1 text-[11px] ${
-                      m.minha ? "border-[#1a1205]/40 bg-black/10 text-[#1a1205]/80" : "border-[#D4AF37] bg-black/25 text-[#94A3B8]"}`}>
-                      <b className={m.minha ? "text-[#1a1205]" : "text-[#D4AF37]"}>
+                      m.minha ? "border-ouro-texto/40 bg-black/10 text-ouro-texto/80" : "border-ouro bg-black/25 text-apagado"}`}>
+                      <b className={m.minha ? "text-ouro-texto" : "text-ouro"}>
                         {m.citada.minha ? "Você" : contato.nome}
                       </b>
                       <span className="ml-1 line-clamp-2 break-words">{m.citada.trecho}</span>
@@ -851,7 +851,7 @@ export default function ConversaChat({
                       // eslint-disable-next-line jsx-a11y/media-has-caption
                       <audio controls src={previas[m.arqKey]} preload="none" className="mt-1 h-9 w-56 max-w-full" />
                     ) : (
-                      <span className={`mt-1 flex items-center gap-2 text-xs ${m.minha ? "text-[#1a1205]/70" : "text-[#94A3B8]"}`}>
+                      <span className={`mt-1 flex items-center gap-2 text-xs ${m.minha ? "text-ouro-texto/70" : "text-apagado"}`}>
                         <Mic className="h-3.5 w-3.5" /> Mensagem de voz…
                       </span>
                     )
@@ -866,7 +866,7 @@ export default function ConversaChat({
                         <img src={previas[m.arqKey]} alt={m.arqNome || "imagem"}
                           className="max-h-60 w-full object-cover" />
                       ) : (
-                        <span className={`flex items-center gap-2 px-2 py-6 text-xs ${m.minha ? "text-[#1a1205]/80" : "text-[#94A3B8]"}`}>
+                        <span className={`flex items-center gap-2 px-2 py-6 text-xs ${m.minha ? "text-ouro-texto/80" : "text-apagado"}`}>
                           🖼 <b className="truncate">{m.arqNome}</b>
                           <span className="ml-auto shrink-0">{tamanhoBR(m.arqTam)}</span>
                         </span>
@@ -896,7 +896,7 @@ export default function ConversaChat({
                           title={r.minha ? "Tirar a sua reação" : "Reagir também"}
                           className={`rounded-full border px-1.5 py-0.5 text-[11px] leading-none ${
                             r.minha
-                              ? "border-[#D4AF37] bg-[#D4AF37]/20"
+                              ? "border-ouro bg-ouro/20"
                               : m.minha ? "border-black/20 bg-black/10" : "border-white/10 bg-white/5"}`}
                         >
                           {r.emoji}{r.qtd > 1 ? ` ${r.qtd}` : ""}
@@ -907,7 +907,7 @@ export default function ConversaChat({
 
                   {/* fileira de emoji, ao escolher "Reagir" */}
                   {reagindoEm === m.id && (
-                    <div className="mt-1 flex flex-wrap items-center gap-1 rounded-lg border border-[#2b3f63] bg-[#0F1B2D] p-1">
+                    <div className="mt-1 flex flex-wrap items-center gap-1 rounded-lg border border-borda bg-painel p-1">
                       {EMOJIS.map((e) => (
                         <button key={e} onClick={() => reagir(m, e)}
                           className="rounded px-1.5 py-0.5 text-base leading-none transition hover:bg-white/10">
@@ -915,14 +915,14 @@ export default function ConversaChat({
                         </button>
                       ))}
                       <button onClick={() => setReagindoEm(null)}
-                        className="ml-auto rounded p-1 text-[#94A3B8] hover:text-white">
+                        className="ml-auto rounded p-1 text-apagado hover:text-white">
                         <X className="h-3 w-3" />
                       </button>
                     </div>
                   )}
 
                   <p className={`mt-0.5 text-right text-[10px] ${
-                    m.apagada ? "text-[#94A3B8]" : m.minha ? "text-[#1a1205]/60" : "text-[#94A3B8]"}`}>
+                    m.apagada ? "text-apagado" : m.minha ? "text-ouro-texto/60" : "text-apagado"}`}>
                     {horaBR(m.em)}
                     {m.editada && !m.apagada && " · editada"}
                     {m.minha && !m.apagada && (m.lida
@@ -939,13 +939,13 @@ export default function ConversaChat({
 
       {subindo && (
         <div className="border-t border-white/5 px-3 py-2">
-          <p className="mb-1 flex items-center gap-2 text-xs text-[#94A3B8]">
+          <p className="mb-1 flex items-center gap-2 text-xs text-apagado">
             <Loader2 className="h-3 w-3 animate-spin" />
             {fila && <span className="shrink-0">Arquivo {fila.i} de {fila.total} —</span>}
             Enviando <b className="truncate text-white">{subindo.nome}</b> — {subindo.pct}%
           </p>
           <div className="h-1 overflow-hidden rounded bg-white/10">
-            <div className="h-full bg-[#D4AF37] transition-all" style={{ width: subindo.pct + "%" }} />
+            <div className="h-full bg-ouro transition-all" style={{ width: subindo.pct + "%" }} />
           </div>
         </div>
       )}
@@ -953,12 +953,12 @@ export default function ConversaChat({
       {/* respondendo a alguém: a citação fica presa acima do campo */}
       {respondendo && (
         <div className="flex items-start gap-2 border-t border-white/5 bg-black/20 px-3 py-2">
-          <span className="mt-0.5 h-8 w-0.5 shrink-0 rounded bg-[#D4AF37]" />
+          <span className="mt-0.5 h-8 w-0.5 shrink-0 rounded bg-ouro" />
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-bold text-[#D4AF37]">
+            <p className="text-[11px] font-bold text-ouro">
               Respondendo {respondendo.minha ? "você mesmo" : contato.nome}
             </p>
-            <p className="truncate text-xs text-[#94A3B8]">
+            <p className="truncate text-xs text-apagado">
               {respondendo.texto
                 || (ehAudio(respondendo.arqTipo) ? "🎤 Mensagem de voz"
                     : ehImagem(respondendo.arqTipo) ? "🖼 Foto"
@@ -966,7 +966,7 @@ export default function ConversaChat({
             </p>
           </div>
           <button onClick={() => setRespondendo(null)} title="Cancelar resposta"
-            className="shrink-0 text-[#94A3B8] hover:text-white">
+            className="shrink-0 text-apagado hover:text-white">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -975,12 +975,12 @@ export default function ConversaChat({
       {/* editando uma mensagem já enviada */}
       {editando && (
         <div className="flex items-center gap-2 border-t border-white/5 bg-black/20 px-3 py-2">
-          <Pencil className="h-3.5 w-3.5 shrink-0 text-[#D4AF37]" />
-          <p className="min-w-0 flex-1 truncate text-xs text-[#94A3B8]">
+          <Pencil className="h-3.5 w-3.5 shrink-0 text-ouro" />
+          <p className="min-w-0 flex-1 truncate text-xs text-apagado">
             Editando a mensagem — quem recebeu verá “editada”.
           </p>
           <button onClick={cancelarEdicao} title="Cancelar edição"
-            className="shrink-0 text-[#94A3B8] hover:text-white">
+            className="shrink-0 text-apagado hover:text-white">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -1000,21 +1000,21 @@ export default function ConversaChat({
         {menuAnexo && (
           <div
             onClick={(e) => e.stopPropagation()}
-            className="absolute bottom-16 left-2.5 z-30 w-60 overflow-hidden rounded-xl border border-[#2b3f63] bg-[#0F1B2D] shadow-2xl"
+            className="absolute bottom-16 left-2.5 z-30 w-60 overflow-hidden rounded-xl border border-borda bg-painel shadow-2xl"
           >
             {[
-              { icone: <ImageIcon className="h-4 w-4 text-[#D4AF37]" />, rot: "Fotos e vídeos", sub: "Pode escolher vários", ao: () => { setMenuAnexo(false); fotosRef.current?.click(); } },
-              { icone: <Camera className="h-4 w-4 text-[#D4AF37]" />, rot: "Câmera", sub: "Tirar uma foto agora", ao: () => { setMenuAnexo(false); cameraRef.current?.click(); } },
-              { icone: <FileText className="h-4 w-4 text-[#D4AF37]" />, rot: "Documento", sub: "Qualquer arquivo, até 20 MB", ao: () => { setMenuAnexo(false); arquivoRef.current?.click(); } },
-              { icone: <MapPin className="h-4 w-4 text-[#D4AF37]" />, rot: "Localização", sub: "Onde estou agora", ao: enviarLocalizacao },
-              { icone: <Share2 className="h-4 w-4 text-[#D4AF37]" />, rot: "Item do SIGEP", sub: "Escala, JOE, requerimento…", ao: abrirCompartilhar },
+              { icone: <ImageIcon className="h-4 w-4 text-ouro" />, rot: "Fotos e vídeos", sub: "Pode escolher vários", ao: () => { setMenuAnexo(false); fotosRef.current?.click(); } },
+              { icone: <Camera className="h-4 w-4 text-ouro" />, rot: "Câmera", sub: "Tirar uma foto agora", ao: () => { setMenuAnexo(false); cameraRef.current?.click(); } },
+              { icone: <FileText className="h-4 w-4 text-ouro" />, rot: "Documento", sub: "Qualquer arquivo, até 20 MB", ao: () => { setMenuAnexo(false); arquivoRef.current?.click(); } },
+              { icone: <MapPin className="h-4 w-4 text-ouro" />, rot: "Localização", sub: "Onde estou agora", ao: enviarLocalizacao },
+              { icone: <Share2 className="h-4 w-4 text-ouro" />, rot: "Item do SIGEP", sub: "Escala, JOE, requerimento…", ao: abrirCompartilhar },
             ].map((o) => (
               <button key={o.rot} onClick={o.ao}
                 className="flex w-full items-center gap-2.5 border-b border-white/5 px-3 py-2.5 text-left transition last:border-0 hover:bg-white/5">
                 <span className="shrink-0">{o.icone}</span>
                 <span className="min-w-0">
                   <span className="block text-xs font-semibold text-white">{o.rot}</span>
-                  <span className="block truncate text-[10px] text-[#94A3B8]">{o.sub}</span>
+                  <span className="block truncate text-[10px] text-apagado">{o.sub}</span>
                 </span>
               </button>
             ))}
@@ -1033,7 +1033,7 @@ export default function ConversaChat({
               <span className="text-sm font-semibold text-red-200">Gravando… {relogio(segundos)}</span>
             </div>
             <button onClick={() => pararGravacao(true)} title="Enviar áudio"
-              className={`shrink-0 rounded-lg bg-[#D4AF37] text-[#1a1205] transition hover:brightness-110 ${t.botao}`}>
+              className={`shrink-0 rounded-lg bg-ouro text-ouro-texto transition hover:brightness-110 ${t.botao}`}>
               <Send className={t.icone} />
             </button>
           </>
@@ -1043,7 +1043,7 @@ export default function ConversaChat({
               onClick={(e) => { e.stopPropagation(); setMenuAnexo((v) => !v); }}
               disabled={!!subindo || buscandoLocal}
               title="Enviar arquivo, foto, localização ou item do SIGEP"
-              className={`shrink-0 rounded-lg border border-white/10 text-[#94A3B8] transition hover:border-[#D4AF37] hover:text-white disabled:opacity-40 ${t.botao}`}
+              className={`shrink-0 rounded-lg border border-white/10 text-apagado transition hover:border-ouro hover:text-white disabled:opacity-40 ${t.botao}`}
             >
               {buscandoLocal ? <Loader2 className={`${t.icone} animate-spin`} /> : <Paperclip className={t.icone} />}
             </button>
@@ -1051,7 +1051,7 @@ export default function ConversaChat({
             {!buscaVisivel && (
               <button
                 onClick={() => setBuscaVisivel(true)} title="Buscar nesta conversa"
-                className={`shrink-0 rounded-lg border border-white/10 text-[#94A3B8] transition hover:border-[#D4AF37] hover:text-white ${t.botao}`}
+                className={`shrink-0 rounded-lg border border-white/10 text-apagado transition hover:border-ouro hover:text-white ${t.botao}`}
               >
                 <Search className={t.icone} />
               </button>
@@ -1065,7 +1065,7 @@ export default function ConversaChat({
                 if (e.key === "Escape" && editando) cancelarEdicao();
               }}
               placeholder={editando ? "Corrija a mensagem…" : "Escreva sua mensagem…"}
-              className={`max-h-28 min-h-[36px] flex-1 resize-y rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 text-white placeholder-white/35 outline-none focus:border-[#D4AF37] ${
+              className={`max-h-28 min-h-[36px] flex-1 resize-y rounded-lg border border-white/10 bg-black/30 px-2.5 py-2 text-white placeholder-white/35 outline-none focus:border-ouro ${
                 compacto ? "text-[13px]" : "text-sm"}`}
             />
 
@@ -1073,7 +1073,7 @@ export default function ConversaChat({
             {texto.trim() || editando ? (
               <button
                 onClick={enviarTexto} disabled={enviando || !texto.trim()}
-                className={`shrink-0 rounded-lg bg-[#D4AF37] text-[#1a1205] transition hover:brightness-110 disabled:opacity-40 ${t.botao}`}
+                className={`shrink-0 rounded-lg bg-ouro text-ouro-texto transition hover:brightness-110 disabled:opacity-40 ${t.botao}`}
                 title={editando ? "Salvar edição (Enter)" : "Enviar (Enter)"}
               >
                 {enviando ? <Loader2 className={`${t.icone} animate-spin`} /> : editando ? <Check className={t.icone} /> : <Send className={t.icone} />}
@@ -1081,7 +1081,7 @@ export default function ConversaChat({
             ) : (
               <button
                 onClick={iniciarGravacao} disabled={!!subindo}
-                className={`shrink-0 rounded-lg bg-[#D4AF37] text-[#1a1205] transition hover:brightness-110 disabled:opacity-40 ${t.botao}`}
+                className={`shrink-0 rounded-lg bg-ouro text-ouro-texto transition hover:brightness-110 disabled:opacity-40 ${t.botao}`}
                 title="Gravar mensagem de voz"
               >
                 <Mic className={t.icone} />

@@ -194,25 +194,25 @@ export default function HistoricoClient() {
   if (!sel) {
     return (
       <div className="space-y-4">
-        <div className="rounded-xl border border-white/10 bg-[#0F1B2D] p-4">
-          <label className="mb-1 block text-xs text-[#94A3B8]">Militar</label>
+        <div className="rounded-xl border border-white/10 bg-painel p-4">
+          <label className="mb-1 block text-xs text-apagado">Militar</label>
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-apagado" />
             <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar militar por nome ou matrícula..."
-              className="w-full rounded-lg border border-white/10 bg-[#0b1626] py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+              className="w-full rounded-lg border border-white/10 bg-campo py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-ouro/50" />
           </div>
           {busca.trim() !== "" && (
-            <div className="mt-1 overflow-hidden rounded-lg border border-white/10 bg-[#0b1626]">
-              {resultados.length === 0 ? <div className="px-3 py-2 text-xs text-[#94A3B8]">Nenhum militar.</div> :
+            <div className="mt-1 overflow-hidden rounded-lg border border-white/10 bg-campo">
+              {resultados.length === 0 ? <div className="px-3 py-2 text-xs text-apagado">Nenhum militar.</div> :
                 resultados.map((m) => (
                   <button key={m.id} onClick={() => abrir(m)}
                     className="block w-full px-3 py-2 text-left text-sm text-white hover:bg-white/5">
-                    {nomeDe(m)} {m.matricula && <span className="text-xs text-[#94A3B8]">mat {m.matricula}</span>}
+                    {nomeDe(m)} {m.matricula && <span className="text-xs text-apagado">mat {m.matricula}</span>}
                   </button>
                 ))}
             </div>
           )}
-          <p className="mt-2 text-xs text-[#94A3B8]">
+          <p className="mt-2 text-xs text-apagado">
             Os dados pessoais e funcionais saem da ficha. As promoções, férias, licença-prêmio e JMS que já estão
             no SIGEP aparecem como sugestão, para você completar com o número do boletim.
           </p>
@@ -220,12 +220,12 @@ export default function HistoricoClient() {
 
         <HistoricoLote aoTerminar={carregarLista} />
 
-        <div className="rounded-xl border border-white/10 bg-[#0F1B2D] p-4">
+        <div className="rounded-xl border border-white/10 bg-painel p-4">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
-            <Clock className="h-4 w-4 text-[#D4AF37]" /> Históricos já começados
+            <Clock className="h-4 w-4 text-ouro" /> Históricos já começados
           </h2>
           {comecados.length === 0 ? (
-            <p className="text-xs text-[#94A3B8]">Nenhum ainda. Busque um militar acima para começar.</p>
+            <p className="text-xs text-apagado">Nenhum ainda. Busque um militar acima para começar.</p>
           ) : (
             <ul className="divide-y divide-white/5">
               {comecados.map((h) => (
@@ -264,7 +264,7 @@ export default function HistoricoClient() {
     return (
       <button onClick={() => acrescentar(chave, s.linhas)}
         title={`Acrescenta ${s.linhas.length} linha(s) do que o SIGEP já sabe. Você completa o boletim.`}
-        className="inline-flex items-center gap-1 rounded border border-[#D4AF37]/40 px-2 py-0.5 text-[11px] text-[#D4AF37] transition hover:bg-[#D4AF37]/10">
+        className="inline-flex items-center gap-1 rounded border border-ouro/40 px-2 py-0.5 text-[11px] text-ouro transition hover:bg-ouro/10">
         <Sparkles className="h-3 w-3" /> {s.rotulo} ({s.linhas.length})
       </button>
     );
@@ -281,7 +281,7 @@ export default function HistoricoClient() {
         onChange={(e) => mudarSecao(chave, e.target.value)}
         rows={linhas}
         placeholder={dica}
-        className="w-full resize-y rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm leading-relaxed text-white outline-none focus:border-[#D4AF37]/50"
+        className="w-full resize-y rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm leading-relaxed text-white outline-none focus:border-ouro/50"
       />
     </div>
   );
@@ -289,8 +289,8 @@ export default function HistoricoClient() {
   return (
     <div className="space-y-4">
       {/* barra de comando */}
-      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-[#0F1B2D] p-3">
-        <button onClick={fechar} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-sm text-[#94A3B8] transition hover:text-white">
+      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-painel p-3">
+        <button onClick={fechar} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-sm text-apagado transition hover:text-white">
           <ArrowLeft className="h-4 w-4" /> Trocar militar
         </button>
         <span className="text-sm font-semibold text-white">{[posto, ficha.nome || sel.nome].filter(Boolean).join(" ")}</span>
@@ -305,7 +305,7 @@ export default function HistoricoClient() {
             onChange={(e) => { escolherArquivo(e.target.files?.[0]); e.currentTarget.value = ""; }} />
         </label>
         <button onClick={salvar} disabled={salvando}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-50">
+          className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-3 py-1.5 text-sm font-semibold text-ouro-texto transition hover:brightness-110 disabled:opacity-50">
           {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar
         </button>
         <button onClick={() => gerar("docx")} disabled={baixando !== null}
@@ -323,17 +323,17 @@ export default function HistoricoClient() {
       {/* Conferência antes de aplicar: o arquivo nunca entra sozinho. */}
       {previa && (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4" onClick={() => setPrevia(null)}>
-          <div className="mt-10 w-full max-w-2xl rounded-xl border border-white/10 bg-[#0F1B2D]" onClick={(e) => e.stopPropagation()}>
+          <div className="mt-10 w-full max-w-2xl rounded-xl border border-white/10 bg-painel" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
-              <Upload className="h-4 w-4 text-[#D4AF37]" />
+              <Upload className="h-4 w-4 text-ouro" />
               <h3 className="text-sm font-semibold text-white">
                 {origem === "ficha" ? "Ficha Individual do SGI — o que ela trouxe" : "O que o arquivo trouxe"}
               </h3>
-              <button onClick={() => setPrevia(null)} className="ml-auto rounded p-1 text-[#94A3B8] hover:text-white"><X className="h-4 w-4" /></button>
+              <button onClick={() => setPrevia(null)} className="ml-auto rounded p-1 text-apagado hover:text-white"><X className="h-4 w-4" /></button>
             </div>
 
             <div className="max-h-[60vh] overflow-y-auto p-4">
-              <p className="mb-3 text-xs text-[#94A3B8]">
+              <p className="mb-3 text-xs text-apagado">
                 {origem === "ficha"
                   ? `As publicações de boletim foram distribuídas em ${previa.achadas.length} seção(ões), com o número de cada boletim.`
                   : `${previa.achadas.length} seç${previa.achadas.length === 1 ? "ão reconhecida" : "ões reconhecidas"} · ${Object.keys(previa.dados.campos).length} campo(s) de identificação.`}
@@ -341,7 +341,7 @@ export default function HistoricoClient() {
               <ul className="mb-4 grid gap-1 sm:grid-cols-2">
                 {previa.achadas.map((a) => (
                   <li key={a.secao} className="flex items-center gap-2 text-xs text-white">
-                    <span className="w-10 shrink-0 text-right font-semibold text-[#D4AF37]">{a.secao}</span>
+                    <span className="w-10 shrink-0 text-right font-semibold text-ouro">{a.secao}</span>
                     <span className="truncate">{a.titulo}</span>
                     <span className="ml-auto shrink-0 text-[#7e8b99]">{a.tamanho} linha(s)</span>
                   </li>
@@ -372,22 +372,22 @@ export default function HistoricoClient() {
             </div>
 
             <div className="flex justify-end gap-2 border-t border-white/10 px-4 py-3">
-              <button onClick={() => setPrevia(null)} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#94A3B8] hover:text-white">Cancelar</button>
-              <button onClick={aplicarImportacao} className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] hover:brightness-110">
+              <button onClick={() => setPrevia(null)} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-apagado hover:text-white">Cancelar</button>
+              <button onClick={aplicarImportacao} className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-3 py-1.5 text-sm font-semibold text-ouro-texto hover:brightness-110">
                 <Check className="h-4 w-4" /> Trazer para o formulário
               </button>
             </div>
           </div>
         </div>
       )}
-      {carregando && <p className="flex items-center gap-2 text-sm text-[#94A3B8]"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</p>}
+      {carregando && <p className="flex items-center gap-2 text-sm text-apagado"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</p>}
 
       {!carregando && (
         <>
           {/* Cabeçalho do documento, do mesmo jeito que sai no papel. Os três
               brasões são CLICÁVEIS e vêm da mesma configuração da Escala de
               Serviço: trocar aqui troca na escala e em todos os documentos. */}
-          <section className="rounded-xl border border-white/10 bg-[#0F1B2D] p-4">
+          <section className="rounded-xl border border-white/10 bg-painel p-4">
             <h2 className="mb-3 text-sm font-semibold text-white">Cabeçalho do documento</h2>
             <div className="mx-auto max-w-[190mm] rounded bg-white px-6 py-4 text-black" style={{ fontFamily: "Times New Roman, Times, serif", fontSize: "11pt" }}>
               <Cabecalho
@@ -407,22 +407,22 @@ export default function HistoricoClient() {
             { num: "I", titulo: "DADOS PESSOAIS", campos: CAMPOS_PESSOAIS },
             { num: "II", titulo: "DADOS FUNCIONAIS", campos: CAMPOS_FUNCIONAIS },
           ].map((bloco) => (
-            <section key={bloco.num} className="rounded-xl border border-white/10 bg-[#0F1B2D] p-4">
+            <section key={bloco.num} className="rounded-xl border border-white/10 bg-painel p-4">
               <h2 className="mb-3 rounded bg-white/10 px-3 py-1.5 text-center text-sm font-bold text-white">
                 {bloco.num} – {bloco.titulo}
               </h2>
               <div className="grid gap-3 sm:grid-cols-2">
                 {bloco.campos.filter((c) => !(c.seOficial && !oficial) && !(c.sePraca && oficial)).map((c) => (
                   <div key={c.chave}>
-                    <label className="mb-1 block text-xs text-[#94A3B8]">
+                    <label className="mb-1 block text-xs text-apagado">
                       {c.rotulo}
-                      {c.daFicha && ficha[c.chave] && <span className="ml-1 text-[10px] text-[#D4AF37]">da ficha</span>}
+                      {c.daFicha && ficha[c.chave] && <span className="ml-1 text-[10px] text-ouro">da ficha</span>}
                     </label>
                     <input
                       value={dados.campos[c.chave] ?? ""}
                       onChange={(e) => mudarCampo(c.chave, e.target.value)}
                       placeholder={ficha[c.chave] ? ficha[c.chave].replace(/\n/g, " · ") : "—"}
-                      className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-1.5 text-sm text-white outline-none placeholder:text-[#5c6b80] focus:border-[#D4AF37]/50"
+                      className="w-full rounded-lg border border-white/10 bg-campo px-3 py-1.5 text-sm text-white outline-none placeholder:text-[#5c6b80] focus:border-ouro/50"
                     />
                   </div>
                 ))}
@@ -435,7 +435,7 @@ export default function HistoricoClient() {
 
           {/* III em diante: texto por seção. */}
           {SECOES.filter((s) => s.num !== "I" && s.num !== "II").map((sec) => (
-            <section key={sec.num} className="rounded-xl border border-white/10 bg-[#0F1B2D] p-4">
+            <section key={sec.num} className="rounded-xl border border-white/10 bg-painel p-4">
               <h2 className="mb-3 rounded bg-white/10 px-3 py-1.5 text-center text-sm font-bold text-white">
                 {sec.num} – {sec.titulo}
               </h2>
@@ -449,27 +449,27 @@ export default function HistoricoClient() {
           ))}
 
           {/* rodapé do documento */}
-          <section className="rounded-xl border border-white/10 bg-[#0F1B2D] p-4">
+          <section className="rounded-xl border border-white/10 bg-painel p-4">
             <h2 className="mb-3 text-sm font-semibold text-white">Rodapé do documento</h2>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-xs text-[#94A3B8]">Data do documento</label>
+                <label className="mb-1 block text-xs text-apagado">Data do documento</label>
                 <input type="date" value={dados.dataDoc || ""} onChange={(e) => setDados((d) => { setSujo(true); return { ...d, dataDoc: e.target.value }; })}
-                  className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                  className="w-full rounded-lg border border-white/10 bg-campo px-3 py-1.5 text-sm text-white outline-none focus:border-ouro/50" />
                 <p className="mt-1 text-xs text-[#7e8b99]">Em branco = a data em que o histórico for gerado.</p>
               </div>
               <div>
-                <label className="mb-1 block text-xs text-[#94A3B8]">Quem assina</label>
+                <label className="mb-1 block text-xs text-apagado">Quem assina</label>
                 <input value={dados.chefe || ""} onChange={(e) => setDados((d) => { setSujo(true); return { ...d, chefe: e.target.value }; })}
                   placeholder="Chefe do P/1 configurado na Escala"
-                  className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-1.5 text-sm text-white outline-none placeholder:text-[#5c6b80] focus:border-[#D4AF37]/50" />
+                  className="w-full rounded-lg border border-white/10 bg-campo px-3 py-1.5 text-sm text-white outline-none placeholder:text-[#5c6b80] focus:border-ouro/50" />
               </div>
             </div>
           </section>
 
           <div className="flex items-center gap-2 pb-6">
             <button onClick={salvar} disabled={salvando}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-50">
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-4 py-2 text-sm font-semibold text-ouro-texto transition hover:brightness-110 disabled:opacity-50">
               {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Salvar histórico
             </button>
           </div>

@@ -138,9 +138,9 @@ export default function RequerimentoLoteForm({
       {/* militares do lote */}
       <section className="ui-card p-6">
         <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-          <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Militares deste requerimento
+          <span className="h-4 w-1 rounded bg-ouro" /> Militares deste requerimento
         </h2>
-        <p className="mb-4 text-[12px] text-[#94A3B8]">
+        <p className="mb-4 text-[12px] text-apagado">
           Cada um recebe o seu próprio requerimento, com os dados da ficha dele (nome, endereço,
           matrícula, posto, CPF). O que você preenche abaixo vale para todos.
         </p>
@@ -150,8 +150,8 @@ export default function RequerimentoLoteForm({
           onRemover={(id) => setMilitares((l) => l.filter((m) => m.id !== id))}
           rotulo="Militares"
         />
-        <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-[#94A3B8]">
-          <Users className="h-3.5 w-3.5 text-[#D4AF37]" />
+        <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-apagado">
+          <Users className="h-3.5 w-3.5 text-ouro" />
           {militares.length === 0
             ? "Nenhum militar escolhido ainda."
             : `${militares.length} militar(es) escolhido(s).`}
@@ -162,14 +162,14 @@ export default function RequerimentoLoteForm({
       {ehOutros && (
         <section className="ui-card p-6">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-            <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Especifique a modalidade (Outros)
+            <span className="h-4 w-1 rounded bg-ouro" /> Especifique a modalidade (Outros)
           </h2>
-          <p className="mb-3 text-[12px] text-[#94A3B8]">
+          <p className="mb-3 text-[12px] text-apagado">
             Sai entre parênteses no documento, ao lado do quadrinho “OUTROS”.
           </p>
           <input type="text" value={f.modalidadeOutros} onChange={(e) => set("modalidadeOutros", e.target.value)}
             placeholder="Ex: INSCRIÇÃO NO CAP PM"
-            className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+            className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
         </section>
       )}
 
@@ -180,21 +180,21 @@ export default function RequerimentoLoteForm({
           {/* amparo legal */}
           <section className="ui-card p-6">
             <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-              <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Amparo legal
+              <span className="h-4 w-1 rounded bg-ouro" /> Amparo legal
             </h2>
             <textarea rows={3} value={f.amparoLegal} onChange={(e) => set("amparoLegal", e.target.value)}
               placeholder="Base legal do requerimento (lei, artigo, edital...)"
-              className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+              className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
           </section>
 
           {/* informacoes adicionais */}
           <section className="ui-card p-6">
             <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-              <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Informações adicionais
+              <span className="h-4 w-1 rounded bg-ouro" /> Informações adicionais
             </h2>
             <textarea rows={4} value={f.infoAdicional} onChange={(e) => set("infoAdicional", e.target.value)}
               placeholder="Descreva o que solicita..."
-              className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+              className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
           </section>
         </>
       )}
@@ -203,7 +203,7 @@ export default function RequerimentoLoteForm({
       {ehAquisicao && (
         <section className="ui-card p-6">
           <h2 className="mb-1 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-            <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Produto controlado de cada militar
+            <span className="h-4 w-1 rounded bg-ouro" /> Produto controlado de cada militar
           </h2>
           <p className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-[12px] text-amber-200">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -212,8 +212,8 @@ export default function RequerimentoLoteForm({
             faltar dado de alguém, nada é criado e o sistema diz de quem.
           </p>
 
-          <div className="mb-4 rounded-lg border border-white/10 bg-[#0b1626] p-3">
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
+          <div className="mb-4 rounded-lg border border-white/10 bg-campo p-3">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ouro">
               Igual para todos
             </p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
@@ -221,20 +221,20 @@ export default function RequerimentoLoteForm({
                 <input key={c.key} type="text" value={f[c.key]}
                   onChange={(e) => aplicarATodos(c.key, e.target.value)}
                   placeholder={c.dica}
-                  className="w-full rounded-lg border border-white/10 bg-[#0F1B2D] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                  className="w-full rounded-lg border border-white/10 bg-painel px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
               ))}
             </div>
           </div>
 
           {militares.length === 0 ? (
-            <p className="text-[12px] text-[#94A3B8]">
+            <p className="text-[12px] text-apagado">
               Escolha os militares acima para ajustar um a um.
             </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-sm">
                 <thead>
-                  <tr className="border-b border-white/10 text-left text-[11px] uppercase tracking-wider text-[#94A3B8]">
+                  <tr className="border-b border-white/10 text-left text-[11px] uppercase tracking-wider text-apagado">
                     <th className="px-2 py-2 font-semibold">Militar</th>
                     {CAMPOS_PCE.map((c) => (
                       <th key={c.key} className="px-2 py-2 font-semibold">{c.label}</th>
@@ -251,7 +251,7 @@ export default function RequerimentoLoteForm({
                           <td key={c.key} className="px-2 py-2">
                             <input type="text" value={linha[c.key] ?? ""}
                               onChange={(e) => setLinha(m.id, c.key, e.target.value)}
-                              className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                              className="w-full rounded-lg border border-white/10 bg-campo px-2 py-1.5 text-sm text-white outline-none focus:border-ouro/50" />
                           </td>
                         ))}
                       </tr>
@@ -268,7 +268,7 @@ export default function RequerimentoLoteForm({
       {ehCursos && (
         <section className="ui-card p-6">
           <h2 className="mb-1 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-            <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Informações do comandante (pág. 2 — verso)
+            <span className="h-4 w-1 rounded bg-ouro" /> Informações do comandante (pág. 2 — verso)
           </h2>
           <p className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-[12px] text-amber-200">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -279,35 +279,35 @@ export default function RequerimentoLoteForm({
           </p>
 
           {/* linha "igual para todos": preenche a tabela de uma vez */}
-          <div className="mb-4 rounded-lg border border-white/10 bg-[#0b1626] p-3">
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
+          <div className="mb-4 rounded-lg border border-white/10 bg-campo p-3">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ouro">
               Igual para todos
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
               <input type="text" value={f.p2Conceito} onChange={(e) => aplicarATodos("p2Conceito", e.target.value)}
                 placeholder="Conceito (ex: EXCEPCIONAL)"
-                className="w-full rounded-lg border border-white/10 bg-[#0F1B2D] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                className="w-full rounded-lg border border-white/10 bg-painel px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
               <input type="date" value={f.p2UltimaPromocao} onChange={(e) => aplicarATodos("p2UltimaPromocao", e.target.value)}
                 title="Data da última promoção"
-                className="w-full rounded-lg border border-white/10 bg-[#0F1B2D] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                className="w-full rounded-lg border border-white/10 bg-painel px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
               <input type="text" value={f.p2BgNumero} onChange={(e) => aplicarATodos("p2BgNumero", e.target.value)}
                 placeholder="Nº do BG (ex: 009)"
-                className="w-full rounded-lg border border-white/10 bg-[#0F1B2D] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                className="w-full rounded-lg border border-white/10 bg-painel px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
               <input type="date" value={f.p2BgData} onChange={(e) => aplicarATodos("p2BgData", e.target.value)}
                 title="Data do BG"
-                className="w-full rounded-lg border border-white/10 bg-[#0F1B2D] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                className="w-full rounded-lg border border-white/10 bg-painel px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
             </div>
           </div>
 
           {militares.length === 0 ? (
-            <p className="text-[12px] text-[#94A3B8]">
+            <p className="text-[12px] text-apagado">
               Escolha os militares acima para ajustar um a um.
             </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-sm">
                 <thead>
-                  <tr className="border-b border-white/10 text-left text-[11px] uppercase tracking-wider text-[#94A3B8]">
+                  <tr className="border-b border-white/10 text-left text-[11px] uppercase tracking-wider text-apagado">
                     <th className="px-2 py-2 font-semibold">Militar</th>
                     <th className="px-2 py-2 font-semibold">Conceito</th>
                     <th className="px-2 py-2 font-semibold">Última promoção</th>
@@ -324,22 +324,22 @@ export default function RequerimentoLoteForm({
                         <td className="px-2 py-2">
                           <input type="text" value={linha.p2Conceito ?? ""}
                             onChange={(e) => setLinha(m.id, "p2Conceito", e.target.value)}
-                            className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                            className="w-full rounded-lg border border-white/10 bg-campo px-2 py-1.5 text-sm text-white outline-none focus:border-ouro/50" />
                         </td>
                         <td className="px-2 py-2">
                           <input type="date" value={linha.p2UltimaPromocao ?? ""}
                             onChange={(e) => setLinha(m.id, "p2UltimaPromocao", e.target.value)}
-                            className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                            className="w-full rounded-lg border border-white/10 bg-campo px-2 py-1.5 text-sm text-white outline-none focus:border-ouro/50" />
                         </td>
                         <td className="px-2 py-2">
                           <input type="text" value={linha.p2BgNumero ?? ""}
                             onChange={(e) => setLinha(m.id, "p2BgNumero", e.target.value)}
-                            className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                            className="w-full rounded-lg border border-white/10 bg-campo px-2 py-1.5 text-sm text-white outline-none focus:border-ouro/50" />
                         </td>
                         <td className="px-2 py-2">
                           <input type="date" value={linha.p2BgData ?? ""}
                             onChange={(e) => setLinha(m.id, "p2BgData", e.target.value)}
-                            className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                            className="w-full rounded-lg border border-white/10 bg-campo px-2 py-1.5 text-sm text-white outline-none focus:border-ouro/50" />
                         </td>
                       </tr>
                     );
@@ -350,12 +350,12 @@ export default function RequerimentoLoteForm({
           )}
 
           <div className="mt-4">
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-apagado">
               Observação adicional do comandante (igual para todos, opcional)
             </label>
             <textarea rows={3} value={f.p2Complementares} onChange={(e) => set("p2Complementares", e.target.value)}
               placeholder="Só se houver algo além do texto padrão da página 2..."
-              className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+              className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
           </div>
         </section>
       )}
@@ -366,12 +366,12 @@ export default function RequerimentoLoteForm({
 
       <div className="flex flex-wrap items-center gap-3">
         <button onClick={() => criar("enviar")} disabled={salvando || !militares.length}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-40">
+          className="inline-flex items-center gap-2 rounded-lg bg-ouro px-5 py-2.5 text-sm font-semibold text-ouro-texto transition hover:brightness-110 disabled:opacity-40">
           <Send className="h-4 w-4" />
           {salvando ? "Criando..." : `Criar e enviar (${militares.length})`}
         </button>
         <button onClick={() => criar("rascunho")} disabled={salvando || !militares.length}
-          className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-5 py-2.5 text-sm text-[#94A3B8] transition hover:bg-white/5 hover:text-white disabled:opacity-40">
+          className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-5 py-2.5 text-sm text-apagado transition hover:bg-white/5 hover:text-white disabled:opacity-40">
           <Save className="h-4 w-4" /> Criar como rascunho
         </button>
       </div>

@@ -14,7 +14,7 @@ export default async function EncargosPage() {
       <EscalasNav />
       <div className="mx-auto max-w-4xl">
         <h1 className="mb-1 text-2xl font-bold text-white">Encargos e Comando</h1>
-        <p className="mb-5 text-sm text-[#94A3B8]">Defina quem comanda cada lugar (Cmt e sargenteante) e o Comando/Seções do BPM. Cada encargo destrava, no login da pessoa, o acesso à escala e aos indicadores da própria unidade.</p>
+        <p className="mb-5 text-sm text-apagado">Defina quem comanda cada lugar (Cmt e sargenteante) e o Comando/Seções do BPM. Cada encargo destrava, no login da pessoa, o acesso à escala e aos indicadores da própria unidade.</p>
         <EncargosClient />
       </div>
     </AppShell>

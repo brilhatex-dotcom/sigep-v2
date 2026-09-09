@@ -176,7 +176,7 @@ export default function RelatoriosClient({
       {/* ---------- topo ---------- */}
       <div className="no-print mb-5">
         <h1 className="text-2xl font-bold text-white">Central de Relatórios</h1>
-        <p className="text-sm text-[#94A3B8]">
+        <p className="text-sm text-apagado">
           Escolha o que mostrar, filtre quem entra e exporte em Excel, PDF ou Word.
         </p>
       </div>
@@ -184,7 +184,7 @@ export default function RelatoriosClient({
       {/* ---------- modelos prontos ---------- */}
       <section className="no-print ui-card mb-4 p-5">
         <h2 className="mb-1 text-sm font-bold uppercase tracking-wider text-white">Modelos prontos</h2>
-        <p className="mb-3 text-[12px] text-[#94A3B8]">
+        <p className="mb-3 text-[12px] text-apagado">
           Clique num modelo para montar tudo de uma vez. Depois dá para ajustar colunas e filtros à vontade.
         </p>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -192,11 +192,11 @@ export default function RelatoriosClient({
             <button key={m.id} onClick={() => aplicarModelo(m)}
               className={`rounded-lg border p-3 text-left transition ${
                 modeloAtivo === m.id
-                  ? "border-[#D4AF37] bg-[#D4AF37]/10"
-                  : "border-white/10 bg-white/5 hover:border-[#D4AF37]/40"
+                  ? "border-ouro bg-ouro/10"
+                  : "border-white/10 bg-white/5 hover:border-ouro/40"
               }`}>
               <span className="block text-sm font-semibold text-white">{m.nome}</span>
-              <span className="mt-0.5 block text-[11px] leading-snug text-[#94A3B8]">{m.descricao}</span>
+              <span className="mt-0.5 block text-[11px] leading-snug text-apagado">{m.descricao}</span>
             </button>
           ))}
         </div>
@@ -208,16 +208,16 @@ export default function RelatoriosClient({
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-bold uppercase tracking-wider text-white">Quem entra</h2>
             <button onClick={limparFiltros}
-              className="inline-flex items-center gap-1.5 text-xs text-[#94A3B8] transition hover:text-white">
+              className="inline-flex items-center gap-1.5 text-xs text-apagado transition hover:text-white">
               <RotateCcw className="h-3.5 w-3.5" /> limpar
             </button>
           </div>
 
           <div className="mb-3 relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-apagado" />
             <input value={busca} onChange={(e) => setBusca(e.target.value)}
               placeholder="Nome, matrícula ou lotação..."
-              className="w-full rounded-lg border border-white/10 bg-[#0b1626] py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+              className="w-full rounded-lg border border-white/10 bg-campo py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-ouro/50" />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -276,7 +276,7 @@ export default function RelatoriosClient({
         {/* ---------- colunas ---------- */}
         <section className="ui-card p-5">
           <h2 className="mb-1 text-sm font-bold uppercase tracking-wider text-white">O que mostrar</h2>
-          <p className="mb-3 text-[12px] text-[#94A3B8]">{colunasOrdenadas.length} coluna(s)</p>
+          <p className="mb-3 text-[12px] text-apagado">{colunasOrdenadas.length} coluna(s)</p>
           <div className="max-h-[420px] space-y-1 overflow-y-auto pr-1">
             {GRUPOS.map((g) => {
               const doGrupo = CAMPOS.filter((c) => c.grupo === g);
@@ -287,10 +287,10 @@ export default function RelatoriosClient({
                   <button
                     onClick={() => setGruposAbertos((s) => s.includes(g) ? s.filter((x) => x !== g) : [...s, g])}
                     className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-white hover:bg-white/5">
-                    <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-[#94A3B8] transition ${aberto ? "rotate-180" : ""}`} />
+                    <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-apagado transition ${aberto ? "rotate-180" : ""}`} />
                     {g}
                     {marcados > 0 && (
-                      <span className="ml-auto rounded-full bg-[#D4AF37]/20 px-1.5 py-0.5 text-[10px] text-[#D4AF37]">{marcados}</span>
+                      <span className="ml-auto rounded-full bg-ouro/20 px-1.5 py-0.5 text-[10px] text-ouro">{marcados}</span>
                     )}
                   </button>
                   {aberto && (
@@ -299,9 +299,9 @@ export default function RelatoriosClient({
                         const on = colunas.includes(String(c.chave));
                         return (
                           <button key={String(c.chave)} onClick={() => alternarColuna(String(c.chave))}
-                            className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-[12px] text-[#cdd9ea] hover:bg-white/5">
+                            className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-[12px] text-texto-2 hover:bg-white/5">
                             <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${
-                              on ? "border-[#D4AF37] bg-[#D4AF37] text-[#1a1205]" : "border-white/20"
+                              on ? "border-ouro bg-ouro text-ouro-texto" : "border-white/20"
                             }`}>
                               {on && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
                             </span>
@@ -319,14 +319,14 @@ export default function RelatoriosClient({
       </div>
 
       {/* ---------- barra de ações ---------- */}
-      <div className="no-print mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-[#0F1B2D] p-4">
+      <div className="no-print mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-painel p-4">
         <span className="inline-flex items-center gap-2 text-sm text-white">
-          <Users className="h-4 w-4 text-[#D4AF37]" />
+          <Users className="h-4 w-4 text-ouro" />
           <b>{ordenados.length}</b> militar(es)
         </span>
         <input value={titulo} onChange={(e) => setTitulo(e.target.value)}
           title="Título que sai no documento"
-          className="min-w-[200px] flex-1 rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+          className="min-w-[200px] flex-1 rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
         <div className="flex flex-wrap gap-2">
           <button onClick={() => window.print()} disabled={nada} className={btn}>
             <Printer className="h-4 w-4" /> PDF / Imprimir
@@ -391,16 +391,16 @@ export default function RelatoriosClient({
 
 /* ---------- pecinhas ---------- */
 const estiloSelect =
-  "w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50";
+  "w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50";
 const btn =
   "inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-sm text-white transition hover:bg-white/5 disabled:opacity-40";
 const btnOuro =
-  "inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-40";
+  "inline-flex items-center gap-1.5 rounded-lg bg-ouro px-3 py-2 text-sm font-semibold text-ouro-texto transition hover:brightness-110 disabled:opacity-40";
 
 function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">{rotulo}</label>
+      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-apagado">{rotulo}</label>
       {children}
     </div>
   );
@@ -408,9 +408,9 @@ function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode
 
 function Marcador({ ligado, onClick, children }: { ligado: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} className="inline-flex items-center gap-2 text-[12px] text-[#cdd9ea] hover:text-white">
+    <button onClick={onClick} className="inline-flex items-center gap-2 text-[12px] text-texto-2 hover:text-white">
       <span className={`flex h-4 w-4 items-center justify-center rounded border ${
-        ligado ? "border-[#D4AF37] bg-[#D4AF37] text-[#1a1205]" : "border-white/20"
+        ligado ? "border-ouro bg-ouro text-ouro-texto" : "border-white/20"
       }`}>
         {ligado && <Check className="h-3 w-3" strokeWidth={3} />}
       </span>

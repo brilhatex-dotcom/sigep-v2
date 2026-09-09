@@ -121,7 +121,7 @@ export default function CopiarDados({ dados }: { dados: Dados }) {
     <button
       onClick={copiar}
       title={texto}
-      className="inline-flex items-center gap-2 rounded-lg border border-[#2b3f63] bg-[#16243a] px-4 py-2 text-sm font-semibold text-[#E8EEF6] transition hover:border-[#D4AF37]"
+      className="inline-flex items-center gap-2 rounded-lg border border-borda bg-painel-3 px-4 py-2 text-sm font-semibold text-texto transition hover:border-ouro"
     >
       {copiado ? <Check className="h-4 w-4 text-[#46c47e]" /> : <Copy className="h-4 w-4" />}
       {copiado ? "Copiado!" : "Copiar dados"}

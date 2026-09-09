@@ -79,15 +79,15 @@ function InputData({
 }: { label: string; value: string; onChange: (v: string) => void; required?: boolean }) {
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-[#94A3B8]">
+      <label className="mb-1 block text-xs font-medium text-apagado">
         {label}{required && <span className="ml-0.5 text-red-400">*</span>}
-        {value && <span className="ml-1 text-[#D4AF37]">({isoParaBR(value)})</span>}
+        {value && <span className="ml-1 text-ouro">({isoParaBR(value)})</span>}
       </label>
       <input
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+        className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
       />
     </div>
   );
@@ -731,12 +731,12 @@ export default function PlanoFerias({
       onClick={() => setFiltro(id)}
       className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
         filtro === id
-          ? "bg-[#D4AF37] text-[#1a1205]"
-          : "bg-[#0F1B2D] text-[#94A3B8] ring-1 ring-white/10 hover:text-white"
+          ? "bg-ouro text-ouro-texto"
+          : "bg-painel text-apagado ring-1 ring-white/10 hover:text-white"
       }`}
     >
       {rotulo}
-      <span className={`rounded-full px-1.5 text-xs ${filtro === id ? "bg-black/15" : "bg-white/10 text-[#94A3B8]"}`}>
+      <span className={`rounded-full px-1.5 text-xs ${filtro === id ? "bg-black/15" : "bg-white/10 text-apagado"}`}>
         {qtd}
       </span>
     </button>
@@ -746,12 +746,12 @@ export default function PlanoFerias({
     <div className="space-y-5">
       {/* topo */}
       <div className="flex flex-wrap items-center gap-3">
-        <label className="text-sm text-[#94A3B8]">Ano de gozo</label>
+        <label className="text-sm text-apagado">Ano de gozo</label>
         {/* seletor + novo plano abaixo */}
         <select
           value={anoSelecionado}
           onChange={(e) => onTrocarAno(e.target.value)}
-          className="rounded-lg border border-white/10 bg-[#0b1626] px-3 py-1.5 text-sm font-medium text-white outline-none focus:border-[#D4AF37]/50"
+          className="rounded-lg border border-white/10 bg-campo px-3 py-1.5 text-sm font-medium text-white outline-none focus:border-ouro/50"
         >
           {anos.map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
@@ -759,7 +759,7 @@ export default function PlanoFerias({
           <button
             onClick={novoPlano}
             title="Criar o plano de férias de um novo ano (copia as equipes e militares, com datas em branco)"
-            className="rounded-lg border border-[#D4AF37]/40 px-3 py-1.5 text-sm font-medium text-[#D4AF37] transition hover:bg-[#D4AF37]/10"
+            className="rounded-lg border border-ouro/40 px-3 py-1.5 text-sm font-medium text-ouro transition hover:bg-ouro/10"
           >
             + Novo plano
           </button>
@@ -789,7 +789,7 @@ export default function PlanoFerias({
         <button
           onClick={imprimir}
           title="Imprimir o plano de Férias (equipes, períodos e militares)"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-medium text-[#1a1205] transition hover:brightness-110"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-3 py-1.5 text-sm font-medium text-ouro-texto transition hover:brightness-110"
         >
           🖨 Imprimir / PDF
         </button>
@@ -803,14 +803,14 @@ export default function PlanoFerias({
       {/* cartões de resumo */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="ui-card p-4">
-          <Users className="mb-1 h-5 w-5 text-[#D4AF37]" />
+          <Users className="mb-1 h-5 w-5 text-ouro" />
           <p className="text-2xl font-bold text-white">{cartoes.comMilitares}</p>
-          <p className="text-xs text-[#94A3B8]">Equipes com militares</p>
+          <p className="text-xs text-apagado">Equipes com militares</p>
         </div>
         <div className="ui-card p-4">
           <Plane className="mb-1 h-5 w-5 text-amber-400" />
           <p className="text-2xl font-bold text-white">{cartoes.emFeriasHoje}</p>
-          <p className="text-xs text-[#94A3B8]">
+          <p className="text-xs text-apagado">
             Em férias hoje
             {cartoes.equipesEmFerias.length > 0 && ` · Equipe(s) ${cartoes.equipesEmFerias.join(", ")}`}
           </p>
@@ -818,12 +818,12 @@ export default function PlanoFerias({
         <div className="ui-card p-4">
           <CalendarDays className="mb-1 h-5 w-5 text-emerald-400" />
           <p className="text-2xl font-bold text-white">{cartoes.equipesMes}</p>
-          <p className="text-xs text-[#94A3B8]">Equipes do mês</p>
+          <p className="text-xs text-apagado">Equipes do mês</p>
         </div>
         <div className="ui-card p-4">
-          <Palmtree className="mb-1 h-5 w-5 text-[#D4AF37]" />
+          <Palmtree className="mb-1 h-5 w-5 text-ouro" />
           <p className="text-2xl font-bold text-white">{totalMilitares}</p>
-          <p className="text-xs text-[#94A3B8]">Total no plano</p>
+          <p className="text-xs text-apagado">Total no plano</p>
         </div>
       </div>
 
@@ -837,21 +837,21 @@ export default function PlanoFerias({
             className="flex w-full flex-wrap items-center gap-2 text-left"
           >
             {unidadesAberto
-              ? <ChevronDown className="h-4 w-4 shrink-0 text-[#D4AF37]" />
-              : <ChevronRight className="h-4 w-4 shrink-0 text-[#D4AF37]" />}
+              ? <ChevronDown className="h-4 w-4 shrink-0 text-ouro" />
+              : <ChevronRight className="h-4 w-4 shrink-0 text-ouro" />}
             <Users className="h-5 w-5 shrink-0 text-emerald-400" />
             <span className="text-base font-bold text-white">Distribuição por unidade</span>
-            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-bold text-[#cdd9ea]">
+            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-bold text-texto-2">
               {distribuicaoPorUnidade.linhas.length}
             </span>
-            <span className="text-xs text-[#94A3B8]">
+            <span className="text-xs text-apagado">
               · quantos de cada unidade saem de férias por equipe
             </span>
           </button>
 
           {unidadesAberto && (
             <div className="mt-3">
-              <p className="mb-3 text-xs text-[#94A3B8]">
+              <p className="mb-3 text-xs text-apagado">
                 Cada linha é uma unidade; cada coluna, uma equipe. O número é quanta gente daquela unidade
                 sai de férias quando aquela equipe sair. Em unidade pequena (um destacamento, a ROTEM),
                 <span className="text-emerald-300"> 1 por equipe</span> é o ideal;
@@ -861,7 +861,7 @@ export default function PlanoFerias({
               <div className="overflow-x-auto rounded-lg border border-white/10">
                 <table className="min-w-full text-sm">
                   <thead className="bg-white/5">
-                    <tr className="text-xs uppercase tracking-wider text-[#94A3B8]">
+                    <tr className="text-xs uppercase tracking-wider text-apagado">
                       <th className="px-3 py-2 text-left font-semibold">Unidade</th>
                       <th className="px-2 py-2 text-center font-semibold">Total</th>
                       {distribuicaoPorUnidade.numerosEquipe.map((n) => (
@@ -874,7 +874,7 @@ export default function PlanoFerias({
                     {distribuicaoPorUnidade.linhas.map((l) => (
                       <tr key={l.grupo} className="hover:bg-white/5">
                         <td className="whitespace-nowrap px-3 py-2 text-white">{l.rotulo}</td>
-                        <td className="px-2 py-2 text-center text-[#94A3B8]">{l.total}</td>
+                        <td className="px-2 py-2 text-center text-apagado">{l.total}</td>
                         {l.valores.map((v, i) => (
                           <td
                             key={i}
@@ -912,11 +912,11 @@ export default function PlanoFerias({
           className="flex w-full flex-wrap items-center gap-2 text-left"
         >
           {vencidasAberto
-            ? <ChevronDown className="h-4 w-4 shrink-0 text-[#D4AF37]" />
-            : <ChevronRight className="h-4 w-4 shrink-0 text-[#D4AF37]" />}
+            ? <ChevronDown className="h-4 w-4 shrink-0 text-ouro" />
+            : <ChevronRight className="h-4 w-4 shrink-0 text-ouro" />}
           <Clock className="h-5 w-5 shrink-0 text-amber-400" />
           <span className="text-base font-bold text-white">Férias vencidas / a gozar</span>
-          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-bold text-[#cdd9ea]">
+          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-bold text-texto-2">
             {relatorioVencidas.length}
           </span>
           {totalVencidas > 0 && (
@@ -924,7 +924,7 @@ export default function PlanoFerias({
               {totalVencidas} vencida{totalVencidas > 1 ? "s" : ""}
             </span>
           )}
-          <span className="ml-auto text-xs font-medium text-[#D4AF37]">
+          <span className="ml-auto text-xs font-medium text-ouro">
             {vencidasAberto ? "ocultar lista" : "ver lista"}
           </span>
         </button>
@@ -932,13 +932,13 @@ export default function PlanoFerias({
         {vencidasAberto && (
           <div className="mt-3 border-t border-white/10 pt-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-[#94A3B8]">
+              <p className="text-xs text-apagado">
                 Militares que <b>adiaram</b> as férias — continuam no serviço e ficaram com o período a gozar.
                 <b> Vencida</b> = o exercício já passou.
               </p>
               {vencidasFiltradas.length > 0 && (
                 <button onClick={imprimirVencidas}
-                  className="shrink-0 rounded border border-white/15 px-2.5 py-1 text-xs text-[#94A3B8] hover:border-[#D4AF37] hover:text-white">
+                  className="shrink-0 rounded border border-white/15 px-2.5 py-1 text-xs text-apagado hover:border-ouro hover:text-white">
                   🖨 Imprimir relatório
                 </button>
               )}
@@ -947,7 +947,7 @@ export default function PlanoFerias({
             {/* filtro por exercício — separa por ano conforme o sistema avança */}
             {(exerciciosVencidas.anos.length > 0 || exerciciosVencidas.semAno) && (
               <div className="mb-3 flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] uppercase tracking-wide text-[#94A3B8]">Exercício:</span>
+                <span className="text-[11px] uppercase tracking-wide text-apagado">Exercício:</span>
                 {[
                   { v: "todos", r: "Todos", n: relatorioVencidas.length },
                   ...exerciciosVencidas.anos.map((a) => ({
@@ -962,8 +962,8 @@ export default function PlanoFerias({
                     onClick={() => setExercicioSel(op.v)}
                     className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
                       exercicioSel === op.v
-                        ? "bg-[#D4AF37] text-[#1a1205]"
-                        : "bg-white/5 text-[#94A3B8] hover:bg-white/10 hover:text-white"
+                        ? "bg-ouro text-ouro-texto"
+                        : "bg-white/5 text-apagado hover:bg-white/10 hover:text-white"
                     }`}
                   >
                     {op.r} <span className="opacity-70">({op.n})</span>
@@ -973,17 +973,17 @@ export default function PlanoFerias({
             )}
 
             {relatorioVencidas.length === 0 ? (
-              <p className="rounded-lg bg-white/5 px-3 py-4 text-center text-sm text-[#94A3B8]">
+              <p className="rounded-lg bg-white/5 px-3 py-4 text-center text-sm text-apagado">
                 Nenhum militar com férias a gozar. Use o botão <b>Adiar</b> dentro da equipe para registrar.
               </p>
             ) : vencidasFiltradas.length === 0 ? (
-              <p className="rounded-lg bg-white/5 px-3 py-4 text-center text-sm text-[#94A3B8]">
+              <p className="rounded-lg bg-white/5 px-3 py-4 text-center text-sm text-apagado">
                 Nenhum militar neste exercício.
               </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[520px] text-left text-sm">
-                  <thead className="border-b border-white/10 text-xs uppercase text-[#94A3B8]">
+                  <thead className="border-b border-white/10 text-xs uppercase text-apagado">
                     <tr>
                       <th className="px-2 py-2 font-semibold">Militar</th>
                       <th className="px-2 py-2 font-semibold">Exercício</th>
@@ -995,11 +995,11 @@ export default function PlanoFerias({
                     {vencidasFiltradas.map((l) => (
                       <tr key={l.id} className="hover:bg-white/5">
                         <td className="px-2 py-2">
-                          <span className="text-[#94A3B8]">{l.postoGrad ?? ""}</span>{" "}
+                          <span className="text-apagado">{l.postoGrad ?? ""}</span>{" "}
                           <span className="font-medium text-white">{l.nome ?? "—"}</span>
-                          {l.nomeGuerra && <span className="ml-1 text-xs text-[#94A3B8]">({l.nomeGuerra})</span>}
+                          {l.nomeGuerra && <span className="ml-1 text-xs text-apagado">({l.nomeGuerra})</span>}
                         </td>
-                        <td className="whitespace-nowrap px-2 py-2 font-bold text-[#cdd9ea]">{l.exercicio || "—"}</td>
+                        <td className="whitespace-nowrap px-2 py-2 font-bold text-texto-2">{l.exercicio || "—"}</td>
                         <td className="whitespace-nowrap px-2 py-2">
                           <span className={
                             "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase " +
@@ -1008,7 +1008,7 @@ export default function PlanoFerias({
                             {l.vencida ? "vencida" : "a gozar"}
                           </span>
                         </td>
-                        <td className="px-2 py-2 text-[#94A3B8]">{l.motivo || "—"}</td>
+                        <td className="px-2 py-2 text-apagado">{l.motivo || "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1027,7 +1027,7 @@ export default function PlanoFerias({
             <div key={e.numeroEquipe} className="ui-card p-4">
               <div className="flex items-center gap-4">
                 <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-lg font-bold ${
-                  e.status.chave === "em_ferias" ? "bg-[#D4AF37] text-[#1a1205]" : "bg-white/10 text-white"
+                  e.status.chave === "em_ferias" ? "bg-ouro text-ouro-texto" : "bg-white/10 text-white"
                 }`}>
                   {e.numeroEquipe}
                 </div>
@@ -1040,7 +1040,7 @@ export default function PlanoFerias({
                     </span>
                   </div>
                   {e.periodos.map((p, idx) => (
-                    <p key={idx} className="text-xs text-[#94A3B8]">
+                    <p key={idx} className="text-xs text-apagado">
                       {e.periodos.length > 1
                         ? <span className="font-semibold text-white/80">{p.rotulo}: </span>
                         : <span className="font-semibold text-white/80">Período: </span>}
@@ -1049,26 +1049,26 @@ export default function PlanoFerias({
                     </p>
                   ))}
                   {e.status.detalhe && (
-                    <p className="mt-0.5 text-xs text-[#94A3B8]/70">{e.status.detalhe}</p>
+                    <p className="mt-0.5 text-xs text-apagado/70">{e.status.detalhe}</p>
                   )}
                 </div>
 
                 <div className="flex shrink-0 flex-col items-end gap-1">
                   <p className="text-2xl font-bold text-white">{membrosFiltrados.length}</p>
-                  <p className="text-[11px] text-[#94A3B8]">militares</p>
+                  <p className="text-[11px] text-apagado">militares</p>
                   <div className="mt-1 flex gap-1.5">
                     {isAdmin && (
                       <button
                         onClick={() => abrirEditar(e)}
                         title="Editar datas"
-                        className="inline-flex items-center gap-1 rounded-lg border border-[#D4AF37]/30 px-2.5 py-1 text-xs text-[#D4AF37] transition hover:bg-[#D4AF37] hover:text-[#1a1205]"
+                        className="inline-flex items-center gap-1 rounded-lg border border-ouro/30 px-2.5 py-1 text-xs text-ouro transition hover:bg-ouro hover:text-ouro-texto"
                       >
                         <Calendar className="h-3.5 w-3.5" /> Datas
                       </button>
                     )}
                     <button
                       onClick={() => setAberta(e)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1 text-xs text-[#94A3B8] transition hover:border-[#D4AF37]/40 hover:text-white"
+                      className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1 text-xs text-apagado transition hover:border-ouro/40 hover:text-white"
                     >
                       Ver detalhes
                     </button>
@@ -1083,13 +1083,13 @@ export default function PlanoFerias({
       {/* ===== MODAL EDITAR DATAS ===== */}
       {editando && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4">
-          <div className="w-full max-w-lg rounded-xl border border-white/10 bg-[#0F1B2D] shadow-xl">
+          <div className="w-full max-w-lg rounded-xl border border-white/10 bg-painel shadow-xl">
             <div className="flex items-center justify-between rounded-t-xl border-b border-white/10 bg-white/5 px-5 py-4">
               <div className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-[#D4AF37]" />
+                <Calendar className="h-5 w-5 text-ouro" />
                 <h3 className="font-bold text-white">Editar datas — Equipe {editando.numeroEquipe}</h3>
               </div>
-              <button onClick={() => setEditando(null)} className="text-[#94A3B8] hover:text-white">
+              <button onClick={() => setEditando(null)} className="text-apagado hover:text-white">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -1107,12 +1107,12 @@ export default function PlanoFerias({
 
               {/* Toggle período 2 */}
               <div>
-                <label className="flex cursor-pointer items-center gap-2 text-sm text-[#94A3B8]">
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-apagado">
                   <input
                     type="checkbox"
                     checked={form.usarP2}
                     onChange={(e) => setF("usarP2", e.target.checked)}
-                    className="h-4 w-4 accent-[#D4AF37]"
+                    className="h-4 w-4 accent-ouro"
                   />
                   Usar 2º período (sustação / São João / etc.)
                 </label>
@@ -1139,14 +1139,14 @@ export default function PlanoFerias({
               <div className="flex justify-end gap-2 pt-1">
                 <button
                   onClick={() => setEditando(null)}
-                  className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-white"
+                  className="rounded-lg border border-white/10 px-4 py-2 text-sm text-apagado hover:bg-white/5 hover:text-white"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={salvarDatas}
                   disabled={!form.p1Inicio || !form.p1Fim || !form.p1Apres || salvandoDatas}
-                  className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] hover:brightness-110 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-lg bg-ouro px-4 py-2 text-sm font-semibold text-ouro-texto hover:brightness-110 disabled:opacity-60"
                 >
                   {salvandoDatas && <Loader2 className="h-4 w-4 animate-spin" />}
                   Salvar datas
@@ -1161,14 +1161,14 @@ export default function PlanoFerias({
       {aberta && (
         <div className={`fixed inset-0 z-50 flex justify-center bg-black/60 ${
           equipeCheia ? "items-stretch p-0" : "items-start overflow-y-auto p-4"}`}>
-          <div className={`w-full border border-white/10 bg-[#0F1B2D] shadow-xl ${
+          <div className={`w-full border border-white/10 bg-painel shadow-xl ${
             equipeCheia
               ? "flex max-w-none flex-col"          // ocupa a tela toda
               : "mt-10 max-w-2xl rounded-xl"}`}>
             <div className={`flex shrink-0 items-center justify-between border-b border-white/10 bg-white/5 px-5 py-4 text-white ${
               equipeCheia ? "" : "rounded-t-xl"}`}>
               <div className="flex items-center gap-2">
-                <Palmtree className="h-5 w-5 text-[#D4AF37]" />
+                <Palmtree className="h-5 w-5 text-ouro" />
                 <h3 className="font-bold">
                   EQUIPE {aberta.numeroEquipe} · {filtrarMembros(aberta.membros).length} militares
                 </h3>
@@ -1184,7 +1184,7 @@ export default function PlanoFerias({
                 {isAdmin && filtrarMembros(aberta.membros).length > 0 && (
                   <>
                     <button onClick={() => abrirAssinarLote(aberta, "chefe_p1")}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-3 py-1.5 text-xs font-medium text-[#f3df9d] hover:bg-[#D4AF37]/20">
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-ouro/40 bg-ouro/10 px-3 py-1.5 text-xs font-medium text-ouro-claro hover:bg-ouro/20">
                       <ShieldCheck className="h-4 w-4" /> Assinar P/1
                     </button>
                     <button onClick={() => abrirAssinarLote(aberta, "cmt")}
@@ -1197,11 +1197,11 @@ export default function PlanoFerias({
                   onClick={() => setEquipeCheia((v) => !v)}
                   aria-label={equipeCheia ? "Voltar ao tamanho normal" : "Ver em tela cheia"}
                   title={equipeCheia ? "Voltar ao tamanho normal" : "Ver em tela cheia"}
-                  className="text-[#94A3B8] transition hover:text-white"
+                  className="text-apagado transition hover:text-white"
                 >
                   {equipeCheia ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
                 </button>
-                <button onClick={() => setAberta(null)} aria-label="Fechar" className="text-[#94A3B8] hover:text-white">
+                <button onClick={() => setAberta(null)} aria-label="Fechar" className="text-apagado hover:text-white">
                   <X className="h-5 w-5" />
                 </button>
               </div>
@@ -1216,7 +1216,7 @@ export default function PlanoFerias({
                     </span>{" "}
                     {p.inicioBR} → {p.fimBR}
                     {p.apres && p.apres.trim() && (
-                      <span className="text-[#94A3B8]"> · Apres.: {p.apres}</span>
+                      <span className="text-apagado"> · Apres.: {p.apres}</span>
                     )}
                   </p>
                 ))}
@@ -1229,21 +1229,21 @@ export default function PlanoFerias({
                     <p className="text-xs font-semibold text-emerald-200">
                       Adicionar à equipe {aberta.numeroEquipe} · plano de {anoSelecionado}
                     </p>
-                    <button onClick={() => setAddAberto(false)} className="text-xs text-[#94A3B8] hover:text-white">fechar</button>
+                    <button onClick={() => setAddAberto(false)} className="text-xs text-apagado hover:text-white">fechar</button>
                   </div>
                   <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-apagado" />
                     <input
                       value={addBusca}
                       onChange={(e) => setAddBusca(e.target.value)}
                       placeholder="Buscar militar por nome ou matrícula..."
-                      className="w-full rounded-lg border border-white/10 bg-[#0b1626] py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-emerald-400/50"
+                      className="w-full rounded-lg border border-white/10 bg-campo py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-emerald-400/50"
                     />
                   </div>
                   {addBusca.trim() !== "" && (
-                    <div className="mt-1 overflow-hidden rounded-lg border border-white/10 bg-[#0b1626]">
+                    <div className="mt-1 overflow-hidden rounded-lg border border-white/10 bg-campo">
                       {resultadosAdd.length === 0 ? (
-                        <div className="px-3 py-2 text-xs text-[#94A3B8]">
+                        <div className="px-3 py-2 text-xs text-apagado">
                           Nenhum militar disponível (quem já está no plano de {anoSelecionado} não aparece aqui).
                         </div>
                       ) : resultadosAdd.map((m) => (
@@ -1255,10 +1255,10 @@ export default function PlanoFerias({
                         >
                           <span>
                             {[m.postoGrad, m.nomeGuerra || m.nome].filter(Boolean).join(" ")}
-                            {m.matricula && <span className="ml-2 text-xs text-[#94A3B8]">mat {m.matricula}</span>}
+                            {m.matricula && <span className="ml-2 text-xs text-apagado">mat {m.matricula}</span>}
                           </span>
                           {addSalvando === m.id
-                            ? <Loader2 className="h-4 w-4 animate-spin text-[#94A3B8]" />
+                            ? <Loader2 className="h-4 w-4 animate-spin text-apagado" />
                             : <UserPlus className="h-4 w-4 text-emerald-300" />}
                         </button>
                       ))}
@@ -1271,8 +1271,8 @@ export default function PlanoFerias({
               <div className={`overflow-y-auto rounded-lg border border-white/10 ${
                 equipeCheia ? "min-h-0 flex-1" : "max-h-[50vh]"}`}>
                 <table className="min-w-full text-sm">
-                  <thead className="sticky top-0 bg-[#0F1B2D]">
-                    <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wider text-[#94A3B8]">
+                  <thead className="sticky top-0 bg-painel">
+                    <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wider text-apagado">
                       <th className="px-3 py-2 font-semibold">#</th>
                       <th className="px-3 py-2 font-semibold">Posto/Grad</th>
                       <th className="px-3 py-2 font-semibold">Nº/Barra</th>
@@ -1284,12 +1284,12 @@ export default function PlanoFerias({
                   <tbody className="divide-y divide-white/5">
                     {filtrarMembros(aberta.membros).map((m, i) => (
                       <tr key={m.efetivoId} className="hover:bg-white/5">
-                        <td className="px-3 py-2 text-[#94A3B8]">{i + 1}º</td>
-                        <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.postoGrad ?? "—"}</td>
-                        <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.numeroBarra ?? "—"}</td>
+                        <td className="px-3 py-2 text-apagado">{i + 1}º</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-apagado">{m.postoGrad ?? "—"}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-apagado">{m.numeroBarra ?? "—"}</td>
                         <td className="px-3 py-2">
                           <span className="font-medium text-white">{m.nome ?? "—"}</span>
-                          {m.nomeGuerra && <span className="ml-1 text-xs text-[#94A3B8]">({m.nomeGuerra})</span>}
+                          {m.nomeGuerra && <span className="ml-1 text-xs text-apagado">({m.nomeGuerra})</span>}
                           {postergados.has(m.efetivoId) && (
                             <span
                               title={`Férias adiadas — não sai de férias, segue no serviço normal.${postergados.get(m.efetivoId)?.exercicio ? ` Exercício ${postergados.get(m.efetivoId)!.exercicio}.` : ""}${postergados.get(m.efetivoId)?.motivo ? ` Motivo: ${postergados.get(m.efetivoId)!.motivo}` : ""}`}
@@ -1299,19 +1299,19 @@ export default function PlanoFerias({
                             </span>
                           )}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.matricula ?? "—"}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-apagado">{m.matricula ?? "—"}</td>
                         {isAdmin && (
                           <td className="whitespace-nowrap px-3 py-2">
                             <div className="flex gap-1.5">
                               <button
                                 onClick={() => abrirMemorando(m, aberta)}
-                                className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-[#94A3B8] hover:border-white/30 hover:text-white"
+                                className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-apagado hover:border-white/30 hover:text-white"
                               >
                                 <FileText className="h-3.5 w-3.5" /> Memorando
                               </button>
                               <button
                                 onClick={() => { setPermuta(m); setNovaEquipe(""); }}
-                                className="inline-flex items-center gap-1 rounded border border-[#D4AF37]/30 px-2 py-1 text-xs text-[#D4AF37] hover:bg-[#D4AF37] hover:text-[#1a1205]"
+                                className="inline-flex items-center gap-1 rounded border border-ouro/30 px-2 py-1 text-xs text-ouro hover:bg-ouro hover:text-ouro-texto"
                               >
                                 <Pencil className="h-3.5 w-3.5" /> Editar
                               </button>
@@ -1323,7 +1323,7 @@ export default function PlanoFerias({
                                   "inline-flex items-center gap-1 rounded border px-2 py-1 text-xs disabled:opacity-50 " +
                                   (postergados.has(m.efetivoId)
                                     ? "border-amber-400/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25"
-                                    : "border-white/10 text-[#94A3B8] hover:border-amber-400/40 hover:text-amber-300")
+                                    : "border-white/10 text-apagado hover:border-amber-400/40 hover:text-amber-300")
                                 }
                               >
                                 {salvandoPosterg === m.efetivoId
@@ -1335,7 +1335,7 @@ export default function PlanoFerias({
                                 onClick={() => removerMembro(m)}
                                 disabled={removendo === m.efetivoId}
                                 title="Tira este militar do plano deste ano (não apaga a ficha dele)"
-                                className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-[#94A3B8] hover:border-red-500/40 hover:text-red-300 disabled:opacity-50"
+                                className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-apagado hover:border-red-500/40 hover:text-red-300 disabled:opacity-50"
                               >
                                 {removendo === m.efetivoId
                                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1349,7 +1349,7 @@ export default function PlanoFerias({
                     ))}
                     {filtrarMembros(aberta.membros).length === 0 && (
                       <tr>
-                        <td colSpan={isAdmin ? 6 : 5} className="px-3 py-8 text-center text-[#94A3B8]">
+                        <td colSpan={isAdmin ? 6 : 5} className="px-3 py-8 text-center text-apagado">
                           Nenhum militar nesta equipe com o filtro atual.
                         </td>
                       </tr>
@@ -1361,7 +1361,7 @@ export default function PlanoFerias({
               <div className="mt-4 flex shrink-0 justify-end">
                 <button
                   onClick={() => setAberta(null)}
-                  className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] transition hover:bg-white/5 hover:text-white"
+                  className="rounded-lg border border-white/10 px-4 py-2 text-sm text-apagado transition hover:bg-white/5 hover:text-white"
                 >
                   Fechar
                 </button>
@@ -1374,23 +1374,23 @@ export default function PlanoFerias({
       {/* modal de permuta */}
       {permuta && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-xl border border-white/10 bg-[#0F1B2D] shadow-xl">
+          <div className="w-full max-w-md rounded-xl border border-white/10 bg-painel shadow-xl">
             <div className="flex items-center justify-between rounded-t-xl border-b border-white/10 bg-white/5 px-5 py-4 text-white">
               <h3 className="font-bold">Editar Férias do Militar</h3>
-              <button onClick={() => setPermuta(null)} aria-label="Fechar" className="text-[#94A3B8] hover:text-white">
+              <button onClick={() => setPermuta(null)} aria-label="Fechar" className="text-apagado hover:text-white">
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="p-5">
               <div className="mb-4 rounded-lg bg-white/5 p-3 text-sm">
                 <p className="font-semibold text-white">{permuta.nome}</p>
-                <p className="text-[#94A3B8]">Matrícula {permuta.matricula ?? "—"}</p>
+                <p className="text-apagado">Matrícula {permuta.matricula ?? "—"}</p>
               </div>
               <label className="mb-1 block text-sm font-medium text-white">Trocar para a equipe</label>
               <select
                 value={novaEquipe}
                 onChange={(e) => setNovaEquipe(e.target.value)}
-                className="mb-4 w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                className="mb-4 w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
               >
                 <option value="">Selecione a nova equipe</option>
                 {equipes.map((eq) => (
@@ -1402,14 +1402,14 @@ export default function PlanoFerias({
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => setPermuta(null)}
-                  className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-white"
+                  className="rounded-lg border border-white/10 px-4 py-2 text-sm text-apagado hover:bg-white/5 hover:text-white"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={confirmarPermuta}
                   disabled={!novaEquipe || salvandoPermuta}
-                  className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] hover:brightness-110 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-lg bg-ouro px-4 py-2 text-sm font-semibold text-ouro-texto hover:brightness-110 disabled:opacity-60"
                 >
                   {salvandoPermuta && <Loader2 className="h-4 w-4 animate-spin" />}
                   Salvar alteração
@@ -1423,14 +1423,14 @@ export default function PlanoFerias({
       {/* Assinar memorandos da equipe em lote (Chefe do P/1) */}
       {assinarLote && aberta && (
         <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/60 p-4" onClick={() => !assinando && setAssinarLote(false)}>
-          <div className="mt-10 w-full max-w-lg rounded-xl border border-[#D4AF37]/30 bg-[#0F1B2D] shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="mt-10 w-full max-w-lg rounded-xl border border-ouro/30 bg-painel shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 text-white">
-              <h3 className="flex items-center gap-2 font-bold"><ShieldCheck className="h-5 w-5 text-[#D4AF37]" /> {papelAss === "cmt" ? "Visto do Comandante" : "Assinar memorandos (P/1)"} — Equipe {aberta.numeroEquipe}</h3>
-              <button onClick={() => !assinando && setAssinarLote(false)} className="text-[#94A3B8] hover:text-white"><X className="h-5 w-5" /></button>
+              <h3 className="flex items-center gap-2 font-bold"><ShieldCheck className="h-5 w-5 text-ouro" /> {papelAss === "cmt" ? "Visto do Comandante" : "Assinar memorandos (P/1)"} — Equipe {aberta.numeroEquipe}</h3>
+              <button onClick={() => !assinando && setAssinarLote(false)} className="text-apagado hover:text-white"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-3 p-5">
-              <p className="text-xs text-[#94A3B8]">Assinatura <b>avançada SIGEP</b> (com sua senha) {papelAss === "cmt" ? "do Comandante (VISTO)" : "do Chefe do P/1"}. Marque quem assinar — todos vêm marcados. Cada memorando recebe um carimbo com QR verificável.</p>
-              <div className="flex items-center justify-between text-xs text-[#94A3B8]">
+              <p className="text-xs text-apagado">Assinatura <b>avançada SIGEP</b> (com sua senha) {papelAss === "cmt" ? "do Comandante (VISTO)" : "do Chefe do P/1"}. Marque quem assinar — todos vêm marcados. Cada memorando recebe um carimbo com QR verificável.</p>
+              <div className="flex items-center justify-between text-xs text-apagado">
                 <span>{selAss.size} de {filtrarMembros(aberta.membros).length} selecionados</span>
                 <div className="flex gap-2">
                   <button onClick={() => setSelAss(new Set(filtrarMembros(aberta.membros).map((m) => m.efetivoId)))} className="rounded border border-white/15 px-2 py-0.5 hover:bg-white/5">Todos</button>
@@ -1447,15 +1447,15 @@ export default function PlanoFerias({
                 ))}
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-[#94A3B8]">Sua senha (para assinar)</label>
+                <label className="mb-1 block text-xs font-medium text-apagado">Sua senha (para assinar)</label>
                 <input type="password" value={senhaAss} onChange={(e) => setSenhaAss(e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                  className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
               </div>
               {assMsg && <div className="text-xs text-emerald-300">{assMsg}</div>}
               <div className="flex justify-end gap-2 pt-1">
-                <button onClick={() => setAssinarLote(false)} disabled={assinando} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-white">Fechar</button>
+                <button onClick={() => setAssinarLote(false)} disabled={assinando} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-apagado hover:bg-white/5 hover:text-white">Fechar</button>
                 <button onClick={assinarMemorandos} disabled={assinando || !senhaAss || selAss.size === 0}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] hover:brightness-110 disabled:opacity-60">
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-4 py-2 text-sm font-semibold text-ouro-texto hover:brightness-110 disabled:opacity-60">
                   {assinando ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Assinar {selAss.size > 0 ? `(${selAss.size})` : ""}
                 </button>
               </div>

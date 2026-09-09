@@ -209,7 +209,7 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
 
       {/* ---------------- escolher o arquivo ---------------- */}
       {!res && !feito && (
-        <div className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-5">
+        <div className="rounded-xl border border-azul-frio bg-painel p-5">
           <input
             ref={entradaRef} type="file" accept="application/pdf,image/*" className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) ler(f); }}
@@ -219,36 +219,36 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
             <>
               <button
                 onClick={() => entradaRef.current?.click()}
-                className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-[#2b3f63] px-4 py-10 text-center transition hover:border-[#D4AF37] hover:bg-white/[.02]"
+                className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-borda px-4 py-10 text-center transition hover:border-ouro hover:bg-white/[.02]"
               >
-                <Upload className="h-8 w-8 text-[#D4AF37]" />
+                <Upload className="h-8 w-8 text-ouro" />
                 <span className="text-base font-semibold text-white">Escolher o listão</span>
-                <span className="max-w-md text-xs text-[#94A3B8]">
+                <span className="max-w-md text-xs text-apagado">
                   O listão da CPPPM (praças) ou o Diário Oficial (oficiais) — em PDF, mesmo escaneado,
                   ou foto das páginas. A leitura acontece no seu computador: o arquivo não é enviado
                   para lugar nenhum.
                 </span>
               </button>
-              <p className="mt-3 text-center text-[11px] text-[#94A3B8]">
+              <p className="mt-3 text-center text-[11px] text-apagado">
                 PDF com texto (Diário Oficial) é lido na hora e sem erro. Escaneado passa pelo leitor de
                 texto, que o navegador baixa uma vez só (uns 5 MB) e depois guarda.
               </p>
             </>
           ) : (
             <div className="py-8 text-center">
-              <Loader2 className="mx-auto h-8 w-8 animate-spin text-[#D4AF37]" />
+              <Loader2 className="mx-auto h-8 w-8 animate-spin text-ouro" />
               <p className="mt-3 text-sm font-semibold text-white">{andar?.recado || "Abrindo…"}</p>
               {andar && andar.totalPaginas > 0 && (
                 <>
-                  <p className="mt-1 text-xs text-[#94A3B8]">
+                  <p className="mt-1 text-xs text-apagado">
                     {arquivo?.name} — {andar.totalPaginas} página(s)
                   </p>
                   <div className="mx-auto mt-3 h-1.5 w-64 overflow-hidden rounded bg-white/10">
-                    <div className="h-full bg-[#D4AF37] transition-all" style={{ width: `${andar.pct}%` }} />
+                    <div className="h-full bg-ouro transition-all" style={{ width: `${andar.pct}%` }} />
                   </div>
                 </>
               )}
-              <p className="mt-3 text-[11px] text-[#94A3B8]">
+              <p className="mt-3 text-[11px] text-apagado">
                 Cada página é lida duas vezes, de jeitos diferentes: o que uma leitura perde,
                 a outra costuma achar. Leva alguns minutos — deixe esta aba aberta.
               </p>
@@ -263,9 +263,9 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
           <p className="flex items-center gap-2 text-lg font-bold text-emerald-300">
             <ShieldCheck className="h-5 w-5" /> {feito.aplicadas.length} militar(es) promovido(s)
           </p>
-          <ul className="mt-3 space-y-1 text-sm text-[#E8EEF6]">
+          <ul className="mt-3 space-y-1 text-sm text-texto">
             {feito.aplicadas.map((a: any, i: number) => (
-              <li key={i}>• <b>{a.nome}</b> — {a.de} → <b className="text-[#D4AF37]">{a.para}</b></li>
+              <li key={i}>• <b>{a.nome}</b> — {a.de} → <b className="text-ouro">{a.para}</b></li>
             ))}
           </ul>
           {feito.recusadas?.length > 0 && (
@@ -284,7 +284,7 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
               <Undo2 className="h-4 w-4" /> Desfazer este lançamento
             </button>
             <button onClick={() => { setFeito(null); setArquivo(null); setTexto(""); setTextos([]); }}
-              className="rounded-lg border border-white/10 px-3 py-2 text-sm text-[#E8EEF6] transition hover:bg-white/5">
+              className="rounded-lg border border-white/10 px-3 py-2 text-sm text-texto transition hover:bg-white/5">
               Importar outro listão
             </button>
           </div>
@@ -294,29 +294,29 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
       {/* ---------------- conferência ---------------- */}
       {res && (
         <>
-          <div className="mb-4 rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-4">
+          <div className="mb-4 rounded-xl border border-azul-frio bg-painel p-4">
             <p className="text-sm font-bold text-white">{res.titulo || "Relação de promovidos"}</p>
-            <p className="mt-1 text-xs text-[#94A3B8]">
+            <p className="mt-1 text-xs text-apagado">
               <b className="text-white">{res.totalNoListao}</b> promovidos no papel ·{" "}
-              <b className="text-[#D4AF37]">{res.achados.length}</b> são do 18º BPM ·{" "}
+              <b className="text-ouro">{res.achados.length}</b> são do 18º BPM ·{" "}
               {res.deFora} de outras unidades
             </p>
 
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-apagado">
                   Referência (fica no histórico)
                 </span>
                 <input value={referencia} onChange={(e) => setReferencia(e.target.value)}
                   placeholder="Ex.: Relação de promovidos agosto de 2026"
-                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]" />
+                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-ouro" />
               </label>
               <label className="block">
-                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-apagado">
                   Data da promoção
                 </span>
                 <input type="date" value={dataPromocao} onChange={(e) => setDataPromocao(e.target.value)}
-                  className="w-full rounded-lg border border-[#D4AF37]/50 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]" />
+                  className="w-full rounded-lg border border-ouro/50 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-ouro" />
                 <span className="mt-1 block text-[10px] leading-snug text-amber-200/90">
                   {res.dataSugerida
                     ? "Data do ato, tirada do próprio listão. A promoção retroage a ela, mesmo que o aviso saia dias depois."
@@ -337,17 +337,17 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
           </div>
 
           {grupos.map((g) => (
-            <div key={g.titulo} className="mb-4 overflow-hidden rounded-xl border border-[#1d2c44] bg-[#0F1B2D]">
+            <div key={g.titulo} className="mb-4 overflow-hidden rounded-xl border border-azul-frio bg-painel">
               <div className="flex flex-wrap items-center gap-2 border-b border-white/5 bg-black/20 px-4 py-2.5">
-                <p className="flex-1 text-sm font-bold text-[#D4AF37]">
-                  {g.titulo} <span className="font-normal text-[#94A3B8]">({g.itens.length})</span>
+                <p className="flex-1 text-sm font-bold text-ouro">
+                  {g.titulo} <span className="font-normal text-apagado">({g.itens.length})</span>
                 </p>
                 <button onClick={() => marcarGrupo(g.itens, true)}
-                  className="rounded border border-white/10 px-2 py-1 text-[11px] text-[#E8EEF6] hover:bg-white/5">
+                  className="rounded border border-white/10 px-2 py-1 text-[11px] text-texto hover:bg-white/5">
                   marcar todos
                 </button>
                 <button onClick={() => marcarGrupo(g.itens, false)}
-                  className="rounded border border-white/10 px-2 py-1 text-[11px] text-[#94A3B8] hover:bg-white/5">
+                  className="rounded border border-white/10 px-2 py-1 text-[11px] text-apagado hover:bg-white/5">
                   desmarcar
                 </button>
               </div>
@@ -357,7 +357,7 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
                   className={`flex cursor-pointer items-start gap-3 border-b border-l-4 border-white/5 px-4 py-3 transition hover:bg-white/[.03] ${CORES[a.confianca]}`}>
                   <input type="checkbox" checked={marcados.has(a.efetivoId)}
                     onChange={() => alternar(a.efetivoId)}
-                    className="mt-1 h-4 w-4 shrink-0 accent-[#D4AF37]" />
+                    className="mt-1 h-4 w-4 shrink-0 accent-ouro" />
 
                   <div className="min-w-0 flex-1">
                     <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -370,18 +370,18 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
                       </span>
                     </p>
                     <p className="mt-0.5 text-sm">
-                      <span className="text-[#94A3B8]">{a.postoAtual || "sem posto"}</span>
-                      <span className="mx-1.5 text-[#94A3B8]">→</span>
-                      <b className="text-[#D4AF37]">{a.postoNovo}</b>
-                      {a.lotacao && <span className="ml-2 text-[11px] text-[#94A3B8]">· {a.lotacao}</span>}
+                      <span className="text-apagado">{a.postoAtual || "sem posto"}</span>
+                      <span className="mx-1.5 text-apagado">→</span>
+                      <b className="text-ouro">{a.postoNovo}</b>
+                      {a.lotacao && <span className="ml-2 text-[11px] text-apagado">· {a.lotacao}</span>}
                     </p>
-                    <p className="mt-0.5 text-[11px] text-[#94A3B8]">
+                    <p className="mt-0.5 text-[11px] text-apagado">
                       {a.porque.join(" · ")}
                     </p>
                     {/* ato com data própria e diferente da escolhida para o
                         lote: precisa aparecer, senão passa despercebido */}
                     {a.linha.dataAto && a.linha.dataAto !== dataPromocao && (
-                      <p className="mt-0.5 text-[11px] font-semibold text-[#D4AF37]">
+                      <p className="mt-0.5 text-[11px] font-semibold text-ouro">
                         Este ato retroage a {a.linha.dataAto.split("-").reverse().join("/")}
                       </p>
                     )}
@@ -408,16 +408,16 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
           )}
 
           {/* barra fixa de ação */}
-          <div className="sticky bottom-0 z-10 -mx-1 mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#2b3f63] bg-[#0F1B2D]/95 p-3 shadow-2xl backdrop-blur">
-            <p className="flex-1 text-sm text-[#E8EEF6]">
-              <b className="text-[#D4AF37]">{totalMarcados}</b> marcado(s) para promover
+          <div className="sticky bottom-0 z-10 -mx-1 mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-borda bg-painel/95 p-3 shadow-2xl backdrop-blur">
+            <p className="flex-1 text-sm text-texto">
+              <b className="text-ouro">{totalMarcados}</b> marcado(s) para promover
             </p>
             <button onClick={() => { setRes(null); setArquivo(null); }}
-              className="rounded-lg border border-white/10 px-3 py-2 text-sm text-[#94A3B8] transition hover:bg-white/5">
+              className="rounded-lg border border-white/10 px-3 py-2 text-sm text-apagado transition hover:bg-white/5">
               Cancelar
             </button>
             <button onClick={aplicar} disabled={aplicando || totalMarcados === 0}
-              className="flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-bold text-[#1a1205] transition hover:brightness-110 disabled:opacity-40">
+              className="flex items-center gap-2 rounded-lg bg-ouro px-4 py-2 text-sm font-bold text-ouro-texto transition hover:brightness-110 disabled:opacity-40">
               {aplicando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
               Promover {totalMarcados > 0 ? totalMarcados : ""}
             </button>
@@ -426,18 +426,18 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
           {/* conferências extras, escondidas até pedir */}
           <div className="mt-4 space-y-2">
             <button onClick={() => setVerFora((v) => !v)}
-              className="flex w-full items-center gap-2 rounded-lg border border-[#1d2c44] bg-[#0F1B2D] px-4 py-2.5 text-left text-sm text-[#E8EEF6] hover:bg-white/5">
+              className="flex w-full items-center gap-2 rounded-lg border border-azul-frio bg-painel px-4 py-2.5 text-left text-sm text-texto hover:bg-white/5">
               {verFora ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              <Search className="h-4 w-4 text-[#94A3B8]" />
+              <Search className="h-4 w-4 text-apagado" />
               Do batalhão que NÃO apareceram no listão ({res.naoApareceram.length})
             </button>
             {verFora && (
-              <div className="max-h-72 overflow-y-auto rounded-lg border border-[#1d2c44] bg-[#0F1B2D] p-3">
-                <p className="mb-2 text-[11px] text-[#94A3B8]">
+              <div className="max-h-72 overflow-y-auto rounded-lg border border-azul-frio bg-painel p-3">
+                <p className="mb-2 text-[11px] text-apagado">
                   Estão no posto de origem de alguma seção do listão, mas não foram encontrados nele.
                   Serve só para conferir se faltou alguém — nada aqui é alterado.
                 </p>
-                <ul className="space-y-1 text-xs text-[#E8EEF6]">
+                <ul className="space-y-1 text-xs text-texto">
                   {res.naoApareceram.map((m) => (
                     <li key={m.id}>• {m.postoGrad} {m.numeroBarra} {m.nome}</li>
                   ))}
@@ -446,22 +446,22 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
             )}
 
             <button onClick={() => setVerTexto((v) => !v)}
-              className="flex w-full items-center gap-2 rounded-lg border border-[#1d2c44] bg-[#0F1B2D] px-4 py-2.5 text-left text-sm text-[#E8EEF6] hover:bg-white/5">
+              className="flex w-full items-center gap-2 rounded-lg border border-azul-frio bg-painel px-4 py-2.5 text-left text-sm text-texto hover:bg-white/5">
               {verTexto ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              <FileText className="h-4 w-4 text-[#94A3B8]" />
+              <FileText className="h-4 w-4 text-apagado" />
               Ver e corrigir o texto que foi lido do papel
             </button>
             {verTexto && (
-              <div className="rounded-lg border border-[#1d2c44] bg-[#0F1B2D] p-3">
-                <p className="mb-2 text-[11px] text-[#94A3B8]">
+              <div className="rounded-lg border border-azul-frio bg-painel p-3">
+                <p className="mb-2 text-[11px] text-apagado">
                   Esta é a leitura principal. Se alguma linha saiu torta, dá para corrigir aqui e
                   mandar ler de novo — a outra leitura do arquivo continua valendo junto.
                   {res.ignoradas.length > 0 && ` ${res.ignoradas.length} linha(s) tinham número mas não deu para entender.`}
                 </p>
                 <textarea value={texto} onChange={(e) => setTexto(e.target.value)} rows={12}
-                  className="w-full rounded-lg border border-white/10 bg-black/40 p-2 font-mono text-[11px] text-[#E8EEF6] outline-none focus:border-[#D4AF37]" />
+                  className="w-full rounded-lg border border-white/10 bg-black/40 p-2 font-mono text-[11px] text-texto outline-none focus:border-ouro" />
                 <button onClick={() => cruzar([texto, ...textos])}
-                  className="mt-2 rounded-lg border border-[#D4AF37]/40 px-3 py-1.5 text-xs font-semibold text-[#D4AF37] hover:bg-[#D4AF37]/10">
+                  className="mt-2 rounded-lg border border-ouro/40 px-3 py-1.5 text-xs font-semibold text-ouro hover:bg-ouro/10">
                   Ler de novo com este texto
                 </button>
               </div>
@@ -472,7 +472,7 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
 
       {/* ---------------- lançamentos anteriores ---------------- */}
       {!res && lotes.length > 0 && (
-        <div className="mt-5 overflow-hidden rounded-xl border border-[#1d2c44] bg-[#0F1B2D]">
+        <div className="mt-5 overflow-hidden rounded-xl border border-azul-frio bg-painel">
           <p className="border-b border-white/5 px-4 py-2.5 text-sm font-bold text-white">
             Lançamentos anteriores
           </p>
@@ -481,9 +481,9 @@ export default function ListaoClient({ lotesIniciais }: { lotesIniciais: Lote[] 
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm text-white">
                   {l.referencia || "Listão sem referência"}
-                  {l.desfeito && <span className="ml-2 rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#94A3B8]">desfeito</span>}
+                  {l.desfeito && <span className="ml-2 rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-apagado">desfeito</span>}
                 </p>
-                <p className="text-[11px] text-[#94A3B8]">
+                <p className="text-[11px] text-apagado">
                   {l.quantidade} militar(es) · {new Date(l.aplicadoEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
                   {l.aplicadoPor ? ` · por ${l.aplicadoPor}` : ""}
                 </p>

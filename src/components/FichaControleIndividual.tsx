@@ -169,16 +169,16 @@ export default function FichaControleIndividual() {
     <>
       {/* Viagem em grupo: quando vários militares viajam juntos, evita
           digitar o mesmo trajeto/processo uma vez para cada um. */}
-      <div className="mb-4 rounded-xl border border-white/10 bg-[#0F1B2D] p-4 print:hidden">
+      <div className="mb-4 rounded-xl border border-white/10 bg-painel p-4 print:hidden">
         <button onClick={() => setGrupoAberto((v) => !v)}
           className="flex w-full items-center justify-between text-left text-sm font-medium text-white">
-          <span className="inline-flex items-center gap-1.5"><Users className="h-4 w-4 text-[#D4AF37]" /> Viagem em grupo (vários militares de uma vez)</span>
-          {grupoAberto ? <ChevronUp className="h-4 w-4 text-[#94A3B8]" /> : <ChevronDown className="h-4 w-4 text-[#94A3B8]" />}
+          <span className="inline-flex items-center gap-1.5"><Users className="h-4 w-4 text-ouro" /> Viagem em grupo (vários militares de uma vez)</span>
+          {grupoAberto ? <ChevronUp className="h-4 w-4 text-apagado" /> : <ChevronDown className="h-4 w-4 text-apagado" />}
         </button>
 
         {grupoAberto && (
           <div className="mt-3 space-y-3">
-            <p className="text-xs text-[#94A3B8]">
+            <p className="text-xs text-apagado">
               Selecione todos que viajaram juntos, preencha os dados da viagem uma vez e o sistema grava a mesma
               linha na ficha de cada um. A quantidade de diárias sai igual para todos — se alguém precisar de valor
               diferente, ajuste depois na ficha individual dele.
@@ -192,59 +192,59 @@ export default function FichaControleIndividual() {
             />
 
             <div className="flex flex-wrap items-center gap-2">
-              <label className="text-xs text-[#94A3B8]">Exercício</label>
+              <label className="text-xs text-apagado">Exercício</label>
               <input value={grupoAno} onChange={(e) => setGrupoAno(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                className="w-20 rounded-lg border border-white/10 bg-[#0b1626] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                className="w-20 rounded-lg border border-white/10 bg-campo px-2 py-1.5 text-sm text-white outline-none focus:border-ouro/50" />
             </div>
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <input value={grupoCampos.bgNota} onChange={(e) => setGC("bgNota")(e.target.value)} placeholder="BG/Nota nº"
-                className="rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                className="rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
               <input value={grupoCampos.processo} onChange={(e) => setGC("processo")(e.target.value)} placeholder="Processo nº"
-                className="rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                className="rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
               <input value={grupoCampos.trajeto} onChange={(e) => setGC("trajeto")(e.target.value)} placeholder="Trajeto"
-                className="rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50 sm:col-span-2" />
+                className="rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50 sm:col-span-2" />
               <input value={grupoCampos.periodo} onChange={(e) => setGC("periodo")(e.target.value)} placeholder="Período (ex.: 22/04/2026 a 24/04/2026)"
-                className="rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                className="rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
               <input value={grupoCampos.qtd} onChange={(e) => setGC("qtd")(e.target.value)} placeholder="Qtd de diárias"
-                className="rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                className="rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
               <button onClick={registrarGrupo} disabled={grupoEnviando || !grupoSel.length}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-40">
+                className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-3 py-1.5 text-sm font-semibold text-ouro-texto transition hover:brightness-110 disabled:opacity-40">
                 {grupoEnviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
                 {grupoSel.length ? `Registrar para ${grupoSel.length} militar(es)` : "Selecione os militares"}
               </button>
-              {grupoMsg && <span className="text-xs text-[#94A3B8]">{grupoMsg}</span>}
+              {grupoMsg && <span className="text-xs text-apagado">{grupoMsg}</span>}
             </div>
           </div>
         )}
       </div>
 
-      <div className="mb-4 rounded-xl border border-white/10 bg-[#0F1B2D] p-4 print:hidden">
+      <div className="mb-4 rounded-xl border border-white/10 bg-painel p-4 print:hidden">
         <BuscaMilitar sel={sel} onEscolher={escolher} onLimpar={limpar} rotulo="Militar" />
 
         {sel && (
           <>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <label className="text-xs text-[#94A3B8]">Exercício</label>
+              <label className="text-xs text-apagado">Exercício</label>
               <select value={ano} onChange={(e) => trocarAno(e.target.value)}
-                className="rounded-lg border border-white/10 bg-[#0b1626] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]/50">
+                className="rounded-lg border border-white/10 bg-campo px-2 py-1.5 text-sm text-white outline-none focus:border-ouro/50">
                 {anosOpcoes.map((a) => (
                   <option key={a} value={a}>{a}{anosComRegistro.includes(a) ? " ✓" : ""}</option>
                 ))}
               </select>
-              <span className="text-xs text-[#94A3B8]">
+              <span className="text-xs text-apagado">
                 {anosComRegistro.length ? `com registro: ${anosComRegistro.join(", ")}` : "sem registro anterior"}
               </span>
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110">
+              <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-3 py-1.5 text-sm font-semibold text-ouro-texto transition hover:brightness-110">
                 <Printer className="h-4 w-4" /> Imprimir
               </button>
-              <button onClick={() => setViagens((l) => [...l, novaViagem()])} className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/40 px-3 py-1.5 text-sm text-[#D4AF37] transition hover:bg-[#D4AF37]/10">
+              <button onClick={() => setViagens((l) => [...l, novaViagem()])} className="inline-flex items-center gap-1.5 rounded-lg border border-ouro/40 px-3 py-1.5 text-sm text-ouro transition hover:bg-ouro/10">
                 <Plus className="h-4 w-4" /> Nova viagem
               </button>
               <button onClick={salvar} disabled={salvando} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-white transition hover:bg-white/5 disabled:opacity-40">
@@ -266,13 +266,13 @@ export default function FichaControleIndividual() {
                 As viagens e os dados pessoais continuam sendo salvos normalmente; o resto vale só para esta impressão.
               </p>
             )}
-            {msg && <p className="mt-2 text-xs text-[#94A3B8]">{msg}</p>}
+            {msg && <p className="mt-2 text-xs text-apagado">{msg}</p>}
           </>
         )}
-        {!sel && <p className="mt-2 text-xs text-[#94A3B8]">Busque o militar. Os dados pessoais vêm do cadastro; as viagens ficam gravadas por exercício e formam o histórico do policial.</p>}
+        {!sel && <p className="mt-2 text-xs text-apagado">Busque o militar. Os dados pessoais vêm do cadastro; as viagens ficam gravadas por exercício e formam o histórico do policial.</p>}
       </div>
 
-      {carregando && <p className="text-center text-sm text-[#94A3B8] print:hidden">Carregando a ficha...</p>}
+      {carregando && <p className="text-center text-sm text-apagado print:hidden">Carregando a ficha...</p>}
 
       {sel && !carregando && (
         <div

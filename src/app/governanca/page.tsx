@@ -64,9 +64,9 @@ export default async function GovernancaPage() {
   const pushConfigurado = !!(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
-      <div className="mx-auto max-w-4xl text-[#cdd9ea]">
+      <div className="mx-auto max-w-4xl text-texto-2">
         <h1 className="mb-1 text-2xl font-bold text-white">🛡️ Governança e Conformidade (LGPD)</h1>
-        <p className="mb-5 text-sm text-[#94A3B8]">
+        <p className="mb-5 text-sm text-apagado">
           Painel de conformidade do SIGEP-18º BPM: rastreabilidade, controle de acesso, assinatura eletrônica e proteção de dados.
         </p>
 
@@ -80,38 +80,38 @@ export default async function GovernancaPage() {
           {ITENS.map((it) => {
             const c = COR[it.status];
             return (
-              <div key={it.titulo} className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-4">
+              <div key={it.titulo} className="rounded-xl border border-azul-frio bg-painel p-4">
                 <div className="mb-1.5 flex items-center justify-between gap-2">
                   <h2 className="text-sm font-bold text-white">{it.titulo}</h2>
                   <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: c.bg, color: c.fg }}>{c.rot}</span>
                 </div>
-                <p className="text-xs leading-relaxed text-[#94A3B8]">{it.texto}</p>
+                <p className="text-xs leading-relaxed text-apagado">{it.texto}</p>
               </div>
             );
           })}
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
-          <Link href="/auditoria" className="rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] hover:brightness-110">Abrir a Auditoria (log + lacre)</Link>
+          <Link href="/auditoria" className="rounded-lg bg-ouro px-4 py-2 text-sm font-semibold text-ouro-texto hover:brightness-110">Abrir a Auditoria (log + lacre)</Link>
           <Link href="/admin/gerar-logins" className="rounded-lg border border-white/15 px-4 py-2 text-sm text-white hover:bg-white/5">Encargos / Funções</Link>
           <AvisoPrivacidadeDoc />
         </div>
 
-        <div className="mt-4 rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-4">
+        <div className="mt-4 rounded-xl border border-azul-frio bg-painel p-4">
           <h2 className="mb-1 text-sm font-bold text-white">📄 Documentos LGPD</h2>
-          <p className="mb-3 text-xs text-[#94A3B8]">Além do Aviso de Privacidade: política de retenção/descarte, designação do Encarregado (DPO) e o registro das operações de tratamento (ROPA). Editáveis e imprimíveis — completam a parte documental exigida pela LGPD.</p>
+          <p className="mb-3 text-xs text-apagado">Além do Aviso de Privacidade: política de retenção/descarte, designação do Encarregado (DPO) e o registro das operações de tratamento (ROPA). Editáveis e imprimíveis — completam a parte documental exigida pela LGPD.</p>
           <DocumentosLgpd />
         </div>
 
-        <div className="mt-4 rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-4">
+        <div className="mt-4 rounded-xl border border-azul-frio bg-painel p-4">
           <h2 className="mb-1 text-sm font-bold text-white">💾 Backup externo</h2>
-          <p className="mb-3 text-xs text-[#94A3B8]">
+          <p className="mb-3 text-xs text-apagado">
             Cópia completa dos dados FORA do provedor do banco. Baixe e guarde no e-mail/Drive, ou configure o envio automático por e-mail.
           </p>
           <BackupBotao />
         </div>
 
-        <p className="mt-5 rounded-lg border border-[#1d2c44] bg-[#0a1626] p-3 text-xs text-[#8fa3bf]">
+        <p className="mt-5 rounded-lg border border-azul-frio bg-campo p-3 text-xs text-[#8fa3bf]">
           Observação técnica: a assinatura é eletrônica por login (autenticação por senha, com reautenticação no ato). Não é assinatura digital certificada (gov.br/ICP-Brasil) — mas a trilha (usuário, IP, dispositivo, hora) é lacrada por hash e ancorável externamente, dando peso probatório à autoria.
         </p>
       </div>

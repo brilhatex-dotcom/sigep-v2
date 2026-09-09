@@ -198,11 +198,11 @@ export default function MinhasCertidoes({
       <div className="ui-card p-4">
         <div className="mb-1 flex items-center justify-between text-sm">
           <span className="font-medium text-white">Progresso</span>
-          <span className="text-[#94A3B8]">{totalEnviadas} de {total} enviadas</span>
+          <span className="text-apagado">{totalEnviadas} de {total} enviadas</span>
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
           <div
-            className="h-full rounded-full bg-[#D4AF37] transition-all"
+            className="h-full rounded-full bg-ouro transition-all"
             style={{ width: `${(totalEnviadas / total) * 100}%` }}
           />
         </div>
@@ -214,13 +214,13 @@ export default function MinhasCertidoes({
           onClick={() => setLinksAbertos((v) => !v)}
           className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium text-white hover:bg-white/5"
         >
-          <Link2 className="h-4 w-4 text-[#D4AF37]" />
+          <Link2 className="h-4 w-4 text-ouro" />
           Onde emitir as certidões (sites oficiais)
-          <ChevronDown className={`ml-auto h-4 w-4 text-[#94A3B8] transition ${linksAbertos ? "rotate-180" : ""}`} />
+          <ChevronDown className={`ml-auto h-4 w-4 text-apagado transition ${linksAbertos ? "rotate-180" : ""}`} />
         </button>
         {linksAbertos && (
           <div className="border-t border-white/10 px-4 py-3">
-            <p className="mb-3 text-xs text-[#94A3B8]">
+            <p className="mb-3 text-xs text-apagado">
               As certidões atualizadas de nada consta devem ser emitidas nos sites oficiais
               dos órgãos do Poder Judiciário:
             </p>
@@ -231,11 +231,11 @@ export default function MinhasCertidoes({
                     href={l.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/40 px-2.5 py-1 text-xs font-medium text-[#D4AF37] transition hover:bg-[#D4AF37]/10"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-ouro/40 px-2.5 py-1 text-xs font-medium text-ouro transition hover:bg-ouro/10"
                   >
                     <ExternalLink className="h-3.5 w-3.5" /> {l.titulo}
                   </a>
-                  {l.obs && <span className="text-[11px] text-[#94A3B8]">{l.obs}</span>}
+                  {l.obs && <span className="text-[11px] text-apagado">{l.obs}</span>}
                 </li>
               ))}
             </ul>
@@ -250,8 +250,8 @@ export default function MinhasCertidoes({
       )}
 
       {travado && (
-        <p className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-[#94A3B8]">
-          <Clock className="h-4 w-4 shrink-0 text-[#D4AF37]" />
+        <p className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-apagado">
+          <Clock className="h-4 w-4 shrink-0 text-ouro" />
           Certidões enviadas ao P/1 — travadas para conferência. Se precisar trocar algum
           arquivo, peça ao P/1 para reabrir.
         </p>
@@ -267,7 +267,7 @@ export default function MinhasCertidoes({
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-white">{i.orgao}</p>
-                <p className="text-xs text-[#94A3B8]">{i.descricao}</p>
+                <p className="text-xs text-apagado">{i.descricao}</p>
                 {i.enviada && i.nomeArquivo && (
                   <p className="mt-0.5 truncate text-xs text-emerald-400">{i.nomeArquivo}</p>
                 )}
@@ -275,7 +275,7 @@ export default function MinhasCertidoes({
                   href={i.link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-1 inline-flex items-center gap-1 text-[11px] text-[#D4AF37]/90 hover:text-[#D4AF37] hover:underline"
+                  className="mt-1 inline-flex items-center gap-1 text-[11px] text-ouro/90 hover:text-ouro hover:underline"
                 >
                   <ExternalLink className="h-3 w-3" /> {i.linkRotulo}
                 </a>
@@ -287,7 +287,7 @@ export default function MinhasCertidoes({
                     <FileCheck2 className="h-3.5 w-3.5" /> Enviada
                   </span>
                 ) : (
-                  <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-xs text-[#94A3B8]">
+                  <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-xs text-apagado">
                     Falta
                   </span>
                 )}
@@ -327,7 +327,7 @@ export default function MinhasCertidoes({
             <FileStack className="h-6 w-6 text-emerald-400" />
             <div className="flex-1">
               <p className="text-sm font-semibold text-white">PDF unificado gerado</p>
-              <p className="text-xs text-[#94A3B8]">As {total} certidões reunidas num único arquivo, na ordem oficial.</p>
+              <p className="text-xs text-apagado">As {total} certidões reunidas num único arquivo, na ordem oficial.</p>
             </div>
             <a
               href={`/api/promocoes/download?key=${encodeURIComponent(unificadoKey)}`}
@@ -338,10 +338,10 @@ export default function MinhasCertidoes({
           </div>
         ) : (
           <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-            <FileStack className="h-6 w-6 text-[#94A3B8]" />
+            <FileStack className="h-6 w-6 text-apagado" />
             <div className="flex-1">
               <p className="text-sm font-semibold text-white">Gerar PDF unificado</p>
-              <p className="text-xs text-[#94A3B8]">
+              <p className="text-xs text-apagado">
                 {completo
                   ? "Tudo pronto. Junte as certidões num único PDF na ordem oficial."
                   : `Envie as ${total} certidões para liberar a geração.`}
@@ -368,17 +368,17 @@ export default function MinhasCertidoes({
               <p className="text-sm font-semibold text-emerald-300">
                 P/1 confirmou o recebimento
               </p>
-              <p className="text-xs text-[#94A3B8]">
+              <p className="text-xs text-apagado">
                 Recebido pelo P/1 em {dataHora(recebidoP1)}. Suas certidões estão protocoladas.
               </p>
             </div>
           </div>
         ) : enviadoP1 ? (
           <div className="flex items-start gap-3">
-            <Clock className="mt-0.5 h-6 w-6 shrink-0 text-[#D4AF37]" />
+            <Clock className="mt-0.5 h-6 w-6 shrink-0 text-ouro" />
             <div>
               <p className="text-sm font-semibold text-white">Enviado ao P/1 — aguardando recebimento</p>
-              <p className="text-xs text-[#94A3B8]">
+              <p className="text-xs text-apagado">
                 Você enviou em {dataHora(enviadoP1)}. Assim que o P/1 confirmar o recebimento,
                 aparecerá aqui.
               </p>
@@ -386,10 +386,10 @@ export default function MinhasCertidoes({
           </div>
         ) : (
           <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-            <Send className="h-6 w-6 text-[#D4AF37]" />
+            <Send className="h-6 w-6 text-ouro" />
             <div className="flex-1">
               <p className="text-sm font-semibold text-white">Enviar ao P/1</p>
-              <p className="text-xs text-[#94A3B8]">
+              <p className="text-xs text-apagado">
                 {completo && unificadoKey
                   ? "Tudo pronto. Envie o PDF unificado ao P/1 para análise."
                   : completo
@@ -400,7 +400,7 @@ export default function MinhasCertidoes({
             <button
               onClick={enviarAoP1}
               disabled={!completo || !unificadoKey || enviandoP1}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-4 py-2 text-sm font-semibold text-ouro-texto transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {enviandoP1 ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {enviandoP1 ? "Enviando..." : "Enviar ao P/1"}

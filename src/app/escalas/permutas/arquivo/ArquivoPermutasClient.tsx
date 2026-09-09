@@ -9,13 +9,13 @@ type Item = PermutaDoc & { localId: string; localRotulo: string; lotacao: string
 type Local = { id: string; rotulo: string };
 
 const ESTADO_ROT: Record<string, { t: string; c: string }> = {
-  aguardando_solicitado: { t: "Aguardando colega", c: "bg-white/10 text-[#cdd9ea]" },
-  aguardando_p1: { t: "Aguardando P/1", c: "bg-[#D4AF37]/15 text-[#D4AF37]" },
+  aguardando_solicitado: { t: "Aguardando colega", c: "bg-white/10 text-texto-2" },
+  aguardando_p1: { t: "Aguardando P/1", c: "bg-ouro/15 text-ouro" },
   aguardando_subcmt: { t: "Aguardando Subcmt", c: "bg-sky-500/15 text-sky-300" },
   autorizada: { t: "Autorizada", c: "bg-emerald-500/15 text-emerald-300" },
   nao_autorizada: { t: "Não autorizada", c: "bg-red-500/15 text-red-300" },
   recusada: { t: "Recusada", c: "bg-red-500/15 text-red-300" },
-  cancelada: { t: "Cancelada", c: "bg-white/10 text-[#94A3B8]" },
+  cancelada: { t: "Cancelada", c: "bg-white/10 text-apagado" },
 };
 function dBR(iso: string): string {
   const m = (iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -80,15 +80,15 @@ export default function ArquivoPermutasClient() {
     finally { setBaixando(""); }
   };
 
-  if (carregando) return <div className="text-sm text-[#94A3B8]">Carregando arquivo…</div>;
+  if (carregando) return <div className="text-sm text-apagado">Carregando arquivo…</div>;
 
   return (
-    <div className="text-[#cdd9ea]">
+    <div className="text-texto-2">
       {/* Abas por lugar */}
       <div className="mb-3 flex flex-wrap gap-2">
         {locais.map((l) => (
           <button key={l.id} onClick={() => setLocalSel(l.id)}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium ${localSel === l.id ? "border-[#D4AF37] bg-[#D4AF37]/15 text-[#f3df9d]" : "border-[#22314d] bg-[#0b1626] text-[#94A3B8] hover:border-[#D4AF37]/40"}`}>
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium ${localSel === l.id ? "border-ouro bg-ouro/15 text-ouro-claro" : "border-borda-forte bg-campo text-apagado hover:border-ouro/40"}`}>
             <MapPin className="h-3.5 w-3.5" /> {l.rotulo} <span className="rounded-full bg-white/10 px-1.5">{contagem.get(l.id) || 0}</span>
           </button>
         ))}
@@ -96,13 +96,13 @@ export default function ArquivoPermutasClient() {
 
       {/* Filtros */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="flex flex-1 items-center gap-2 rounded-lg border border-[#22314d] bg-[#0b1626] px-3">
+        <div className="flex flex-1 items-center gap-2 rounded-lg border border-borda-forte bg-campo px-3">
           <Search className="h-4 w-4 text-[#64748b]" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por policial, protocolo, motivo…"
             className="w-full bg-transparent py-2 text-sm text-white outline-none placeholder:text-[#4b5c74]" />
         </div>
         <select value={gran} onChange={(e) => setGran(e.target.value as Gran)}
-          className="rounded-lg border border-[#22314d] bg-[#0b1626] px-2 py-2 text-sm text-white">
+          className="rounded-lg border border-borda-forte bg-campo px-2 py-2 text-sm text-white">
           <option value="todas">Todas as datas</option>
           <option value="dia">Por dia</option>
           <option value="mes">Por mês</option>
@@ -115,14 +115,14 @@ export default function ArquivoPermutasClient() {
               const v = e.target.value;
               setRef(gran === "ano" ? `${v}-01-01` : gran === "mes" ? `${v}-01` : v);
             }}
-            className="rounded-lg border border-[#22314d] bg-[#0b1626] px-2 py-2 text-sm text-white" />
+            className="rounded-lg border border-borda-forte bg-campo px-2 py-2 text-sm text-white" />
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#1d2c44]">
+      <div className="overflow-x-auto rounded-xl border border-azul-frio">
         <table className="w-full min-w-[760px] text-left text-sm">
           <thead>
-            <tr className="bg-[#0F1B2D] text-[11px] uppercase tracking-wide text-[#94A3B8]">
+            <tr className="bg-painel text-[11px] uppercase tracking-wide text-apagado">
               <th className="px-3 py-2">Protocolo</th>
               <th className="px-3 py-2">Permuta</th>
               <th className="px-3 py-2">Data</th>
@@ -135,9 +135,9 @@ export default function ArquivoPermutasClient() {
               <tr><td colSpan={5} className="px-3 py-6 text-center text-[#64748b]">Nenhuma permuta encontrada neste filtro.</td></tr>
             )}
             {filtradas.map((p) => {
-              const est = ESTADO_ROT[p.estado] || { t: p.estado, c: "bg-white/10 text-[#cdd9ea]" };
+              const est = ESTADO_ROT[p.estado] || { t: p.estado, c: "bg-white/10 text-texto-2" };
               return (
-                <tr key={p.id} className="border-t border-[#16243a] align-top">
+                <tr key={p.id} className="border-t border-painel-3 align-top">
                   <td className="whitespace-nowrap px-3 py-2 font-mono text-[12px] text-white">{p.protocolo || "—"}</td>
                   <td className="px-3 py-2">
                     <div className="text-white">{p.solicitante.linha}</div>
@@ -147,7 +147,7 @@ export default function ArquivoPermutasClient() {
                   <td className="px-3 py-2"><span className={`rounded px-1.5 py-0.5 text-[11px] ${est.c}`}>{est.t}</span></td>
                   <td className="px-3 py-2">
                     <div className="flex justify-end gap-1.5">
-                      <button onClick={() => setDoc(p)} className="inline-flex items-center gap-1 rounded-md border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-2 py-1 text-xs text-[#f3df9d] hover:bg-[#D4AF37]/20"><Eye className="h-3.5 w-3.5" /> Ver</button>
+                      <button onClick={() => setDoc(p)} className="inline-flex items-center gap-1 rounded-md border border-ouro/40 bg-ouro/10 px-2 py-1 text-xs text-ouro-claro hover:bg-ouro/20"><Eye className="h-3.5 w-3.5" /> Ver</button>
                       <button onClick={() => baixarWord(p)} disabled={baixando === p.id} className="inline-flex items-center gap-1 rounded-md border border-white/15 px-2 py-1 text-xs text-white hover:bg-white/5 disabled:opacity-60">{baixando === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />} Word</button>
                     </div>
                   </td>

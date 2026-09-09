@@ -179,7 +179,7 @@ export default async function FichaEfetivoPage({
       <div className="mx-auto max-w-5xl">
         <Link
           href={ehAdmin ? "/efetivo" : "/ficha"}
-          className="mb-3 inline-flex items-center gap-1.5 text-sm text-[#94A3B8] transition hover:text-white"
+          className="mb-3 inline-flex items-center gap-1.5 text-sm text-apagado transition hover:text-white"
         >
           <ArrowLeft className="h-4 w-4" /> Voltar
         </Link>
@@ -195,11 +195,11 @@ export default async function FichaEfetivoPage({
             />
             <div>
               <h1 className="text-2xl font-bold text-white">{m.nome ?? "—"}</h1>
-              <p className="text-sm text-[#94A3B8]">
+              <p className="text-sm text-apagado">
                 {m.postoGrad ?? ""} {m.nomeGuerra ? `· ${m.nomeGuerra}` : ""}{" "}
                 {m.matricula ? `· Mat. ${m.matricula}` : ""}
               </p>
-              <span className="mt-1 inline-block rounded-full bg-[#D4AF37]/15 px-2.5 py-0.5 text-xs font-semibold text-[#D4AF37]">
+              <span className="mt-1 inline-block rounded-full bg-ouro/15 px-2.5 py-0.5 text-xs font-semibold text-ouro">
                 {sitCalc}
               </span>
             </div>
@@ -220,7 +220,7 @@ export default async function FichaEfetivoPage({
             {podeEditar && (
               <Link
                 href={`/efetivo/${encodeURIComponent(m.id)}/editar`}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110"
+                className="inline-flex items-center gap-2 rounded-lg bg-ouro px-4 py-2 text-sm font-semibold text-ouro-texto transition hover:brightness-110"
               >
                 <Pencil className="h-4 w-4" /> Editar
               </Link>
@@ -238,14 +238,14 @@ export default async function FichaEfetivoPage({
         <div className="space-y-4">
           {blocos.map((b) => (
             <section key={b.titulo} className="ui-card p-6">
-              <h2 className="mb-4 flex items-center gap-2 text-base font-bold uppercase tracking-wider text-[#D4AF37]">
-                <span className="h-5 w-1.5 rounded bg-[#D4AF37]" />
+              <h2 className="mb-4 flex items-center gap-2 text-base font-bold uppercase tracking-wider text-ouro">
+                <span className="h-5 w-1.5 rounded bg-ouro" />
                 {b.titulo}
               </h2>
               <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
                 {b.campos.map((c) => (
                   <div key={c.label} className="border-b border-white/5 pb-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-apagado">
                       {c.label}
                     </p>
                     <p className="mt-0.5 text-[15px] font-medium text-white">

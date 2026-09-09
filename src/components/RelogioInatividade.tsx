@@ -75,7 +75,7 @@ export default function RelogioInatividade({ minutos }: { minutos?: number }) {
     ? "border-red-500/60 bg-red-500/15 text-red-200"
     : alerta
     ? "border-amber-500/50 bg-amber-500/15 text-amber-200"
-    : "border-white/10 bg-white/5 text-[#94A3B8]";
+    : "border-white/10 bg-white/5 text-apagado";
 
   return (
     <>
@@ -90,25 +90,25 @@ export default function RelogioInatividade({ minutos }: { minutos?: number }) {
 
       {avisando && resta > 0 && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-amber-500/40 bg-[#0F1B2D] p-5 text-center shadow-2xl">
+          <div className="w-full max-w-sm rounded-2xl border border-amber-500/40 bg-painel p-5 text-center shadow-2xl">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/15 text-amber-300">
               <ShieldAlert className="h-6 w-6" />
             </div>
             <h3 className="text-lg font-bold text-white">Sua sessão vai expirar</h3>
-            <p className="mt-1 text-sm text-[#94A3B8]">
+            <p className="mt-1 text-sm text-apagado">
               Por segurança, você será desconectado por inatividade em{" "}
               <b className="tabular-nums text-amber-300">{mm}:{ss}</b>.
             </p>
             <div className="mt-4 flex gap-2">
               <button
                 onClick={() => renovar(true)}
-                className="flex-1 rounded-lg bg-[#D4AF37] px-3 py-2 text-sm font-semibold text-[#1a1205] hover:bg-[#D4AF37]/90"
+                className="flex-1 rounded-lg bg-ouro px-3 py-2 text-sm font-semibold text-ouro-texto hover:bg-ouro/90"
               >
                 Continuar conectado
               </button>
               <button
                 onClick={() => { saiu.current = true; signOut({ callbackUrl: "/login" }); }}
-                className="rounded-lg border border-white/15 px-3 py-2 text-sm text-[#cdd9ea] hover:bg-white/5"
+                className="rounded-lg border border-white/15 px-3 py-2 text-sm text-texto-2 hover:bg-white/5"
               >
                 Sair agora
               </button>

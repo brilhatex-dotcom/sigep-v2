@@ -30,7 +30,7 @@ export default async function ServicoEscalaPage({
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <EscalasNav soRp={!!lugar} />
       {admin && escopo && (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-4 py-2 text-sm text-[#f3df9d]">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-ouro/40 bg-ouro/10 px-4 py-2 text-sm text-ouro-claro">
           <span>Escala da unidade: <b>{rotuloEscopo}</b></span>
           <Link href="/escalas/unidades" className="rounded-md border border-white/15 px-2.5 py-1 text-xs text-white hover:bg-white/5">← Todas as unidades</Link>
         </div>

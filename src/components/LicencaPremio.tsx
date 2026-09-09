@@ -331,12 +331,12 @@ export default function LicencaPremio({
       onClick={() => setFiltro(id)}
       className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
         filtro === id
-          ? "bg-[#D4AF37] text-[#1a1205]"
-          : "bg-[#0F1B2D] text-[#94A3B8] ring-1 ring-white/10 hover:text-white"
+          ? "bg-ouro text-ouro-texto"
+          : "bg-painel text-apagado ring-1 ring-white/10 hover:text-white"
       }`}
     >
       {rotulo}
-      <span className={`rounded-full px-1.5 text-xs ${filtro === id ? "bg-black/15" : "bg-white/10 text-[#94A3B8]"}`}>
+      <span className={`rounded-full px-1.5 text-xs ${filtro === id ? "bg-black/15" : "bg-white/10 text-apagado"}`}>
         {qtd}
       </span>
     </button>
@@ -459,11 +459,11 @@ export default function LicencaPremio({
 
       {/* topo */}
       <div className="flex flex-wrap items-center gap-3">
-        <label className="text-sm text-[#94A3B8]">Ano</label>
+        <label className="text-sm text-apagado">Ano</label>
         <select
           value={anoSelecionado}
           onChange={(e) => onTrocarAno(e.target.value)}
-          className="rounded-lg border border-white/10 bg-[#0b1626] px-3 py-1.5 text-sm font-medium text-white outline-none focus:border-[#D4AF37]/50"
+          className="rounded-lg border border-white/10 bg-campo px-3 py-1.5 text-sm font-medium text-white outline-none focus:border-ouro/50"
         >
           {anos.map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
@@ -472,7 +472,7 @@ export default function LicencaPremio({
             onClick={novoAno}
             disabled={abrindoAno}
             title="Abre o exercício de Licença-Prêmio de um ano novo (4 equipes, sem datas e sem militares)"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/40 px-3 py-1.5 text-sm font-medium text-[#D4AF37] transition hover:bg-[#D4AF37]/10 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-ouro/40 px-3 py-1.5 text-sm font-medium text-ouro transition hover:bg-ouro/10 disabled:opacity-50"
           >
             {abrindoAno ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             + Novo ano
@@ -481,7 +481,7 @@ export default function LicencaPremio({
         <button
           onClick={imprimir}
           title="Imprimir o plano de Licença-Prêmio (equipes, períodos e militares)"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-medium text-[#1a1205] transition hover:brightness-110"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-3 py-1.5 text-sm font-medium text-ouro-texto transition hover:brightness-110"
         >
           🖨 Imprimir / PDF
         </button>
@@ -495,14 +495,14 @@ export default function LicencaPremio({
       {/* cartões de resumo */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="ui-card p-4">
-          <Users className="mb-1 h-5 w-5 text-[#D4AF37]" />
+          <Users className="mb-1 h-5 w-5 text-ouro" />
           <p className="text-2xl font-bold text-white">{cartoes.comMilitares}</p>
-          <p className="text-xs text-[#94A3B8]">Equipes com militares</p>
+          <p className="text-xs text-apagado">Equipes com militares</p>
         </div>
         <div className="ui-card p-4">
           <Award className="mb-1 h-5 w-5 text-amber-400" />
           <p className="text-2xl font-bold text-white">{cartoes.emLicencaHoje}</p>
-          <p className="text-xs text-[#94A3B8]">
+          <p className="text-xs text-apagado">
             Em licença hoje
             {cartoes.equipesEmLicenca.length > 0 && ` · Equipe(s) ${cartoes.equipesEmLicenca.join(", ")}`}
           </p>
@@ -510,12 +510,12 @@ export default function LicencaPremio({
         <div className="ui-card p-4">
           <CalendarDays className="mb-1 h-5 w-5 text-emerald-400" />
           <p className="text-2xl font-bold text-white">{cartoes.equipesMes}</p>
-          <p className="text-xs text-[#94A3B8]">Equipes do mês</p>
+          <p className="text-xs text-apagado">Equipes do mês</p>
         </div>
         <div className="ui-card p-4">
-          <Award className="mb-1 h-5 w-5 text-[#D4AF37]" />
+          <Award className="mb-1 h-5 w-5 text-ouro" />
           <p className="text-2xl font-bold text-white">{totalMilitares}</p>
-          <p className="text-xs text-[#94A3B8]">Total no plano</p>
+          <p className="text-xs text-apagado">Total no plano</p>
         </div>
       </div>
 
@@ -527,7 +527,7 @@ export default function LicencaPremio({
             <div key={e.numeroEquipe} className="ui-card p-4">
               <div className="flex items-center gap-4">
                 <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-lg font-bold ${
-                  e.status.chave === "em_licenca" ? "bg-[#D4AF37] text-[#1a1205]" : "bg-white/10 text-white"
+                  e.status.chave === "em_licenca" ? "bg-ouro text-ouro-texto" : "bg-white/10 text-white"
                 }`}>
                   {e.numeroEquipe}
                 </div>
@@ -539,31 +539,31 @@ export default function LicencaPremio({
                       {e.status.rotulo}
                     </span>
                   </div>
-                  <p className="text-xs text-[#94A3B8]">
+                  <p className="text-xs text-apagado">
                     <span className="font-semibold text-white/80">Período (3 meses): </span>
                     {e.inicioBR} → {e.fimBR}
                   </p>
                   {e.status.detalhe && (
-                    <p className="mt-0.5 text-xs text-[#94A3B8]/70">{e.status.detalhe}</p>
+                    <p className="mt-0.5 text-xs text-apagado/70">{e.status.detalhe}</p>
                   )}
                 </div>
 
                 <div className="flex shrink-0 flex-col items-end gap-1">
                   <p className="text-2xl font-bold text-white">{membrosFiltrados.length}</p>
-                  <p className="text-[11px] text-[#94A3B8]">militares</p>
+                  <p className="text-[11px] text-apagado">militares</p>
                   <div className="mt-1 flex gap-1.5">
                     {isAdmin && (
                       <button
                         onClick={() => abrirEditar(e)}
                         title="Editar datas"
-                        className="inline-flex items-center gap-1 rounded-lg border border-[#D4AF37]/30 px-2.5 py-1 text-xs text-[#D4AF37] transition hover:bg-[#D4AF37] hover:text-[#1a1205]"
+                        className="inline-flex items-center gap-1 rounded-lg border border-ouro/30 px-2.5 py-1 text-xs text-ouro transition hover:bg-ouro hover:text-ouro-texto"
                       >
                         <Calendar className="h-3.5 w-3.5" /> Datas
                       </button>
                     )}
                     <button
                       onClick={() => setAberta(e)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1 text-xs text-[#94A3B8] transition hover:border-[#D4AF37]/40 hover:text-white"
+                      className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1 text-xs text-apagado transition hover:border-ouro/40 hover:text-white"
                     >
                       Ver detalhes
                     </button>
@@ -578,40 +578,40 @@ export default function LicencaPremio({
       {/* ===== MODAL EDITAR DATAS ===== */}
       {editando && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-xl border border-white/10 bg-[#0F1B2D] shadow-xl">
+          <div className="w-full max-w-md rounded-xl border border-white/10 bg-painel shadow-xl">
             <div className="flex items-center justify-between rounded-t-xl border-b border-white/10 bg-white/5 px-5 py-4">
               <div className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-[#D4AF37]" />
+                <Calendar className="h-5 w-5 text-ouro" />
                 <h3 className="font-bold text-white">Editar datas — Equipe {editando.numeroEquipe}</h3>
               </div>
-              <button onClick={() => setEditando(null)} className="text-[#94A3B8] hover:text-white">
+              <button onClick={() => setEditando(null)} className="text-apagado hover:text-white">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <div className="space-y-4 p-5">
               <div>
-                <label className="mb-1 block text-xs font-medium text-[#94A3B8]">
+                <label className="mb-1 block text-xs font-medium text-apagado">
                   Início <span className="text-red-400">*</span>
-                  {fInicio && <span className="ml-1 text-[#D4AF37]">({isoParaBR(fInicio)})</span>}
+                  {fInicio && <span className="ml-1 text-ouro">({isoParaBR(fInicio)})</span>}
                 </label>
                 <input
                   type="date"
                   value={fInicio}
                   onChange={(e) => mudarInicio(e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                  className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-[#94A3B8]">
+                <label className="mb-1 block text-xs font-medium text-apagado">
                   Fim (calculado automaticamente: início + 3 meses — pode editar)
-                  {fFim && <span className="ml-1 text-[#D4AF37]">({isoParaBR(fFim)})</span>}
+                  {fFim && <span className="ml-1 text-ouro">({isoParaBR(fFim)})</span>}
                 </label>
                 <input
                   type="date"
                   value={fFim}
                   onChange={(e) => mudarFim(e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                  className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
                 />
               </div>
 
@@ -624,14 +624,14 @@ export default function LicencaPremio({
               <div className="flex justify-end gap-2 pt-1">
                 <button
                   onClick={() => setEditando(null)}
-                  className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-white"
+                  className="rounded-lg border border-white/10 px-4 py-2 text-sm text-apagado hover:bg-white/5 hover:text-white"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={salvarDatas}
                   disabled={!fInicio || !fFim || salvandoDatas}
-                  className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] hover:brightness-110 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-lg bg-ouro px-4 py-2 text-sm font-semibold text-ouro-texto hover:brightness-110 disabled:opacity-60"
                 >
                   {salvandoDatas && <Loader2 className="h-4 w-4 animate-spin" />}
                   Salvar datas
@@ -646,14 +646,14 @@ export default function LicencaPremio({
       {aberta && (
         <div className={`fixed inset-0 z-50 flex justify-center bg-black/60 ${
           equipeCheia ? "items-stretch p-0" : "items-start overflow-y-auto p-4"}`}>
-          <div className={`w-full border border-white/10 bg-[#0F1B2D] shadow-xl ${
+          <div className={`w-full border border-white/10 bg-painel shadow-xl ${
             equipeCheia
               ? "flex max-w-none flex-col"          // ocupa a tela toda
               : "mt-10 max-w-2xl rounded-xl"}`}>
             <div className={`flex shrink-0 items-center justify-between border-b border-white/10 bg-white/5 px-5 py-4 text-white ${
               equipeCheia ? "" : "rounded-t-xl"}`}>
               <div className="flex items-center gap-2">
-                <Award className="h-5 w-5 text-[#D4AF37]" />
+                <Award className="h-5 w-5 text-ouro" />
                 <h3 className="font-bold">
                   EQUIPE {aberta.numeroEquipe} · {filtrarMembros(aberta.membros).length} militares
                 </h3>
@@ -661,7 +661,7 @@ export default function LicencaPremio({
               <div className="flex items-center gap-2">
                 {isAdmin && filtrarMembros(aberta.membros).length > 0 && (
                   <button onClick={() => abrirAssinarLote(aberta)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-3 py-1.5 text-xs font-medium text-[#f3df9d] hover:bg-[#D4AF37]/20">
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-ouro/40 bg-ouro/10 px-3 py-1.5 text-xs font-medium text-ouro-claro hover:bg-ouro/20">
                     <ShieldCheck className="h-4 w-4" /> Assinar memorandos (SIGEP)
                   </button>
                 )}
@@ -669,11 +669,11 @@ export default function LicencaPremio({
                   onClick={() => setEquipeCheia((v) => !v)}
                   aria-label={equipeCheia ? "Voltar ao tamanho normal" : "Ver em tela cheia"}
                   title={equipeCheia ? "Voltar ao tamanho normal" : "Ver em tela cheia"}
-                  className="text-[#94A3B8] transition hover:text-white"
+                  className="text-apagado transition hover:text-white"
                 >
                   {equipeCheia ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
                 </button>
-                <button onClick={() => setAberta(null)} aria-label="Fechar" className="text-[#94A3B8] hover:text-white">
+                <button onClick={() => setAberta(null)} aria-label="Fechar" className="text-apagado hover:text-white">
                   <X className="h-5 w-5" />
                 </button>
               </div>
@@ -687,7 +687,7 @@ export default function LicencaPremio({
                 {isAdmin && (
                   <button
                     onClick={() => setModalAdicionar(aberta)}
-                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-xs font-semibold text-[#1a1205] hover:brightness-110"
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-ouro px-3 py-1.5 text-xs font-semibold text-ouro-texto hover:brightness-110"
                   >
                     <UserPlus className="h-3.5 w-3.5" /> Adicionar militar
                   </button>
@@ -697,8 +697,8 @@ export default function LicencaPremio({
               <div className={`overflow-y-auto rounded-lg border border-white/10 ${
                 equipeCheia ? "min-h-0 flex-1" : "max-h-[50vh]"}`}>
                 <table className="min-w-full text-sm">
-                  <thead className="sticky top-0 bg-[#0F1B2D]">
-                    <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wider text-[#94A3B8]">
+                  <thead className="sticky top-0 bg-painel">
+                    <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wider text-apagado">
                       <th className="px-3 py-2 font-semibold">#</th>
                       <th className="px-3 py-2 font-semibold">Posto/Grad</th>
                       <th className="px-3 py-2 font-semibold">Nº/Barra</th>
@@ -710,20 +710,20 @@ export default function LicencaPremio({
                   <tbody className="divide-y divide-white/5">
                     {filtrarMembros(aberta.membros).map((m, i) => (
                       <tr key={m.membroId} className="hover:bg-white/5">
-                        <td className="px-3 py-2 text-[#94A3B8]">{i + 1}º</td>
-                        <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.postoGrad ?? "—"}</td>
-                        <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.numeroBarra ?? "—"}</td>
+                        <td className="px-3 py-2 text-apagado">{i + 1}º</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-apagado">{m.postoGrad ?? "—"}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-apagado">{m.numeroBarra ?? "—"}</td>
                         <td className="px-3 py-2">
                           <span className="font-medium text-white">{m.nome ?? "—"}</span>
-                          {m.nomeGuerra && <span className="ml-1 text-xs text-[#94A3B8]">({m.nomeGuerra})</span>}
+                          {m.nomeGuerra && <span className="ml-1 text-xs text-apagado">({m.nomeGuerra})</span>}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.matricula ?? "—"}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-apagado">{m.matricula ?? "—"}</td>
                         {isAdmin && (
                           <td className="whitespace-nowrap px-3 py-2">
                             <div className="flex gap-1.5">
                               <button
                                 onClick={() => abrirMemorando(m, aberta)}
-                                className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-[#94A3B8] hover:border-white/30 hover:text-white"
+                                className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-apagado hover:border-white/30 hover:text-white"
                               >
                                 <FileText className="h-3.5 w-3.5" /> Memorando
                               </button>
@@ -740,7 +740,7 @@ export default function LicencaPremio({
                     ))}
                     {filtrarMembros(aberta.membros).length === 0 && (
                       <tr>
-                        <td colSpan={isAdmin ? 6 : 5} className="px-3 py-8 text-center text-[#94A3B8]">
+                        <td colSpan={isAdmin ? 6 : 5} className="px-3 py-8 text-center text-apagado">
                           Nenhum militar nesta equipe com o filtro atual.
                         </td>
                       </tr>
@@ -752,7 +752,7 @@ export default function LicencaPremio({
               <div className="mt-4 flex shrink-0 justify-end">
                 <button
                   onClick={() => setAberta(null)}
-                  className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] transition hover:bg-white/5 hover:text-white"
+                  className="rounded-lg border border-white/10 px-4 py-2 text-sm text-apagado transition hover:bg-white/5 hover:text-white"
                 >
                   Fechar
                 </button>
@@ -765,10 +765,10 @@ export default function LicencaPremio({
       {/* ===== MODAL ADICIONAR MILITAR ===== */}
       {modalAdicionar && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-xl border border-white/10 bg-[#0F1B2D] shadow-xl">
+          <div className="w-full max-w-md rounded-xl border border-white/10 bg-painel shadow-xl">
             <div className="flex items-center justify-between rounded-t-xl border-b border-white/10 bg-white/5 px-5 py-4">
               <h3 className="font-bold text-white">Adicionar à Equipe {modalAdicionar.numeroEquipe}</h3>
-              <button onClick={() => { setModalAdicionar(null); setBusca(""); }} className="text-[#94A3B8] hover:text-white">
+              <button onClick={() => { setModalAdicionar(null); setBusca(""); }} className="text-apagado hover:text-white">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -778,12 +778,12 @@ export default function LicencaPremio({
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
                 placeholder="Buscar por nome, nome de guerra ou matrícula..."
-                className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
               />
               {busca.trim().length >= 2 && (
                 <div className="max-h-64 overflow-y-auto rounded-lg border border-white/10">
                   {filtrados.length === 0 ? (
-                    <div className="px-3 py-6 text-center text-sm text-[#94A3B8]">
+                    <div className="px-3 py-6 text-center text-sm text-apagado">
                       Nenhum militar encontrado (ou já alocado em outra equipe este ano).
                     </div>
                   ) : (
@@ -795,7 +795,7 @@ export default function LicencaPremio({
                         className="flex w-full items-center justify-between gap-2 border-b border-white/5 px-3 py-2 text-left text-sm text-white last:border-b-0 hover:bg-white/5 disabled:opacity-50"
                       >
                         <span>{nomeMilitar(m)}</span>
-                        {m.matricula && <span className="text-xs text-[#94A3B8]">Mat. {m.matricula}</span>}
+                        {m.matricula && <span className="text-xs text-apagado">Mat. {m.matricula}</span>}
                       </button>
                     ))
                   )}
@@ -804,7 +804,7 @@ export default function LicencaPremio({
               <div className="flex justify-end pt-1">
                 <button
                   onClick={() => { setModalAdicionar(null); setBusca(""); }}
-                  className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-white"
+                  className="rounded-lg border border-white/10 px-4 py-2 text-sm text-apagado hover:bg-white/5 hover:text-white"
                 >
                   Fechar
                 </button>
@@ -817,14 +817,14 @@ export default function LicencaPremio({
       {/* Assinar memorandos de LP em lote (Chefe do P/1) */}
       {assinarLote && aberta && (
         <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/60 p-4" onClick={() => !assinando && setAssinarLote(false)}>
-          <div className="mt-10 w-full max-w-lg rounded-xl border border-[#D4AF37]/30 bg-[#0F1B2D] shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="mt-10 w-full max-w-lg rounded-xl border border-ouro/30 bg-painel shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 text-white">
-              <h3 className="flex items-center gap-2 font-bold"><ShieldCheck className="h-5 w-5 text-[#D4AF37]" /> Assinar memorandos — Equipe {aberta.numeroEquipe}</h3>
-              <button onClick={() => !assinando && setAssinarLote(false)} className="text-[#94A3B8] hover:text-white"><X className="h-5 w-5" /></button>
+              <h3 className="flex items-center gap-2 font-bold"><ShieldCheck className="h-5 w-5 text-ouro" /> Assinar memorandos — Equipe {aberta.numeroEquipe}</h3>
+              <button onClick={() => !assinando && setAssinarLote(false)} className="text-apagado hover:text-white"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-3 p-5">
-              <p className="text-xs text-[#94A3B8]">Assinatura <b>avançada SIGEP</b> (com sua senha) do Chefe do P/1. Cada memorando de licença-prêmio recebe um carimbo com QR verificável.</p>
-              <div className="flex items-center justify-between text-xs text-[#94A3B8]">
+              <p className="text-xs text-apagado">Assinatura <b>avançada SIGEP</b> (com sua senha) do Chefe do P/1. Cada memorando de licença-prêmio recebe um carimbo com QR verificável.</p>
+              <div className="flex items-center justify-between text-xs text-apagado">
                 <span>{selAss.size} de {filtrarMembros(aberta.membros).length} selecionados</span>
                 <div className="flex gap-2">
                   <button onClick={() => setSelAss(new Set(filtrarMembros(aberta.membros).map((m) => m.efetivoId)))} className="rounded border border-white/15 px-2 py-0.5 hover:bg-white/5">Todos</button>
@@ -841,15 +841,15 @@ export default function LicencaPremio({
                 ))}
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-[#94A3B8]">Sua senha (para assinar)</label>
+                <label className="mb-1 block text-xs font-medium text-apagado">Sua senha (para assinar)</label>
                 <input type="password" value={senhaAss} onChange={(e) => setSenhaAss(e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                  className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
               </div>
               {assMsg && <div className="text-xs text-emerald-300">{assMsg}</div>}
               <div className="flex justify-end gap-2 pt-1">
-                <button onClick={() => setAssinarLote(false)} disabled={assinando} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-white">Fechar</button>
+                <button onClick={() => setAssinarLote(false)} disabled={assinando} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-apagado hover:bg-white/5 hover:text-white">Fechar</button>
                 <button onClick={assinarMemorandos} disabled={assinando || !senhaAss || selAss.size === 0}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] hover:brightness-110 disabled:opacity-60">
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-4 py-2 text-sm font-semibold text-ouro-texto hover:brightness-110 disabled:opacity-60">
                   {assinando ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Assinar {selAss.size > 0 ? `(${selAss.size})` : ""}
                 </button>
               </div>

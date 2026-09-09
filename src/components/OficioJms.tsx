@@ -102,23 +102,23 @@ export default function OficioJms() {
 
   return (
     <>
-      <div className="mb-4 rounded-xl border border-white/10 bg-[#0F1B2D] p-4 print:hidden">
+      <div className="mb-4 rounded-xl border border-white/10 bg-painel p-4 print:hidden">
         <BuscaMilitar sel={sel} onEscolher={escolher} onLimpar={limpar} rotulo="Militar a apresentar" />
 
         {sel && (
           <>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <label className="text-xs text-[#94A3B8]">Nº do ofício</label>
+              <label className="text-xs text-apagado">Nº do ofício</label>
               <input value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="em branco"
-                className="w-24 rounded-lg border border-white/10 bg-[#0b1626] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
-              <span className="text-xs text-[#94A3B8]">/</span>
+                className="w-24 rounded-lg border border-white/10 bg-campo px-2 py-1.5 text-sm text-white outline-none focus:border-ouro/50" />
+              <span className="text-xs text-apagado">/</span>
               <input value={ano} onChange={(e) => setAno(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                className="w-20 rounded-lg border border-white/10 bg-[#0b1626] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
-              <label className="ml-2 text-xs text-[#94A3B8]">Data da JMS</label>
+                className="w-20 rounded-lg border border-white/10 bg-campo px-2 py-1.5 text-sm text-white outline-none focus:border-ouro/50" />
+              <label className="ml-2 text-xs text-apagado">Data da JMS</label>
               <input type="date" value={dataVisita} onChange={(e) => trocarData(e.target.value)}
-                className="rounded-lg border border-white/10 bg-[#0b1626] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                className="rounded-lg border border-white/10 bg-campo px-2 py-1.5 text-sm text-white outline-none focus:border-ouro/50" />
             </div>
-            <p className="mt-1 text-xs text-[#94A3B8]">
+            <p className="mt-1 text-xs text-apagado">
               O número do ofício fica em branco de propósito — a série é alimentada por outros setores além do SIGEP.
             </p>
 
@@ -149,10 +149,10 @@ export default function OficioJms() {
             )}
           </>
         )}
-        {!sel && <p className="mt-2 text-xs text-[#94A3B8]">Busque o militar e o ofício sai redigido com os dados dele. O número é preenchido à mão.</p>}
+        {!sel && <p className="mt-2 text-xs text-apagado">Busque o militar e o ofício sai redigido com os dados dele. O número é preenchido à mão.</p>}
       </div>
 
-      {carregando && <p className="text-center text-sm text-[#94A3B8] print:hidden">Carregando...</p>}
+      {carregando && <p className="text-center text-sm text-apagado print:hidden">Carregando...</p>}
 
       {sel && !carregando && (
         <div

@@ -43,7 +43,7 @@ export default async function AuditoriaPage() {
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-5xl">
         <h1 className="mb-1 text-2xl font-bold text-white">Auditoria</h1>
-        <p className="mb-4 text-sm text-[#94A3B8]">
+        <p className="mb-4 text-sm text-apagado">
           Registro de quem fez o quê, quando, de qual IP e dispositivo. Exibindo os {linhas.length} eventos mais recentes.
         </p>
         <AncoraLacre />

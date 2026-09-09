@@ -53,7 +53,7 @@ type Props = {
 function statusDe(enviadas: number, total: number) {
   if (enviadas >= total) return { rotulo: "Completo", cor: "bg-emerald-500/15 text-emerald-300" };
   if (enviadas > 0) return { rotulo: "Parcial", cor: "bg-amber-500/15 text-amber-300" };
-  return { rotulo: "Não iniciou", cor: "bg-white/5 text-[#94A3B8]" };
+  return { rotulo: "Não iniciou", cor: "bg-white/5 text-apagado" };
 }
 
 export default function PainelPromocoes({
@@ -211,7 +211,7 @@ export default function PainelPromocoes({
     <div className="ui-card p-4">
       <Icone className={`mb-1 h-5 w-5 ${cor}`} />
       <p className="text-2xl font-bold text-white">{valor}</p>
-      <p className="text-xs text-[#94A3B8]">{rotulo}</p>
+      <p className="text-xs text-apagado">{rotulo}</p>
     </div>
   );
 
@@ -223,32 +223,32 @@ export default function PainelPromocoes({
         <div className="relative">
           <button
             onClick={() => setMenuAberto((v) => !v)}
-            className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white transition hover:border-[#D4AF37]/50"
+            className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white transition hover:border-ouro/50"
           >
-            <ClipboardCheck className="h-4 w-4 text-[#D4AF37]" />
+            <ClipboardCheck className="h-4 w-4 text-ouro" />
             <span className="font-medium">{periodoNome}</span>
-            <ChevronDown className={`h-4 w-4 text-[#94A3B8] transition ${menuAberto ? "rotate-180" : ""}`} />
+            <ChevronDown className={`h-4 w-4 text-apagado transition ${menuAberto ? "rotate-180" : ""}`} />
           </button>
           {menuAberto && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setMenuAberto(false)} />
-              <div className="absolute left-0 top-full z-20 mt-1 max-h-72 w-72 overflow-auto rounded-lg border border-white/10 bg-[#0F1B2D] p-1 shadow-xl">
+              <div className="absolute left-0 top-full z-20 mt-1 max-h-72 w-72 overflow-auto rounded-lg border border-white/10 bg-painel p-1 shadow-xl">
                 {ativos.length === 0 && (
-                  <p className="px-3 py-2 text-xs text-[#94A3B8]">Nenhum período ativo.</p>
+                  <p className="px-3 py-2 text-xs text-apagado">Nenhum período ativo.</p>
                 )}
                 {ativos.map((p) => (
                   <button
                     key={p.id}
                     onClick={() => trocarAtiva(p.id)}
                     className={`flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition hover:bg-white/5 ${
-                      p.id === periodoId ? "text-[#D4AF37]" : "text-white"
+                      p.id === periodoId ? "text-ouro" : "text-white"
                     }`}
                   >
                     <span className="flex flex-col">
                       <span className="font-medium">{p.nome}</span>
-                      {p.dataAlvo && <span className="text-xs text-[#94A3B8]">Alvo: {p.dataAlvo}</span>}
+                      {p.dataAlvo && <span className="text-xs text-apagado">Alvo: {p.dataAlvo}</span>}
                     </span>
-                    <span className="text-xs text-[#94A3B8]">{p.participantes}</span>
+                    <span className="text-xs text-apagado">{p.participantes}</span>
                   </button>
                 ))}
               </div>
@@ -259,7 +259,7 @@ export default function PainelPromocoes({
         {/* Nova promocao */}
         <button
           onClick={() => setModalNovo(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-2 text-sm font-medium text-[#1a1205] transition hover:brightness-110"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-3 py-2 text-sm font-medium text-ouro-texto transition hover:brightness-110"
         >
           <CalendarPlus className="h-4 w-4" /> Nova promoção
         </button>
@@ -268,7 +268,7 @@ export default function PainelPromocoes({
         {arquivados.length > 0 && (
           <button
             onClick={() => setModalArquivadas(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-sm text-[#94A3B8] transition hover:bg-white/5 hover:text-white"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-sm text-apagado transition hover:bg-white/5 hover:text-white"
           >
             <Archive className="h-4 w-4" /> Arquivadas ({arquivados.length})
           </button>
@@ -280,7 +280,7 @@ export default function PainelPromocoes({
         <button
           onClick={() => arquivar(periodoId)}
           disabled={acaoPeriodo}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-sm text-[#94A3B8] transition hover:border-amber-500/40 hover:text-amber-300 disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-sm text-apagado transition hover:border-amber-500/40 hover:text-amber-300 disabled:opacity-60"
         >
           {acaoPeriodo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
           Arquivar período
@@ -288,16 +288,16 @@ export default function PainelPromocoes({
       </div>
 
       {/* Cabecalho do periodo */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#D4AF37]/20 bg-[#0F1B2D] p-4 text-white">
-        <ClipboardCheck className="h-6 w-6 text-[#D4AF37]" />
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-ouro/20 bg-painel p-4 text-white">
+        <ClipboardCheck className="h-6 w-6 text-ouro" />
         <div className="flex-1">
           <p className="text-sm font-semibold">{periodoNome}</p>
-          {periodoData && <p className="text-xs text-[#94A3B8]">Alvo: {periodoData}</p>}
+          {periodoData && <p className="text-xs text-apagado">Alvo: {periodoData}</p>}
         </div>
         <button
           onClick={adicionarTodos}
           disabled={carregando}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-medium text-[#1a1205] transition hover:brightness-110 disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-3 py-1.5 text-sm font-medium text-ouro-texto transition hover:brightness-110 disabled:opacity-60"
         >
           {carregando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
           Adicionar todo o efetivo
@@ -306,7 +306,7 @@ export default function PainelPromocoes({
 
       {/* Cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Card Icone={Users} valor={participantes.length} rotulo="Total no processo" cor="text-[#D4AF37]" />
+        <Card Icone={Users} valor={participantes.length} rotulo="Total no processo" cor="text-ouro" />
         <Card Icone={CheckCircle2} valor={resumo.completos} rotulo="Completos" cor="text-emerald-400" />
         <Card Icone={Clock} valor={resumo.parciais} rotulo="Parciais" cor="text-amber-400" />
         <Card Icone={AlertTriangle} valor={resumo.naoIniciaram} rotulo="Não iniciaram" cor="text-red-400" />
@@ -315,18 +315,18 @@ export default function PainelPromocoes({
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-[200px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-apagado" />
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar nome, matrícula, posto..."
-            className="w-full rounded-lg border border-white/10 bg-[#0b1626] py-2 pl-9 pr-3 text-sm text-white placeholder-[#94A3B8] outline-none focus:border-[#D4AF37]/50"
+            className="w-full rounded-lg border border-white/10 bg-campo py-2 pl-9 pr-3 text-sm text-white placeholder-apagado outline-none focus:border-ouro/50"
           />
         </div>
         <select
           value={filtroStatus}
           onChange={(e) => setFiltroStatus(e.target.value)}
-          className="rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+          className="rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
         >
           <option value="">Todos os status</option>
           <option value="Completo">Completos</option>
@@ -336,7 +336,7 @@ export default function PainelPromocoes({
         {(busca || filtroStatus) && (
           <button
             onClick={() => { setBusca(""); setFiltroStatus(""); }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#94A3B8] transition hover:bg-white/5 hover:text-white"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-apagado transition hover:bg-white/5 hover:text-white"
           >
             <FilterX className="h-4 w-4" /> Limpar
           </button>
@@ -344,10 +344,10 @@ export default function PainelPromocoes({
       </div>
 
       {/* Tabela */}
-      <div className="overflow-x-auto rounded-xl border border-white/5 bg-[#0F1B2D]">
+      <div className="overflow-x-auto rounded-xl border border-white/5 bg-painel">
         <table className="min-w-full text-sm">
           <thead>
-            <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wider text-[#94A3B8]">
+            <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wider text-apagado">
               <th className="px-4 py-3 font-semibold">Grad.</th>
               <th className="px-4 py-3 font-semibold">Nome de Guerra</th>
               <th className="px-4 py-3 font-semibold">Matrícula</th>
@@ -362,7 +362,7 @@ export default function PainelPromocoes({
               const st = statusDe(p.enviadas, total);
               return (
                 <tr key={p.efetivoId} className="hover:bg-white/5">
-                  <td className="whitespace-nowrap px-4 py-2.5 text-[#94A3B8]">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-apagado">
                     {p.postoGrad ?? "—"}
                   </td>
                   <td className="px-4 py-2.5">
@@ -370,12 +370,12 @@ export default function PainelPromocoes({
                       {p.nomeGuerra || p.nome || "—"}
                     </span>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-[#94A3B8]">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-apagado">
                     {p.matricula ?? "—"}
                   </td>
                   <td className="px-4 py-2.5">
                     <span className="font-medium text-white">{p.enviadas}</span>
-                    <span className="text-[#94A3B8]">/{total}</span>
+                    <span className="text-apagado">/{total}</span>
                   </td>
                   <td className="px-4 py-2.5">
                     <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${st.cor}`}>
@@ -388,11 +388,11 @@ export default function PainelPromocoes({
                         <CheckCircle2 className="h-3.5 w-3.5" /> Recebido
                       </span>
                     ) : p.enviadoP1Em ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-[#D4AF37]/15 px-2.5 py-0.5 text-xs font-medium text-[#D4AF37]">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-ouro/15 px-2.5 py-0.5 text-xs font-medium text-ouro">
                         <Clock className="h-3.5 w-3.5" /> Enviado
                       </span>
                     ) : (
-                      <span className="text-xs text-[#94A3B8]">—</span>
+                      <span className="text-xs text-apagado">—</span>
                     )}
                   </td>
                   <td className="px-4 py-2.5">
@@ -400,12 +400,12 @@ export default function PainelPromocoes({
                       {p.pdfUnificado ? (
                         <a
                           href={`/api/promocoes/download?key=${encodeURIComponent(p.pdfUnificado)}`}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/30 px-2.5 py-1 text-xs font-medium text-[#D4AF37] transition hover:bg-[#D4AF37] hover:text-[#1a1205]"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-ouro/30 px-2.5 py-1 text-xs font-medium text-ouro transition hover:bg-ouro hover:text-ouro-texto"
                         >
                           <Download className="h-3.5 w-3.5" /> PDF unificado
                         </a>
                       ) : (
-                        <span className="text-xs text-[#94A3B8]">aguardando</span>
+                        <span className="text-xs text-apagado">aguardando</span>
                       )}
                       {p.enviadoP1Em && !p.recebidoP1Em && (
                         <button
@@ -425,7 +425,7 @@ export default function PainelPromocoes({
                           onClick={() => reabrir(p.efetivoId, p.nomeGuerra || p.nome || "")}
                           disabled={confirmandoP1 === p.efetivoId}
                           title="Destrava as certidões para o militar trocar algum arquivo"
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-2.5 py-1 text-xs font-medium text-[#94A3B8] transition hover:bg-white/5 hover:text-white disabled:opacity-60"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-2.5 py-1 text-xs font-medium text-apagado transition hover:bg-white/5 hover:text-white disabled:opacity-60"
                         >
                           <RotateCcw className="h-3.5 w-3.5" /> Reabrir
                         </button>
@@ -437,7 +437,7 @@ export default function PainelPromocoes({
             })}
             {filtrados.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-[#94A3B8]">
+                <td colSpan={7} className="px-4 py-10 text-center text-apagado">
                   Nenhum policial no processo ainda. Use 'Adicionar todo o efetivo' ou aguarde os envios.
                 </td>
               </tr>
@@ -457,35 +457,35 @@ export default function PainelPromocoes({
       {/* Modal Arquivadas */}
       {modalArquivadas && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4" onClick={() => setModalArquivadas(false)}>
-          <div className="w-full max-w-lg rounded-xl border border-white/10 bg-[#0F1B2D] p-5" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-lg rounded-xl border border-white/10 bg-painel p-5" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-lg font-semibold text-white">
-                <Archive className="h-5 w-5 text-[#D4AF37]" /> Promoções arquivadas
+                <Archive className="h-5 w-5 text-ouro" /> Promoções arquivadas
               </h3>
-              <button onClick={() => setModalArquivadas(false)} className="text-[#94A3B8] hover:text-white">
+              <button onClick={() => setModalArquivadas(false)} className="text-apagado hover:text-white">
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="space-y-2">
               {arquivados.map((p) => (
-                <div key={p.id} className="flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-[#0b1626] px-3 py-2.5">
+                <div key={p.id} className="flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-campo px-3 py-2.5">
                   <div>
                     <p className="text-sm font-medium text-white">{p.nome}</p>
-                    <p className="text-xs text-[#94A3B8]">
+                    <p className="text-xs text-apagado">
                       {p.dataAlvo ? `Alvo: ${p.dataAlvo} · ` : ""}{p.participantes} participantes
                     </p>
                   </div>
                   <button
                     onClick={() => reativar(p.id)}
                     disabled={acaoPeriodo}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/30 px-2.5 py-1.5 text-xs font-medium text-[#D4AF37] transition hover:bg-[#D4AF37] hover:text-[#1a1205] disabled:opacity-60"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-ouro/30 px-2.5 py-1.5 text-xs font-medium text-ouro transition hover:bg-ouro hover:text-ouro-texto disabled:opacity-60"
                   >
                     <RotateCcw className="h-3.5 w-3.5" /> Reativar
                   </button>
                 </div>
               ))}
             </div>
-            <p className="mt-4 text-xs text-[#94A3B8]">
+            <p className="mt-4 text-xs text-apagado">
               Reativar torna esta a promoção ativa e arquiva a atual. Nenhum dado é perdido.
             </p>
           </div>
@@ -538,48 +538,48 @@ function ModalNovaPromocao({
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4" onClick={onFechar}>
-      <div className="w-full max-w-md rounded-xl border border-white/10 bg-[#0F1B2D] p-5" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md rounded-xl border border-white/10 bg-painel p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="flex items-center gap-2 text-lg font-semibold text-white">
-            <CalendarPlus className="h-5 w-5 text-[#D4AF37]" /> Nova promoção
+            <CalendarPlus className="h-5 w-5 text-ouro" /> Nova promoção
           </h3>
-          <button onClick={onFechar} className="text-[#94A3B8] hover:text-white">
+          <button onClick={onFechar} className="text-apagado hover:text-white">
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-xs font-medium text-[#94A3B8]">Nome da promoção</label>
+            <label className="mb-1 block text-xs font-medium text-apagado">Nome da promoção</label>
             <input
               value={nome}
               onChange={(e) => setNome(e.target.value)}
               placeholder="ex.: promoção dezembro 2026"
               autoFocus
-              className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white placeholder-[#94A3B8] outline-none focus:border-[#D4AF37]/50"
+              className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white placeholder-apagado outline-none focus:border-ouro/50"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-[#94A3B8]">Data-alvo (opcional)</label>
+            <label className="mb-1 block text-xs font-medium text-apagado">Data-alvo (opcional)</label>
             <input
               type="date"
               value={dataAlvo}
               onChange={(e) => setDataAlvo(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+              className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
             />
           </div>
 
-          <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-white/10 bg-[#0b1626] p-3">
+          <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-white/10 bg-campo p-3">
             <input
               type="checkbox"
               checked={adicionarEfetivo}
               onChange={(e) => setAdicionarEfetivo(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-[#D4AF37]"
+              className="mt-0.5 h-4 w-4 accent-ouro"
             />
             <span className="text-sm text-white">
               Adicionar todo o efetivo agora
-              <span className="mt-0.5 block text-xs text-[#94A3B8]">
+              <span className="mt-0.5 block text-xs text-apagado">
                 Inclui todos os militares como participantes. Desmarque para começar vazia e adicionar depois.
               </span>
             </span>
@@ -589,21 +589,21 @@ function ModalNovaPromocao({
             <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-300">{erro}</p>
           )}
 
-          <p className="text-xs text-[#94A3B8]">
+          <p className="text-xs text-apagado">
             A nova promoção passa a ser a ativa. A promoção atual é arquivada automaticamente (dados preservados).
           </p>
 
           <div className="flex justify-end gap-2 pt-1">
             <button
               onClick={onFechar}
-              className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] transition hover:bg-white/5 hover:text-white"
+              className="rounded-lg border border-white/10 px-4 py-2 text-sm text-apagado transition hover:bg-white/5 hover:text-white"
             >
               Cancelar
             </button>
             <button
               onClick={salvar}
               disabled={salvando}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-medium text-[#1a1205] transition hover:brightness-110 disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ouro px-4 py-2 text-sm font-medium text-ouro-texto transition hover:brightness-110 disabled:opacity-60"
             >
               {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarPlus className="h-4 w-4" />}
               Criar promoção

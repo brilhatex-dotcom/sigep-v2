@@ -91,7 +91,7 @@ export default function HistoricoJms() {
     <button
       onClick={() => setFiltro(id)}
       className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-        filtro === id ? "bg-[#D4AF37] text-[#1a1205]" : "border border-white/10 text-[#94A3B8] hover:text-white"
+        filtro === id ? "bg-ouro text-ouro-texto" : "border border-white/10 text-apagado hover:text-white"
       }`}
     >
       {rotulo}
@@ -99,7 +99,7 @@ export default function HistoricoJms() {
   );
 
   return (
-    <div className="rounded-xl border border-white/10 bg-[#0F1B2D] p-4">
+    <div className="rounded-xl border border-white/10 bg-painel p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Chip id="todos" rotulo="Todos" />
         <Chip id="oficio" rotulo="Ofícios" />
@@ -108,21 +108,21 @@ export default function HistoricoJms() {
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Procurar pelo nome…"
-          className="ml-auto w-56 rounded-lg border border-white/10 bg-[#0b1626] px-3 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+          className="ml-auto w-56 rounded-lg border border-white/10 bg-campo px-3 py-1.5 text-sm text-white outline-none focus:border-ouro/50"
         />
-        <button onClick={carregar} title="Atualizar" className="rounded-lg border border-white/10 p-1.5 text-[#94A3B8] transition hover:text-white">
+        <button onClick={carregar} title="Atualizar" className="rounded-lg border border-white/10 p-1.5 text-apagado transition hover:text-white">
           <RefreshCw className={`h-4 w-4 ${carregando ? "animate-spin" : ""}`} />
         </button>
       </div>
 
       {carregando ? (
-        <p className="flex items-center gap-2 py-8 text-sm text-[#94A3B8]"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</p>
+        <p className="flex items-center gap-2 py-8 text-sm text-apagado"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</p>
       ) : erro ? (
         <p className="py-8 text-sm text-red-300">{erro}</p>
       ) : porMes.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-12 text-center">
-          <Inbox className="h-9 w-9 text-[#94A3B8]/40" />
-          <p className="text-sm text-[#94A3B8]">
+          <Inbox className="h-9 w-9 text-apagado/40" />
+          <p className="text-sm text-apagado">
             {itens.length === 0 ? "Nada emitido ainda." : "Nenhum documento com esse filtro."}
           </p>
           {itens.length === 0 && (
@@ -142,12 +142,12 @@ export default function HistoricoJms() {
                   onClick={() => alternar(g.mes)}
                   className="flex w-full items-center gap-2 bg-white/[0.03] px-3 py-2.5 text-left transition hover:bg-white/[0.06]"
                 >
-                  <ChevronRight className={`h-4 w-4 shrink-0 text-[#D4AF37] transition-transform ${aberto ? "rotate-90" : ""}`} />
+                  <ChevronRight className={`h-4 w-4 shrink-0 text-ouro transition-transform ${aberto ? "rotate-90" : ""}`} />
                   {/* só a inicial: `capitalize` deixaria "Setembro De 2026" */}
                   <span className="text-sm font-semibold text-white first-letter:uppercase">
                     {g.mes === "sem-data" ? "Sem data" : mesPorExtenso(g.mes)}
                   </span>
-                  <span className="ml-auto rounded-full bg-[#D4AF37]/15 px-2 py-0.5 text-xs font-semibold text-[#D4AF37]">
+                  <span className="ml-auto rounded-full bg-ouro/15 px-2 py-0.5 text-xs font-semibold text-ouro">
                     {g.itens.length}
                   </span>
                 </button>
@@ -162,11 +162,11 @@ export default function HistoricoJms() {
                           <span className="font-medium text-white">
                             {[i.postoGrad, i.nome].filter(Boolean).join(" ") || "—"}
                           </span>
-                          <span className="rounded border border-white/10 px-1.5 py-0.5 text-[11px] text-[#94A3B8]">
+                          <span className="rounded border border-white/10 px-1.5 py-0.5 text-[11px] text-apagado">
                             {i.tipo === "oficio" ? "Ofício" : "Guia"}
                             {i.numero ? ` nº ${i.numero}${i.ano ? `/${i.ano}` : ""}` : ""}
                           </span>
-                          {i.dataJms && <span className="text-xs text-[#94A3B8]">JMS em {brData(i.dataJms)}</span>}
+                          {i.dataJms && <span className="text-xs text-apagado">JMS em {brData(i.dataJms)}</span>}
                           <span className="ml-auto text-xs text-[#7e8b99]">
                             feito em {brData(i.criadoEm)}{i.criadoPor ? ` por ${i.criadoPor}` : ""}
                           </span>
@@ -175,7 +175,7 @@ export default function HistoricoJms() {
                               onClick={() => apagar(i)}
                               disabled={apagando === i.id}
                               title="Apagar este registro da lista"
-                              className="rounded p-1 text-[#94A3B8] transition hover:bg-red-500/10 hover:text-red-300 disabled:opacity-40"
+                              className="rounded p-1 text-apagado transition hover:bg-red-500/10 hover:text-red-300 disabled:opacity-40"
                             >
                               {apagando === i.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                             </button>

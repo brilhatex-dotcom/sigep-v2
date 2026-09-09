@@ -31,9 +31,9 @@ export default async function HierarquiaPage() {
     return (
       <section className="mb-8">
         <div className="mb-3 flex items-center gap-2">
-          <span className="h-4 w-1 rounded bg-[#D4AF37]" />
+          <span className="h-4 w-1 rounded bg-ouro" />
           <h2 className="text-sm font-bold uppercase tracking-wider text-white">{titulo}</h2>
-          <span className="ml-auto text-sm font-semibold text-[#94A3B8]">{soma}</span>
+          <span className="ml-auto text-sm font-semibold text-apagado">{soma}</span>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {patentes.map((p) => {
@@ -45,7 +45,7 @@ export default async function HierarquiaPage() {
                 className="ui-card group p-4"
               >
                 <p className="text-2xl font-bold text-white">{qtd}</p>
-                <p className="text-xs text-[#94A3B8] group-hover:text-[#D4AF37]">{p.rotulo}</p>
+                <p className="text-xs text-apagado group-hover:text-ouro">{p.rotulo}</p>
               </Link>
             );
           })}
@@ -58,7 +58,7 @@ export default async function HierarquiaPage() {
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-5xl">
         <h1 className="mb-1 text-2xl font-bold text-white">Hierarquia</h1>
-        <p className="mb-6 text-sm text-[#94A3B8]">
+        <p className="mb-6 text-sm text-apagado">
           Distribuição do efetivo por posto e graduação — {total} militares. Clique numa patente para ver os militares.
         </p>
         <Grupo titulo="Oficiais" patentes={oficiais} />

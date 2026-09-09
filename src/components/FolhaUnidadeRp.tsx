@@ -223,18 +223,18 @@ export default function FolhaUnidadeRp({
 
   return createPortal((
     <div id="folha-overlay" className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 print:bg-white">
-      <div className="no-print sticky top-0 z-10 flex flex-wrap items-center gap-2 bg-[#0b1626] px-3 py-2 shadow">
+      <div className="no-print sticky top-0 z-10 flex flex-wrap items-center gap-2 bg-campo px-3 py-2 shadow">
         <label className="mr-auto flex items-center gap-2 text-sm text-white">
           Semana de:
           <input type="date" value={segISO} onChange={(e) => setSegISO(segundaDaSemana(e.target.value || toISO(new Date())))}
-            className="rounded-md border border-white/15 bg-[#0a1626] px-2 py-1 text-sm text-white" />
-          <span className="text-xs text-[#94A3B8]">{brData(segISO)} → {brData(domISO)}</span>
+            className="rounded-md border border-white/15 bg-campo px-2 py-1 text-sm text-white" />
+          <span className="text-xs text-apagado">{brData(segISO)} → {brData(domISO)}</span>
         </label>
         <button onClick={() => setSegISO(somaDias(segISO, -7))} className="rounded-md border border-white/15 px-2 py-1 text-xs text-white hover:bg-white/5">← Semana anterior</button>
         <button onClick={() => setSegISO(somaDias(segISO, 7))} className="rounded-md border border-white/15 px-2 py-1 text-xs text-white hover:bg-white/5">Próxima semana →</button>
         {publicadas.length > 0 && (
           <select value="" onChange={(e) => { if (e.target.value) setSegISO(segundaDaSemana(e.target.value)); }}
-            className="rounded-md border border-white/15 bg-[#0a1626] px-2 py-1 text-sm text-white" title="Semanas publicadas da unidade">
+            className="rounded-md border border-white/15 bg-campo px-2 py-1 text-sm text-white" title="Semanas publicadas da unidade">
             <option value="">Publicadas ({publicadas.length})…</option>
             {publicadas.map((p) => <option key={p.id} value={p.dataEscala}>Semana de {brData(p.dataEscala)} {(p.status || "autorizada") === "pendente" ? "⏳ pendente" : "✅"}</option>)}
           </select>
@@ -264,9 +264,9 @@ export default function FolhaUnidadeRp({
         </div>
       )}
       {papel === "sarg" && (
-        <div className="no-print bg-[#0b1626] px-3 pb-1 text-xs text-[#94A3B8]">Você é o sargenteante: ao publicar, a escala vai para o Cmt local aprovar. A assinatura de baixo é sempre do Cmt.</div>
+        <div className="no-print bg-campo px-3 pb-1 text-xs text-apagado">Você é o sargenteante: ao publicar, a escala vai para o Cmt local aprovar. A assinatura de baixo é sempre do Cmt.</div>
       )}
-      {msg && <div className="no-print bg-[#0b1626] px-3 pb-2 text-xs text-emerald-300">{msg}</div>}
+      {msg && <div className="no-print bg-campo px-3 pb-2 text-xs text-emerald-300">{msg}</div>}
 
       <div id="folha-print" className="mx-auto my-6 bg-white text-black shadow-2xl print:my-0 print:shadow-none"
         style={{ width: "210mm", minHeight: "297mm", padding: "12mm 16mm", fontFamily: "Times New Roman, Times, serif", fontSize: "11pt", lineHeight: 1.3, position: "relative" }}>
@@ -334,7 +334,7 @@ export default function FolhaUnidadeRp({
       </div>
 
       {podeAssinar && (
-        <div className="no-print mx-auto mb-8 max-w-[210mm] px-4 text-xs text-[#94A3B8]">
+        <div className="no-print mx-auto mb-8 max-w-[210mm] px-4 text-xs text-apagado">
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={cmt.assinarGov} onChange={(e) => salvarAssinatura({ assinatura: cmt.assinatura, assinarGov: e.target.checked })} />
             Sair <b>em branco</b> para eu assinar via Gov.br (não usar a imagem)

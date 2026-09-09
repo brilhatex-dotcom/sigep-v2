@@ -38,7 +38,7 @@ function Mes({ ano, mes, mapa, hojeISO }: { ano: number; mes: number; mapa: Map<
   while (celulas.length % 7 !== 0) celulas.push(null);
 
   return (
-    <div className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-3">
+    <div className="rounded-xl border border-azul-frio bg-painel p-3">
       <h2 className="mb-2 text-center text-sm font-bold text-white">{MESES[mes]} de {ano}</h2>
       <div className="grid grid-cols-7 gap-1">
         {DOW.map((d) => (
@@ -55,14 +55,14 @@ function Mes({ ano, mes, mapa, hojeISO }: { ano: number; mes: number; mapa: Map<
               key={i}
               title={escalado ? `${brData(iso)} — ${servs!.map((s) => LABEL_SERVICO[s] || s).join(", ")}` : brData(iso)}
               className={`flex min-h-[46px] flex-col items-center rounded-md border p-1 text-center ${
-                escalado ? "border-[#D4AF37]/60 bg-[#D4AF37]/15" : "border-transparent bg-black/10"
+                escalado ? "border-ouro/60 bg-ouro/15" : "border-transparent bg-black/10"
               } ${ehHoje ? "ring-1 ring-teal-400" : ""}`}
             >
               <span className={`text-xs font-semibold ${escalado ? "text-[#F0D98A]" : "text-[#7f93b3]"}`}>{d}</span>
               {escalado && (
                 <span className="mt-0.5 flex flex-wrap justify-center gap-0.5">
                   {servs!.map((s, j) => (
-                    <span key={j} className="rounded bg-[#D4AF37] px-1 text-[8px] font-bold leading-tight text-[#1a1205]">{ABBR_SERVICO[s] || s}</span>
+                    <span key={j} className="rounded bg-ouro px-1 text-[8px] font-bold leading-tight text-ouro-texto">{ABBR_SERVICO[s] || s}</span>
                   ))}
                 </span>
               )}
@@ -89,17 +89,17 @@ export default function MeuMapaView({
   const fimISO = isoDe(fim.getFullYear(), fim.getMonth(), fim.getDate());
 
   return (
-    <div className="mx-auto max-w-3xl text-[#cdd9ea]">
+    <div className="mx-auto max-w-3xl text-texto-2">
       <h1 className="mb-1 flex items-center gap-2 text-2xl font-bold text-white">
-        <MapIcon className="h-6 w-6 text-[#D4AF37]" /> Meu Mapa de Escala
+        <MapIcon className="h-6 w-6 text-ouro" /> Meu Mapa de Escala
       </h1>
-      <p className="mb-1 text-sm text-[#94A3B8]">Calendário com os dias em que você está previsto para o serviço na sede (RP, FT, ROTEM, permanência, CPU…).</p>
+      <p className="mb-1 text-sm text-apagado">Calendário com os dias em que você está previsto para o serviço na sede (RP, FT, ROTEM, permanência, CPU…).</p>
       <p className="mb-4 inline-block rounded-md border border-amber-700/40 bg-amber-950/20 px-3 py-1 text-xs font-semibold text-amber-200">
         ⚠️ Isto é uma PREVISÃO de escala — a escala oficial é a publicada pelo P/1.
       </p>
 
       {!meuId ? (
-        <div className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-6 text-center text-sm text-[#94A3B8]">Seu login não está vinculado a uma ficha. Procure o P/1.</div>
+        <div className="rounded-xl border border-azul-frio bg-painel p-6 text-center text-sm text-apagado">Seu login não está vinculado a uma ficha. Procure o P/1.</div>
       ) : !temPrevisao ? (
         <div className="rounded-xl border border-amber-700/40 bg-amber-950/20 p-6 text-center text-sm text-amber-200">
           Você não tem previsão de serviço na sede. Esta aba é para o efetivo da sede que entra no rodízio (RP, FT, ROTEM, permanência, CPU…).
@@ -113,11 +113,11 @@ export default function MeuMapaView({
             ))}
           </div>
 
-          <div className="mt-4 rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-3">
+          <div className="mt-4 rounded-xl border border-azul-frio bg-painel p-3">
             <div className="mb-1 text-xs font-semibold text-white">Legenda das siglas</div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[#94A3B8]">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-apagado">
               {Object.entries(ABBR_SERVICO).map(([k, ab]) => (
-                <span key={k}><b className="text-[#cdd9ea]">{ab}</b> = {LABEL_SERVICO[k]}</span>
+                <span key={k}><b className="text-texto-2">{ab}</b> = {LABEL_SERVICO[k]}</span>
               ))}
             </div>
           </div>

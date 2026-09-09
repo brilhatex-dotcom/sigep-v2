@@ -170,7 +170,7 @@ export default function CentralAvisos() {
             <div
               key={a.id}
               role="status"
-              className="aviso-entra pointer-events-auto flex items-start gap-2.5 rounded-xl border border-white/10 bg-[#0F1B2D] px-3.5 py-3 shadow-2xl"
+              className="aviso-entra pointer-events-auto flex items-start gap-2.5 rounded-xl border border-white/10 bg-painel px-3.5 py-3 shadow-2xl"
               style={{ borderLeft: `3px solid ${c.barra}` }}
             >
               <c.Icone className={`mt-0.5 h-[18px] w-[18px] shrink-0 ${c.icone}`} />
@@ -178,7 +178,7 @@ export default function CentralAvisos() {
               <button
                 onClick={() => fechar(a.id)}
                 aria-label="Fechar aviso"
-                className="-mr-1 -mt-0.5 shrink-0 rounded-md p-1 text-[#94A3B8] transition hover:bg-white/10 hover:text-white"
+                className="-mr-1 -mt-0.5 shrink-0 rounded-md p-1 text-apagado transition hover:bg-white/10 hover:text-white"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -194,16 +194,16 @@ export default function CentralAvisos() {
           <div
             role="alertdialog"
             aria-modal="true"
-            className="dialogo-entra relative w-full max-w-[440px] overflow-hidden rounded-2xl border border-white/10 bg-[#0F1B2D] shadow-2xl"
+            className="dialogo-entra relative w-full max-w-[440px] overflow-hidden rounded-2xl border border-white/10 bg-painel shadow-2xl"
           >
             <div className="flex items-start gap-3 px-5 pb-4 pt-5">
-              <HelpCircle className={`mt-0.5 h-5 w-5 shrink-0 ${daVez.perigo ? "text-red-300" : "text-[#D4AF37]"}`} />
+              <HelpCircle className={`mt-0.5 h-5 w-5 shrink-0 ${daVez.perigo ? "text-red-300" : "text-ouro"}`} />
               <p className="whitespace-pre-line text-[14px] leading-relaxed text-white">{daVez.texto}</p>
             </div>
             <div className="flex justify-end gap-2 border-t border-white/10 px-5 py-3">
               <button
                 onClick={() => responder(daVez, false)}
-                className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#94A3B8] transition hover:bg-white/5 hover:text-white"
+                className="rounded-lg border border-white/10 px-4 py-2 text-sm text-apagado transition hover:bg-white/5 hover:text-white"
               >
                 Cancelar
               </button>
@@ -211,7 +211,7 @@ export default function CentralAvisos() {
                 autoFocus
                 onClick={() => responder(daVez, true)}
                 className={`rounded-lg px-4 py-2 text-sm font-semibold transition hover:brightness-110 ${
-                  daVez.perigo ? "bg-red-500 text-white" : "bg-[#D4AF37] text-[#1a1205]"
+                  daVez.perigo ? "bg-red-500 text-white" : "bg-ouro text-ouro-texto"
                 }`}
               >
                 {daVez.rotuloOk}

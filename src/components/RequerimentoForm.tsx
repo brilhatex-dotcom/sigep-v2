@@ -155,9 +155,9 @@ export default function RequerimentoForm({
       {/* dados pessoais */}
       <section className="ui-card p-6">
         <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-          <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Dados do requerente
+          <span className="h-4 w-1 rounded bg-ouro" /> Dados do requerente
         </h2>
-        <p className="mb-4 text-[12px] text-[#94A3B8]">
+        <p className="mb-4 text-[12px] text-apagado">
           {editandoId
             ? "Ajuste o que precisar. Se o documento já tinha sido gerado, ele é descartado — gere de novo depois de salvar, para sair com o texto novo."
             : "Os campos vêm da sua ficha. Confira e ajuste o que precisar — fica salvo para os próximos requerimentos."}
@@ -165,14 +165,14 @@ export default function RequerimentoForm({
         <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
           {campos.map((c) => (
             <div key={c.key} className={classeCol(c.col)}>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-apagado">
                 {c.label}
               </label>
               <input
                 type="text"
                 value={f[c.key] ?? ""}
                 onChange={(e) => set(c.key, e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
               />
             </div>
           ))}
@@ -180,14 +180,14 @@ export default function RequerimentoForm({
           {ehCursos && (
             <>
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">CPF *</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-apagado">CPF *</label>
                 <input type="text" value={f.cpf ?? ""} onChange={(e) => set("cpf", e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                  className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
               </div>
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">E-mail *</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-apagado">E-mail *</label>
                 <input type="text" value={f.email ?? ""} onChange={(e) => set("email", e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                  className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
               </div>
             </>
           )}
@@ -198,16 +198,16 @@ export default function RequerimentoForm({
       {ehAquisicao && (
         <section className="ui-card p-6">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-            <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Produto controlado a ser adquirido
+            <span className="h-4 w-1 rounded bg-ouro" /> Produto controlado a ser adquirido
           </h2>
-          <p className="mb-4 text-[12px] text-[#94A3B8]">
+          <p className="mb-4 text-[12px] text-apagado">
             Sai na tabela do quadro 2 do formulário. A quantidade somada ao que você já possui não pode
             passar do limite das normas da COLOG.
           </p>
           <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
             {CAMPOS_PCE.map((c) => (
               <div key={c.key}>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-apagado">
                   {c.label}
                 </label>
                 <input
@@ -215,7 +215,7 @@ export default function RequerimentoForm({
                   value={f[c.key] ?? ""}
                   onChange={(e) => set(c.key, e.target.value)}
                   placeholder={c.dica}
-                  className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                  className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50"
                 />
               </div>
             ))}
@@ -227,14 +227,14 @@ export default function RequerimentoForm({
       {ehOutros && (
         <section className="ui-card p-6">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-            <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Especifique a modalidade (Outros)
+            <span className="h-4 w-1 rounded bg-ouro" /> Especifique a modalidade (Outros)
           </h2>
-          <p className="mb-3 text-[12px] text-[#94A3B8]">
+          <p className="mb-3 text-[12px] text-apagado">
             Sai entre parênteses no documento, ao lado do quadrinho “OUTROS”.
           </p>
           <input type="text" value={f.modalidadeOutros ?? ""} onChange={(e) => set("modalidadeOutros", e.target.value)}
             placeholder="Ex: INSCRIÇÃO NO CAP PM"
-            className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+            className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
         </section>
       )}
 
@@ -245,21 +245,21 @@ export default function RequerimentoForm({
           {/* amparo legal */}
           <section className="ui-card p-6">
             <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-              <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Amparo legal
+              <span className="h-4 w-1 rounded bg-ouro" /> Amparo legal
             </h2>
             <textarea rows={3} value={f.amparoLegal ?? ""} onChange={(e) => set("amparoLegal", e.target.value)}
               placeholder="Base legal do requerimento (lei, artigo, edital...)"
-              className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+              className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
           </section>
 
           {/* informacoes adicionais */}
           <section className="ui-card p-6">
             <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-              <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Informações adicionais
+              <span className="h-4 w-1 rounded bg-ouro" /> Informações adicionais
             </h2>
             <textarea rows={4} value={f.infoAdicional ?? ""} onChange={(e) => set("infoAdicional", e.target.value)}
               placeholder="Descreva o que solicita..."
-              className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+              className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
           </section>
         </>
       )}
@@ -268,42 +268,42 @@ export default function RequerimentoForm({
       {ehCursos && (
         <section className="ui-card p-6">
           <h2 className="mb-1 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-            <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Informações do comandante (pág. 2 — verso)
+            <span className="h-4 w-1 rounded bg-ouro" /> Informações do comandante (pág. 2 — verso)
           </h2>
-          <p className="mb-4 text-[12px] text-[#94A3B8]">
+          <p className="mb-4 text-[12px] text-apagado">
             Os itens 1º a 3º e o 6º da situação jurídica já saem prontos no documento — o 6º é calculado
             sozinho a partir da data de inclusão. Preencha só o que só você sabe: o conceito e os dados da
             última promoção.
           </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Conceito militar *</label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-apagado">Conceito militar *</label>
               <input type="text" value={f.p2Conceito ?? ""} onChange={(e) => set("p2Conceito", e.target.value)}
                 placeholder="Ex: EXCEPCIONAL"
-                className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Data da última promoção *</label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-apagado">Data da última promoção *</label>
               <input type="date" value={f.p2UltimaPromocao ?? ""} onChange={(e) => set("p2UltimaPromocao", e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
             </div>
             <div />
             <div>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Nº do BG da última promoção *</label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-apagado">Nº do BG da última promoção *</label>
               <input type="text" value={f.p2BgNumero ?? ""} onChange={(e) => set("p2BgNumero", e.target.value)}
                 placeholder="Ex: 009"
-                className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Data do BG *</label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-apagado">Data do BG *</label>
               <input type="date" value={f.p2BgData ?? ""} onChange={(e) => set("p2BgData", e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
             </div>
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Observação adicional do comandante (opcional)</label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-apagado">Observação adicional do comandante (opcional)</label>
               <textarea rows={3} value={f.p2Complementares ?? ""} onChange={(e) => set("p2Complementares", e.target.value)}
                 placeholder="Só se houver algo além do texto padrão da página 2..."
-                className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                className="w-full rounded-lg border border-white/10 bg-campo px-3 py-2 text-sm text-white outline-none focus:border-ouro/50" />
             </div>
           </div>
         </section>
@@ -315,11 +315,11 @@ export default function RequerimentoForm({
 
       <div className="flex flex-wrap items-center gap-3">
         <button onClick={() => enviar("enviar")} disabled={salvando}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-60">
+          className="inline-flex items-center gap-2 rounded-lg bg-ouro px-5 py-2.5 text-sm font-semibold text-ouro-texto transition hover:brightness-110 disabled:opacity-60">
           <Send className="h-4 w-4" /> {salvando ? "Enviando..." : "Enviar ao P/1"}
         </button>
         <button onClick={() => enviar("rascunho")} disabled={salvando}
-          className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-5 py-2.5 text-sm text-[#94A3B8] transition hover:bg-white/5 hover:text-white disabled:opacity-60">
+          className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-5 py-2.5 text-sm text-apagado transition hover:bg-white/5 hover:text-white disabled:opacity-60">
           <Save className="h-4 w-4" /> Salvar rascunho
         </button>
       </div>

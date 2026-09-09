@@ -91,7 +91,7 @@ export default function FatdDoc({ reg, mil: milD, enc: encD, chefeP1 = "", coman
 
   const conteudo = (
     <div id="fatd-overlay" className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 print:bg-white">
-      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 bg-[#0b1626] px-3 py-2 shadow print:hidden">
+      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 bg-campo px-3 py-2 shadow print:hidden">
         <span className="mr-auto inline-flex items-center gap-1.5 text-xs text-[#8fa3bf]">
           <Info className="h-3.5 w-3.5" /> Clique no documento para editar qualquer texto antes de imprimir.
         </span>

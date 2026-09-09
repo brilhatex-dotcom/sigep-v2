@@ -121,7 +121,7 @@ export default function IntroSplash() {
             const v = video.current;
             if (v) { v.muted = false; v.volume = 0.8; v.play().catch(() => {}); }
           }}
-          className="absolute left-4 top-4 rounded-full border border-white/25 bg-black/50 px-3 py-1.5 text-xs font-semibold text-white/90 backdrop-blur transition hover:border-[#D4AF37] hover:text-white"
+          className="absolute left-4 top-4 rounded-full border border-white/25 bg-black/50 px-3 py-1.5 text-xs font-semibold text-white/90 backdrop-blur transition hover:border-ouro hover:text-white"
         >
           🔊 Ativar som
         </button>
@@ -130,7 +130,7 @@ export default function IntroSplash() {
       <button
         type="button"
         onClick={encerrar}
-        className="absolute right-4 top-4 flex items-center gap-2 rounded-full border border-white/25 bg-black/50 px-3.5 py-1.5 text-xs font-semibold text-white/90 backdrop-blur transition hover:border-[#D4AF37] hover:text-white"
+        className="absolute right-4 top-4 flex items-center gap-2 rounded-full border border-white/25 bg-black/50 px-3.5 py-1.5 text-xs font-semibold text-white/90 backdrop-blur transition hover:border-ouro hover:text-white"
       >
         <span className="relative block h-4 w-4">
           <svg viewBox="0 0 24 24" className="h-4 w-4 -rotate-90">
