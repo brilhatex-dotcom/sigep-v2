@@ -1817,6 +1817,13 @@ export default function EscalaClient() {
   const [chefeSalvando, setChefeSalvando] = useState(false);
   const [chefeMsg, setChefeMsg] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  /* Trava de segurança: a tela só GRAVA aquilo que conseguiu LER antes.
+     Sem isso, uma leitura que falhou (banco fora do ar, sessão sem permissão)
+     deixava a tela vazia/com o exemplo, e a primeira edição gravava esse vazio
+     por cima da escala boa de todo mundo. */
+  const carregouDias = useRef(false);
+  const carregouCad = useRef(false);
+  const [avisoCarga, setAvisoCarga] = useState<string | null>(null);
   const [efetivo, setEfetivo] = useState<Militar[]>([]);
   const [efErro, setEfErro] = useState<string | null>(null);
   const [migrado, setMigrado] = useState(false);
@@ -1870,24 +1877,40 @@ export default function EscalaClient() {
         }
       })
       .catch(() => {});
-    // Dias salvos vem do servidor (migra o localStorage antigo se preciso).
+    /* Dias salvos vem do servidor (migra o localStorage antigo se preciso).
+
+       A regra que faltava aqui: só liberamos a GRAVAÇÃO depois de uma leitura
+       que deu certo. Enquanto a leitura falha, a tela nunca escreve — porque
+       o que ela tem na mão não é a escala, é a falta dela. */
     (async () => {
       try {
         const r = await fetch("/api/escala-dias");
-        const d = r.ok ? await r.json() : null;
-        if (d && d.escalas && Object.keys(d.escalas).length > 0) {
-          setEscalas(d.escalas);
-          ultimoEscalasSalvo.current = JSON.stringify(d.escalas);
-          return;
+        if (r.ok) {
+          const d = await r.json();
+          if (d && d.escalas && typeof d.escalas === "object") {
+            setEscalas(d.escalas);
+            ultimoEscalasSalvo.current = JSON.stringify(d.escalas);
+            carregouDias.current = true;
+            if (Object.keys(d.escalas).length > 0) return;
+          }
+        } else {
+          setAvisoCarga("Não consegui ler a escala salva no servidor. O que está na tela pode estar incompleto — recarregue a página antes de editar.");
+          return;   // sem leitura boa: não mexe no localStorage nem grava nada
         }
-      } catch {}
+      } catch {
+        setAvisoCarga("Não consegui falar com o servidor. O que está na tela pode estar incompleto — recarregue a página antes de editar.");
+        return;
+      }
+      // Servidor respondeu certo e está vazio: aí sim vale migrar o backup local.
       try {
         const eLS = localStorage.getItem("sigep_escalas");
         if (eLS) {
           const parsed = JSON.parse(eLS);
-          setEscalas(parsed);
-          ultimoEscalasSalvo.current = JSON.stringify(parsed);
-          fetch("/api/escala-dias", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ escalas: parsed }) }).catch(() => {});
+          if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) {
+            setEscalas(parsed);
+            ultimoEscalasSalvo.current = JSON.stringify(parsed);
+            fetch("/api/escala-dias", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ escalas: parsed }) }).catch(() => {});
+          }
         }
       } catch {}
     })();
@@ -1895,26 +1918,43 @@ export default function EscalaClient() {
     (async () => {
       try {
         const r = await fetch("/api/escala-config");
-        const d = r.ok ? await r.json() : null;
-        if (d && d.cad) {
-          setCad(d.cad);
-          ultimoCadSalvo.current = JSON.stringify(d.cad);
+        if (r.ok) {
+          const d = await r.json();
+          if (d && d.cad) {
+            setCad(d.cad);
+            ultimoCadSalvo.current = JSON.stringify(d.cad);
+            carregouCad.current = true;
+            setReady(true);
+            return;
+          }
+        } else {
+          /* Sem as equipes de verdade a folha sai com os nomes de EXEMPLO, que
+             foi o que assustou o P/1: "sumiu o nome de todos os escalados".
+             Avisa e trava a gravação em vez de deixar o exemplo virar verdade. */
+          setAvisoCarga("Não consegui ler as equipes salvas no servidor. Os nomes na tela NÃO são a escala real — recarregue a página.");
           setReady(true);
           return;
         }
-      } catch {}
+      } catch {
+        setAvisoCarga("Não consegui falar com o servidor. Os nomes na tela NÃO são a escala real — recarregue a página.");
+        setReady(true);
+        return;
+      }
       try {
         const cLS = localStorage.getItem("sigep_cadastro");
         if (cLS) {
           const parsed = JSON.parse(cLS);
           setCad(parsed);
           ultimoCadSalvo.current = JSON.stringify(parsed);
+          carregouCad.current = true;
           fetch("/api/escala-config", {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ cad: parsed }),
           }).catch(() => {});
         } else {
+          // Instalação nova de verdade: o servidor respondeu e não tem nada.
           ultimoCadSalvo.current = JSON.stringify(SEED_CADASTRO);
+          carregouCad.current = true;
         }
       } catch { ultimoCadSalvo.current = JSON.stringify(SEED_CADASTRO); }
       setReady(true);
@@ -1923,7 +1963,7 @@ export default function EscalaClient() {
 
   // Salva as equipes no servidor (debounce) + backup local.
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !carregouCad.current) return;
     const s = JSON.stringify(cad);
     if (s === ultimoCadSalvo.current) return;
     if (cadSaveTimer.current) clearTimeout(cadSaveTimer.current);
@@ -1932,20 +1972,36 @@ export default function EscalaClient() {
       fetch("/api/escala-config", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cad }),
-      }).catch(() => {});
+      })
+        .then(async (r) => {
+          // Gravação recusada/falhada não pode passar em silêncio: era assim
+          // que a escala sumia sem ninguém ficar sabendo.
+          if (!r.ok) {
+            const d = await r.json().catch(() => ({} as any));
+            setAvisoCarga(d?.error || "Não consegui salvar as equipes no servidor.");
+          }
+        })
+        .catch(() => setAvisoCarga("Não consegui salvar as equipes no servidor."));
       try { localStorage.setItem("sigep_cadastro", s); } catch {}
     }, 800);
   }, [cad, ready]);
 
   // Salva os dias no servidor (debounce) + backup local.
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !carregouDias.current) return;
     const s = JSON.stringify(escalas);
     if (s === ultimoEscalasSalvo.current) return;
     if (escalasSaveTimer.current) clearTimeout(escalasSaveTimer.current);
     escalasSaveTimer.current = setTimeout(() => {
       ultimoEscalasSalvo.current = s;
-      fetch("/api/escala-dias", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ escalas }) }).catch(() => {});
+      fetch("/api/escala-dias", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ escalas }) })
+        .then(async (r) => {
+          if (!r.ok) {
+            const d = await r.json().catch(() => ({} as any));
+            setAvisoCarga(d?.error || "Não consegui salvar a escala no servidor.");
+          }
+        })
+        .catch(() => setAvisoCarga("Não consegui salvar a escala no servidor."));
       try { localStorage.setItem("sigep_escalas", s); } catch {}
     }, 900);
   }, [escalas, ready]);
@@ -1963,7 +2019,16 @@ export default function EscalaClient() {
           const d = await r.json();
           if (d && d.escalas) {
             const s = JSON.stringify(d.escalas);
-            if (JSON.stringify(escalasRefLive.current) === ultimoEscalasSalvo.current && s !== ultimoEscalasSalvo.current) {
+            /* NUNCA esvaziar a tela por causa de uma atualização automática.
+               O servidor até pode responder "sem dias" (falha que escapou,
+               sessão trocada, escopo diferente), mas apagar de uma vez todos
+               os escalados que o P/1 está olhando não é atualizar — é perder.
+               Chegando menos do que já está na tela, mantém o que está e
+               avisa; quem manda é o F5, não o timer de 15 segundos. */
+            const temAgora = Object.keys(escalasRefLive.current).length;
+            if (temAgora > 0 && Object.keys(d.escalas).length === 0) {
+              setAvisoCarga("O servidor respondeu sem nenhum dia de escala. Mantive o que está na tela — recarregue a página para conferir.");
+            } else if (JSON.stringify(escalasRefLive.current) === ultimoEscalasSalvo.current && s !== ultimoEscalasSalvo.current) {
               ultimoEscalasSalvo.current = s; setEscalas(d.escalas);
             }
           }
@@ -2540,6 +2605,37 @@ export default function EscalaClient() {
           )}
         </div>
       </div>
+
+      {/* Aviso de carga/gravação. Fica no topo, em vermelho e sem sumir
+          sozinho: se a tela não é a escala de verdade, o P/1 precisa saber
+          ANTES de imprimir ou de editar em cima. */}
+      {avisoCarga && (
+        <div
+          className="no-print"
+          role="alert"
+          style={{
+            display: "flex", alignItems: "flex-start", gap: 8, margin: "0 0 10px",
+            padding: "10px 12px", borderRadius: 10,
+            border: "1px solid #ef4444", background: "#2a0f10", color: "#fecaca", fontSize: 13,
+          }}
+        >
+          <span aria-hidden style={{ fontSize: 16, lineHeight: 1.2 }}>⚠</span>
+          <span style={{ flex: 1 }}>{avisoCarga}</span>
+          <button
+            onClick={() => location.reload()}
+            style={{ border: "1px solid #ef4444", background: "transparent", color: "#fecaca", borderRadius: 8, padding: "3px 10px", cursor: "pointer", whiteSpace: "nowrap" }}
+          >
+            Recarregar
+          </button>
+          <button
+            onClick={() => setAvisoCarga(null)}
+            title="Fechar o aviso"
+            style={{ border: "none", background: "transparent", color: "#fecaca", cursor: "pointer", fontSize: 16, lineHeight: 1 }}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* ---- Abas ---- */}
       <div className="abas no-print">
