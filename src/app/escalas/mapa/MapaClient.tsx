@@ -1582,7 +1582,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                               title={ehCpu ? "Clique para editar o CPU deste dia" : (nomeDe(n) + (selNome === n ? "" : " \u00b7 clique para destacar no mes"))}
                               onClick={ehCpu ? undefined : (ev) => { ev.stopPropagation(); clickNome(n); }}
                             >
-                              {sobrenome(nomeDe(n))}
+                              {nomeDe(n)}
                             </div>
                           );
                         })}
