@@ -6,8 +6,8 @@ import {
   SECOES, CAMPOS_PESSOAIS, CAMPOS_FUNCIONAIS, rotulosFormacao,
   VAZIO, type DadosHistorico,
 } from "@/lib/historicoPolicial";
-import { importarHistorico, juntar, type Importacao } from "@/lib/historicoImportar";
-import { lerTextoDoArquivo } from "@/lib/lerArquivoTexto";
+import { juntar, type Importacao } from "@/lib/historicoImportar";
+import { lerArquivoParaHistorico, type Origem } from "@/lib/importarParaHistorico";
 import { classificarPatente } from "@/lib/patentes";
 import { Cabecalho } from "@/components/docs/Comum";
 import HistoricoLote from "@/components/HistoricoLote";
@@ -112,6 +112,7 @@ export default function HistoricoClient() {
   /* ---------------------------------------------------- importar arquivo */
   const [lendo, setLendo] = useState(false);
   const [previa, setPrevia] = useState<Importacao | null>(null);
+  const [origem, setOrigem] = useState<Origem>("historico");
   const [substituir, setSubstituir] = useState(false);
 
   /* O arquivo é lido AQUI, no navegador, e só o resultado entra no formulário
@@ -121,12 +122,14 @@ export default function HistoricoClient() {
     if (!arquivo) return;
     setLendo(true); setMsg(""); setPrevia(null);
     try {
-      const texto = await lerTextoDoArquivo(arquivo);
-      const lido = importarHistorico(texto);
+      const { origem: de, importacao: lido } = await lerArquivoParaHistorico(arquivo);
       if (lido.achadas.length === 0) {
-        setMsg("Não reconheci nenhuma seção neste arquivo. Ele é mesmo um Histórico Policial Militar no modelo do 18º BPM?");
+        setMsg(de === "ficha"
+          ? "Esta Ficha Individual não trouxe nenhuma publicação de boletim."
+          : "Não reconheci nenhuma seção neste arquivo. Ele é mesmo um Histórico Policial Militar no modelo do 18º BPM?");
         return;
       }
+      setOrigem(de);
       setPrevia(lido);
       setSubstituir(false);
     } catch (e: any) {
@@ -322,14 +325,17 @@ export default function HistoricoClient() {
           <div className="mt-10 w-full max-w-2xl rounded-xl border border-white/10 bg-[#0F1B2D]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
               <Upload className="h-4 w-4 text-[#D4AF37]" />
-              <h3 className="text-sm font-semibold text-white">O que o arquivo trouxe</h3>
+              <h3 className="text-sm font-semibold text-white">
+                {origem === "ficha" ? "Ficha Individual do SGI — o que ela trouxe" : "O que o arquivo trouxe"}
+              </h3>
               <button onClick={() => setPrevia(null)} className="ml-auto rounded p-1 text-[#94A3B8] hover:text-white"><X className="h-4 w-4" /></button>
             </div>
 
             <div className="max-h-[60vh] overflow-y-auto p-4">
               <p className="mb-3 text-xs text-[#94A3B8]">
-                {previa.achadas.length} seç{previa.achadas.length === 1 ? "ão reconhecida" : "ões reconhecidas"} ·{" "}
-                {Object.keys(previa.dados.campos).length} campo(s) de identificação.
+                {origem === "ficha"
+                  ? `As publicações de boletim foram distribuídas em ${previa.achadas.length} seção(ões), com o número de cada boletim.`
+                  : `${previa.achadas.length} seç${previa.achadas.length === 1 ? "ão reconhecida" : "ões reconhecidas"} · ${Object.keys(previa.dados.campos).length} campo(s) de identificação.`}
               </p>
               <ul className="mb-4 grid gap-1 sm:grid-cols-2">
                 {previa.achadas.map((a) => (

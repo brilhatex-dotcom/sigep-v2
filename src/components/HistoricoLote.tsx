@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Upload, Loader2, Check, X, AlertTriangle, FileText, Users } from "lucide-react";
-import { lerTextoDoArquivo } from "@/lib/lerArquivoTexto";
+import { lerArquivoParaHistorico, type Origem } from "@/lib/importarParaHistorico";
 import {
-  importarHistorico, identificacaoDoTexto, casarMilitar,
+  identificacaoDoTexto, casarMilitar,
   type CandidatoMilitar, type DadosHistorico,
 } from "@/lib/historicoImportar";
 
@@ -26,6 +26,7 @@ type Linha = {
   ident: { idPmma: string; matricula: string; rg: string };
   militarId: string;          // vazio = não identificado / a ignorar
   por: "id" | "matricula" | "rg" | "nome" | "mao" | "";
+  origem: Origem;
 };
 
 const ROTULO_POR: Record<string, string> = {
@@ -57,8 +58,7 @@ export default function HistoricoLote({ aoTerminar }: { aoTerminar: () => void }
       const arq = arquivos[i];
       setAndar(`Lendo ${i + 1} de ${arquivos.length}: ${arq.name}`);
       try {
-        const texto = await lerTextoDoArquivo(arq);
-        const lido = importarHistorico(texto);
+        const { origem, importacao: lido, texto } = await lerArquivoParaHistorico(arq);
         const ident = identificacaoDoTexto(texto, lido.dados);
         const casou = casarMilitar(ident, efetivo);
         novas.push({
@@ -68,10 +68,11 @@ export default function HistoricoLote({ aoTerminar }: { aoTerminar: () => void }
           ident,
           militarId: casou?.militar.id || "",
           por: casou?.por || "",
+          origem,
           erro: lido.achadas.length === 0 ? "Nenhuma seção reconhecida" : undefined,
         });
       } catch (e: any) {
-        novas.push({ arquivo: arq.name, secoes: 0, ident: { idPmma: "", matricula: "", rg: "" }, militarId: "", por: "", erro: e?.message || "Não consegui ler" });
+        novas.push({ arquivo: arq.name, secoes: 0, ident: { idPmma: "", matricula: "", rg: "" }, militarId: "", por: "", origem: "historico", erro: e?.message || "Não consegui ler" });
       }
     }
     setLinhas(novas);
@@ -121,8 +122,9 @@ export default function HistoricoLote({ aoTerminar }: { aoTerminar: () => void }
         <Users className="h-4 w-4 text-[#D4AF37]" /> Importar vários de uma vez
       </h2>
       <p className="mb-3 text-xs text-[#94A3B8]">
-        Escolha os arquivos (Word ou PDF) e o sistema diz de quem é cada um, pelo ID PMMA e pela matrícula.
-        Nada é gravado antes de você conferir a lista.
+        Escolha os arquivos — históricos prontos (Word ou PDF) ou a Ficha Individual do SGI — e o sistema
+        reconhece qual é qual e de quem é cada um, pela matrícula e pelo ID PMMA. Nada é gravado antes de
+        você conferir a lista.
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -164,7 +166,9 @@ export default function HistoricoLote({ aoTerminar }: { aoTerminar: () => void }
                   <span className="text-xs text-red-300">{l.erro}</span>
                 ) : (
                   <>
-                    <span className="text-xs text-[#7e8b99]">{l.secoes} seções</span>
+                    <span className={`text-xs ${l.origem === "ficha" ? "text-sky-300" : "text-[#7e8b99]"}`}>
+                      {l.origem === "ficha" ? "Ficha do SGI" : "Histórico"} · {l.secoes} seções
+                    </span>
                     {l.ident.matricula && <span className="text-xs text-[#7e8b99]">mat {l.ident.matricula}</span>}
                     {l.ident.idPmma && <span className="text-xs text-[#7e8b99]">ID {l.ident.idPmma}</span>}
                     <select
