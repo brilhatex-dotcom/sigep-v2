@@ -1070,6 +1070,84 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
   // Edicao do CPU direto na linha (excecao por dia).
   const [editCpu, setEditCpu] = useState<string | null>(null);
   const [buscaCpu, setBuscaCpu] = useState("");
+  /* EDITAR UM DIA SO.
+     O quadro por equipes e o MOLDE: mexer nele muda todos os dias daquela
+     equipe. Mas o Cmt as vezes quer trocar o adjunto numa data especifica la
+     na frente, e isso precisa ficar registrado sem virar regra. E o que este
+     editor faz: grava direto no dia e marca o lugar como manual, para a
+     aplicacao do quadro nao reescrever depois. */
+  const [editDia, setEditDia] = useState<{ iso: string; campo: string; label: string } | null>(null);
+  const [buscaDia, setBuscaDia] = useState("");
+
+  const CAMPOS_LISTA_DIA = new Set(["ftPatrulheiro", "rpPatrulheiro", "guardaPermanente", "inteligencia"]);
+
+  /* Grava o dia inteiro de volta no servidor. O dia pode ainda nem existir em
+     `escalas` (nunca foi salvo): neste caso partimos do que o motor calcularia,
+     senao gravar so o campo editado deixaria o resto do dia em branco. */
+  const gravarDia = async (iso: string, campo: string, titulares: string[]) => {
+    const base = escalas[iso];
+    const dia: Record<string, any> = { ...(base || {}) };
+    if (!base) {
+      // Materializa o dia a partir do rodizio antes de aplicar a mao.
+      const a = assignDia(iso, cadEff, {}, idDe);
+      for (const k of ["ftGraduado", "ftMotorista", "rpAdjunto", "rpMotorista"]) {
+        const id = (a as any)[k]?.[0] || "";
+        dia[k] = { titular: id ? nomeDe(id) : "", permuta: null, status: null };
+      }
+      for (const k of ["ftPatrulheiro", "rpPatrulheiro", "guardaPermanente", "inteligencia"]) {
+        dia[k] = ((a as any)[k] || []).map((id: string) => ({ titular: nomeDe(id), permuta: null, status: null }));
+      }
+    }
+    const anterior = dia[campo];
+    if (CAMPOS_LISTA_DIA.has(campo)) {
+      const antes: any[] = Array.isArray(anterior) ? anterior : [];
+      dia[campo] = titulares.map((t, i) => ({
+        titular: t, permuta: antes[i]?.permuta ?? null, status: antes[i]?.status ?? null, manual: true,
+      }));
+    } else {
+      const t = titulares[0] || "";
+      dia[campo] = { titular: t, permuta: anterior?.permuta ?? null, status: anterior?.status ?? null, manual: true };
+    }
+    const novo = { ...escalas, [iso]: dia };
+    setEscalas(novo);
+    try {
+      const r = await fetch(`/api/escala-dias${qs}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ escalas: novo }),
+      });
+      if (!r.ok) { const d = await r.json().catch(() => ({} as any)); avisar(d?.error || "Falha ao salvar o dia."); return; }
+      avisarMudanca("escala");
+      avisar(`Alteração gravada para ${brCurto(iso)}. O quadro não vai mais reescrever este lugar.`, "sucesso");
+    } catch { avisar("Falha ao salvar o dia."); }
+  };
+
+  /* Devolve o dia ao rodizio: tira a marca manual e deixa o quadro mandar. */
+  const soltarDia = async (iso: string, campo: string) => {
+    const base = escalas[iso];
+    if (!base) { setEditDia(null); return; }
+    const dia: Record<string, any> = { ...base };
+    const a = assignDia(iso, cadEff, {}, idDe);
+    if (CAMPOS_LISTA_DIA.has(campo)) {
+      dia[campo] = ((a as any)[campo] || []).map((id: string) => ({ titular: nomeDe(id), permuta: null, status: null }));
+    } else {
+      const id = (a as any)[campo]?.[0] || "";
+      dia[campo] = { titular: id ? nomeDe(id) : "", permuta: null, status: null };
+    }
+    const novo = { ...escalas, [iso]: dia };
+    setEscalas(novo);
+    try {
+      const r = await fetch(`/api/escala-dias${qs}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ escalas: novo }),
+      });
+      if (r.ok) { avisarMudanca("escala"); avisar(`${brCurto(iso)} voltou ao rodízio automático.`, "info"); }
+    } catch { avisar("Falha ao salvar o dia."); }
+  };
+
+  /* Este lugar esta travado (mexido a mao) neste dia? */
+  const travado = (iso: string, campo: string): boolean => {
+    const v = escalas[iso]?.[campo];
+    return Array.isArray(v) ? v.some((x: any) => x?.manual) : !!v?.manual;
+  };
+
   const setCpuOverride = (iso: string, val: string | null) => setCad((c) => {
     const o = { ...(c.cpuOverrides || {}) };
     if (val === null) delete o[iso]; else o[iso] = val;
@@ -1376,15 +1454,21 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
       const dia = { ...(novo[iso] || {}) };
       const a = assignDia(iso, cadAtual, {}, idDe); // {} força a fonte = QUADRO
       for (const k of CAMPOS_UM) {
-        const id = (a as any)[k]?.[0] || "";
         const antigo = dia[k];
+        // Mexido a mao para este dia: o quadro nao encosta.
+        if (antigo?.manual) continue;
+        const id = (a as any)[k]?.[0] || "";
         const novoSlot = { titular: nm(id), permuta: antigo?.permuta ?? null, status: antigo?.status ?? null };
         if (JSON.stringify(antigo) !== JSON.stringify(novoSlot)) mudou = true;
         dia[k] = novoSlot;
       }
       for (const k of CAMPOS_LISTA) {
-        const ids: string[] = (a as any)[k] || [];
         const antigo: any[] = Array.isArray(dia[k]) ? dia[k] : [];
+        /* Basta UM lugar travado para o quadro deixar a funcao inteira deste
+           dia em paz. E a regra que da para explicar ao P/1 numa frase:
+           "mexeu a mao nesta funcao neste dia? entao o quadro nao mexe mais". */
+        if (antigo.some((x) => x?.manual)) continue;
+        const ids: string[] = (a as any)[k] || [];
         const novoArr = ids.map((id, i) => ({ titular: nm(id), permuta: antigo[i]?.permuta ?? null, status: antigo[i]?.status ?? null }));
         if (JSON.stringify(antigo) !== JSON.stringify(novoArr)) mudou = true;
         dia[k] = novoArr;
@@ -1484,9 +1568,21 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
 
   // Dia de servico (proximo) de cada equipe, conforme o padrao da unidade.
   // 24/72 -> 1 dia por equipe; "3 por 6" -> mostra o 1o dia do bloco da equipe.
+  /* DESLIZAR OS DIAS DO QUADRO.
+     Por padrao o quadro mostra a PROXIMA vez que cada equipe entra, contada de
+     hoje. Com as setas o escalante anda pelos ciclos e enxerga em que data cada
+     equipe cai la na frente — util para conferir quem pega o fim do mes antes
+     de combinar uma troca. Andar aqui so MUDA O QUE SE VE: o quadro continua
+     sendo o molde, e quem altera um dia so e o clique na celula do mapa. */
+  const [desloc, setDesloc] = useState(0);   // em dias, a partir de hoje
+  const cicloDias = useMemo(() => {
+    const p = parsePadrao(cad.padraoEscala);
+    return Math.max(1, p.trabalho * p.equipes);
+  }, [cad.padraoEscala]);
+
   const teamDias = useMemo(() => {
     const ref = cad.refRodizioISO || `${mes}-01`;
-    const base = hoje || `${mes}-01`;
+    const base = somaDias(hoje || `${mes}-01`, desloc);
     const p = parsePadrao(cad.padraoEscala);
     const times = equipesDoPadrao(cad.padraoEscala);
     const ciclo = p.trabalho * p.equipes;
@@ -1497,7 +1593,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
       }
       return base;
     });
-  }, [cad.refRodizioISO, cad.padraoEscala, hoje, mes]);
+  }, [cad.refRodizioISO, cad.padraoEscala, hoje, mes, desloc]);
 
   // Filtros da tela por serviço (Fase 3). Sem grupo = mapa mensal completo.
   const servicosView = grupo ? SERVICOS.filter((s) => grupo.servicos.includes(s.key)) : SERVICOS;
@@ -1674,12 +1770,27 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                     const nomes = assign[iso][srv.key] || [];
                     const ehCpu = srv.key === "cpu";
                     const temOvr = ehCpu && cad.cpuOverrides?.[iso] !== undefined;
+                    /* ROTEM tem equipe propria e o CPU ja tem editor; o resto
+                       passa a ser editavel DIA A DIA. Dias passados ficam de
+                       fora: escala cumprida nao se altera por aqui. */
+                    const editavelDia = !ehCpu && srv.key !== "rotem" && iso >= (hoje || "");
+                    const estaTravado = editavelDia && travado(iso, srv.key);
                     return (
                       <td
                         key={iso}
-                        className={`mp-cel${fimDeSemana(iso) ? " fds" : ""}${iso === hoje ? " hoje" : ""}${ehCpu ? " editavel" : ""}${temOvr ? " ovr" : ""}`}
-                        onClick={ehCpu ? () => { setBuscaCpu(""); setEditCpu(iso); } : undefined}
-                        title={ehCpu ? "Clique para editar o CPU deste dia" : undefined}
+                        className={`mp-cel${fimDeSemana(iso) ? " fds" : ""}${iso === hoje ? " hoje" : ""}${ehCpu || editavelDia ? " editavel" : ""}${temOvr ? " ovr" : ""}${estaTravado ? " travado" : ""}`}
+                        onClick={
+                          ehCpu ? () => { setBuscaCpu(""); setEditCpu(iso); }
+                          : editavelDia ? () => { setBuscaDia(""); setEditDia({ iso, campo: srv.key, label: srv.label }); }
+                          : undefined
+                        }
+                        title={
+                          ehCpu ? "Clique para editar o CPU deste dia"
+                          : editavelDia ? (estaTravado
+                              ? `${srv.label} · ${brCurto(iso)} — alterado à mão (o quadro não reescreve). Clique para mudar.`
+                              : `Clique para alterar ${srv.label} só no dia ${brCurto(iso)}`)
+                          : undefined
+                        }
                       >
                         {nomes.length === 0 && ehCpu && <div className="mp-cel-vazio no-print">+</div>}
                         {nomes.length === 0 && !ehCpu && vagasAfast(iso, srv.key).map((v, i) => (
@@ -1794,6 +1905,28 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
             </button>
             <span style={{ marginLeft: 8, fontSize: 11.5, color: "#8fa3bf" }}>Agora é <b>automático</b> ao mexer no quadro; este botão é só para reforçar/forçar quando quiser.</span>
           </div>
+
+          {/* Correr os dias: mostra em que data cada equipe cai mais a frente. */}
+          <div className="mp-desliza">
+            <button className="mp-btn" onClick={() => setDesloc((d) => d - cicloDias)} title="Ciclo anterior">‹</button>
+            <button className="mp-btn" onClick={() => setDesloc((d) => d - 1)} title="Um dia para trás">− 1 dia</button>
+            <span className={"mp-desliza-info" + (desloc ? " on" : "")}>
+              {desloc === 0
+                ? "próximo serviço de cada equipe"
+                : `${brCurto(teamDias[0])} em diante · ${desloc > 0 ? "+" : ""}${desloc} dia(s) de hoje`}
+            </span>
+            <button className="mp-btn" onClick={() => setDesloc((d) => d + 1)} title="Um dia para frente">+ 1 dia</button>
+            <button className="mp-btn" onClick={() => setDesloc((d) => d + cicloDias)} title="Próximo ciclo">›</button>
+            {desloc !== 0 && (
+              <button className="mp-btn" style={{ borderColor: "#6b5320", color: "#f3df9d" }}
+                onClick={() => setDesloc(0)}>voltar para hoje</button>
+            )}
+            <span className="mp-desliza-aviso">
+              Correr aqui é só para <b>ver</b>. Para mudar <b>um dia só</b> (ex.: a troca do Cmt no fim do mês),
+              clique na célula daquele dia no mapa acima.
+            </span>
+          </div>
+
           <QuadroEquipes cad={cadEff} setCad={setCadQuadro} efetivo={efetivo} nomeDe={nomeDe} teamDias={teamDias} funcoes={funcoesView} />
         </div>
       )}
@@ -1944,6 +2077,86 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
         </div>
       )}
 
+      {/* ---- editar UMA funcao em UM dia ---- */}
+      {editDia && (() => {
+        const { iso, campo, label } = editDia;
+        const ehLista = CAMPOS_LISTA_DIA.has(campo);
+        const atuais: string[] = (assign[iso]?.[campo] || []).map((id: string) => nomeDe(id));
+        const estaTravado = travado(iso, campo);
+        const t = buscaDia.trim().toLowerCase();
+        const achados = t.length >= 1
+          ? efetivo.filter((m) => (fmtMilitar(m) + " " + (m.matricula || "")).toLowerCase().includes(t)).slice(0, 12)
+          : [];
+        const por = (nome: string) => {
+          gravarDia(iso, campo, ehLista ? [...atuais, nome] : [nome]);
+          setEditDia(null);
+        };
+        return (
+          <div className="no-print" onClick={() => setEditDia(null)}
+            style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+            <div onClick={(e) => e.stopPropagation()}
+              style={{ width: "100%", maxWidth: 420, background: "#0F1B2D", border: "1px solid rgba(255,255,255,.1)", borderRadius: 14, boxShadow: "0 20px 60px rgba(0,0,0,.5)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,.1)" }}>
+                <b style={{ color: "#fff" }}>{label} · {brCurto(iso)} {DSEM[parseISO(iso).getDay()]}</b>
+                <button onClick={() => setEditDia(null)} style={{ background: "none", border: "none", color: "#94A3B8", cursor: "pointer", fontSize: 18 }}>×</button>
+              </div>
+              <div style={{ padding: 14 }}>
+                <div style={{ fontSize: 12, color: "#94A3B8", marginBottom: 8 }}>
+                  Hoje neste dia: <b style={{ color: "#E8EEF6" }}>{atuais.length ? atuais.join(", ") : "—"}</b>
+                  {estaTravado && <span style={{ color: "#D4AF37" }}> · 🔒 alterado à mão</span>}
+                </div>
+
+                {ehLista && atuais.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                    {atuais.map((n, i) => (
+                      <button key={n + i} title="Tirar deste dia"
+                        onClick={() => { gravarDia(iso, campo, atuais.filter((_, k) => k !== i)); setEditDia(null); }}
+                        style={{ background: "#0b1626", border: "1px solid #2b3f63", borderRadius: 7, padding: "4px 8px", color: "#cdd9ea", fontSize: 12, cursor: "pointer" }}>
+                        {n} <span style={{ color: "#ffb3b3" }}>×</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <input autoFocus value={buscaDia} onChange={(e) => setBuscaDia(e.target.value)}
+                  placeholder={ehLista ? "Buscar militar para ACRESCENTAR neste dia..." : "Buscar militar para COLOCAR neste dia..."}
+                  style={{ width: "100%", background: "#0b1626", border: "1px solid rgba(255,255,255,.12)", borderRadius: 8, padding: "8px 10px", color: "#fff", outline: "none", fontSize: 13 }} />
+                {achados.length > 0 && (
+                  <div style={{ marginTop: 6, maxHeight: 220, overflowY: "auto", border: "1px solid rgba(255,255,255,.1)", borderRadius: 8 }}>
+                    {achados.map((m) => (
+                      <button key={m.id} onClick={() => por(fmtMilitar(m))}
+                        style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", background: "none", border: "none", borderBottom: "1px solid rgba(255,255,255,.05)", color: "#fff", cursor: "pointer", fontSize: 13 }}>
+                        {fmtMilitar(m)}{m.matricula ? <span style={{ color: "#94A3B8", fontSize: 11 }}> · {m.matricula}</span> : null}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                  {!ehLista && (
+                    <button onClick={() => { gravarDia(iso, campo, []); setEditDia(null); }}
+                      title="Deixa o lugar vazio neste dia"
+                      style={{ flex: 1, minWidth: 100, padding: "8px 10px", background: "#2a1414", border: "1px solid #7a1f1f", borderRadius: 8, color: "#ffb3b3", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Deixar vazio</button>
+                  )}
+                  {estaTravado && (
+                    <button onClick={() => { soltarDia(iso, campo); setEditDia(null); }}
+                      style={{ flex: 1, minWidth: 140, padding: "8px 10px", background: "#0b1626", border: "1px solid rgba(255,255,255,.15)", borderRadius: 8, color: "#cdd9ea", cursor: "pointer", fontSize: 13 }}>
+                      Voltar ao rodízio
+                    </button>
+                  )}
+                </div>
+
+                <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 10, lineHeight: 1.5 }}>
+                  Vale <b>só para {brCurto(iso)}</b>. O lugar fica marcado com 🔒 e a
+                  aplicação do quadro por equipes <b>não reescreve</b> — é assim que uma
+                  troca combinada para o fim do mês sobrevive até chegar o dia.
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {folhaAberta && escopo && (
         <FolhaUnidadeRp
           cad={cad}
@@ -2023,6 +2236,17 @@ const CSS = `
 .mp-cel.editavel{ cursor:pointer; }
 .mp-cel.editavel:hover{ box-shadow:inset 0 0 0 1px #D4AF37; }
 .mp-cel.ovr{ box-shadow:inset 0 0 0 1px #6b5320; }
+/* Barra para correr os dias no quadro por equipes. */
+.mp-desliza{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:0 0 10px;
+  padding:7px 9px; background:#0b1626; border:1px solid #2b3f63; border-radius:10px; }
+.mp-desliza-info{ font-size:12px; color:#94A3B8; padding:0 4px; }
+.mp-desliza-info.on{ color:#f3df9d; font-weight:700; }
+.mp-desliza-aviso{ flex:1 1 100%; font-size:11px; color:#6f82a0; line-height:1.5; }
+/* Travado = alterado a mao para este dia. O cadeado no canto e o aviso de que
+   aquele lugar nao obedece mais ao quadro — sem ele, o P/1 nao teria como
+   saber por que um dia destoa dos vizinhos. */
+.mp-cel.travado{ box-shadow:inset 0 0 0 1px #D4AF37; position:relative; }
+.mp-cel.travado::after{ content:"🔒"; position:absolute; top:0; right:1px; font-size:8px; opacity:.85; line-height:1; }
 .mp-cel-vazio{ color:#4a5a72; font-weight:700; }
 .mp-vaga-af{ display:inline-block; white-space:nowrap; font-size:10px; font-style:italic; font-weight:700; color:#f0b24b; background:#3a2f12; border:1px dashed #6b5320; border-radius:4px; padding:1px 5px; }
 .mp-nome{ white-space:nowrap; cursor:pointer; border-radius:4px; padding:1px 5px; font-weight:600; }
