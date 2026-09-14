@@ -5,6 +5,7 @@ import { ORGANOGRAMA, acharNo, pertenceAoNo, type NoOrg } from "@/lib/organogram
 import FolhaUnidadeRp from "@/components/FolhaUnidadeRp";
 import { parsePadrao, timeDoDia, incluiComReducao, podeNoDia, rotuloDias, extrasDoDia, rotuloGiro, proximosDoGiro, planejarArraste, type GiroSemanal } from "@/lib/escalaMotor";
 import { usePulso, avisarMudanca } from "@/lib/sincronia";
+import { novaEscala } from "../EscalaClient";
 import { avisar, confirmar } from "@/components/Avisos";
 
 /* Lugares selecionáveis (DPM/CIA/Pelotão/seções) para o botão "mudar de
@@ -1090,17 +1091,14 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
      do rodizio ANTES de receber a mao — senao gravar so o campo editado
      deixaria o resto do dia em branco. */
   const materializar = (iso: string, base: any): Record<string, any> => {
-    if (base) return { ...base };
-    const dia: Record<string, any> = {};
-    const a = assignDia(iso, cadEff, {}, idDe);
-    for (const k of ["ftGraduado", "ftMotorista", "rpAdjunto", "rpMotorista"]) {
-      const id = (a as any)[k]?.[0] || "";
-      dia[k] = { titular: id ? nomeDe(id) : "", permuta: null, status: null };
-    }
-    for (const k of ["ftPatrulheiro", "rpPatrulheiro", "guardaPermanente", "inteligencia"]) {
-      dia[k] = ((a as any)[k] || []).map((id: string) => ({ titular: nomeDe(id), permuta: null, status: null }));
-    }
-    return dia;
+    /* O dia COMPLETO vem da mesma novaEscala() que a folha diaria usa.
+
+       Antes eu montava aqui so as oito funcoes que o mapa mostra, e o dia
+       gravado saia sem expediente, ROTEM, reforco e JOE — a folha diaria
+       quebrava ao abrir. Um dia da escala e um documento inteiro; o mapa
+       enxerga uma fatia dele e nao pode inventar o resto. */
+    const completo = novaEscala(iso, cadEff as any, nomeDe) as any;
+    return base ? { ...completo, ...base } : completo;
   };
 
   /* VARIAS mudancas numa gravacao so.

@@ -610,7 +610,7 @@ function expedientePadrao(): Expediente {
 // Gera a escala do dia ja preenchida pelo motor (tudo continua editavel depois).
 type NomeDe = (token: string) => string;
 
-function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
+export function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
   // O motor trabalha com IDs; aqui convertemos para o nome formatado, pois
   // a folha e texto livre (editavel/imprimivel). nm() resolve ID -> nome.
   const nm = (id: string) => (id ? (id.startsWith("__FOLGA") ? "Folga" : nomeDe(id)) : "");
@@ -2391,7 +2391,17 @@ export default function EscalaClient() {
     return base;
   };
 
-  const eBaseRaw: Escala = escalas[data] ?? escalaSeed(data);
+  /* Um dia gravado pelo MAPA (editor de dia / arraste) traz so as funcoes que
+     o mapa conhece — nao traz expediente, ROTEM, reforco, JOE. Usado como
+     esta, a folha quebrava inteira ao procurar esses campos.
+
+     Aqui o dia salvo e completado com a semente do rodizio: o que o mapa
+     gravou manda, e o resto vem do automatico. Isso tambem CONSERTA os dias
+     que ja foram gravados pela metade — eles voltam a abrir sozinhos. */
+  const diaSalvo = escalas[data];
+  const eBaseRaw: Escala = !diaSalvo
+    ? escalaSeed(data)
+    : (diaSalvo.expediente ? diaSalvo : { ...escalaSeed(data), ...diaSalvo });
   // Normaliza o ftPatrulheiro para lista (dias salvos antigos guardam Slot único).
   const eBase: Escala = Array.isArray(eBaseRaw.ftPatrulheiro)
     ? eBaseRaw
