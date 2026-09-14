@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ORGANOGRAMA, acharNo, pertenceAoNo, type NoOrg } from "@/lib/organograma";
 import FolhaUnidadeRp from "@/components/FolhaUnidadeRp";
-import { parsePadrao, timeDoDia, incluiComReducao, podeNoDia, rotuloDias, extrasDoDia, rotuloGiro, proximosDoGiro, type GiroSemanal } from "@/lib/escalaMotor";
+import { parsePadrao, timeDoDia, incluiComReducao, podeNoDia, rotuloDias, extrasDoDia, rotuloGiro, proximosDoGiro, planejarArraste, type GiroSemanal } from "@/lib/escalaMotor";
 import { usePulso, avisarMudanca } from "@/lib/sincronia";
 import { avisar, confirmar } from "@/components/Avisos";
 
@@ -1084,40 +1084,132 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
   /* Grava o dia inteiro de volta no servidor. O dia pode ainda nem existir em
      `escalas` (nunca foi salvo): neste caso partimos do que o motor calcularia,
      senao gravar so o campo editado deixaria o resto do dia em branco. */
-  const gravarDia = async (iso: string, campo: string, titulares: string[]) => {
-    const base = escalas[iso];
-    const dia: Record<string, any> = { ...(base || {}) };
-    if (!base) {
-      // Materializa o dia a partir do rodizio antes de aplicar a mao.
-      const a = assignDia(iso, cadEff, {}, idDe);
-      for (const k of ["ftGraduado", "ftMotorista", "rpAdjunto", "rpMotorista"]) {
-        const id = (a as any)[k]?.[0] || "";
-        dia[k] = { titular: id ? nomeDe(id) : "", permuta: null, status: null };
-      }
-      for (const k of ["ftPatrulheiro", "rpPatrulheiro", "guardaPermanente", "inteligencia"]) {
-        dia[k] = ((a as any)[k] || []).map((id: string) => ({ titular: nomeDe(id), permuta: null, status: null }));
-      }
+  type Mudanca = { iso: string; campo: string; titulares: string[] };
+
+  /* Um dia que ainda nao existe em `escalas` precisa ser materializado a partir
+     do rodizio ANTES de receber a mao — senao gravar so o campo editado
+     deixaria o resto do dia em branco. */
+  const materializar = (iso: string, base: any): Record<string, any> => {
+    if (base) return { ...base };
+    const dia: Record<string, any> = {};
+    const a = assignDia(iso, cadEff, {}, idDe);
+    for (const k of ["ftGraduado", "ftMotorista", "rpAdjunto", "rpMotorista"]) {
+      const id = (a as any)[k]?.[0] || "";
+      dia[k] = { titular: id ? nomeDe(id) : "", permuta: null, status: null };
     }
-    const anterior = dia[campo];
-    if (CAMPOS_LISTA_DIA.has(campo)) {
-      const antes: any[] = Array.isArray(anterior) ? anterior : [];
-      dia[campo] = titulares.map((t, i) => ({
-        titular: t, permuta: antes[i]?.permuta ?? null, status: antes[i]?.status ?? null, manual: true,
-      }));
-    } else {
-      const t = titulares[0] || "";
-      dia[campo] = { titular: t, permuta: anterior?.permuta ?? null, status: anterior?.status ?? null, manual: true };
+    for (const k of ["ftPatrulheiro", "rpPatrulheiro", "guardaPermanente", "inteligencia"]) {
+      dia[k] = ((a as any)[k] || []).map((id: string) => ({ titular: nomeDe(id), permuta: null, status: null }));
     }
-    const novo = { ...escalas, [iso]: dia };
+    return dia;
+  };
+
+  /* VARIAS mudancas numa gravacao so.
+
+     Arrastar um militar de um dia para outro mexe em DUAS celulas ao mesmo
+     tempo. Gravando uma de cada vez, um erro de rede no meio deixaria o
+     militar em dois lugares (ou em nenhum) — e sao duas idas ao servidor por
+     arraste. Aqui as duas viajam juntas: ou vale tudo, ou nada muda. */
+  const aplicarMudancas = async (mudancas: Mudanca[], recado?: string) => {
+    if (!mudancas.length) return;
+    const novo: Record<string, any> = { ...escalas };
+    for (const m of mudancas) {
+      const dia = materializar(m.iso, novo[m.iso]);
+      const anterior = dia[m.campo];
+      if (CAMPOS_LISTA_DIA.has(m.campo)) {
+        const antes: any[] = Array.isArray(anterior) ? anterior : [];
+        dia[m.campo] = m.titulares.map((t, i) => ({
+          titular: t, permuta: antes[i]?.permuta ?? null, status: antes[i]?.status ?? null, manual: true,
+        }));
+      } else {
+        dia[m.campo] = {
+          titular: m.titulares[0] || "", permuta: anterior?.permuta ?? null,
+          status: anterior?.status ?? null, manual: true,
+        };
+      }
+      novo[m.iso] = dia;
+    }
+    const antes = escalas;
     setEscalas(novo);
     try {
       const r = await fetch(`/api/escala-dias${qs}`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ escalas: novo }),
       });
-      if (!r.ok) { const d = await r.json().catch(() => ({} as any)); avisar(d?.error || "Falha ao salvar o dia."); return; }
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({} as any));
+        setEscalas(antes);                    // nao gravou: a tela volta ao que era
+        avisar(d?.error || "Falha ao salvar o dia.");
+        return;
+      }
       avisarMudanca("escala");
-      avisar(`Alteração gravada para ${brCurto(iso)}. O quadro não vai mais reescrever este lugar.`, "sucesso");
-    } catch { avisar("Falha ao salvar o dia."); }
+      const dias = [...new Set(mudancas.map((m) => m.iso))].map(brCurto).join(" e ");
+      avisar(recado || `Alteração gravada para ${dias}. O quadro não vai mais reescrever estes lugares.`, "sucesso");
+    } catch {
+      setEscalas(antes);
+      avisar("Falha ao salvar o dia.");
+    }
+  };
+
+  const gravarDia = (iso: string, campo: string, titulares: string[]) =>
+    aplicarMudancas([{ iso, campo, titulares }]);
+
+  /* ======================= ARRASTAR NO MAPA =======================
+
+     Pegar um nome e soltar em outra celula. Serve entre dias, entre funcoes e
+     entre as duas coisas ao mesmo tempo — que na pratica e mudar de guarnicao,
+     ja que cada dia pertence ao turno de uma equipe.
+
+     O que acontece ao soltar, e por que:
+
+     - destino VAZIO            -> MOVE (sai da origem, entra no destino)
+     - destino OCUPADO, 1 vaga  -> TROCA os dois de lugar
+     - destino e LISTA          -> ENTRA na lista do destino e sai da origem
+     - soltou na lixeira        -> SAI da escala daquele dia
+
+     A troca existe porque e o que o escalante faz de verdade: "passa o Alan
+     para o dia 28 e traz o Brandao para o 19". Se fosse so mover, o militar do
+     destino sumiria da escala sem ninguem pedir — e no dia 28 faltaria gente.
+
+     Tudo passa por aplicarMudancas, entao o arraste NAO ganha caminho proprio:
+     grava igual ao editor, marca manual igual, avisa as outras abas igual e a
+     escala diaria enxerga igual. E so um jeito mais rapido de fazer o mesmo. */
+  type Arrasto = { iso: string; campo: string; indice: number; nome: string };
+  const [arrasto, setArrasto] = useState<Arrasto | null>(null);
+  const [alvo, setAlvo] = useState<string>("");            // "iso|campo" sob o cursor
+  const [sobreLixo, setSobreLixo] = useState(false);
+
+  /* Os titulares de uma celula, ja como nomes — a mesma lista que a gravacao
+     espera de volta. */
+  const titularesDe = (iso: string, campo: string): string[] =>
+    (assign[iso]?.[campo] || []).map((id: string) => nomeDe(id));
+
+  const soltarNoMapa = (isoDest: string, campoDest: string) => {
+    const a = arrasto;
+    setArrasto(null); setAlvo(""); setSobreLixo(false);
+    if (!a) return;
+    /* A regra mora no motor (planejarArraste), pura e testada. Aqui so
+       juntamos o estado da tela e mandamos gravar — assim o arraste e o editor
+       chegam ao MESMO caminho de gravacao. */
+    const r = planejarArraste({
+      origem: { iso: a.iso, campo: a.campo, indice: a.indice, lista: CAMPOS_LISTA_DIA.has(a.campo) },
+      destino: { iso: isoDest, campo: campoDest, lista: CAMPOS_LISTA_DIA.has(campoDest) },
+      nome: a.nome,
+      naOrigem: titularesDe(a.iso, a.campo),
+      noDestino: titularesDe(isoDest, campoDest),
+    });
+    if (!r.ok) {
+      if (r.motivo !== "mesma célula") avisar(r.motivo, "atencao");
+      return;
+    }
+    aplicarMudancas(r.mudancas, r.trocou ? `${a.nome} e ${r.trocou} trocaram de lugar.` : undefined);
+  };
+
+  const soltarNoLixo = () => {
+    const a = arrasto;
+    setArrasto(null); setAlvo(""); setSobreLixo(false);
+    if (!a) return;
+    const naOrigem = titularesDe(a.iso, a.campo);
+    const resto = CAMPOS_LISTA_DIA.has(a.campo) ? naOrigem.filter((_, i) => i !== a.indice) : [];
+    aplicarMudancas([{ iso: a.iso, campo: a.campo, titulares: resto }], `${a.nome} saiu da escala de ${brCurto(a.iso)}.`);
   };
 
   /* Devolve o dia ao rodizio: tira a marca manual e deixa o quadro mandar. */
@@ -1696,6 +1788,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
         (clique em um nome para destacar todos os dias dele); em <b>Por militar</b>, a carga de cada policial
         (coluna <b>Tot.</b>) e os conflitos.{" "}
         <b>Clique no número do dia</b> para abrir e editar a escala daquele dia — o que você salvar lá aparece aqui na hora.
+            {" "}<b>Clique num nome</b> para alterar aquele dia, ou <b>arraste o nome</b> para outra célula: solto em lugar vazio ele muda de dia/função, solto em cima de outro militar os dois <b>trocam</b>, e solto na lixeira sai da escala. Vale entre dias e entre funções.
       </div>
 
       <div className="mp-legenda no-print">
@@ -1778,12 +1871,15 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                     return (
                       <td
                         key={iso}
-                        className={`mp-cel${fimDeSemana(iso) ? " fds" : ""}${iso === hoje ? " hoje" : ""}${ehCpu || editavelDia ? " editavel" : ""}${temOvr ? " ovr" : ""}${estaTravado ? " travado" : ""}`}
+                        className={`mp-cel${fimDeSemana(iso) ? " fds" : ""}${iso === hoje ? " hoje" : ""}${ehCpu || editavelDia ? " editavel" : ""}${temOvr ? " ovr" : ""}${estaTravado ? " travado" : ""}${alvo === `${iso}|${srv.key}` && arrasto ? " alvo" : ""}`}
                         onClick={
                           ehCpu ? () => { setBuscaCpu(""); setEditCpu(iso); }
                           : editavelDia ? () => { setBuscaDia(""); setEditDia({ iso, campo: srv.key, label: srv.label }); }
                           : undefined
                         }
+                        onDragOver={editavelDia ? (e) => { e.preventDefault(); setAlvo(`${iso}|${srv.key}`); } : undefined}
+                        onDragLeave={editavelDia ? () => setAlvo((v) => (v === `${iso}|${srv.key}` ? "" : v)) : undefined}
+                        onDrop={editavelDia ? (e) => { e.preventDefault(); soltarNoMapa(iso, srv.key); } : undefined}
                         title={
                           ehCpu ? "Clique para editar o CPU deste dia"
                           : editavelDia ? (estaTravado
@@ -1807,7 +1903,16 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                           return (
                             <div
                               key={i}
-                              className={cls}
+                              className={cls + (arrasto && arrasto.iso === iso && arrasto.campo === srv.key && arrasto.indice === i ? " arrastando" : "")}
+                              draggable={editavelDia}
+                              onDragStart={editavelDia ? (ev) => {
+                                ev.stopPropagation();
+                                /* Sem isto o Firefox nao inicia o arraste. */
+                                try { ev.dataTransfer.setData("text/plain", nomeDe(n)); } catch {}
+                                ev.dataTransfer.effectAllowed = "move";
+                                setArrasto({ iso, campo: srv.key, indice: i, nome: nomeDe(n) });
+                              } : undefined}
+                              onDragEnd={editavelDia ? () => { setArrasto(null); setAlvo(""); setSobreLixo(false); } : undefined}
                               style={conf ? undefined : (cor ? { background: cor, color: "#0a1020" } : undefined)}
                               /* O nome ocupa quase toda a celula, entao ELE e o alvo natural
                                  do clique. Antes o clique aqui so destacava o militar no mes, e
@@ -2091,6 +2196,20 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
         </div>
       )}
 
+      {/* Lixeira: so existe enquanto se arrasta, e some depois. Ocupar espaco
+          permanente na tela por uma acao ocasional nao se justifica. */}
+      {arrasto && (
+        <div
+          className="no-print mp-lixo"
+          onDragOver={(e) => { e.preventDefault(); setSobreLixo(true); }}
+          onDragLeave={() => setSobreLixo(false)}
+          onDrop={(e) => { e.preventDefault(); soltarNoLixo(); }}
+          style={sobreLixo ? { background: "#7a1f1f", borderColor: "#ffb3b3", color: "#fff" } : undefined}
+        >
+          🗑 Solte aqui para <b>tirar {arrasto.nome}</b> da escala de {brCurto(arrasto.iso)}
+        </div>
+      )}
+
       {/* ---- editar UMA funcao em UM dia ---- */}
       {editDia && (() => {
         const { iso, campo, label } = editDia;
@@ -2272,6 +2391,15 @@ const CSS = `
 /* Travado = alterado a mao para este dia. O cadeado no canto e o aviso de que
    aquele lugar nao obedece mais ao quadro — sem ele, o P/1 nao teria como
    saber por que um dia destoa dos vizinhos. */
+/* Celula sob o cursor durante o arraste. Precisa ser inconfundivel: soltar no
+   dia errado troca a escala de um policial sem ninguem perceber. */
+.mp-cel.alvo{ box-shadow:inset 0 0 0 2px #D4AF37; background:rgba(212,175,55,0.14) !important; }
+.mp-nome.arrastando{ opacity:.35; }
+.mp-nome[draggable="true"]{ cursor:grab; }
+.mp-nome[draggable="true"]:active{ cursor:grabbing; }
+.mp-lixo{ position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:90;
+  background:#2a1414; border:1px dashed #7a1f1f; color:#ffb3b3; border-radius:12px;
+  padding:10px 18px; font-size:13px; box-shadow:0 10px 30px rgba(0,0,0,.5); pointer-events:auto; }
 .mp-cel.travado{ box-shadow:inset 0 0 0 1px #D4AF37; position:relative; }
 .mp-cel.travado::after{ content:"🔒"; position:absolute; top:0; right:1px; font-size:8px; opacity:.85; line-height:1; }
 .mp-cel-vazio{ color:#4a5a72; font-weight:700; }
