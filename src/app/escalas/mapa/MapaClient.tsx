@@ -1809,8 +1809,22 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                               key={i}
                               className={cls}
                               style={conf ? undefined : (cor ? { background: cor, color: "#0a1020" } : undefined)}
-                              title={ehCpu ? "Clique para editar o CPU deste dia" : (nomeDe(n) + (selNome === n ? "" : " \u00b7 clique para destacar no mes"))}
-                              onClick={ehCpu ? undefined : (ev) => { ev.stopPropagation(); clickNome(n); }}
+                              /* O nome ocupa quase toda a celula, entao ELE e o alvo natural
+                                 do clique. Antes o clique aqui so destacava o militar no mes, e
+                                 para abrir a alteracao do dia era preciso acertar a tira de
+                                 celula que sobra ao lado — dificil e nada obvio. Agora o nome
+                                 abre o editor do dia, e o destacar virou um botao dentro dele. */
+                              title={
+                                ehCpu ? "Clique para editar o CPU deste dia"
+                                : editavelDia ? `${nomeDe(n)} — clique para alterar ${srv.label} no dia ${brCurto(iso)}`
+                                : nomeDe(n) + (selNome === n ? "" : " \u00b7 clique para destacar no mes")
+                              }
+                              onClick={
+                                ehCpu ? undefined
+                                : editavelDia
+                                  ? (ev) => { ev.stopPropagation(); setBuscaDia(""); setEditDia({ iso, campo: srv.key, label: srv.label }); }
+                                  : (ev) => { ev.stopPropagation(); clickNome(n); }
+                              }
                             >
                               {nomeDe(n)}
                             </div>
@@ -2081,7 +2095,11 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
       {editDia && (() => {
         const { iso, campo, label } = editDia;
         const ehLista = CAMPOS_LISTA_DIA.has(campo);
-        const atuais: string[] = (assign[iso]?.[campo] || []).map((id: string) => nomeDe(id));
+        /* O destaque do mes trabalha com o TOKEN do militar (o mesmo que a
+           celula usa), nao com o nome formatado. Guardamos os dois: o token
+           para destacar, o nome para gravar e para mostrar. */
+        const tokens: string[] = assign[iso]?.[campo] || [];
+        const atuais: string[] = tokens.map((id) => nomeDe(id));
         const estaTravado = travado(iso, campo);
         const t = buscaDia.trim().toLowerCase();
         const achados = t.length >= 1
@@ -2102,20 +2120,34 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
               </div>
               <div style={{ padding: 14 }}>
                 <div style={{ fontSize: 12, color: "#94A3B8", marginBottom: 8 }}>
-                  Hoje neste dia: <b style={{ color: "#E8EEF6" }}>{atuais.length ? atuais.join(", ") : "—"}</b>
+                  Neste dia
                   {estaTravado && <span style={{ color: "#D4AF37" }}> · 🔒 alterado à mão</span>}
                 </div>
 
-                {ehLista && atuais.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                {/* Quem esta no dia, com as duas acoes ao lado. O "destacar"
+                    mora aqui porque o clique no nome, no mapa, agora abre esta
+                    caixa — sem este botao a funcao teria se perdido. */}
+                {atuais.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
                     {atuais.map((n, i) => (
-                      <button key={n + i} title="Tirar deste dia"
-                        onClick={() => { gravarDia(iso, campo, atuais.filter((_, k) => k !== i)); setEditDia(null); }}
-                        style={{ background: "#0b1626", border: "1px solid #2b3f63", borderRadius: 7, padding: "4px 8px", color: "#cdd9ea", fontSize: 12, cursor: "pointer" }}>
-                        {n} <span style={{ color: "#ffb3b3" }}>×</span>
-                      </button>
+                      <div key={n + i}
+                        style={{ display: "flex", alignItems: "center", gap: 6, background: "#0b1626", border: "1px solid #2b3f63", borderRadius: 8, padding: "5px 6px 5px 9px" }}>
+                        <span style={{ flex: 1, color: "#E8EEF6", fontSize: 13 }}>{n}</span>
+                        <button title="Destacar este militar em todo o mês"
+                          onClick={() => { clickNome(tokens[i]); setEditDia(null); }}
+                          style={{ background: "#241a08", border: "1px solid #6b5320", borderRadius: 6, padding: "3px 8px", color: "#e8c877", fontSize: 11.5, cursor: "pointer", whiteSpace: "nowrap" }}>
+                          ★ destacar
+                        </button>
+                        <button title={ehLista ? "Tirar deste dia" : "Deixar o lugar vazio neste dia"}
+                          onClick={() => { gravarDia(iso, campo, ehLista ? atuais.filter((_, k) => k !== i) : []); setEditDia(null); }}
+                          style={{ background: "#2a1414", border: "1px solid #7a1f1f", borderRadius: 6, padding: "3px 8px", color: "#ffb3b3", fontSize: 11.5, cursor: "pointer", whiteSpace: "nowrap" }}>
+                          × tirar
+                        </button>
+                      </div>
                     ))}
                   </div>
+                ) : (
+                  <div style={{ fontSize: 12.5, color: "#6f82a0", marginBottom: 10, fontStyle: "italic" }}>ninguém escalado aqui neste dia</div>
                 )}
 
                 <input autoFocus value={buscaDia} onChange={(e) => setBuscaDia(e.target.value)}
@@ -2133,11 +2165,6 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                 )}
 
                 <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-                  {!ehLista && (
-                    <button onClick={() => { gravarDia(iso, campo, []); setEditDia(null); }}
-                      title="Deixa o lugar vazio neste dia"
-                      style={{ flex: 1, minWidth: 100, padding: "8px 10px", background: "#2a1414", border: "1px solid #7a1f1f", borderRadius: 8, color: "#ffb3b3", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Deixar vazio</button>
-                  )}
                   {estaTravado && (
                     <button onClick={() => { soltarDia(iso, campo); setEditDia(null); }}
                       style={{ flex: 1, minWidth: 140, padding: "8px 10px", background: "#0b1626", border: "1px solid rgba(255,255,255,.15)", borderRadius: 8, color: "#cdd9ea", cursor: "pointer", fontSize: 13 }}>
