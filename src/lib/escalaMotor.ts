@@ -5,7 +5,11 @@
    Não altera nada; só lê o cadastro (cad) e os dias já salvos (escalas).
    ========================================================================= */
 
-export type Slot = { titular: string; permuta: string | null; status?: any };
+/* manual: este lugar foi preenchido A MAO para ESTE dia, e o quadro por
+   equipes nao pode reescrever. Sem esta marca, uma troca combinada para o fim
+   do mes era apagada em silencio assim que alguem encostasse no quadro — e so
+   se descobria no dia. */
+export type Slot = { titular: string; permuta: string | null; status?: any; manual?: boolean };
 export type TipoAfastamento =
   | "ferias" | "missao" | "curso" | "licenca_premio"
   | "licenca_paternidade" | "jms" | "rotam" | "outro";
