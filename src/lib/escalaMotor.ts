@@ -180,6 +180,69 @@ export function extrasDoDia(
   return [...ids].filter((id) => !afastado(id, iso, cad.afastamentos || []));
 }
 
+/* ---------------------- ARRASTAR NO MAPA ----------------------
+
+   Decide o que acontece ao soltar um nome em outra celula. Fica aqui, puro e
+   sem React, porque e a parte que pode estragar escala de gente: um engano
+   aqui faz um policial sumir de um dia ou aparecer duas vezes no mesmo, e isso
+   so se descobre na hora do servico.
+
+   As regras:
+     destino VAZIO            -> move (sai da origem, entra no destino)
+     destino OCUPADO, 1 vaga  -> TROCA os dois de lugar
+     destino e LISTA          -> entra na lista e sai da origem
+
+   A troca existe porque e o que o escalante faz de verdade: "passa o Alan para
+   o dia 28 e traz o Brandao para o 19". Se fosse so mover, o militar que estava
+   no destino sumiria da escala sem ninguem pedir. */
+
+export type MudancaDia = { iso: string; campo: string; titulares: string[] };
+
+export type Arrastar = {
+  origem: { iso: string; campo: string; indice: number; lista: boolean };
+  destino: { iso: string; campo: string; lista: boolean };
+  nome: string;
+  naOrigem: string[];
+  noDestino: string[];
+};
+
+export type ResultadoArraste =
+  | { ok: true; mudancas: MudancaDia[]; trocou?: string }
+  | { ok: false; motivo: string };
+
+export function planejarArraste(a: Arrastar): ResultadoArraste {
+  const mesmaCelula = a.origem.iso === a.destino.iso && a.origem.campo === a.destino.campo;
+  if (mesmaCelula) return { ok: false, motivo: "mesma célula" };
+  if (!a.nome) return { ok: false, motivo: "sem militar" };
+
+  const origemFinal = a.origem.lista ? a.naOrigem.filter((_, i) => i !== a.origem.indice) : [];
+
+  if (a.destino.lista) {
+    if (a.noDestino.includes(a.nome)) return { ok: false, motivo: `${a.nome} já está nesta função neste dia.` };
+    return { ok: true, mudancas: [
+      { iso: a.origem.iso, campo: a.origem.campo, titulares: origemFinal },
+      { iso: a.destino.iso, campo: a.destino.campo, titulares: [...a.noDestino, a.nome] },
+    ]};
+  }
+
+  const ocupante = a.noDestino[0] || "";
+  if (!ocupante) {
+    return { ok: true, mudancas: [
+      { iso: a.origem.iso, campo: a.origem.campo, titulares: origemFinal },
+      { iso: a.destino.iso, campo: a.destino.campo, titulares: [a.nome] },
+    ]};
+  }
+  /* Troca: o ocupante do destino ocupa EXATAMENTE o lugar de onde o arrastado
+     saiu — inclusive a posicao dentro da lista, para nao embaralhar a ordem. */
+  const origemComTroca = a.origem.lista
+    ? a.naOrigem.map((n, i) => (i === a.origem.indice ? ocupante : n))
+    : [ocupante];
+  return { ok: true, trocou: ocupante, mudancas: [
+    { iso: a.origem.iso, campo: a.origem.campo, titulares: origemComTroca },
+    { iso: a.destino.iso, campo: a.destino.campo, titulares: [a.nome] },
+  ]};
+}
+
 /** @deprecated Nome antigo, de quando só existia o turno fixo. Use extrasDoDia. */
 export const extrasFixosDoDia = extrasDoDia;
 
