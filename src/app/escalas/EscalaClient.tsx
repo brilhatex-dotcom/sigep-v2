@@ -1062,13 +1062,63 @@ function ReforcoTabela({
   );
 }
 
+/* As funcoes que se repetem na escala extraordinaria. Digitar "Patrulheiro"
+   dez vezes numa operacao com dez patrulheiros e trabalho a toa — e ainda
+   sai "patrulheiro", "Patrulheiro " e "PATRULHEIRO" no mesmo documento. */
+const FUNCOES_JOE = ["CMT", "Aux. do CMT", "Patrulheiro", "Motorista"] as const;
+
+function FuncaoJoe({ valor, onChange }: { valor: string; onChange: (v: string) => void }) {
+  const limpo = semTags(valor || "").trim();
+  const daLista = (FUNCOES_JOE as readonly string[]).includes(limpo);
+  /* Valor que nao esta na lista (escrito antes, ou uma funcao fora do comum)
+     NAO pode se perder: vira uma opcao propria dentro do seletor. */
+  const [digitando, setDigitando] = useState(false);
+
+  if (digitando) {
+    return (
+      <>
+        <Editable value={valor} placeholder="função" onChange={onChange} />
+        <button className="no-print mini" title="voltar para a lista" onClick={() => setDigitando(false)}>▾</button>
+      </>
+    );
+  }
+  return (
+    <select
+      className="joe-func-sel"
+      value={daLista ? limpo : (limpo ? "__ATUAL__" : "")}
+      onChange={(e) => {
+        if (e.target.value === "__DIGITAR__") { setDigitando(true); return; }
+        if (e.target.value === "__ATUAL__") return;
+        onChange(e.target.value);
+      }}
+    >
+      <option value="">função…</option>
+      {FUNCOES_JOE.map((f) => <option key={f} value={f}>{f}</option>)}
+      {!daLista && limpo && <option value="__ATUAL__">{limpo}</option>}
+      <option value="__DIGITAR__">outra (digitar)…</option>
+    </select>
+  );
+}
+
 /* Tabela paisagem da escala da JOE/RENE (print 4):
    Nº | NOME COMPLETO | ID | CPF | LOCAL DE EMPREGO | HORÁRIO DA JORNADA | FUNÇÃO. */
 function JoeEscalaTabela({ rows, onChange }: { rows: JoeEscalaLinha[]; onChange: (r: JoeEscalaLinha[]) => void }) {
   const upd = (i: number, patch: Partial<JoeEscalaLinha>) =>
     onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const rm = (i: number) => onChange(rows.filter((_, j) => j !== i));
-  const add = () => onChange([...rows, { nome: "", id: "", cpf: "", local: "", horario: "", funcao: "" }]);
+  /* A linha nova nasce com LOCAL, HORARIO e FUNCAO da linha de cima. Numa
+     operacao, essas tres se repetem quase sempre (mesmo local, mesma jornada,
+     e varios patrulheiros seguidos) — o que muda de verdade e nome, ID e CPF.
+     Herdando, cada policial a mais custa tres campos em vez de seis. */
+  const add = () => {
+    const ultima = rows[rows.length - 1];
+    onChange([...rows, {
+      nome: "", id: "", cpf: "",
+      local: ultima?.local || "",
+      horario: ultima?.horario || "",
+      funcao: ultima?.funcao || "",
+    }]);
+  };
   return (
     <div className="joe-esc">
       <table className="tbl joe-esc-tbl"><tbody>
@@ -1090,7 +1140,7 @@ function JoeEscalaTabela({ rows, onChange }: { rows: JoeEscalaLinha[]; onChange:
             <td className="val-c"><Editable value={r.local} placeholder="local" onChange={(v) => upd(i, { local: v })} /></td>
             <td className="val-c"><Editable value={r.horario} placeholder="horário" onChange={(v) => upd(i, { horario: v })} /></td>
             <td className="val-c joe-func-cell">
-              <Editable value={r.funcao} placeholder="função" onChange={(v) => upd(i, { funcao: v })} />
+              <FuncaoJoe valor={r.funcao} onChange={(v) => upd(i, { funcao: v })} />
               {rows.length > 0 && <button className="no-print mini" title="remover" onClick={() => rm(i)}>×</button>}
             </td>
           </tr>
@@ -3364,6 +3414,22 @@ const CSS = `
 @media screen{
   .editavel:hover{ background:rgba(212,175,55,.10); }
   .editavel:focus{ background:rgba(212,175,55,.18); }
+}
+/* Seletor de funcao: na TELA precisa parecer clicavel (e o ganho de
+   velocidade); no PAPEL precisa parecer texto, como todo o resto da folha —
+   caixinha de formulario impressa denuncia que o documento saiu de um sistema
+   e fica feia no meio da tabela. */
+.joe-func-sel{ font:inherit; color:inherit; text-align:center; text-align-last:center;
+  border:none; background:transparent; padding:0 2px; max-width:100%; cursor:pointer; }
+@media screen{
+  .joe-func-sel{ border-bottom:1px dotted #a9a9a9; border-radius:3px; }
+  .joe-func-sel:hover{ background:rgba(212,175,55,.12); }
+  .joe-func-sel:focus{ background:rgba(212,175,55,.20); outline:none; }
+  .joe-func-sel:invalid, .joe-func-sel option[value=""]{ color:#b9b9b9; }
+}
+@media print{
+  .joe-func-sel{ appearance:none; -webkit-appearance:none; border:none !important;
+    background:transparent !important; color:#000 !important; }
 }
 @media print{
   @page{ size:A4; margin:6mm; }
