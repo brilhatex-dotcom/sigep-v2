@@ -475,6 +475,23 @@ export default function RequerimentosClient({
               ))}
             </div>
 
+            {/* Documento proprio (coletivo, folha montada na tela), entao leva
+                para a tela dele em vez de passar pelo fluxo de modalidade. */}
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
+              Premiação pecuniária
+            </p>
+            <div className="mb-5">
+              <a
+                href="/requerimentos/premiacao"
+                className="block rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-2.5 text-left text-sm text-[#E8EEF6] transition hover:border-[#D4AF37]/60 hover:bg-[#D4AF37]/15"
+              >
+                APREENSÃO DE ARMA DE FOGO
+                <span className="mt-0.5 block text-[11px] text-[#94A3B8]">
+                  Documento único assinado por todos os policiais da apreensão — Decreto nº 31.564/2016.
+                </span>
+              </a>
+            </div>
+
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
               Armamento e material bélico
             </p>
