@@ -1,4 +1,4 @@
-import { acharAssinatura, conferirAssinatura } from "@/lib/assinaturaSigep";
+import { acharAssinatura, conferirDetalhado } from "@/lib/assinaturaSigep";
 
 export const dynamic = "force-dynamic";
 
@@ -11,8 +11,11 @@ const TIPO_ROT: Record<string, string> = {
   memorando_lp: "Memorando de Licença-Prêmio",
   escala: "Escala de Serviço",
   escala_semana_cpu: "Escala Semanal do CPU",
+  requerimento_pecunia: "Requerimento de Premiação Pecuniária",
 };
-const PAPEL_ROT: Record<string, string> = { chefe_p1: "Chefe do P/1", cmt: "Comandante do 18º BPM" };
+const PAPEL_ROT: Record<string, string> = {
+  chefe_p1: "Chefe do P/1", cmt: "Comandante do 18º BPM", requerente: "Requerente",
+};
 
 function dataHora(iso: string): string {
   const d = new Date(iso);
@@ -35,7 +38,8 @@ export default async function VerificarAssinaturaPage({
   const token = searchParams.t || "";
   const a = await acharAssinatura(id);
   const encontrada = !!a;
-  const confere = encontrada && !!token && conferirAssinatura(a!, token);
+  const r = encontrada && token ? conferirDetalhado(a!, token) : { ok: false, origemLacrada: false };
+  const confere = r.ok;
 
   return (
     <div style={wrap}>
@@ -65,7 +69,26 @@ export default async function VerificarAssinaturaPage({
             <div style={rot}>Assinado em</div><div style={val}>{dataHora(a!.em)}</div>
             {a!.resumo ? (<><div style={rot}>Conteúdo assinado</div><div style={val}>{a!.resumo}</div></>) : null}
             <div style={rot}>Código</div><div style={{ ...val, fontFamily: "monospace" }}>{a!.id}</div>
-            <p style={{ fontSize: 11, color: "#8fa3bf", marginTop: 4 }}>Confira se o documento impresso confere com o conteúdo assinado acima — qualquer alteração posterior fica evidente.</p>
+
+            {/* AUTO DE ASSINATURA — de onde partiu o ato.
+
+                Só aparece quando a origem está COBERTA PELO LACRE. Assinatura
+                emitida antes desta informação existir foi lacrada sem ela; se
+                os campos forem preenchidos depois, o documento continua
+                autêntico, mas a origem não tem a mesma garantia — e apresentar
+                as duas coisas com o mesmo peso seria enganar quem confere. */}
+            {r.origemLacrada && (a!.ip || a!.dispositivo) ? (
+              <div style={{ marginTop: 6, paddingTop: 12, borderTop: "1px solid #1d2c44" }}>
+                <div style={{ fontSize: 12, color: "#8fa3bf", marginBottom: 8, fontWeight: 600 }}>Auto de assinatura</div>
+                {a!.ip ? (<><div style={rot}>Origem (IP)</div><div style={{ ...val, fontFamily: "monospace", fontSize: 14 }}>{a!.ip}</div></>) : null}
+                {a!.dispositivo ? (<><div style={rot}>Dispositivo</div><div style={{ ...val, fontSize: 14 }}>{a!.dispositivo}</div></>) : null}
+                <p style={{ fontSize: 11, color: "#8fa3bf", margin: "0 0 4px" }}>
+                  Estas informações também estão dentro do lacre: alterá-las quebra a verificação.
+                </p>
+              </div>
+            ) : null}
+
+            <p style={{ fontSize: 11, color: "#8fa3bf", marginTop: 10 }}>Confira se o documento impresso confere com o conteúdo assinado acima — qualquer alteração posterior fica evidente.</p>
           </>
         ) : (
           <div style={{ background: "#2a1414", border: "1px solid #7a1f1f", borderRadius: 12, padding: 16, textAlign: "center" }}>
