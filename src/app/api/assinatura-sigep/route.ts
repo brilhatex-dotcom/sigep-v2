@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { conferirSenha } from "@/lib/senha";
 import { podeComoEncargo, cargoDocDe, encargoDe } from "@/lib/encargos";
-import { criarAssinaturas, assinaturasDoDoc } from "@/lib/assinaturaSigep";
+import { criarAssinaturas, assinaturasDoDoc , origemDaRequisicao} from "@/lib/assinaturaSigep";
 import { registrar } from "@/lib/auditoria";
 import { enviarParaLogin } from "@/lib/push";
 
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
     const limpos = itens
       .filter((i: any) => i && i.tipo && i.ref)
       .map((i: any) => ({ tipo: String(i.tipo), ref: String(i.ref), conteudo: String(i.conteudo || ""), resumo: String(i.resumo || "") }));
-    const criadas = await criarAssinaturas(limpos, { papel, nome, cargo, efetivoId: meuId });
+    const criadas = await criarAssinaturas(limpos, { papel, nome, cargo, efetivoId: meuId, ...origemDaRequisicao(req) });
 
     await registrar({
       acao: "assinatura_sigep",

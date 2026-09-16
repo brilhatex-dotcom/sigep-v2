@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { conferirSenha } from "@/lib/senha";
-import { criarAssinaturas } from "@/lib/assinaturaSigep";
+import { criarAssinaturas , origemDaRequisicao} from "@/lib/assinaturaSigep";
 import { memorandosDoMilitar, conteudoAssinatura } from "@/lib/memorandoFerias";
 import { enviarParaAdmins } from "@/lib/push";
 
@@ -80,7 +80,7 @@ export async function POST(req: Request) {
         conteudo: conteudoAssinatura({ tipo, efetivoId: meuId, anoGozo: m.anoGozo, inicioBR: m.inicioBR, apresentacaoBR: m.apresentacaoBR }),
         resumo: `${m.rotuloPeriodo} · ${m.inicioBR} a ${m.fimBR} · ciência do militar`,
       }],
-      { papel: "militar", nome: nomeMilitar, cargo: "Militar interessado", efetivoId: meuId },
+      { papel: "militar", nome: nomeMilitar, cargo: "Militar interessado", efetivoId: meuId, ...origemDaRequisicao(req) },
     );
 
     // avisa a seção: o P/1 e os auxiliares dão seguimento
