@@ -7,6 +7,8 @@ import {
   apagarPecunia, podeVer, refAssinatura, type RequerimentoPecunia,
 } from "@/lib/requerimentoPecunia";
 import { assinaturasDoConjunto, apagarAssinaturasDoConjunto, refsAssinadas } from "@/lib/assinaturaSigep";
+import { prisma } from "@/lib/prisma";
+import { enviarParaVarios } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +39,39 @@ async function quemEh(): Promise<Quem | null> {
 
 // Só quem montou (ou o P/1) mexe no documento; os demais assinam e leem.
 const podeMexer = (r: RequerimentoPecunia, q: Quem) => q.admin || (!!q.login && r.criadoPor === q.login);
+
+/* Avisa no celular quem ACABOU de ser incluído no requerimento.
+
+   Só os novos: salvar de novo um requerimento que já tinha as mesmas pessoas
+   não pode tocar o telefone de todo mundo outra vez. E nunca quem montou —
+   ele acabou de escrever o documento.
+
+   O sino não depende disto: ele descobre a pendência sozinho, olhando os
+   requerimentos em que a pessoa está. Este push é o empurrão para quem não
+   está com o sistema aberto, igual ao do memorando assinado.
+
+   Best-effort de propósito: aviso que não saiu não pode derrubar o
+   requerimento que já foi guardado. */
+async function avisarIncluidos(r: RequerimentoPecunia, antes: Set<string>, quemPos: string) {
+  try {
+    const novos = r.dados.linhas
+      .map((l) => l.efetivoId)
+      .filter((id) => id && !antes.has(id));
+    if (!novos.length) return;
+    const donos = await prisma.usuario.findMany({
+      where: { refEfetivo: { in: novos } },
+      select: { login: true, refEfetivo: true },
+    });
+    const logins = donos.map((u) => u.login).filter(Boolean);
+    if (!logins.length) return;
+    await enviarParaVarios(logins, {
+      title: "Você entrou num requerimento de premiação",
+      body: `${quemPos || "O P/1"} incluiu você no requerimento ${r.id} (apreensão de arma de fogo). Falta a sua assinatura.`,
+      url: "/requerimentos/premiacao?id=" + encodeURIComponent(r.id),
+      tag: "pecunia-" + r.id,
+    });
+  } catch (e) { console.error("[premiacao] aviso aos incluidos", e); }
+}
 
 /* As assinaturas como a folha precisa delas: por policial, sem o hash. */
 async function assinaturasDe(id: string) {
@@ -114,6 +149,8 @@ export async function POST(req: Request) {
         acao: "requerimento_pecunia_criar", alvo: novo.id,
         detalhe: `Criou o requerimento de premiação pecuniária ${novo.id} com ${novo.dados.linhas.length} policial(is).`,
       });
+      // Todos são novos, menos quem montou.
+      await avisarIncluidos(novo, new Set(q.efetivoId ? [q.efetivoId] : []), q.nome);
       return NextResponse.json({ ok: true, requerimento: novo, assinaturas: [], podeMexer: true });
     }
 
@@ -144,9 +181,15 @@ export async function POST(req: Request) {
       }, { status: 409 });
     }
 
+    /* Quem já estava ANTES de salvar — é o que separa "foi incluído agora" de
+       "já estava e o documento só foi corrigido". */
+    const jaEstavam = new Set(r.dados.linhas.map((l) => l.efetivoId).filter(Boolean));
+    if (q.efetivoId) jaEstavam.add(q.efetivoId);
+
     const ok = await salvarPecunia(id, b?.dados);
     if (!ok) return NextResponse.json({ error: "Requerimento não encontrado." }, { status: 404 });
     const atual = await lerPecunia(id);
+    if (atual) await avisarIncluidos(atual, jaEstavam, r.criadoPorNome || q.nome);
     return NextResponse.json({ ok: true, requerimento: atual, assinaturas: [], podeMexer: true });
   } catch (err) {
     console.error("[POST /api/requerimentos/premiacao]", err);

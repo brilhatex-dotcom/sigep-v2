@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, ArrowLeftRight, Check, MessageSquare, FileSignature } from "lucide-react";
+import { Bell, ArrowLeftRight, Check, MessageSquare, FileSignature, Award } from "lucide-react";
 import { usePulso, useMudancaDeOutraAba, avisarMudanca } from "@/lib/sincronia";
 
 type Notificacao = { id: string; texto: string; em: string; href?: string };
@@ -129,6 +129,8 @@ export default function SinoNotificacoes() {
                       >
                         {n.id.startsWith("chat:")
                           ? <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-[#D4AF37]" />
+                          : n.id.startsWith("pecunia:")
+                          ? <Award className="mt-0.5 h-4 w-4 shrink-0 text-[#D4AF37]" />
                           : n.id.startsWith("memo")
                           ? <FileSignature className="mt-0.5 h-4 w-4 shrink-0 text-[#D4AF37]" />
                           : <ArrowLeftRight className="mt-0.5 h-4 w-4 shrink-0 text-[#D4AF37]" />}

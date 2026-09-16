@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import RequerimentosClient from "@/components/RequerimentosClient";
+import PremiacaoEnvolvido from "@/components/PremiacaoEnvolvido";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,11 @@ export default async function RequerimentosPage() {
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-5xl">
+        <PremiacaoEnvolvido
+          meuId={meuEfetivo ?? ""}
+          login={String((session.user as any).login || "")}
+          admin={ehAdmin}
+        />
         <RequerimentosClient itens={itens} ehAdmin={ehAdmin} temFicha={!!meuEfetivo} />
       </div>
     </AppShell>

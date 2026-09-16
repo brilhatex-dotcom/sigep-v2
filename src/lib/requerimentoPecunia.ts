@@ -56,6 +56,14 @@ export type RequerimentoPecunia = {
 
 export const TIPO_ASSINATURA = "requerimento_pecunia";
 
+/* "|111|222|" — com as barras nas pontas, um LIKE '%|22|%' não confunde o
+   policial 22 com o 221. Lista vazia vira "|", que é diferente de "" e
+   significa "já calculado, não tem ninguém do efetivo". */
+export function marcaEfetivos(ids: (string | undefined)[]): string {
+  const limpos = Array.from(new Set(ids.map((x) => String(x || "").trim()).filter(Boolean)));
+  return limpos.length ? `|${limpos.join("|")}|` : "|";
+}
+
 let pronto: Promise<void> | null = null;
 
 function garantir(): Promise<void> {
@@ -72,6 +80,16 @@ function garantir(): Promise<void> {
         )`);
       await prisma.$executeRawUnsafe(
         `CREATE INDEX IF NOT EXISTS idx_requerimento_pecunia_criado ON requerimento_pecunia (criado_em)`);
+      /* Quem está no requerimento, repetido FORA do JSON: "|111|222|".
+
+         O sino pergunta "há requerimento esperando a minha assinatura?" a cada
+         pulso, de cada usuário logado. Responder isso lendo o JSON de todas as
+         linhas e decifrando os dados bancários de todo mundo — para no fim
+         olhar só uma lista de IDs — seria caro e desnecessário. Com a coluna,
+         a pergunta vira um LIKE e o JSON só é aberto no requerimento que
+         interessa. */
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE requerimento_pecunia ADD COLUMN IF NOT EXISTS efetivos text NOT NULL DEFAULT ''`);
       /* O contador é o mesmo do disciplinar e das assinaturas. Criado aqui
          também porque esta rota pode ser a primeira a rodar num banco novo. */
       await prisma.$executeRawUnsafe(`
@@ -79,6 +97,21 @@ function garantir(): Promise<void> {
           chave text PRIMARY KEY,
           valor integer NOT NULL DEFAULT 0
         )`);
+      /* Requerimento guardado antes desta coluna existir tem efetivos = ''
+         (nunca calculado) — e ficaria invisível para o sino. Recalcula uma
+         vez. Um requerimento só de civis fica com "|", que é diferente de
+         vazio: assim não volta a ser recalculado a cada reinício. */
+      try {
+        const velhos: any[] = await prisma.$queryRawUnsafe(
+          `SELECT id, dados FROM requerimento_pecunia WHERE efetivos = '' LIMIT 500`);
+        for (const v of velhos) {
+          let ids: string[] = [];
+          try { ids = (JSON.parse(v.dados || "{}")?.linhas || []).map((l: any) => String(l?.efetivoId || "")); }
+          catch { /* JSON estragado: fica com a marca vazia mesmo */ }
+          await prisma.$executeRawUnsafe(
+            `UPDATE requerimento_pecunia SET efetivos = $2 WHERE id = $1`, v.id, marcaEfetivos(ids));
+        }
+      } catch (e) { console.error("[requerimentoPecunia] backfill efetivos", e); }
     })().catch((e) => {
       pronto = null; // não deixa o erro grudado: a próxima chamada tenta de novo
       throw e;
@@ -166,17 +199,20 @@ export async function criarPecunia(
   const agora = new Date().toISOString();
   const limpos = limpar(dados);
   await prisma.$executeRawUnsafe(
-    `INSERT INTO requerimento_pecunia (id, criado_por, criado_por_nome, criado_em, atualizado_em, dados)
-     VALUES ($1,$2,$3,$4,$5,$6)`,
-    id, por, porNome, agora, agora, JSON.stringify(comBancoCifrado(limpos)));
+    `INSERT INTO requerimento_pecunia (id, criado_por, criado_por_nome, criado_em, atualizado_em, dados, efetivos)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    id, por, porNome, agora, agora, JSON.stringify(comBancoCifrado(limpos)),
+    marcaEfetivos(limpos.linhas.map((l) => l.efetivoId)));
   return { id, criadoPor: por, criadoPorNome: porNome, criadoEm: agora, atualizadoEm: agora, dados: limpos };
 }
 
 export async function salvarPecunia(id: string, dados: unknown): Promise<boolean> {
   await garantir();
+  const limpos = limpar(dados);
   const n = await prisma.$executeRawUnsafe(
-    `UPDATE requerimento_pecunia SET dados=$2, atualizado_em=$3 WHERE id=$1`,
-    id, JSON.stringify(comBancoCifrado(limpar(dados))), new Date().toISOString());
+    `UPDATE requerimento_pecunia SET dados=$2, atualizado_em=$3, efetivos=$4 WHERE id=$1`,
+    id, JSON.stringify(comBancoCifrado(limpos)), new Date().toISOString(),
+    marcaEfetivos(limpos.linhas.map((l) => l.efetivoId)));
   return Number(n) > 0;
 }
 
@@ -209,6 +245,23 @@ export async function marcarGov(id: string, efetivoId: string, valor: boolean): 
     `UPDATE requerimento_pecunia SET dados=$2, atualizado_em=$3 WHERE id=$1`,
     id, JSON.stringify(comBancoCifrado({ ...r.dados, linhas })), new Date().toISOString());
   return { ...r, dados: { ...r.dados, linhas } };
+}
+
+/* Os requerimentos em que ESTE policial está — sem abrir o JSON de nenhum.
+   É o que o sino e a tela de requerimentos perguntam. */
+export type ResumoPecunia = { id: string; criadoPor: string; criadoPorNome: string; criadoEm: string };
+
+export async function envolvemEfetivo(efetivoId: string): Promise<ResumoPecunia[]> {
+  const alvo = String(efetivoId || "").trim();
+  // Um id com curinga de LIKE viraria uma busca aberta; nenhum ID PMMA tem isso.
+  if (!alvo || /[%_|\\]/.test(alvo)) return [];
+  await garantir();
+  const rows: any[] = await prisma.$queryRawUnsafe(
+    `SELECT id, criado_por, criado_por_nome, criado_em FROM requerimento_pecunia
+      WHERE efetivos LIKE $1 ORDER BY criado_em DESC LIMIT 100`, `%|${alvo}|%`);
+  return rows.map((r) => ({
+    id: r.id, criadoPor: r.criado_por || "", criadoPorNome: r.criado_por_nome || "", criadoEm: r.criado_em || "",
+  }));
 }
 
 export async function apagarPecunia(id: string): Promise<void> {
