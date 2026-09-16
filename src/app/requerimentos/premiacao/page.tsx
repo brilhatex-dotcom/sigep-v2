@@ -14,9 +14,15 @@ export const dynamic = "force-dynamic";
    é COLETIVO: um documento assinado por todos os policiais da mesma apreensão.
    O fluxo de /requerimentos/novo monta a folha de UM militar a partir da ficha
    dele — não há como representar vários ali sem desfigurar o resto. */
-export default async function PremiacaoPecuniariaPage() {
+export default async function PremiacaoPecuniariaPage({
+  searchParams,
+}: {
+  searchParams: { id?: string };
+}) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
+
+  const meuId = ((session.user as any).refEfetivo || "") as string;
 
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
@@ -32,10 +38,11 @@ export default async function PremiacaoPecuniariaPage() {
         </h1>
         <p className="nao-imprimir mb-5 text-sm text-[#94A3B8]">
           Premiação pecuniária — Decreto nº 31.564/2016 e Instrução Normativa nº 01/2016.
-          Um único documento para todos os policiais da apreensão.
+          Um único documento para todos os policiais da apreensão, guardado com número e
+          assinado por cada um (SIGEP ou Gov.br).
         </p>
 
-        <RequerimentoPecuniaDoc />
+        <RequerimentoPecuniaDoc meuId={meuId} idInicial={searchParams?.id || ""} />
       </div>
     </AppShell>
   );
