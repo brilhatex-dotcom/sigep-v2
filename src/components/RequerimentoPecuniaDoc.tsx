@@ -50,10 +50,25 @@ type Linha = {
 /* A API do efetivo traz a lotação; o tipo compartilhado não a declara. */
 type MilitarComLotacao = Militar & { lotacao?: string | null };
 
+/* Neste requerimento a lotação é sempre o Batalhão — o documento vai para a
+   SSP, que quer saber a unidade, não a seção interna (ADM, FT-SEDE, ROTEM). */
+const LOTACAO = "18º BPM";
+
 const vazia = (): Linha => ({
   chave: `m-${Math.random().toString(36).slice(2)}`,
-  efetivoId: "", cargo: "", nome: "", matricula: "", idPmma: "", lotacao: "18º BPM", banco: "",
+  efetivoId: "", cargo: "", nome: "", matricula: "", idPmma: "", lotacao: LOTACAO, banco: "",
 });
+
+/* Dados bancários no formato do modelo em papel. */
+function linhaBanco(f: { agencia?: string; conta?: string; tipoConta?: string; banco?: string }): string {
+  const tipo = (f.tipoConta || "CC").trim().toUpperCase();
+  const partes = [
+    f.agencia ? `AG: ${f.agencia}` : "",
+    f.conta ? `${tipo}: ${f.conta}` : "",
+    (f.banco || "").trim().toUpperCase(),
+  ].filter(Boolean);
+  return partes.join(" ");
+}
 
 const hojeBR = () => {
   const d = new Date();
@@ -69,6 +84,7 @@ export default function RequerimentoPecuniaDoc() {
 
   const [efetivo, setEfetivo] = useState<MilitarComLotacao[]>([]);
   const [busca, setBusca] = useState("");
+  const [avisoBanco, setAvisoBanco] = useState(false);
 
   useEffect(() => {
     fetch("/api/efetivo").then((r) => (r.ok ? r.json() : null))
@@ -85,21 +101,43 @@ export default function RequerimentoPecuniaDoc() {
       .slice(0, 8);
   }, [busca, efetivo, jaTem]);
 
-  /* Escolher no buscador preenche CARGO, NOME, MATRÍCULA, ID e LOTAÇÃO de uma
-     vez — cinco das seis colunas. Só os dados bancários sobram para digitar,
-     porque o sistema não os guarda (e nem deveria). */
-  const acrescentar = (m: MilitarComLotacao) => {
+  /* Escolher no buscador preenche a linha inteira.
+
+     O ID PMMA é a CHAVE da ficha (m.id) — não o "nº 863/14" da escala, que é
+     a numeração da graduação. Nos policiais de 2018 para cá o ID e a matrícula
+     são o mesmo número; nos mais antigos, diferentes.
+
+     Cargo, quadro e dados bancários vêm de /api/requerimentos/premiacao/ficha,
+     porque banco/agência/conta são guardados cifrados e não trafegam na
+     /api/efetivo, que qualquer usuário logado enxerga. */
+  const acrescentar = async (m: MilitarComLotacao) => {
+    setBusca("");
     setLinhas((l) => [...l, {
       chave: m.id,
       efetivoId: m.id,
-      cargo: (m.postoGrad || "").toUpperCase(),
+      cargo: (m.postoGrad || "").trim(),
       nome: m.nome || m.nomeGuerra || "",
       matricula: m.matricula || "",
-      idPmma: m.numeroBarra || "",
-      lotacao: m.lotacao || "18º BPM",
+      idPmma: m.id,
+      lotacao: LOTACAO,
       banco: "",
     }]);
-    setBusca("");
+    try {
+      const r = await fetch(`/api/requerimentos/premiacao/ficha?ids=${encodeURIComponent(m.id)}`);
+      if (!r.ok) return;
+      const d = await r.json();
+      const f = (d?.fichas || [])[0];
+      if (!f) return;
+      setLinhas((l) => l.map((x) => (x.chave === m.id ? {
+        ...x,
+        cargo: f.cargo || x.cargo,
+        nome: f.nome || x.nome,
+        matricula: f.matricula || x.matricula,
+        idPmma: f.idPmma || x.idPmma,
+        banco: linhaBanco(f) || x.banco,
+      } : x)));
+      if (f.bancoOculto) setAvisoBanco(true);
+    } catch { /* sem a ficha, a linha fica para preencher a mão */ }
   };
 
   const mudar = (chave: string, patch: Partial<Linha>) =>
@@ -135,7 +173,7 @@ export default function RequerimentoPecuniaDoc() {
         </div>
 
         <label className="mb-1 block text-xs text-[#94A3B8]">
-          Acrescentar policial (preenche cargo, nome, matrícula, ID e lotação)
+          Acrescentar policial (preenche cargo com o quadro, nome, matrícula, ID PMMA e os dados bancários da ficha)
         </label>
         <div className="relative">
           <input
@@ -168,7 +206,13 @@ export default function RequerimentoPecuniaDoc() {
         </button>
         {linhas.length > 0 && (
           <p className="mt-2 text-xs text-[#94A3B8]">
-            {linhas.length} policial(is) no requerimento. Os dados bancários são digitados na tabela.
+            {linhas.length} policial(is) no requerimento. Qualquer campo pode ser corrigido na tabela.
+          </p>
+        )}
+        {avisoBanco && (
+          <p className="mt-2 text-xs text-amber-300">
+            Os dados bancários de outros policiais só são preenchidos pelo P/1 (perfil admin) —
+            são guardados cifrados no sistema. Digite-os na tabela, ou peça ao P/1 para montar o documento.
           </p>
         )}
       </div>
@@ -234,7 +278,7 @@ export default function RequerimentoPecuniaDoc() {
             </tbody>
           </table>
 
-          <p style={{ textAlign: "right", margin: "8mm 0 12mm" }}>
+          <p style={{ textAlign: "center", margin: "8mm 0 12mm" }}>
             <Campo valor={local} onChange={setLocal} inline />, <Campo valor={data} onChange={setData} inline />.
           </p>
 
