@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Printer, Plus, Trash2, Info, Save, Lock, Unlock, FolderOpen, ShieldCheck, FileSignature } from "lucide-react";
+import { Printer, Plus, Trash2, Info, Save, Lock, Unlock, FolderOpen, ShieldCheck, FileSignature, Landmark } from "lucide-react";
 import { imprimirElemento } from "@/lib/imprimir";
 import { avisar, confirmar } from "@/components/Avisos";
 import CarimboSigep from "@/components/CarimboSigep";
+import { linhaBanco, faltaBanco } from "@/lib/pecuniaComum";
 import {
   Cabecalho, Campo, ESTILO_FOLHA, FOLHA_A4, nomeBusca, type Militar,
 } from "@/components/docs/Comum";
@@ -55,12 +56,18 @@ type Linha = {
   matricula: string;
   idPmma: string;
   lotacao: string;
-  banco: string;
+  banco: string;          // o que sai na coluna DADOS BANCÁRIOS
+  bancoNome?: string;     // resposta do questionário (banco, agência, conta)
+  agencia?: string;
+  conta?: string;
+  tipoConta?: string;
   assinarGov?: boolean;   // espaço em branco: vai assinar o PDF pelo Gov.br
 };
 
+type Resposta = { bancoNome: string; agencia: string; conta: string; tipoConta: string };
+
 type Assinatura = { efetivoId: string; id: string; token: string; nome: string; cargo: string; em: string };
-type ItemLista = { id: string; criadoEm: string; criadoPorNome: string; quantidade: number; nomes: string[]; souDele: boolean; jaAssinei: boolean };
+type ItemLista = { id: string; criadoEm: string; criadoPorNome: string; quantidade: number; nomes: string[]; souDele: boolean; jaAssinei: boolean; semBanco: number };
 
 /* A API do efetivo traz a lotação; o tipo compartilhado não a declara. */
 type MilitarComLotacao = Militar & { lotacao?: string | null };
@@ -73,17 +80,6 @@ const vazia = (): Linha => ({
   chave: `m-${Math.random().toString(36).slice(2)}`,
   efetivoId: "", cargo: "", nome: "", matricula: "", idPmma: "", lotacao: LOTACAO, banco: "",
 });
-
-/* Dados bancários no formato do modelo em papel. */
-function linhaBanco(f: { agencia?: string; conta?: string; tipoConta?: string; banco?: string }): string {
-  const tipo = (f.tipoConta || "CC").trim().toUpperCase();
-  const partes = [
-    f.agencia ? `AG: ${f.agencia}` : "",
-    f.conta ? `${tipo}: ${f.conta}` : "",
-    (f.banco || "").trim().toUpperCase(),
-  ].filter(Boolean);
-  return partes.join(" ");
-}
 
 const hojeBR = () => {
   const d = new Date();
@@ -118,6 +114,13 @@ export default function RequerimentoPecuniaDoc({
   const [salvando, setSalvando] = useState(false);
   const [lista, setLista] = useState<ItemLista[] | null>(null);
   const [verLista, setVerLista] = useState(false);
+
+  // ---- questionário dos dados bancários ----
+  const [respondendo, setRespondendo] = useState<Linha | null>(null);
+  const [resp, setResp] = useState<Resposta>({ bancoNome: "", agencia: "", conta: "", tipoConta: "CC" });
+  const [naFicha, setNaFicha] = useState(true);
+  const [gravandoBanco, setGravandoBanco] = useState(false);
+  const [erroBanco, setErroBanco] = useState("");
 
   // ---- assinar ----
   const [pedindoSenha, setPedindoSenha] = useState(false);
@@ -218,7 +221,14 @@ export default function RequerimentoPecuniaDoc({
         nome: f.nome || x.nome,
         matricula: f.matricula || x.matricula,
         idPmma: f.idPmma || x.idPmma,
-        banco: linhaBanco(f) || x.banco,
+        /* A ficha preenche a resposta do questionário, não só o texto da
+           coluna: assim o policial abre o formulário já com o que o sistema
+           sabe e só corrige o que estiver errado, em vez de digitar tudo. */
+        bancoNome: f.banco || x.bancoNome || "",
+        agencia: f.agencia || x.agencia || "",
+        conta: f.conta || x.conta || "",
+        tipoConta: f.tipoConta || x.tipoConta || "CC",
+        banco: linhaBanco({ bancoNome: f.banco, agencia: f.agencia, conta: f.conta, tipoConta: f.tipoConta }) || x.banco,
       } : x)));
       if (f.bancoOculto) setAvisoBanco(true);
     } catch { /* sem a ficha, a linha fica para preencher a mão */ }
@@ -270,6 +280,39 @@ export default function RequerimentoPecuniaDoc({
     } catch { avisar("Sem conexão com o servidor.", "erro"); }
   };
 
+  // ------------------------------------------- dados bancários (questionário)
+  const abrirResposta = (l: Linha) => {
+    setErroBanco("");
+    setNaFicha(l.efetivoId === meuId);   // só faz sentido oferecer para a própria ficha
+    setResp({
+      bancoNome: l.bancoNome || "",
+      agencia: l.agencia || "",
+      conta: l.conta || "",
+      tipoConta: l.tipoConta || "CC",
+    });
+    setRespondendo(l);
+  };
+
+  const gravarResposta = async () => {
+    if (!respondendo) return;
+    setGravandoBanco(true); setErroBanco("");
+    try {
+      const r = await fetch("/api/requerimentos/premiacao/banco", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: reqId, efetivoId: respondendo.efetivoId, ...resp,
+          guardarNaFicha: naFicha && respondendo.efetivoId === meuId,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setErroBanco(d?.error || "Não foi possível gravar."); return; }
+      if (d?.requerimento?.dados?.linhas) setLinhas(d.requerimento.dados.linhas);
+      setRespondendo(null);
+      avisar(d?.naFicha ? "Dados bancários gravados — e guardados na sua ficha." : "Dados bancários gravados.", "sucesso");
+    } catch { setErroBanco("Sem conexão com o servidor."); }
+    finally { setGravandoBanco(false); }
+  };
+
   // ------------------------------------------------------------ assinar
   const escolherModo = async (efetivoId: string, modo: "gov" | "nenhum") => {
     try {
@@ -310,6 +353,8 @@ export default function RequerimentoPecuniaDoc({
   }, [linhas]);
 
   const minhaLinha = useMemo(() => linhas.find((l) => l.efetivoId && l.efetivoId === meuId), [linhas, meuId]);
+  // Quem ainda não respondeu o questionário — o documento não fica pronto sem.
+  const faltamBanco = useMemo(() => linhas.filter(faltaBanco), [linhas]);
   /* Quem montou o documento (e o P/1) pode marcar o Gov.br pelos colegas — é
      só deixar o espaço em branco. ASSINAR pelo outro ninguém pode, nem aqui
      nem no servidor. `podeMexer` já vem do servidor com essa conta feita. */
@@ -439,51 +484,87 @@ export default function RequerimentoPecuniaDoc({
         {avisoBanco && (
           <p className="mt-2 text-xs text-amber-300">
             Os dados bancários de outros policiais só são preenchidos pelo P/1 (perfil admin) —
-            são guardados cifrados no sistema. Digite-os na tabela, ou peça ao P/1 para montar o documento.
+            são guardados cifrados no sistema. Guarde o requerimento e cada um preenche a própria
+            conta no questionário, ou peça ao P/1 para montar o documento.
           </p>
         )}
 
-        {/* ---- quem assina, e como ---- */}
+        {/* ---- dados bancários e assinatura, policial por policial ---- */}
         {reqId && linhas.some((l) => l.efetivoId) && (
           <div className="mt-4 rounded-lg border border-white/10 bg-[#0b1626] p-3">
             <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-[#cbd5e1]">
-              <FileSignature className="h-3.5 w-3.5" /> Assinaturas
+              <FileSignature className="h-3.5 w-3.5" /> Dados bancários e assinaturas
             </div>
+
+            {/* A conta entra no conteúdo assinado. Quem assina antes de todo
+                mundo responder obriga a reabrir depois — e reabrir cancela
+                assinatura de gente que não errou nada. Melhor avisar antes. */}
+            {!travado && faltamBanco.length > 0 && (
+              <p className="mb-2 rounded-lg border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200">
+                Ainda falta a conta de <b>{faltamBanco.map((l) => l.nome || "—").join(", ")}</b>.
+                A conta faz parte do que é assinado: se alguém assinar agora, o requerimento terá
+                de ser reaberto para o resto preencher, e as assinaturas caem.
+              </p>
+            )}
+
             {linhas.filter((l) => l.efetivoId).map((l) => {
               const a = assinaturas[l.efetivoId];
               const sou = l.efetivoId === meuId;
+              const sem = faltaBanco(l);
               return (
-                <div key={l.chave} className="flex flex-wrap items-center gap-2 border-t border-white/5 py-2 first:border-0">
-                  <span className="text-sm text-white">{l.nome || "(sem nome)"}{sou && <span className="text-xs text-[#D4AF37]"> · você</span>}</span>
-                  {a ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] text-emerald-300">
-                      <ShieldCheck className="h-3 w-3" /> SIGEP · {quandoBR(a.em)}
-                    </span>
-                  ) : l.assinarGov ? (
-                    <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-[11px] text-sky-300">vai assinar pelo Gov.br</span>
-                  ) : (
-                    <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-[#94A3B8]">sem assinatura</span>
-                  )}
+                <div key={l.chave} className="border-t border-white/5 py-2 first:border-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-white">{l.nome || "(sem nome)"}{sou && <span className="text-xs text-[#D4AF37]"> · você</span>}</span>
+                    {a ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] text-emerald-300">
+                        <ShieldCheck className="h-3 w-3" /> SIGEP · {quandoBR(a.em)}
+                      </span>
+                    ) : l.assinarGov ? (
+                      <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-[11px] text-sky-300">vai assinar pelo Gov.br</span>
+                    ) : (
+                      <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-[#94A3B8]">sem assinatura</span>
+                    )}
 
-                  <span className="ml-auto flex flex-wrap gap-1.5">
-                    {sou && !a && (
-                      <button onClick={() => { setErroAss(""); setSenha(""); setPedindoSenha(true); }} className={btn}>
-                        <ShieldCheck className="h-3.5 w-3.5" /> Assinar no SIGEP
+                    <span className="ml-auto flex flex-wrap gap-1.5">
+                      {sou && !a && !sem && (
+                        <button onClick={() => { setErroAss(""); setSenha(""); setPedindoSenha(true); }} className={btn}>
+                          <ShieldCheck className="h-3.5 w-3.5" /> Assinar no SIGEP
+                        </button>
+                      )}
+                      {(sou || souDono) && !l.assinarGov && (
+                        <button onClick={() => escolherModo(l.efetivoId, "gov")} className={btn}>Assinar pelo Gov.br</button>
+                      )}
+                      {(sou || souDono) && (a || l.assinarGov) && (
+                        <button onClick={() => escolherModo(l.efetivoId, "nenhum")} className={btn}>Desfazer</button>
+                      )}
+                    </span>
+                  </div>
+
+                  {/* A conta de cada um, com o botão de responder ao lado.
+                      Assinar só aparece depois que a conta está lá: assinar um
+                      requerimento com a própria linha em branco não faria
+                      sentido nenhum — é justamente o que se está pedindo. */}
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    {sem ? (
+                      <span className="text-[11px] text-amber-300">conta ainda não preenchida</span>
+                    ) : (
+                      <span className="font-mono text-[11px] text-[#6f82a0]">{l.banco}</span>
+                    )}
+                    {(sou || souDono) && !travado && (
+                      <button onClick={() => abrirResposta(l)} className={btn + " py-1 text-[11px]"}>
+                        <Landmark className="h-3 w-3" /> {sem ? (sou ? "Preencher meus dados bancários" : "Preencher") : "Corrigir"}
                       </button>
                     )}
-                    {(sou || souDono) && !l.assinarGov && (
-                      <button onClick={() => escolherModo(l.efetivoId, "gov")} className={btn}>Assinar pelo Gov.br</button>
-                    )}
-                    {(sou || souDono) && (a || l.assinarGov) && (
-                      <button onClick={() => escolherModo(l.efetivoId, "nenhum")} className={btn}>Desfazer</button>
-                    )}
-                  </span>
+                  </div>
                 </div>
               );
             })}
+
             <p className="mt-2 text-[11px] leading-relaxed text-[#6f82a0]">
-              <b>SIGEP</b>: assinatura eletrônica avançada (MP 2.200-2/2001 · Lei 14.063/2020) — carimbo com data, hora e QR que
-              confere o documento. <b>Gov.br</b>: o espaço sai <b>em branco</b> no PDF, para ser assinado no
+              Cada policial preenche a <b>própria</b> conta — quem montou o requerimento e o P/1
+              também podem preencher pelos outros. <b>SIGEP</b>: assinatura eletrônica avançada
+              (MP 2.200-2/2001 · Lei 14.063/2020), carimbo com data, hora e QR que confere o
+              documento. <b>Gov.br</b>: o espaço sai <b>em branco</b> no PDF, para ser assinado no
               assinador do Gov.br depois de salvar. Cada um assina a própria linha.
             </p>
           </div>
@@ -492,6 +573,66 @@ export default function RequerimentoPecuniaDoc({
           <p className="mt-2 text-xs text-[#94A3B8]">Você não está na lista deste requerimento, então não há o que assinar.</p>
         )}
       </div>
+
+      {/* ---------------- questionário dos dados bancários ---------------- */}
+      {respondendo && (
+        <div className="nao-imprimir" style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          onClick={() => !gravandoBanco && setRespondendo(null)}>
+          <div style={{ width: "100%", maxWidth: 420, background: "#0F1B2D", border: "1px solid #2b3f63", borderRadius: 14, padding: 18 }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ color: "#fff", fontWeight: 700, margin: "0 0 4px" }}>
+              🏦 Dados bancários {respondendo.efetivoId === meuId ? "— os seus" : `de ${respondendo.nome}`}
+            </h3>
+            <p style={{ color: "#94A3B8", fontSize: 12, margin: "0 0 12px" }}>
+              É a conta em que a premiação vai cair. Confira o dígito — conta errada volta o pagamento.
+            </p>
+
+            <label className="mb-1 block text-xs text-[#94A3B8]">1. Banco</label>
+            <input value={resp.bancoNome} onChange={(e) => setResp((r) => ({ ...r, bancoNome: e.target.value }))}
+              placeholder="Banco do Brasil, Caixa, Bradesco…"
+              className="mb-3 w-full rounded-lg border border-white/10 bg-[#0a1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+
+            <label className="mb-1 block text-xs text-[#94A3B8]">2. Agência</label>
+            <input value={resp.agencia} onChange={(e) => setResp((r) => ({ ...r, agencia: e.target.value }))}
+              placeholder="1234-5" inputMode="text"
+              className="mb-3 w-full rounded-lg border border-white/10 bg-[#0a1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+
+            <label className="mb-1 block text-xs text-[#94A3B8]">3. Conta</label>
+            <div className="mb-3 flex gap-2">
+              <select value={resp.tipoConta} onChange={(e) => setResp((r) => ({ ...r, tipoConta: e.target.value }))}
+                className="rounded-lg border border-white/10 bg-[#0a1626] px-2 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50">
+                <option value="CC">Corrente</option>
+                <option value="CP">Poupança</option>
+              </select>
+              <input value={resp.conta} onChange={(e) => setResp((r) => ({ ...r, conta: e.target.value }))}
+                placeholder="98765-4" inputMode="text"
+                className="w-full rounded-lg border border-white/10 bg-[#0a1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+            </div>
+
+            {/* Como vai sair no papel — confere-se antes de gravar, não depois
+                de imprimir. */}
+            <div className="mb-3 rounded-lg border border-white/5 bg-[#0a1626] px-3 py-2">
+              <div className="text-[11px] text-[#6f82a0]">No documento vai sair assim:</div>
+              <div className="font-mono text-xs text-white">{linhaBanco(resp) || "—"}</div>
+            </div>
+
+            {respondendo.efetivoId === meuId && (
+              <label className="mb-1 flex items-start gap-2 text-xs text-[#cbd5e1]">
+                <input type="checkbox" checked={naFicha} onChange={(e) => setNaFicha(e.target.checked)} className="mt-0.5" />
+                <span>Guardar também na minha ficha, para o próximo requerimento já vir preenchido.</span>
+              </label>
+            )}
+
+            {erroBanco && <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 8 }}>{erroBanco}</div>}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+              <button onClick={() => setRespondendo(null)} disabled={gravandoBanco} className={btn}>Cancelar</button>
+              <button onClick={gravarResposta} disabled={gravandoBanco}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-1.5 text-xs font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-40">
+                {gravandoBanco ? "Gravando…" : "Gravar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ---------------- confirmação da assinatura ---------------- */}
       {pedindoSenha && (

@@ -4,11 +4,11 @@ import { authOptions } from "@/lib/auth";
 import { registrar } from "@/lib/auditoria";
 import {
   TIPO_ASSINATURA, criarPecunia, salvarPecunia, lerPecunia, listarPecunia,
-  apagarPecunia, podeVer, refAssinatura, type RequerimentoPecunia,
+  apagarPecunia, podeVer, refAssinatura, faltaBanco, type RequerimentoPecunia,
 } from "@/lib/requerimentoPecunia";
 import { assinaturasDoConjunto, apagarAssinaturasDoConjunto, refsAssinadas } from "@/lib/assinaturaSigep";
 import { prisma } from "@/lib/prisma";
-import { enviarParaVarios } from "@/lib/push";
+import { enviarParaLogin } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
 
@@ -54,22 +54,32 @@ const podeMexer = (r: RequerimentoPecunia, q: Quem) => q.admin || (!!q.login && 
    requerimento que já foi guardado. */
 async function avisarIncluidos(r: RequerimentoPecunia, antes: Set<string>, quemPos: string) {
   try {
-    const novos = r.dados.linhas
-      .map((l) => l.efetivoId)
-      .filter((id) => id && !antes.has(id));
-    if (!novos.length) return;
+    const novas = r.dados.linhas.filter((l) => l.efetivoId && !antes.has(l.efetivoId));
+    if (!novas.length) return;
     const donos = await prisma.usuario.findMany({
-      where: { refEfetivo: { in: novos } },
+      where: { refEfetivo: { in: novas.map((l) => l.efetivoId) } },
       select: { login: true, refEfetivo: true },
     });
-    const logins = donos.map((u) => u.login).filter(Boolean);
-    if (!logins.length) return;
-    await enviarParaVarios(logins, {
-      title: "Você entrou num requerimento de premiação",
-      body: `${quemPos || "O P/1"} incluiu você no requerimento ${r.id} (apreensão de arma de fogo). Falta a sua assinatura.`,
-      url: "/requerimentos/premiacao?id=" + encodeURIComponent(r.id),
-      tag: "pecunia-" + r.id,
-    });
+    const loginDe = new Map(donos.map((u) => [u.refEfetivo, u.login]));
+    const quem = quemPos || "O P/1";
+
+    /* Um a um, e não em lote, porque o recado não é o mesmo para todos: quem
+       o P/1 já cadastrou com a conta em mãos só precisa assinar; quem entrou
+       sem os dados bancários tem de informá-los ANTES — mandá-lo assinar
+       primeiro obrigaria a reabrir o requerimento depois, derrubando as
+       assinaturas de quem já tinha assinado. */
+    for (const l of novas) {
+      const login = loginDe.get(l.efetivoId);
+      if (!login) continue;
+      await enviarParaLogin(login, {
+        title: "Você entrou num requerimento de premiação",
+        body: faltaBanco(l)
+          ? `${quem} incluiu você no requerimento ${r.id} (apreensão de arma de fogo). Informe seus dados bancários e assine.`
+          : `${quem} incluiu você no requerimento ${r.id} (apreensão de arma de fogo). Falta a sua assinatura.`,
+        url: "/requerimentos/premiacao?id=" + encodeURIComponent(r.id),
+        tag: "pecunia-" + r.id,
+      });
+    }
   } catch (e) { console.error("[premiacao] aviso aos incluidos", e); }
 }
 
@@ -121,6 +131,8 @@ export async function GET(req: Request) {
         nomes: r.dados.linhas.map((l) => l.nome).filter(Boolean).slice(0, 4),
         souDele: !!q.efetivoId && r.dados.linhas.some((l) => l.efetivoId === q.efetivoId),
         jaAssinei: !!q.efetivoId && assinei.has(refAssinatura(r.id, q.efetivoId)),
+        // quantos ainda não informaram a conta — o documento não fica pronto sem
+        semBanco: r.dados.linhas.filter(faltaBanco).length,
       })),
     });
   } catch (err) {

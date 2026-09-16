@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { lerPermutas } from "@/lib/permutaPedidos";
 import { podeComoEncargo, podeVerP1 } from "@/lib/encargos";
 import { garantirChatSilencioso } from "@/lib/chatDb";
-import { envolvemEfetivo, lerPecunia, refAssinatura, TIPO_ASSINATURA } from "@/lib/requerimentoPecunia";
+import { envolvemEfetivo, lerPecunia, refAssinatura, TIPO_ASSINATURA, faltaBanco } from "@/lib/requerimentoPecunia";
 import { refsAssinadas } from "@/lib/assinaturaSigep";
 
 /* =========================================================================
@@ -261,9 +261,16 @@ export async function notificacoesPecunia(quem: Quem): Promise<Notificacao[]> {
       const minha = doc?.dados.linhas.find((l) => l.efetivoId === meuId);
       if (!minha || minha.assinarGov) continue;
       const quemPos = r.criadoPorNome || "O P/1";
+      /* O que falta muda o recado. Mandar "falta assinar" para quem ainda nem
+         informou a conta faria a pessoa ir assinar primeiro — e aí o
+         requerimento teria de ser reaberto para ela preencher, derrubando as
+         assinaturas de quem já tinha assinado. */
+      const oQueFalta = faltaBanco(minha)
+        ? "Informe seus dados bancários e assine."
+        : "Falta a sua assinatura.";
       nots.push({
         id: "pecunia:" + r.id,
-        texto: `${quemPos} incluiu você no requerimento de premiação pecuniária ${r.id}. Falta a sua assinatura.`,
+        texto: `${quemPos} incluiu você no requerimento de premiação pecuniária ${r.id}. ${oQueFalta}`,
         em: r.criadoEm,
         href: "/requerimentos/premiacao?id=" + encodeURIComponent(r.id),
       });

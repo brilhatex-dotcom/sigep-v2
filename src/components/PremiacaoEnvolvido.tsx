@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Award, PenLine, CheckCircle2 } from "lucide-react";
+import { Award, PenLine, CheckCircle2, Landmark } from "lucide-react";
 import {
-  TIPO_ASSINATURA, listarPecunia, podeVer, refAssinatura,
+  TIPO_ASSINATURA, listarPecunia, podeVer, refAssinatura, faltaBanco,
 } from "@/lib/requerimentoPecunia";
 import { refsAssinadas } from "@/lib/assinaturaSigep";
 
@@ -30,7 +30,7 @@ export default async function PremiacaoEnvolvido({
   login: string;
   admin: boolean;
 }) {
-  let itens: { id: string; criadoPorNome: string; quantidade: number; souDele: boolean; jaAssinei: boolean }[] = [];
+  let itens: { id: string; criadoPorNome: string; quantidade: number; souDele: boolean; jaAssinei: boolean; semBanco: boolean }[] = [];
   try {
     const todos = (await listarPecunia(60)).filter((r) => podeVer(r, login, meuId || null, admin));
     if (!todos.length) return null;
@@ -46,6 +46,7 @@ export default async function PremiacaoEnvolvido({
         souDele: !!minha,
         // marcar o Gov.br também resolve a pendência: o espaço sai em branco
         jaAssinei: !!minha && (assinei.has(refAssinatura(r.id, meuId)) || !!minha.assinarGov),
+        semBanco: !!minha && faltaBanco(minha),
       };
     });
   } catch {
@@ -62,7 +63,7 @@ export default async function PremiacaoEnvolvido({
         <h2 className="text-sm font-semibold text-white">Premiação pecuniária</h2>
         {pendentes > 0 && (
           <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-300">
-            {pendentes === 1 ? "1 aguarda a sua assinatura" : `${pendentes} aguardam a sua assinatura`}
+            {pendentes === 1 ? "1 esperando por você" : `${pendentes} esperando por você`}
           </span>
         )}
         <Link href="/requerimentos/premiacao" className="ml-auto text-xs text-[#94A3B8] transition hover:text-white">
@@ -85,6 +86,13 @@ export default async function PremiacaoEnvolvido({
               i.jaAssinei ? (
                 <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] text-emerald-300">
                   <CheckCircle2 className="h-3 w-3" /> resolvido
+                </span>
+              ) : i.semBanco ? (
+                /* Primeiro a conta, depois a assinatura: a conta faz parte do
+                   que é assinado, então mandar assinar antes só faria o
+                   requerimento ter de ser reaberto depois. */
+                <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-300">
+                  <Landmark className="h-3 w-3" /> falta seus dados bancários
                 </span>
               ) : (
                 <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-300">

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { cifrar, decifrar } from "@/lib/cripto";
+import { linhaBanco } from "@/lib/pecuniaComum";
 
 /* =========================================================================
    REQUERIMENTO DE PREMIAÇÃO PECUNIÁRIA — GUARDADO NO BANCO
@@ -30,12 +31,27 @@ export type LinhaPecunia = {
   matricula: string;
   idPmma: string;
   lotacao: string;
+  /* O que sai na coluna DADOS BANCÁRIOS: "AG: 1234-5 CC: 98765-4 BANCO DO
+     BRASIL". É esta string que entra no conteúdo assinado. */
   banco: string;
+  /* A resposta do questionário, em três campos separados — é assim que o
+     policial preenche, e é assim que dá para conferir e corrigir depois. Se
+     qualquer um deles vier preenchido, `banco` é REMONTADO a partir daqui
+     (ver `limpar`), para os dois nunca divergirem. */
+  bancoNome?: string;
+  agencia?: string;
+  conta?: string;
+  tipoConta?: string;     // "CC" (corrente) | "CP" (poupança)
   /* Deixa o espaço da assinatura EM BRANCO no papel, porque o policial vai
      assinar o PDF pelo Gov.br depois de imprimir. Não afirma que ele assinou:
      é só o sistema saindo da frente. */
   assinarGov?: boolean;
 };
+
+/* A regra de formato da coluna DADOS BANCÁRIOS mora em `pecuniaComum`, que a
+   tela também importa — ver o porquê lá. Reexportado aqui para quem já
+   trabalha com este módulo não precisar saber de dois. */
+export { linhaBanco, faltaBanco } from "@/lib/pecuniaComum";
 
 export type DadosPecunia = {
   destinatario: string;
@@ -137,17 +153,29 @@ function limpar(d: any): DadosPecunia {
   const t = (v: any, n = 200) => String(v ?? "").slice(0, n);
   const linhas: LinhaPecunia[] = (Array.isArray(d?.linhas) ? d.linhas : [])
     .slice(0, 60)
-    .map((l: any, i: number) => ({
-      chave: t(l?.chave || `m-${i}`, 60),
-      efetivoId: t(l?.efetivoId, 60),
-      cargo: t(l?.cargo, 60),
-      nome: t(l?.nome, 120),
-      matricula: t(l?.matricula, 30),
-      idPmma: t(l?.idPmma, 30),
-      lotacao: t(l?.lotacao, 60),
-      banco: t(l?.banco, 120),
-      assinarGov: !!l?.assinarGov,
-    }));
+    .map((l: any, i: number) => {
+      const bancoNome = t(l?.bancoNome, 60);
+      const agencia = t(l?.agencia, 20);
+      const conta = t(l?.conta, 25);
+      const tipoConta = t(l?.tipoConta, 4).toUpperCase() === "CP" ? "CP" : "CC";
+      /* Respondeu o questionário? Então a coluna do documento é MONTADA a
+         partir da resposta, e o que estivesse escrito ali antes não vale mais.
+         Sem essa regra os dois caminhos — o formulário e a digitação direta na
+         tabela — poderiam discordar, e ninguém saberia qual é a conta certa. */
+      const respondeu = !!(bancoNome || agencia || conta);
+      return {
+        chave: t(l?.chave || `m-${i}`, 60),
+        efetivoId: t(l?.efetivoId, 60),
+        cargo: t(l?.cargo, 60),
+        nome: t(l?.nome, 120),
+        matricula: t(l?.matricula, 30),
+        idPmma: t(l?.idPmma, 30),
+        lotacao: t(l?.lotacao, 60),
+        banco: respondeu ? linhaBanco({ bancoNome, agencia, conta, tipoConta }).slice(0, 120) : t(l?.banco, 120),
+        bancoNome, agencia, conta, tipoConta,
+        assinarGov: !!l?.assinarGov,
+      };
+    });
   return {
     destinatario: t(d?.destinatario, 300),
     texto: t(d?.texto, 4000),
@@ -166,15 +194,31 @@ function limpar(d: any): DadosPecunia {
    nesta tabela desfaria a proteção pelo caminho de trás, e com o agravante de
    reunir a conta de várias pessoas numa linha só.
 
-   Cifrado só na coluna do banco: o resto do sistema (inclusive o que é
-   assinado) trabalha sempre com o valor já decifrado, porque a leitura passa
-   obrigatoriamente por aqui.
+   Cifrados a linha montada E as três respostas do questionário — de nada
+   adiantaria proteger "AG: 1234 CC: 5678 BB" e deixar ao lado, em texto puro,
+   a agência e a conta que a formam. O tipo de conta (CC/CP) fica aberto: não
+   identifica conta nenhuma sozinho, e a ficha do policial também não o cifra.
+
+   O resto do sistema (inclusive o que é assinado) trabalha sempre com o valor
+   já decifrado, porque a leitura passa obrigatoriamente por aqui.
    --------------------------------------------------------------------------- */
+const CIFRADOS = ["banco", "bancoNome", "agencia", "conta"] as const;
+
 const comBancoCifrado = (d: DadosPecunia): DadosPecunia => ({
-  ...d, linhas: d.linhas.map((l) => ({ ...l, banco: String(cifrar(l.banco) ?? "") })),
+  ...d,
+  linhas: d.linhas.map((l) => {
+    const o: any = { ...l };
+    for (const c of CIFRADOS) o[c] = String(cifrar(o[c]) ?? "");
+    return o as LinhaPecunia;
+  }),
 });
 const comBancoAberto = (d: any) => ({
-  ...d, linhas: (Array.isArray(d?.linhas) ? d.linhas : []).map((l: any) => ({ ...l, banco: String(decifrar(l?.banco) ?? "") })),
+  ...d,
+  linhas: (Array.isArray(d?.linhas) ? d.linhas : []).map((l: any) => {
+    const o: any = { ...l };
+    for (const c of CIFRADOS) o[c] = String(decifrar(o[c]) ?? "");
+    return o;
+  }),
 });
 
 function mapear(r: any): RequerimentoPecunia {
@@ -245,6 +289,43 @@ export async function marcarGov(id: string, efetivoId: string, valor: boolean): 
     `UPDATE requerimento_pecunia SET dados=$2, atualizado_em=$3 WHERE id=$1`,
     id, JSON.stringify(comBancoCifrado({ ...r.dados, linhas })), new Date().toISOString());
   return { ...r, dados: { ...r.dados, linhas } };
+}
+
+/* A RESPOSTA DO QUESTIONÁRIO de um policial: banco, agência e conta.
+
+   Gravação estreita de propósito — mexe só na linha daquela pessoa, e só nos
+   campos bancários. É o que permite o policial responder sem poder alterar o
+   resto do documento, que não é dele.
+
+   `banco` é remontado pelo `limpar`, não aqui: a regra de como a coluna do
+   papel se forma mora num lugar só. */
+export type RespostaBanco = { bancoNome?: string; agencia?: string; conta?: string; tipoConta?: string };
+
+export async function responderBanco(
+  id: string, efetivoId: string, r: RespostaBanco,
+): Promise<RequerimentoPecunia | null> {
+  const atual = await lerPecunia(id);
+  if (!atual) return null;
+  if (!atual.dados.linhas.some((l) => l.efetivoId === efetivoId)) return null;
+
+  const dados = limpar({
+    ...atual.dados,
+    linhas: atual.dados.linhas.map((l) => (l.efetivoId === efetivoId ? {
+      ...l,
+      bancoNome: r.bancoNome ?? l.bancoNome ?? "",
+      agencia: r.agencia ?? l.agencia ?? "",
+      conta: r.conta ?? l.conta ?? "",
+      tipoConta: r.tipoConta ?? l.tipoConta ?? "CC",
+      /* Resposta apagada de vez: a coluna volta a ficar vazia, e não presa ao
+         que estava escrito antes. */
+      banco: "",
+    } : l)),
+  });
+
+  await prisma.$executeRawUnsafe(
+    `UPDATE requerimento_pecunia SET dados=$2, atualizado_em=$3 WHERE id=$1`,
+    id, JSON.stringify(comBancoCifrado(dados)), new Date().toISOString());
+  return { ...atual, dados };
 }
 
 /* Os requerimentos em que ESTE policial está — sem abrir o JSON de nenhum.
