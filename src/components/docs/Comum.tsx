@@ -151,28 +151,32 @@ export function BuscaMilitarMultiplo({
    pode voltar para o cadastro do militar. O pontilhado marca onde clicar na
    tela e some na impressão. */
 export function Campo({
-  valor, onChange, min, negrito, centro, inline,
+  valor, onChange, min, negrito, centro, inline, travado,
 }: {
   valor: string; onChange: (v: string) => void; min?: string;
   negrito?: boolean; centro?: boolean;
   /* `inline` faz o texto fluir junto com o parágrafo (respeitando recuo e
      justificação), em vez de virar um bloco próprio. Use em textos corridos. */
   inline?: boolean;
+  /* Documento já assinado: o texto continua na tela, mas não se mexe nele.
+     Some também o pontilhado, que é o convite visual para clicar — deixar o
+     tracejado num campo que não aceita digitação só irrita quem tenta. */
+  travado?: boolean;
 }) {
   return (
     <span
       className="campo-ed"
-      contentEditable
+      contentEditable={!travado}
       suppressContentEditableWarning
       spellCheck={false}
       style={{
         display: inline ? "inline" : "inline-block",
         minWidth: inline ? undefined : (min || "30mm"),
-        borderBottom: "0.5pt dotted #bbb",
+        borderBottom: travado ? undefined : "0.5pt dotted #bbb",
         fontWeight: negrito ? "bold" : undefined,
         textAlign: centro ? "center" : undefined,
       }}
-      onBlur={(e) => onChange((e.currentTarget.textContent || "").trim())}
+      onBlur={(e) => { if (!travado) onChange((e.currentTarget.textContent || "").trim()); }}
     >
       {valor}
     </span>

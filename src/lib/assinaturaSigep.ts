@@ -213,3 +213,46 @@ export async function assinaturasDoDoc(tipo: string, ref: string): Promise<(Assi
   const rows: any[] = await prisma.$queryRawUnsafe(`SELECT * FROM assinatura_sigep WHERE tipo=$1 AND ref=$2`, tipo, ref);
   return rows.map((r) => { const a = mapear(r); return { ...a, token: tokenAssinatura(a) }; });
 }
+
+/* Documento COLETIVO: uma assinatura por pessoa, com ref "<doc>:<efetivoId>".
+   Buscar de uma vez evita uma ida ao banco por signatário — num requerimento
+   de oito policiais seriam oito consultas para montar uma folha só. */
+export async function assinaturasDoConjunto(tipo: string, doc: string): Promise<(AssinaturaSigep & { token: string })[]> {
+  await garantir();
+  const rows: any[] = await prisma.$queryRawUnsafe(
+    `SELECT * FROM assinatura_sigep WHERE tipo=$1 AND ref LIKE $2`, tipo, `${doc}:%`);
+  return rows.map((r) => { const a = mapear(r); return { ...a, token: tokenAssinatura(a) }; });
+}
+
+/* Quais destas referências já estão assinadas — numa consulta só, para a
+   LISTA de documentos poder dizer "você já assinou" sem uma ida ao banco por
+   linha. */
+export async function refsAssinadas(tipo: string, refs: string[]): Promise<Set<string>> {
+  const lista = Array.from(new Set(refs.filter(Boolean))).slice(0, 500);
+  if (!lista.length) return new Set();
+  await garantir();
+  /* A lista de referências vira $2, $3, … — só o número de marcadores é montado
+     na string; os valores continuam indo como parâmetro. */
+  const marcadores = lista.map((_, i) => `$${i + 2}`).join(",");
+  const rows: any[] = await prisma.$queryRawUnsafe(
+    `SELECT ref FROM assinatura_sigep WHERE tipo=$1 AND ref IN (${marcadores})`, tipo, ...lista);
+  return new Set(rows.map((r) => String(r.ref)));
+}
+
+/* Apaga as assinaturas de um documento coletivo — usado ao REABRIR o
+   requerimento para edição. Documento assinado não se altera por baixo: ou
+   está lacrado, ou as assinaturas caem junto com o lacre. */
+export async function apagarAssinaturasDoConjunto(tipo: string, doc: string): Promise<number> {
+  await garantir();
+  const n = await prisma.$executeRawUnsafe(
+    `DELETE FROM assinatura_sigep WHERE tipo=$1 AND ref LIKE $2`, tipo, `${doc}:%`);
+  return Number(n) || 0;
+}
+
+// Apaga UMA assinatura (ex.: o policial desfez a dele para assinar pelo Gov.br).
+export async function apagarAssinatura(tipo: string, ref: string): Promise<number> {
+  await garantir();
+  const n = await prisma.$executeRawUnsafe(
+    `DELETE FROM assinatura_sigep WHERE tipo=$1 AND ref=$2`, tipo, ref);
+  return Number(n) || 0;
+}

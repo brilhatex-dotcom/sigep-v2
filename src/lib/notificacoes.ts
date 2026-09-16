@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { lerPermutas } from "@/lib/permutaPedidos";
 import { podeComoEncargo, podeVerP1 } from "@/lib/encargos";
 import { garantirChatSilencioso } from "@/lib/chatDb";
+import { envolvemEfetivo, lerPecunia, refAssinatura, TIPO_ASSINATURA, faltaBanco } from "@/lib/requerimentoPecunia";
+import { refsAssinadas } from "@/lib/assinaturaSigep";
 
 /* =========================================================================
    AS QUATRO FONTES DO SININHO, NUM LUGAR SÓ
@@ -229,14 +231,68 @@ export async function notificacoesFerias(quem: Quem): Promise<Notificacao[]> {
   }
 }
 
+/* Requerimento de premiação pecuniária: o policial foi incluído num pedido
+   coletivo por outra pessoa e ainda não assinou.
+
+   É a única notificação do sino que nasce de alguém ter posto o SEU NOME num
+   documento. Por isso ela não some sozinha com o tempo: só sai da lista
+   quando o policial assina (SIGEP), quando ele marca que vai assinar pelo
+   Gov.br, ou quando tiram o nome dele do requerimento. Enquanto houver a
+   pendência, ela continua ali.
+
+   Quem montou o requerimento não é avisado do próprio documento — ele acabou
+   de criá-lo. */
+export async function notificacoesPecunia(quem: Quem): Promise<Notificacao[]> {
+  const meuId = (quem.refEfetivo || "") as string;
+  if (!meuId) return [];
+  try {
+    const meus = await envolvemEfetivo(meuId);
+    if (!meus.length) return [];
+
+    const assinei = await refsAssinadas(TIPO_ASSINATURA, meus.map((r) => refAssinatura(r.id, meuId)));
+    const pendentes = meus.filter((r) => !assinei.has(refAssinatura(r.id, meuId)));
+    if (!pendentes.length) return [];
+
+    const nots: Notificacao[] = [];
+    for (const r of pendentes.slice(0, 20)) {
+      /* Só agora o JSON é aberto, e só dos que interessam: para saber se o
+         policial já resolveu a linha dele marcando o Gov.br. */
+      const doc = await lerPecunia(r.id);
+      const minha = doc?.dados.linhas.find((l) => l.efetivoId === meuId);
+      if (!minha || minha.assinarGov) continue;
+      const quemPos = r.criadoPorNome || "O P/1";
+      /* O que falta muda o recado. Mandar "falta assinar" para quem ainda nem
+         informou a conta faria a pessoa ir assinar primeiro — e aí o
+         requerimento teria de ser reaberto para ela preencher, derrubando as
+         assinaturas de quem já tinha assinado. */
+      const oQueFalta = faltaBanco(minha)
+        ? "Informe seus dados bancários e assine."
+        : "Falta a sua assinatura.";
+      nots.push({
+        id: "pecunia:" + r.id,
+        texto: `${quemPos} incluiu você no requerimento de premiação pecuniária ${r.id}. ${oQueFalta}`,
+        em: r.criadoEm,
+        href: "/requerimentos/premiacao?id=" + encodeURIComponent(r.id),
+      });
+    }
+    nots.sort((a, b) => (b.em || "").localeCompare(a.em || ""));
+    return nots;
+  } catch {
+    // tabela ainda não criada — o sino simplesmente não mostra esta fonte
+    return [];
+  }
+}
+
 /* A lista completa do sino, na MESMA ordem que ele montava quando fazia as
-   quatro chamadas: segurança, férias, chat, permutas. */
+   quatro chamadas: segurança, férias, chat, permutas — com a premiação
+   pecuniária logo depois dos memorandos, que é o assunto mais próximo. */
 export async function todasNotificacoes(quem: Quem): Promise<Notificacao[]> {
-  const [seg, fer, cha, per] = await Promise.all([
+  const [seg, fer, pec, cha, per] = await Promise.all([
     alertasSeguranca(quem),
     notificacoesFerias(quem),
+    notificacoesPecunia(quem),
     notificacoesChat(quem),
     notificacoesPermutas(quem),
   ]);
-  return [...seg, ...fer, ...cha, ...per];
+  return [...seg, ...fer, ...pec, ...cha, ...per];
 }

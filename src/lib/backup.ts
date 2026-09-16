@@ -49,6 +49,11 @@ const TABELAS_RUNTIME = [
   "permuta_pedido",
   "permuta_contador",
   "auditoria_ancora",
+  "historico_policial",
+  "assinatura_sigep",
+  /* Os dados bancários já saem cifrados desta tabela (ver requerimentoPecunia),
+     então o arquivo de backup não os carrega em texto puro. */
+  "requerimento_pecunia",
 ];
 
 // Campos que NÃO devem sair no arquivo de backup (segurança do arquivo).
