@@ -4,7 +4,7 @@
    Safari imprime iframe da mesma origem sem os problemas do overlay fixo. */
 export function imprimirElemento(
   el: HTMLElement | null,
-  opts?: { landscape?: boolean; titulo?: string },
+  opts?: { landscape?: boolean; titulo?: string; estilo?: string },
 ): void {
   if (!el || typeof document === "undefined") return;
   const iframe = document.createElement("iframe");
@@ -22,7 +22,17 @@ export function imprimirElemento(
     `<base href="${base}/">` +
     `<title>${opts?.titulo || "Documento"}</title>` +
     `<style>@page{size:${size};margin:0;} html,body{margin:0;padding:0;background:#fff;} ` +
-    `*{-webkit-print-color-adjust:exact;print-color-adjust:exact;}</style>` +
+    `*{-webkit-print-color-adjust:exact;print-color-adjust:exact;}` +
+    /* O iframe é limpo: NADA do CSS da página chega aqui. Botão marcado com
+       "não imprimir" é controle de tela — num iframe que só existe para
+       imprimir, ele nunca deve aparecer. Sem esta linha, a lixeira de apagar
+       a linha saía impressa dentro da tabela do documento. */
+    `.nao-imprimir,.no-print,#chat-flutuante{display:none !important;}</style>` +
+    /* Estilo próprio do documento (ex.: ESTILO_FOLHA). Também não viaja
+       sozinho: a tag <style> da página é IRMÃ do elemento clonado, e o clone
+       leva só o elemento. Por isso quem chama precisa passá-lo — era o que
+       fazia os campos editáveis saírem no papel com o pontilhado da tela. */
+    (opts?.estilo ? `<style>${opts.estilo}</style>` : "") +
     `</head><body>${el.outerHTML}</body></html>`,
   );
   doc.close();

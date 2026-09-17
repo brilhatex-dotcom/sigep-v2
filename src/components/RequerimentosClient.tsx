@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText, Plus, Clock, CheckCircle2, XCircle, FileEdit, X, Search, ArrowDownUp,
-  Settings, Trash2, Loader2, Check, Users, ChevronDown,
+  Settings, Trash2, Loader2, Check, Users, ChevronDown, PenLine, ShieldCheck,
 } from "lucide-react";
 import {
   MODALIDADES_COMUM,
@@ -25,6 +25,18 @@ type Item = {
   status: string;
   criadoEm: string;
   requerente: string;
+  /* Campos da PREMIAÇÃO PECUNIÁRIA, que entra nesta mesma lista.
+
+     Ela é um requerimento como os outros para quem procura na tela — tem
+     data, tem requerente e mora no mês em que foi feita —, mas é coletiva,
+     vive noutra tabela e abre noutro lugar. Em vez de uma segunda lista (que
+     com 40 pedidos vira uma parede em cima da tela), entra aqui com o que a
+     diferencia: para onde vai o clique, o que aparece embaixo do nome, e por
+     qual porta ela é apagada. */
+  href?: string;          // destino do clique; sem isto, vai para /requerimentos/<id>
+  sub?: string;           // 2ª linha (número e quem montou), visível a todos
+  pecunia?: boolean;      // muda o caminho do excluir
+  podeExcluir?: boolean;  // quem montou, ou o P/1 (decidido no servidor)
 };
 
 function selo(status: string) {
@@ -33,9 +45,19 @@ function selo(status: string) {
     enviado: { txt: "Enviado", cls: "bg-sky-500/15 text-sky-300", Icone: Clock },
     deferido: { txt: "Deferido", cls: "bg-emerald-500/15 text-emerald-300", Icone: CheckCircle2 },
     indeferido: { txt: "Indeferido", cls: "bg-red-500/15 text-red-300", Icone: XCircle },
+    /* A premiação tem selo próprio porque o ciclo dela é outro: aqui dentro
+       ela é assinada, e "deferido/indeferido" é decisão da SSP, que o sistema
+       não acompanha. Dizer "Deferido" só porque todos assinaram seria afirmar
+       o que ninguém afirmou. */
+    pecunia_assinando: { txt: "Assinaturas", cls: "bg-amber-500/15 text-amber-300", Icone: PenLine },
+    pecunia_falta_voce: { txt: "Falta você", cls: "bg-amber-500/25 text-amber-200", Icone: PenLine },
+    pecunia_pronto: { txt: "Assinado", cls: "bg-emerald-500/15 text-emerald-300", Icone: ShieldCheck },
   };
   return mapa[status] ?? mapa["rascunho"];
 }
+
+// Os três estados da premiação, para as abas não precisarem repetir a lista.
+const PECUNIA = ["pecunia_falta_voce", "pecunia_assinando", "pecunia_pronto"];
 
 function dataBR(iso: string): string {
   return new Date(iso).toLocaleDateString("pt-BR");
@@ -50,20 +72,22 @@ function rotuloMes(chave: string): string {
 // abas: filtro -> rotulo + quais status entram
 type Aba = { id: string; rotulo: string; status: string[] };
 
+/* "Pendentes" é o que ainda espera alguém — então a premiação que está
+   colhendo assinatura entra ali, e a que já foi assinada só em "Todos". */
 const ABAS_ADMIN: Aba[] = [
-  { id: "enviado", rotulo: "Pendentes", status: ["enviado"] },
+  { id: "enviado", rotulo: "Pendentes", status: ["enviado", "pecunia_falta_voce", "pecunia_assinando"] },
   // Sem esta aba, o que o P/1 cria em lote como rascunho some da tela dele —
   // a aba inicial e "Pendentes", que so lista os enviados.
   { id: "rascunho", rotulo: "Rascunhos", status: ["rascunho"] },
   { id: "deferido", rotulo: "Deferidos", status: ["deferido"] },
   { id: "indeferido", rotulo: "Indeferidos", status: ["indeferido"] },
-  { id: "todos", rotulo: "Todos", status: ["rascunho", "enviado", "deferido", "indeferido"] },
+  { id: "todos", rotulo: "Todos", status: ["rascunho", "enviado", "deferido", "indeferido", ...PECUNIA] },
 ];
 
 const ABAS_POLICIAL: Aba[] = [
-  { id: "todos", rotulo: "Todos", status: ["rascunho", "enviado", "deferido", "indeferido"] },
+  { id: "todos", rotulo: "Todos", status: ["rascunho", "enviado", "deferido", "indeferido", ...PECUNIA] },
   { id: "rascunho", rotulo: "Rascunhos", status: ["rascunho"] },
-  { id: "enviado", rotulo: "Enviados", status: ["enviado"] },
+  { id: "enviado", rotulo: "Enviados", status: ["enviado", "pecunia_falta_voce", "pecunia_assinando"] },
   { id: "deferido", rotulo: "Deferidos", status: ["deferido"] },
   { id: "indeferido", rotulo: "Indeferidos", status: ["indeferido"] },
 ];
@@ -181,12 +205,20 @@ export default function RequerimentosClient({
 
   async function excluir(r: Item) {
     if (!await confirmar(
-      `Excluir o requerimento de ${r.modalidade}${ehAdmin ? ` — ${r.requerente}` : ""}?\n\n` +
-      "Some da lista e o documento gerado é apagado junto. Não dá para desfazer."
+      r.pecunia
+        ? `Excluir o requerimento de premiação ${r.id}?\n\n` +
+          "As assinaturas já dadas são canceladas junto. Não dá para desfazer."
+        : `Excluir o requerimento de ${r.modalidade}${ehAdmin ? ` — ${r.requerente}` : ""}?\n\n` +
+          "Some da lista e o documento gerado é apagado junto. Não dá para desfazer."
     )) return;
     setExcluindo(r.id);
     try {
-      const res = await fetch(`/api/requerimentos/${r.id}`, { method: "DELETE" });
+      // A premiação vive noutra tabela, então sai por outra porta.
+      const res = await fetch(
+        r.pecunia
+          ? `/api/requerimentos/premiacao?id=${encodeURIComponent(r.id)}`
+          : `/api/requerimentos/${r.id}`,
+        { method: "DELETE" });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) { avisar(d?.error || "Falha ao excluir."); return; }
       setRemovidos((s) => new Set(s).add(r.id));
@@ -408,20 +440,23 @@ export default function RequerimentosClient({
                       return (
                         <li key={r.id} className="flex items-center gap-2 pr-3 transition hover:bg-white/5">
                           <button
-                            onClick={() => router.push(`/requerimentos/${r.id}`)}
+                            onClick={() => router.push(r.href || `/requerimentos/${r.id}`)}
                             className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3 text-left"
                           >
                             <div className="min-w-0">
                               <p className="truncate text-sm font-semibold text-white">{r.modalidade}</p>
-                              <p className="text-[12px] text-[#94A3B8]">
-                                {ehAdmin ? `${r.requerente} · ` : ""}{dataBR(r.criadoEm)}
+                              {/* `sub` traz o número e quem montou — a premiação
+                                  é coletiva, então isso interessa a todos, não
+                                  só ao P/1. */}
+                              <p className="truncate text-[12px] text-[#94A3B8]">
+                                {r.sub ? `${r.sub} · ` : ehAdmin ? `${r.requerente} · ` : ""}{dataBR(r.criadoEm)}
                               </p>
                             </div>
                             <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${s.cls}`}>
                               <s.Icone className="h-3.5 w-3.5" /> {s.txt}
                             </span>
                           </button>
-                          {(ehAdmin || r.status === "rascunho") && (
+                          {(r.pecunia ? r.podeExcluir : (ehAdmin || r.status === "rascunho")) && (
                             <button
                               onClick={() => excluir(r)}
                               disabled={excluindo === r.id}

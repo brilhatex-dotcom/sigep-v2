@@ -372,7 +372,12 @@ export default function RequerimentoPecuniaDoc({
       <div className="nao-imprimir mb-4 rounded-xl border border-white/10 bg-[#0F1B2D] p-4">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <button
-            onClick={() => imprimirElemento(document.getElementById("pecunia-print"), { titulo: "Requerimento de premiação pecuniária" })}
+            onClick={() => imprimirElemento(document.getElementById("pecunia-print"), {
+              titulo: "Requerimento de premiação pecuniária",
+              /* Sem passar isto, o pontilhado dos campos editáveis sai no
+                 papel: o <style> da página não acompanha o elemento clonado. */
+              estilo: ESTILO_FOLHA,
+            })}
             className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110"
           >
             <Printer className="h-4 w-4" /> Imprimir / Salvar PDF
@@ -672,7 +677,7 @@ export default function RequerimentoPecuniaDoc({
             REQUERIMENTO PREMIAÇÃO PECUNIÁRIA
           </h1>
 
-          <p style={{ fontWeight: "bold", fontSize: "11pt", margin: "0 0 6mm" }}>
+          <p style={{ fontWeight: "bold", fontSize: "11pt", margin: "0 0 6mm", textAlign: "center" }}>
             <Campo valor={destinatario} onChange={setDestinatario} inline negrito travado={travado} />
           </p>
 
