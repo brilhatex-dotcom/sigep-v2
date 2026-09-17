@@ -677,7 +677,7 @@ export default function RequerimentoPecuniaDoc({
             REQUERIMENTO PREMIAÇÃO PECUNIÁRIA
           </h1>
 
-          <p style={{ fontWeight: "bold", fontSize: "11pt", margin: "0 0 6mm" }}>
+          <p style={{ fontWeight: "bold", fontSize: "11pt", margin: "0 0 6mm", textAlign: "center" }}>
             <Campo valor={destinatario} onChange={setDestinatario} inline negrito travado={travado} />
           </p>
 

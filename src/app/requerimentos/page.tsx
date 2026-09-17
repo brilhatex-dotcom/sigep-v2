@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import RequerimentosClient from "@/components/RequerimentosClient";
-import PremiacaoEnvolvido from "@/components/PremiacaoEnvolvido";
+import { itensPremiacao } from "@/lib/premiacaoItens";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +42,7 @@ export default async function RequerimentosPage() {
     ])
   );
 
-  const itens = lista.map((r) => ({
+  const comuns = lista.map((r) => ({
     id: r.id,
     modalidade: r.modalidade === "OUTROS" && r.modalidadeOutros ? r.modalidadeOutros : r.modalidade,
     modelo: r.modelo,
@@ -51,14 +51,18 @@ export default async function RequerimentosPage() {
     requerente: mapaNome.get(r.efetivoId) || r.nomeCompleto || r.efetivoId,
   }));
 
+  /* A premiação pecuniária entra NA MESMA LISTA, e não num bloco à parte em
+     cima da tela: ela também tem data, e quem procura um requerimento procura
+     pelo mês. A própria lista agrupa, recolhe e filtra — não precisa de uma
+     segunda tela para crescer junto. */
+  const pecunia = await itensPremiacao(
+    String((session.user as any).login || ""), meuEfetivo ?? "", ehAdmin,
+  );
+  const itens = [...comuns, ...pecunia];
+
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-5xl">
-        <PremiacaoEnvolvido
-          meuId={meuEfetivo ?? ""}
-          login={String((session.user as any).login || "")}
-          admin={ehAdmin}
-        />
         <RequerimentosClient itens={itens} ehAdmin={ehAdmin} temFicha={!!meuEfetivo} />
       </div>
     </AppShell>
