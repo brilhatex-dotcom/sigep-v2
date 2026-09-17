@@ -131,8 +131,36 @@ function siglaDaSituacao(situacao: string): string {
 // devolver a situação para "Pronto".
 const SEM_FIM = "2099-12-31";
 
+// Dois períodos se cruzam? (datas ISO, comparação de texto serve)
+const cruza = (aIni: string, aFim: string, bIni: string, bFim: string) =>
+  aIni <= bFim && bIni <= aFim;
+
 export function montarAfastamentos(f: Fontes): Afastamento[] {
   const out: Afastamento[] = [];
+
+  /* ---- 0) FÉRIAS AVULSAS, lidas ANTES de tudo -----------------------
+     Elas não são só mais uma fonte: quando uma avulsa CRUZA o período da
+     equipe do militar, é ela que vale, e o período da equipe é ignorado
+     para ele.
+
+     O caso real: o militar está na equipe 7, cujo memorando dava 35 dias.
+     Descobriu-se depois que eram 20; o P/1 apagou aquele memorando e emitiu
+     um avulso, com retorno marcado. Só que sair da equipe não era uma opção
+     (ele É da equipe 7), e o plano continuava afastando-o pelos 35 dias —
+     o militar voltava ao serviço e o mapa insistia em deixá-lo de fora.
+
+     A regra é a do documento mais específico: memorando individual, feito
+     para aquela pessoa e para aquelas datas, prevalece sobre o período geral
+     da equipe que ele cruza. Avulsa em OUTRA época do ano não cancela nada —
+     só substitui o período em que se sobrepõe. */
+  const avulsasDe = new Map<string, { inicio: string; fim: string }[]>();
+  for (const a of f.avulsas || []) {
+    const i = toISO(a?.inicio), fi = toISO(a?.fim);
+    if (!a?.idPmma || !i || !fi) continue;
+    const id = String(a.idPmma);
+    if (!avulsasDe.has(id)) avulsasDe.set(id, []);
+    avulsasDe.get(id)!.push({ inicio: i, fim: fi });
+  }
 
   /* ---- 1) FÉRIAS do plano -------------------------------------------
      A chave é numeroEquipe + anoGozo, SEM atalho por número solto.
@@ -157,8 +185,12 @@ export function montarAfastamentos(f: Fontes): Afastamento[] {
   for (const m of f.membrosFerias) {
     // Quem ADIOU as férias do plano NÃO é afastado: segue no serviço normal.
     if (f.adiados.has(m.idPmma)) continue;
+    const minhas = avulsasDe.get(m.idPmma) || [];
     for (const p of perFerias.get(chave(m.numeroEquipe, m.anoGozo)) || []) {
-      if (p.inicio && p.fim) out.push({ militar: m.idPmma, tipo: "ferias", inicio: p.inicio, fim: p.fim });
+      if (!p.inicio || !p.fim) continue;
+      // memorando individual que cruza este período manda nele (ver acima)
+      if (minhas.some((a) => cruza(a.inicio, a.fim, p.inicio, p.fim))) continue;
+      out.push({ militar: m.idPmma, tipo: "ferias", inicio: p.inicio, fim: p.fim });
     }
   }
 
@@ -173,10 +205,9 @@ export function montarAfastamentos(f: Fontes): Afastamento[] {
     if (p?.inicio && p.fim) out.push({ militar: m.idPmma, tipo: "licenca_premio", inicio: p.inicio, fim: p.fim });
   }
 
-  // ---- 3) FÉRIAS AVULSAS (datas soltas) ----
-  for (const a of f.avulsas || []) {
-    const i = toISO(a?.inicio), fi = toISO(a?.fim);
-    if (a?.idPmma && i && fi) out.push({ militar: String(a.idPmma), tipo: "ferias", inicio: i, fim: fi });
+  // ---- 3) FÉRIAS AVULSAS (datas soltas), já lidas lá em cima ----
+  for (const [id, lista] of avulsasDe) {
+    for (const p of lista) out.push({ militar: id, tipo: "ferias", inicio: p.inicio, fim: p.fim });
   }
 
   const fichas = f.fichas || [];

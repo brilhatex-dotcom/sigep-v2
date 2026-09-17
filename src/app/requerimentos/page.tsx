@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import RequerimentosClient from "@/components/RequerimentosClient";
 import { itensPremiacao } from "@/lib/premiacaoItens";
+import PremiacaoEsperando from "@/components/PremiacaoEsperando";
 
 export const dynamic = "force-dynamic";
 
@@ -60,9 +61,18 @@ export default async function RequerimentosPage() {
   );
   const itens = [...comuns, ...pecunia];
 
+  /* Uma linha no alto com o que espera por VOCÊ — só a contagem, porque o selo
+     da linha não ajuda se ela estiver num mês recolhido. Com um só, leva
+     direto ao documento; com vários, à tela deles. */
+  const meus = pecunia.filter((p) => p.status === "pecunia_falta_voce");
+
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-5xl">
+        <PremiacaoEsperando
+          quantos={meus.length}
+          href={meus.length === 1 ? meus[0].href : "/requerimentos/premiacao"}
+        />
         <RequerimentosClient itens={itens} ehAdmin={ehAdmin} temFicha={!!meuEfetivo} />
       </div>
     </AppShell>
