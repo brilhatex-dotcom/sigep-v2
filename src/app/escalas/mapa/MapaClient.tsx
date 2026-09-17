@@ -147,6 +147,26 @@ const parseISO = (iso: string) => { const [y, m, d] = iso.split("-").map(Number)
 const toISO = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
 const diasEntre = (a: string, b: string) => Math.round((parseISO(b).getTime() - parseISO(a).getTime()) / DAY);
 const proxDia = (iso: string) => toISO(new Date(parseISO(iso).getTime() + DAY));
+const diaAnterior = (iso: string) => (iso ? toISO(new Date(parseISO(iso).getTime() - DAY)) : "");
+
+/* RETORNO <-> ÚLTIMO DIA.
+
+   O afastamento é guardado com o ÚLTIMO DIA de ausência (`fim`), porque é
+   assim que o motor compara: `data >= inicio && data <= fim`. Mas ninguém
+   pensa assim — o memorando diz "apresentar-se pronto para o serviço no dia
+   18", e o escalante digita 18.
+
+   O campo da tela sempre se chamou "Retorno" e gravava direto no `fim`: quem
+   digitava a data do memorando deixava o militar fora JUSTAMENTE no dia em
+   que ele voltava. Foi o que aconteceu com um sargento que voltou de férias e
+   continuou sem aparecer na escala do dia da apresentação.
+
+   Agora o campo faz o que o nome promete. A conversão nas duas pontas também
+   conserta o que já está gravado: um registro antigo com fim=18 aparece como
+   retorno 19, que é exatamente o que o sistema está fazendo com ele — em vez
+   de mostrar 18 e se comportar como 19. */
+const retornoDe = (fim: string) => (fim ? proxDia(fim) : "");
+const fimDoRetorno = (retorno: string) => diaAnterior(retorno);
 const inicioMesISO = (iso: string) => `${iso.slice(0, 7)}-01`;
 
 function afastado(nome: string, data: string, lista: Afastamento[]) {
@@ -567,8 +587,20 @@ function AfastamentosMini({
               <select value={a.tipo} onChange={(e) => upd(i, { tipo: e.target.value as TipoAfastamento })}>
                 {TIPOS_AF.map((t) => <option key={t.v} value={t.v}>{t.t}</option>)}
               </select>
-              <input type="date" value={a.inicio} onChange={(e) => upd(i, { inicio: e.target.value })} />
-              <input type="date" value={a.fim} onChange={(e) => upd(i, { fim: e.target.value })} />
+              {/* As duas datas apareciam sem rótulo, e a segunda guardava o
+                  ÚLTIMO DIA fora enquanto o escalante lia "retorno". Agora
+                  cada uma diz o que é, e a de retorno é mesmo o dia em que ele
+                  se apresenta — a conversão para o último dia é do sistema. */}
+              <label title="primeiro dia fora">saída
+                <input type="date" value={a.inicio} onChange={(e) => upd(i, { inicio: e.target.value })} />
+              </label>
+              <label title="dia em que se apresenta ao serviço">retorno
+                <input
+                  type="date"
+                  value={retornoDe(a.fim)}
+                  onChange={(e) => upd(i, { fim: fimDoRetorno(e.target.value) })}
+                />
+              </label>
               <button className="mp-afm-del" title="remover" onClick={() => rm(i)}>×</button>
             </div>
           ))}
@@ -920,12 +952,18 @@ function QuadroEquipes({
 
   const salvarAf = () => {
     if (!afCell || !afIni || !afFim) return;
+    // afFim é a data de RETORNO: o último dia fora é a véspera dela.
+    const ultimo = fimDoRetorno(afFim);
+    if (ultimo < afIni) {
+      avisar("O retorno tem de ser depois da saída.", "atencao");
+      return;
+    }
     const alvo = afCell;
     setCad((c) => ({
       ...c,
       afastamentos: [
         ...c.afastamentos.filter((a) => !(a.militar === alvo.id && a.inicio === afIni)),
-        { militar: alvo.id, tipo: afTipo, inicio: afIni, fim: afFim },
+        { militar: alvo.id, tipo: afTipo, inicio: afIni, fim: ultimo },
       ],
     }));
     setAfCell(null); setAfIni(""); setAfFim(""); setAfTipo("missao");
@@ -1028,6 +1066,15 @@ function QuadroEquipes({
                         </select>
                         <label>Saída<input type="date" value={afIni} onChange={(e) => setAfIni(e.target.value)} /></label>
                         <label>Retorno<input type="date" value={afFim} onChange={(e) => setAfFim(e.target.value)} /></label>
+                        {/* Diz, antes de salvar, quais dias o militar fica de
+                            fora — é a leitura que o escalante precisa conferir
+                            contra o memorando, e não as duas datas soltas. */}
+                        {afIni && afFim && fimDoRetorno(afFim) >= afIni && (
+                          <div style={{ fontSize: 10, color: "#9fb4d6", lineHeight: 1.3 }}>
+                            fora de <b>{brCurto(afIni)}</b> a <b>{brCurto(fimDoRetorno(afFim))}</b>
+                            {" — volta "}<b>{brCurto(afFim)}</b>
+                          </div>
+                        )}
                         <div className="mp-q-afbtns">
                           <button className="ok" onClick={salvarAf}>Salvar</button>
                           <button onClick={() => setAfCell(null)}>Cancelar</button>
@@ -2560,6 +2607,8 @@ const CSS = `
 .mp-rest-giro-data{ background:#0c2733; border:1px solid #1e556b; border-radius:6px;
   padding:2px 7px; color:#7dd3fc; font-weight:600; white-space:nowrap; }
 .mp-afm-linha select, .mp-afm-linha input{ background:#0a1626; color:#E8EEF6; border:1px solid #28395a; border-radius:8px; padding:6px 9px; font-size:12.5px; }
+/* rótulo em cima da data: "saída" e "retorno" deixaram de ser adivinhação */
+.mp-afm-linha label{ display:flex; flex-direction:column; gap:2px; font-size:10px; color:#8fa3bf; text-transform:uppercase; letter-spacing:.4px; }
 .mp-afm-del{ background:#0a1626; color:#9fb0c7; border:1px solid #28395a; border-radius:6px; width:28px; height:30px; cursor:pointer; }
 .mp-afm-del:hover{ border-color:#e06464; color:#ffb3b3; }
 
