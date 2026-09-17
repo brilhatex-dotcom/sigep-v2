@@ -166,6 +166,25 @@ function siglaAf(a: Afastamento | null): string {
   if (!a) return "AF";
   return a.sigla || ABBR_AF[a.tipo] || "AF";
 }
+
+/* O que o balão do nome diz quando o militar está fora: o motivo, o período e
+   o dia em que volta.
+
+   "Afastado neste dia" respondia metade da pergunta. A outra metade — ATÉ
+   QUANDO — é a que resolve o problema na prática: a ausência pode vir do
+   plano por equipe, de um memorando avulso, do JMS, da situação da ficha ou
+   de um registro feito aqui mesmo, e quando a data mostrada não bate com o
+   documento que o P/1 acabou de publicar, é ela que denuncia qual fonte está
+   velha. Sem isso, resta abrir tela por tela até achar.
+
+   Situação da ficha não tem data de fim (vai até 2099): dizer "volta em
+   01/01/2100" seria pior que não dizer nada. */
+function textoAf(a: Afastamento | null): string {
+  if (!a) return "";
+  const motivo = rotuloAf(a);
+  if (a.fim >= "2099-01-01") return ` · ${motivo} — sem data de retorno (situação da ficha)`;
+  return ` · ${motivo} de ${brCurto(a.inicio)} a ${brCurto(a.fim)} (volta ${brCurto(proxDia(a.fim))})`;
+}
 function rodizio(pool: string[], qtd: number, dataAlvo: string, afast: Afastamento[], ref: string): string[] {
   if (pool.length === 0 || dataAlvo < ref) return [];
   const ultimo: Record<string, string> = {};
@@ -935,7 +954,18 @@ function QuadroEquipes({
               </td>
               {times.map((lt, i) => {
                 const id = cell(lt, f.key);
-                const af = id ? afastado(id, teamDias[i], cad.afastamentos) : false;
+                /* O REGISTRO do afastamento, e não só "sim/não": o rótulo do
+                   balão diz o motivo e até quando.
+
+                   Quem olha o mapa e vê um nome apagado precisa saber por quê
+                   — e, sobretudo, ATÉ QUANDO. Há várias fontes de ausência
+                   (plano por equipe, memorando avulso, JMS, situação da ficha,
+                   registro feito na própria tela), e quando as datas não batem
+                   com o que o P/1 acabou de publicar, a data do balão é o que
+                   aponta qual delas está desatualizada. Sem ela, resta abrir
+                   tela por tela até achar. */
+                const afReg = id ? afastamentoRegDe(id, teamDias[i], cad.afastamentos) : null;
+                const af = !!afReg;
                 const cor = COR_SERVICO[f.baseKey];
                 return (
                   <td
@@ -951,7 +981,7 @@ function QuadroEquipes({
                         draggable
                         onDragStart={() => setDrag({ team: lt, fk: f.key })}
                         onDragEnd={() => setDrag(null)}
-                        title={nomeDe(id) + (af ? " · afastado neste dia" : "") + " · arraste para mover"}
+                        title={nomeDe(id) + textoAf(afReg) + " · arraste para mover"}
                       >
                         <span className="mp-q-nome" style={af ? undefined : { color: "#0a1020" }}>{nomeDe(id)}</span>
                         <span className="mp-q-acoes no-print">
