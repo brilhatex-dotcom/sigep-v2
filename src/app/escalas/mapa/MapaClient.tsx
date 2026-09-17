@@ -43,7 +43,10 @@ type TipoAfastamento =
 type Afastamento = { militar: string; tipo: TipoAfastamento; inicio: string; fim: string;
   // Motivo vindo da situacao da ficha (Agregacao, LTIP, Reserva...), que nao
   // cabe num dos tipos fixos. Sem isto tudo virava um generico "AF/Afastado".
-  rotulo?: string; sigla?: string };
+  rotulo?: string; sigla?: string;
+  // Em qual cadastro esta ausencia foi lancada (plano da equipe, memorando
+  // avulso, JMS, ficha). Vazio = lancada aqui no mapa mesmo.
+  origem?: string };
 type EquipeRotem = { nome: string; turnos: string[]; militares: string[]; diasSemana?: number[] };
 type Cadastro = {
   cpu: string[]; ftGraduado: string[]; ftMotorista: string[]; ftPatrulheiro: string[];
@@ -179,11 +182,21 @@ function siglaAf(a: Afastamento | null): string {
 
    Situação da ficha não tem data de fim (vai até 2099): dizer "volta em
    01/01/2100" seria pior que não dizer nada. */
+/* Vaga aberta por afastamento: quem faltou, o motivo curto (para a etiqueta
+   amarela) e o registro inteiro (para o balão dizer o período). */
+type VagaAf = { tipo: string; nome: string; reg: Afastamento | null };
+
 function textoAf(a: Afastamento | null): string {
   if (!a) return "";
   const motivo = rotuloAf(a);
-  if (a.fim >= "2099-01-01") return ` · ${motivo} — sem data de retorno (situação da ficha)`;
-  return ` · ${motivo} de ${brCurto(a.inicio)} a ${brCurto(a.fim)} (volta ${brCurto(proxDia(a.fim))})`;
+  /* A origem fecha a pergunta. Saber que ele está de férias até tal dia ainda
+     deixa "mas o memorando diz outra coisa — onde está essa data?". Dizendo
+     "plano de férias — equipe 7", o P/1 vai direto à tela certa. Afastamento
+     gravado aqui na mão não traz origem: é deste mapa mesmo. */
+  const onde = a.origem || "registro feito no mapa";
+  if (a.fim >= "2099-01-01") return ` · ${motivo} — sem data de retorno · ${onde}`;
+  return ` · ${motivo} de ${brCurto(a.inicio)} a ${brCurto(a.fim)}`
+       + ` (volta ${brCurto(proxDia(a.fim))}) · ${onde}`;
 }
 function rodizio(pool: string[], qtd: number, dataAlvo: string, afast: Afastamento[], ref: string): string[] {
   if (pool.length === 0 || dataAlvo < ref) return [];
@@ -1491,7 +1504,9 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
      Lista TODOS os afastados da vaga, não só o primeiro: numa linha com vaga
      extra os dois podem estar fora ao mesmo tempo, e mostrar um só esconderia
      metade do problema justamente no dia mais crítico. */
-  const vagasAfast = (iso: string, funcaoKey: string): { tipo: string; nome: string }[] => {
+  /* A vaga leva o REGISTRO do afastamento junto, e nao so o rotulo: e o que
+     permite a etiqueta dizer ate quando o titular esta fora. Ver textoAf(). */
+  const vagasAfast = (iso: string, funcaoKey: string): VagaAf[] => {
     if (funcaoKey === "cpu" || funcaoKey === "rotem") return []; // pool: o rodízio já cobre
     const times = equipesDoPadrao(cadEff.padraoEscala);
     if (!times.length) return [];
@@ -1503,25 +1518,23 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     const b = q[team]?.[funcaoKey] || ""; if (b) cands.push(b);
     const nExtra = cadEff.linhasExtras?.[funcaoKey] || 0;
     for (let k = 2; k <= nExtra + 1; k++) { const id = q[team]?.[`${funcaoKey}#${k}`] || ""; if (id) cands.push(id); }
-    const out: { tipo: string; nome: string }[] = [];
+    const out: VagaAf[] = [];
     for (const id of cands) {
-      if (afastado(id, iso, cadEff.afastamentos)) {
-        out.push({ tipo: rotuloAf(afastamentoRegDe(id, iso, cadEff.afastamentos)), nome: nomeDe(id) });
-      }
+      const reg = afastamentoRegDe(id, iso, cadEff.afastamentos);
+      if (reg) out.push({ tipo: rotuloAf(reg), nome: nomeDe(id), reg });
     }
     return out;
   };
 
   // ROTEM é equipe FIXA com vários militares. Quando um sai (férias/etc.), os
   // outros continuam na célula, então aqui listamos QUEM saiu para a etiqueta.
-  const rotemVagas = (iso: string): { nome: string; tipo: string }[] => {
+  const rotemVagas = (iso: string): VagaAf[] => {
     const eq = equipeRotem(iso, cadEff.rotemEquipes, cadEff.refRotemISO);
     if (!eq) return [];
-    const out: { nome: string; tipo: string }[] = [];
+    const out: VagaAf[] = [];
     for (const id of eq.militares) {
-      if (afastado(id, iso, cadEff.afastamentos)) {
-        out.push({ nome: nomeDe(id), tipo: rotuloAf(afastamentoRegDe(id, iso, cadEff.afastamentos)) });
-      }
+      const reg = afastamentoRegDe(id, iso, cadEff.afastamentos);
+      if (reg) out.push({ nome: nomeDe(id), tipo: rotuloAf(reg), reg });
     }
     return out;
   };
@@ -1918,7 +1931,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                       >
                         {nomes.length === 0 && ehCpu && <div className="mp-cel-vazio no-print">+</div>}
                         {nomes.length === 0 && !ehCpu && vagasAfast(iso, srv.key).map((v, i) => (
-                          <div key={`a${i}`} className="mp-vaga-af" title={`${v.nome} de ${v.tipo} — vaga a cobrir`}>
+                          <div key={`a${i}`} className="mp-vaga-af" title={`${v.nome}${textoAf(v.reg)} — vaga a cobrir`}>
                             {sobrenome(v.nome)} · {v.tipo}
                           </div>
                         ))}
@@ -1964,7 +1977,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                           );
                         })}
                         {srv.key === "rotem" && rotemVagas(iso).map((v, i) => (
-                          <div key={`v${i}`} className="mp-vaga-af" title={`${v.nome} de ${v.tipo} — vaga a cobrir`}>
+                          <div key={`v${i}`} className="mp-vaga-af" title={`${v.nome}${textoAf(v.reg)} — vaga a cobrir`}>
                             {sobrenome(v.nome)} · {v.tipo}
                           </div>
                         ))}

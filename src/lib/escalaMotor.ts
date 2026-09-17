@@ -13,7 +13,14 @@ export type Slot = { titular: string; permuta: string | null; status?: any; manu
 export type TipoAfastamento =
   | "ferias" | "missao" | "curso" | "licenca_premio"
   | "licenca_paternidade" | "jms" | "rotam" | "outro";
-export type Afastamento = { militar: string; tipo: TipoAfastamento; inicio: string; fim: string };
+/* `rotulo`/`sigla` vêm da situação da ficha quando ela não cabe num tipo fixo
+   (Agregação, LTIP, Reserva...); `origem` diz em QUAL cadastro esta ausência
+   foi lançada, para o mapa poder mandar o escalante à tela certa. Os três são
+   informativos: o motor decide só por militar/início/fim. */
+export type Afastamento = {
+  militar: string; tipo: TipoAfastamento; inicio: string; fim: string;
+  rotulo?: string; sigla?: string; origem?: string;
+};
 export type EquipeRotem = { nome: string; turnos: string[]; militares: string[]; diasSemana?: number[] };
 export type Cadastro = {
   cpu: string[]; ftGraduado: string[]; ftMotorista: string[]; ftPatrulheiro: string[];

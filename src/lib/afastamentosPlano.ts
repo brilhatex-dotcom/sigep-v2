@@ -29,6 +29,14 @@ export type Afastamento = {
      genérico "AF / Afastado" e o escalante não sabia o motivo. */
   rotulo?: string;
   sigla?: string;
+  /* DE ONDE veio esta ausência: "plano da equipe 7", "memorando avulso",
+     "JMS da ficha", "situação da ficha".
+
+     Um militar pode estar fora por cinco caminhos diferentes, e quando o mapa
+     discorda do documento que o P/1 acabou de publicar, a pergunta nunca é
+     "ele está afastado?" — é "por qual cadastro?". Sem isso, a resposta exige
+     abrir tela por tela. Só descreve a origem; não entra em nenhuma decisão. */
+  origem?: string;
 };
 
 export function toISO(v: string | null | undefined): string {
@@ -190,7 +198,8 @@ export function montarAfastamentos(f: Fontes): Afastamento[] {
       if (!p.inicio || !p.fim) continue;
       // memorando individual que cruza este período manda nele (ver acima)
       if (minhas.some((a) => cruza(a.inicio, a.fim, p.inicio, p.fim))) continue;
-      out.push({ militar: m.idPmma, tipo: "ferias", inicio: p.inicio, fim: p.fim });
+      out.push({ militar: m.idPmma, tipo: "ferias", inicio: p.inicio, fim: p.fim,
+                 origem: `plano de férias — equipe ${m.numeroEquipe}/${m.anoGozo}` });
     }
   }
 
@@ -202,12 +211,14 @@ export function montarAfastamentos(f: Fontes): Afastamento[] {
   }
   for (const m of f.membrosLicenca) {
     const p = perLicenca.get(chave(m.numeroEquipe, m.anoGozo));
-    if (p?.inicio && p.fim) out.push({ militar: m.idPmma, tipo: "licenca_premio", inicio: p.inicio, fim: p.fim });
+    if (p?.inicio && p.fim) out.push({ militar: m.idPmma, tipo: "licenca_premio", inicio: p.inicio, fim: p.fim,
+                                       origem: `plano de licença-prêmio — equipe ${m.numeroEquipe}/${m.anoGozo}` });
   }
 
   // ---- 3) FÉRIAS AVULSAS (datas soltas), já lidas lá em cima ----
   for (const [id, lista] of avulsasDe) {
-    for (const p of lista) out.push({ militar: id, tipo: "ferias", inicio: p.inicio, fim: p.fim });
+    for (const p of lista) out.push({ militar: id, tipo: "ferias", inicio: p.inicio, fim: p.fim,
+                                      origem: "memorando de férias avulsa" });
   }
 
   const fichas = f.fichas || [];
@@ -221,7 +232,7 @@ export function montarAfastamentos(f: Fontes): Afastamento[] {
     if (!i) continue;
     const ret = toISO(m.jmsDataRetorno);
     const fim = ret ? addDiasISO(ret, -1) : SEM_FIM;
-    if (fim >= i) out.push({ militar: m.id, tipo: "jms", inicio: i, fim });
+    if (fim >= i) out.push({ militar: m.id, tipo: "jms", inicio: i, fim, origem: "JMS da ficha" });
   }
 
   /* ---- 5) SITUAÇÃO da ficha que conta como afastamento ---------------
@@ -242,7 +253,7 @@ export function montarAfastamentos(f: Fontes): Afastamento[] {
       if (jaCobertoHoje.has(m.id)) continue;
       out.push({
         militar: m.id, tipo: tipoDaSituacao(s), inicio: hoje, fim: SEM_FIM,
-        rotulo: s, sigla: siglaDaSituacao(s),
+        rotulo: s, sigla: siglaDaSituacao(s), origem: "situação da ficha",
       });
     }
   }
