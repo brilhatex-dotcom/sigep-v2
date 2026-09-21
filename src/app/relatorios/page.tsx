@@ -10,6 +10,7 @@ import {
 import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
 import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
 import { paraData, dataBR, idade as calcIdade, tempoServico } from "@/lib/datas";
+import { classificarPatente } from "@/lib/patentes";
 import type { MilitarRelatorio } from "@/lib/relatorioCampos";
 
 export const dynamic = "force-dynamic";
@@ -98,7 +99,19 @@ export default async function RelatoriosPage() {
 
   const unidades = achatar(ORGANOGRAMA);
   const situacoes = Array.from(new Set(linhas.map((l) => l.situacao).filter(Boolean) as string[])).sort();
-  const postos = Array.from(new Set(linhas.map((l) => (l.postoGrad || "").trim()).filter(Boolean)));
+  /* Os postos saem em ordem de HIERARQUIA, do mais alto ao mais baixo.
+
+     Antes era a ordem em que os militares apareciam no banco, então a lista
+     vinha embaralhada — Cabo, 3º Sargento, Soldado, Tenente-Coronel... Numa
+     tela militar isso não é só feio: é onde o olho procura. `classificarPatente`
+     já é quem ordena a relação de antiguidade, então a lista de filtro passa a
+     usar a mesma régua. O que não for reconhecido cai no fim, em ordem
+     alfabética, em vez de sumir. */
+  const postos = Array.from(new Set(linhas.map((l) => (l.postoGrad || "").trim()).filter(Boolean)))
+    .sort((a, b) => {
+      const d = classificarPatente(a).ordem - classificarPatente(b).ordem;
+      return d !== 0 ? d : a.localeCompare(b, "pt-BR");
+    });
 
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
