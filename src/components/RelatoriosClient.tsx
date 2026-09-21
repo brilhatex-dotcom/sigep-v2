@@ -33,7 +33,10 @@ export default function RelatoriosClient({
   // ---- filtros ----
   const [unidade, setUnidade] = useState("");
   const [situacao, setSituacao] = useState("");
-  const [posto, setPosto] = useState("");
+  /* Vários postos ao mesmo tempo: "todos os sargentos" é um pedido normal, e
+     com um seletor de escolha única só dava para tirar um relatório por
+     graduação e juntar na mão depois. Lista vazia = todos. */
+  const [postosSel, setPostosSel] = useState<string[]>([]);
   const [sexo, setSexo] = useState("");
   const [mes, setMes] = useState("");
   const [busca, setBusca] = useState("");
@@ -58,7 +61,7 @@ export default function RelatoriosClient({
   }
 
   function limparFiltros() {
-    setUnidade(""); setSituacao(""); setPosto(""); setSexo(""); setMes("");
+    setUnidade(""); setSituacao(""); setPostosSel([]); setSexo(""); setMes("");
     setBusca(""); setSoComTelefone(false); setSoComEmail(false);
   }
 
@@ -76,7 +79,7 @@ export default function RelatoriosClient({
     return militares.filter((m) => {
       if (alvo && m.unidade !== alvo.rotulo && m.subunidade !== alvo.rotulo) return false;
       if (situacao && m.situacao !== situacao) return false;
-      if (posto && (m.postoGrad || "").trim() !== posto) return false;
+      if (postosSel.length && !postosSel.includes((m.postoGrad || "").trim())) return false;
       if (sexo && !(m.sexo || "").toUpperCase().startsWith(sexo)) return false;
       if (mes && m.mesNasc !== Number(mes)) return false;
       if (soComTelefone && !(m.telefone || "").trim()) return false;
@@ -87,7 +90,7 @@ export default function RelatoriosClient({
       }
       return true;
     });
-  }, [militares, unidades, unidade, situacao, posto, sexo, mes, busca, soComTelefone, soComEmail]);
+  }, [militares, unidades, unidade, situacao, postosSel, sexo, mes, busca, soComTelefone, soComEmail]);
 
   const ordenados = useMemo(() => {
     const lista = [...filtrados];
@@ -115,14 +118,17 @@ export default function RelatoriosClient({
     const alvo = unidades.find((u) => u.id === unidade);
     if (alvo) p.push(alvo.rotulo);
     if (situacao) p.push(`situação: ${situacao}`);
-    if (posto) p.push(posto);
+    /* No cabeçalho do documento os postos saem na ordem da hierarquia (a
+       mesma da lista), e não na ordem em que foram clicados: quem lê o papel
+       espera "1º Sargento, 2º Sargento", não o caminho do mouse. */
+    if (postosSel.length) p.push(postos.filter((x) => postosSel.includes(x)).join(", "));
     if (sexo) p.push(sexo === "M" ? "masculino" : "feminino");
     if (mes) p.push(`aniversariantes de ${MESES[Number(mes) - 1]}`);
     if (soComTelefone) p.push("com telefone");
     if (soComEmail) p.push("com e-mail");
     if (busca.trim()) p.push(`contendo "${busca.trim()}"`);
     return p.length ? p.join(" · ") : "todo o efetivo";
-  }, [unidades, unidade, situacao, posto, sexo, mes, soComTelefone, soComEmail, busca]);
+  }, [unidades, unidade, situacao, postosSel, postos, sexo, mes, soComTelefone, soComEmail, busca]);
 
   const cabecalhos = colunasOrdenadas.map((c) => c.rotulo);
   const dados = ordenados.map((m) => colunasOrdenadas.map((c) => valorDoCampo(m, String(c.chave))));
@@ -235,11 +241,53 @@ export default function RelatoriosClient({
                 {situacoes.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </Campo>
-            <Campo rotulo="Posto / graduação">
-              <select value={posto} onChange={(e) => setPosto(e.target.value)} className={estiloSelect}>
-                <option value="">Todos</option>
-                {postos.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
+            {/* Postos como etiquetas que ligam e desligam, e não uma lista
+                suspensa: é o que deixa marcar mais de um — "todos os
+                sargentos" sai num relatório só — e é o que mostra de uma vez
+                o que está selecionado, sem precisar abrir nada. A ordem é a da
+                hierarquia, que vem pronta do servidor. */}
+            <Campo rotulo={`Posto / graduação${postosSel.length ? ` (${postosSel.length})` : ""}`}>
+              <div className="max-h-44 overflow-y-auto rounded-lg border border-white/10 bg-[#0b1626] p-2">
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setPostosSel([])}
+                    className={
+                      "rounded-full border px-2.5 py-1 text-xs transition " +
+                      (postosSel.length === 0
+                        ? "border-[#D4AF37] bg-[#D4AF37]/15 text-[#D4AF37]"
+                        : "border-white/10 text-[#94A3B8] hover:border-white/30 hover:text-white")
+                    }
+                  >
+                    Todos
+                  </button>
+                  {postos.map((p) => {
+                    const on = postosSel.includes(p);
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() =>
+                          setPostosSel((l) => (l.includes(p) ? l.filter((x) => x !== p) : [...l, p]))
+                        }
+                        className={
+                          "rounded-full border px-2.5 py-1 text-xs transition " +
+                          (on
+                            ? "border-[#D4AF37] bg-[#D4AF37]/15 text-[#D4AF37]"
+                            : "border-white/10 text-[#cbd5e1] hover:border-white/30 hover:text-white")
+                        }
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {postosSel.length === 0 && (
+                <p className="mt-1 text-[11px] text-[#6f82a0]">
+                  Nenhum marcado = todos. Clique em quantos quiser.
+                </p>
+              )}
             </Campo>
             <Campo rotulo="Sexo">
               <select value={sexo} onChange={(e) => setSexo(e.target.value)} className={estiloSelect}>
