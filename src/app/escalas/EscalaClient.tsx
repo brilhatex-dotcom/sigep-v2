@@ -3319,12 +3319,7 @@ const CSS = `
 .hdr-left{ width:122px; text-align:center; font-size:11px; display:flex; flex-direction:column; align-items:center; }
 .hdr-right{ width:92px; display:flex; justify-content:center; align-items:flex-start; }
 .visto{ font-weight:700; }
-/* ALTURA FIXA, nao max-height: a caixa da assinatura tem de ocupar sempre o
-   mesmo espaco. O bloco do VISTO e ancorado pelo RODAPE, entao uma imagem mais
-   baixa que 44px empurrava a assinatura para baixo — quem subia uma rubrica
-   pequena via o VISTO descer, e nao havia como alinha-lo com nada. Com
-   object-fit:contain a imagem nao distorce; so para de mandar na altura. */
-.visto-img{ max-width:118px; height:44px; object-fit:contain; display:block; margin:0 auto; }
+.visto-img{ max-width:118px; max-height:44px; object-fit:contain; display:block; margin:0 auto; }
 .visto-esp{ height:44px; }
 .hdr-left-cargo{ font-weight:700; margin-top:2px; }
 .titulo-wrap{ position:relative; }
@@ -3381,6 +3376,18 @@ const CSS = `
    a queixa original. Com 36px o meio da assinatura fica na linha do telefone
    e ainda sobram 6px entre o cargo e o titulo. Medido no navegador. */
 .visto-side-extra{ bottom:36px; }
+/* ALTURA FIXA da caixa da assinatura, e SO aqui dentro.
+
+   O bloco do VISTO e ancorado pelo rodape, e com max-height uma rubrica mais
+   baixa que 44px encolhe a caixa e empurra a assinatura para baixo (medido:
+   uma imagem de 18px cai 13px abaixo de uma de 44px). Sem altura fixa nao ha
+   como prender a assinatura na linha do telefone.
+
+   Na escala NORMAL a regra continua sendo max-height, de proposito: aquela
+   folha ja esta do jeito que o P/1 quer, e altura fixa subiria a rubrica dele
+   alguns pixels sem ninguem ter pedido. La o escorregao existe mas nao
+   incomoda, porque nada precisa se alinhar com ele. */
+.visto-side-extra .visto-img{ height:44px; }
 
 .extra{ margin-top:8px; }
 .extra-campos{ margin:8px 0 10px; }
