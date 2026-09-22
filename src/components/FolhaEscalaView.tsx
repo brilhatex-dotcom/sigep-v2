@@ -259,7 +259,7 @@ export default function FolhaEscalaView({
             </div>
 
             <div className="titulo-wrap">
-              <div className="visto-side">
+              <div className={"visto-side" + ((ehExtra || ehJoe) ? " visto-side-extra" : "")}>
                 <div className="visto">VISTO</div>
                 {ass.cmt ? (
                   <CarimboSigep nome={ass.cmt.nome} cargo="Cmt. do 18º BPM" data={data} largura="46mm" escala={0.8} assinatura={{ id: ass.cmt.id, token: ass.cmt.token }} />
@@ -272,9 +272,9 @@ export default function FolhaEscalaView({
                 ) : <div className="visto-esp" />}
                 <div className="hdr-left-cargo">Cmt. do 18º BPM</div>
               </div>
-              <div className="titulo">{(ehExtra || ehJoe) ? "ESCALA DE SERVIÇO EXTRAORDINÁRIA" : "ESCALA DE SERVIÇO"}</div>
+              <div className={"titulo" + ((ehExtra || ehJoe) ? " titulo-extra" : "")}>{(ehExtra || ehJoe) ? "ESCALA DE SERVIÇO EXTRAORDINÁRIA" : "ESCALA DE SERVIÇO"}</div>
             </div>
-            <div className="subt">PARA O DIA {extensoUpper(data)} ({diaSemana(data)})</div>
+            <div className={"subt" + ((ehExtra || ehJoe) ? " subt-extra" : "")}>PARA O DIA {extensoUpper(data)} ({diaSemana(data)})</div>
 
             {/* Extraordinária / JOE */}
             {(ehExtra || ehJoe) && (
@@ -446,6 +446,14 @@ export default function FolhaEscalaView({
               </>
             )}
 
+            {/* "Quartel ... + data" tambem aqui: a folha publicada tem de sair
+                igual a da tela de edicao e ao Word/PDF. */}
+            {(ehExtra || ehJoe) && (
+              <div className="rodape-local">
+                Quartel do 18º BPM, em Presidente Dutra-MA, {extensoLow(e.dataConfeccao || data)}.
+              </div>
+            )}
+
             <div className="assinatura">
               {ass.chefe_p1 ? (
                 <div style={{ display: "flex", justifyContent: "center", marginBottom: 2 }}>
@@ -518,6 +526,13 @@ const CSS = `
 .fev-root .rotem-h{ font-style:italic; font-weight:700; vertical-align:middle; }
 .fev-root .tbl td.obs-sec{ font-size:12.5px; font-style:italic; padding:1px 6px; line-height:1.2; }
 .fev-root .tbl td.obs-sec b{ font-style:normal; font-size:11.5px; }
+
+/* Respiro do cabecalho SO na extraordinaria — a escala normal e densa e
+   alguns milimetros a mais a jogariam para a segunda pagina. Igual ao da tela
+   de edicao, para as duas folhas saírem iguais. */
+.fev-root .titulo-extra{ margin-top:10px; }
+.fev-root .subt-extra{ margin-top:10px; margin-bottom:12px; }
+.fev-root .visto-side-extra{ bottom:14px; }
 
 .fev-root .extra{ margin-top:8px; }
 .fev-root .extra-campos{ margin:8px 0 10px; }

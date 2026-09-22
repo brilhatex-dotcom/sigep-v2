@@ -2900,7 +2900,7 @@ export default function EscalaClient() {
               </div>
 
               <div className="titulo-wrap">
-                <div className="visto-side">
+                <div className={"visto-side" + ((ehExtra || ehJoe) ? " visto-side-extra" : "")}>
                   <div className="visto">VISTO</div>
                   {assEscala.cmt
                     ? <CarimboSigep nome={assEscala.cmt.nome} cargo="Cmt. do 18º BPM" data={data} largura="46mm" escala={0.8} assinatura={{ id: assEscala.cmt.id, token: assEscala.cmt.token }} />
@@ -2913,9 +2913,9 @@ export default function EscalaClient() {
                         : <div className="visto-esp" />)}
                   <div className="hdr-left-cargo">Cmt. do 18º BPM</div>
                 </div>
-                <div className="titulo">{(ehExtra || ehJoe) ? "ESCALA DE SERVIÇO EXTRAORDINÁRIA" : "ESCALA DE SERVIÇO"}</div>
+                <div className={"titulo" + ((ehExtra || ehJoe) ? " titulo-extra" : "")}>{(ehExtra || ehJoe) ? "ESCALA DE SERVIÇO EXTRAORDINÁRIA" : "ESCALA DE SERVIÇO"}</div>
               </div>
-              <div className="subt">PARA O DIA {extensoUpper(data)} ({diaSemana(data)})</div>
+              <div className={"subt" + ((ehExtra || ehJoe) ? " subt-extra" : "")}>PARA O DIA {extensoUpper(data)} ({diaSemana(data)})</div>
 
               {/* ---------- EXTRAORDINARIA (print 3) / JOE-RENE (print 4) ---------- */}
               {(ehExtra || ehJoe) && (
@@ -3067,6 +3067,13 @@ export default function EscalaClient() {
 
               <div className="rodape-local">Quartel do 18º BPM, em Presidente Dutra-MA, {extensoLow(e.dataConfeccao)}.</div>
               </>)}
+
+              {/* "Quartel ... + data" faltava na extraordinaria, embora o Word
+                  e o PDF ja a imprimissem: a folha da tela saia sem o local e
+                  a data de confeccao, que e o que situa o documento. */}
+              {(ehExtra || ehJoe) && (
+                <div className="rodape-local">Quartel do 18º BPM, em Presidente Dutra-MA, {extensoLow(e.dataConfeccao || data)}.</div>
+              )}
 
               <div className="assinatura">
                 {assEscala.chefe_p1 ? (
@@ -3349,6 +3356,19 @@ const CSS = `
 }
 
 /* Escala extraordinaria (print 3) */
+/* O RESPIRO DO CABECALHO, so na extraordinaria.
+
+   Na escala normal nao se mexe: aquela folha e densa, tem expediente, guarda,
+   ROTEM e observacao, e alguns milimetros a mais empurrariam o documento para
+   a segunda pagina. A extraordinaria e curta e sobrava espaco embaixo — era so
+   ali que o titulo ficava espremido contra o "PARA O DIA..." e contra o
+   "OPERACAO:". */
+.titulo-extra{ margin-top:10px; }
+.subt-extra{ margin-top:10px; margin-bottom:12px; }
+/* O VISTO do Cmt e ancorado pelo RODAPE do bloco do titulo; com o titulo mais
+   alto, "Cmt. do 18º BPM" encostava na linha em negrito. Sobe junto. */
+.visto-side-extra{ bottom:14px; }
+
 .extra{ margin-top:8px; }
 .extra-campos{ margin:8px 0 10px; }
 .extra-linha{ font-size:15px; margin:4px 0; }
