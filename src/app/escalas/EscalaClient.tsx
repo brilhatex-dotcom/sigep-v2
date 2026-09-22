@@ -81,8 +81,14 @@ type Escala = {
   // ---- Escala Extraordinaria (tipo "extraordinaria", print 3) ----
   extraOperacao?: string;
   extraCmtOperacao?: string;
+  /* LOCAL e HORARIO sao do EVENTO; APRESENTACAO e onde e a que horas a tropa
+     se apresenta, que costuma ser antes e noutro lugar (o quartel). Eram uma
+     coisa so, e o escalante tinha de espremer as duas informacoes na mesma
+     linha. Os nomes dos dois primeiros campos ficam como estao: renomear
+     apagaria o que ja esta gravado nas escalas antigas. */
   extraLocal?: string;
   extraHorario?: string;
+  extraApresentacao?: string;
   extraUniforme?: string;
   extraReforco?: ReforcoLinha[];
   // ---- Escala da JOE/RENE (tipo "joe", print 4, paisagem) ----
@@ -691,6 +697,7 @@ export function novaEscala(iso: string, cad: Cadastro, nomeDe: NomeDe): Escala {
     extraCmtOperacao: "",
     extraLocal: "",
     extraHorario: "",
+    extraApresentacao: "",
     extraUniforme: "4\u00aaA (ARMADO E EQUIPADO)",
     extraReforco: [{ postoGrad: "", nome: "" }],
     joeId: "",
@@ -2930,8 +2937,9 @@ export default function EscalaClient() {
                   <div className="extra-campos">
                     <div className="extra-linha"><span className="extra-lbl">OPERAÇÃO:</span> <Editable value={e.extraOperacao || ""} placeholder="ex: ANIVERSÁRIO DA CIDADE..." onChange={(v) => editE((d) => { d.extraOperacao = v; })} /></div>
                     <div className="extra-linha"><span className="extra-lbl">CMT DA OPERAÇÃO:</span> <Editable value={e.extraCmtOperacao || ""} placeholder="ex: 1º TEN QOEM SILAS" onChange={(v) => editE((d) => { d.extraCmtOperacao = v; })} /></div>
-                    <div className="extra-linha"><span className="extra-lbl">LOCAL:</span> <Editable value={e.extraLocal || ""} placeholder="ex: PRESIDENTE DUTRA-MA" onChange={(v) => editE((d) => { d.extraLocal = v; })} /></div>
-                    <div className="extra-linha"><span className="extra-lbl">HORÁRIO:</span> <Editable value={e.extraHorario || ""} placeholder="ex: 21H NA SEDE DO 18º BPM" onChange={(v) => editE((d) => { d.extraHorario = v; })} /></div>
+                    <div className="extra-linha"><span className="extra-lbl">LOCAL DO EVENTO:</span> <Editable value={e.extraLocal || ""} placeholder="ex: PRESIDENTE DUTRA-MA" onChange={(v) => editE((d) => { d.extraLocal = v; })} /></div>
+                    <div className="extra-linha"><span className="extra-lbl">HORÁRIO DO EVENTO:</span> <Editable value={e.extraHorario || ""} placeholder="ex: 23H AO TÉRMINO DO EVENTO" onChange={(v) => editE((d) => { d.extraHorario = v; })} /></div>
+                    <div className="extra-linha"><span className="extra-lbl">APRESENTAÇÃO:</span> <Editable value={e.extraApresentacao || ""} placeholder="ex: 22H NA SEDE DO 18º BPM" onChange={(v) => editE((d) => { d.extraApresentacao = v; })} /></div>
                     <div className="extra-linha"><span className="extra-lbl">UNIFORME:</span> <Editable value={e.extraUniforme || ""} placeholder="ex: 4ªA (ARMADO E EQUIPADO)" onChange={(v) => editE((d) => { d.extraUniforme = v; })} /></div>
                   </div>
 

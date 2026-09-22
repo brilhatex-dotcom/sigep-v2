@@ -282,8 +282,9 @@ export default function FolhaEscalaView({
                 <div className="extra-campos">
                   {e.extraOperacao && <div className="extra-linha"><span className="extra-lbl">OPERAÇÃO:</span> <T html={e.extraOperacao} /></div>}
                   {e.extraCmtOperacao && <div className="extra-linha"><span className="extra-lbl">CMT DA OPERAÇÃO:</span> <T html={e.extraCmtOperacao} /></div>}
-                  {e.extraLocal && <div className="extra-linha"><span className="extra-lbl">LOCAL:</span> <T html={e.extraLocal} /></div>}
-                  {e.extraHorario && <div className="extra-linha"><span className="extra-lbl">HORÁRIO:</span> <T html={e.extraHorario} /></div>}
+                  {e.extraLocal && <div className="extra-linha"><span className="extra-lbl">LOCAL DO EVENTO:</span> <T html={e.extraLocal} /></div>}
+                  {e.extraHorario && <div className="extra-linha"><span className="extra-lbl">HORÁRIO DO EVENTO:</span> <T html={e.extraHorario} /></div>}
+                  {e.extraApresentacao && <div className="extra-linha"><span className="extra-lbl">APRESENTAÇÃO:</span> <T html={e.extraApresentacao} /></div>}
                   {e.extraUniforme && <div className="extra-linha"><span className="extra-lbl">UNIFORME:</span> <T html={e.extraUniforme} /></div>}
                 </div>
 
