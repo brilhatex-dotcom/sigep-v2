@@ -3319,7 +3319,12 @@ const CSS = `
 .hdr-left{ width:122px; text-align:center; font-size:11px; display:flex; flex-direction:column; align-items:center; }
 .hdr-right{ width:92px; display:flex; justify-content:center; align-items:flex-start; }
 .visto{ font-weight:700; }
-.visto-img{ max-width:118px; max-height:44px; object-fit:contain; display:block; margin:0 auto; }
+/* ALTURA FIXA, nao max-height: a caixa da assinatura tem de ocupar sempre o
+   mesmo espaco. O bloco do VISTO e ancorado pelo RODAPE, entao uma imagem mais
+   baixa que 44px empurrava a assinatura para baixo — quem subia uma rubrica
+   pequena via o VISTO descer, e nao havia como alinha-lo com nada. Com
+   object-fit:contain a imagem nao distorce; so para de mandar na altura. */
+.visto-img{ max-width:118px; height:44px; object-fit:contain; display:block; margin:0 auto; }
 .visto-esp{ height:44px; }
 .hdr-left-cargo{ font-weight:700; margin-top:2px; }
 .titulo-wrap{ position:relative; }
@@ -3363,11 +3368,19 @@ const CSS = `
    a segunda pagina. A extraordinaria e curta e sobrava espaco embaixo — era so
    ali que o titulo ficava espremido contra o "PARA O DIA..." e contra o
    "OPERACAO:". */
-.titulo-extra{ margin-top:10px; }
+.titulo-extra{ margin-top:36px; }
 .subt-extra{ margin-top:10px; margin-bottom:12px; }
-/* O VISTO do Cmt e ancorado pelo RODAPE do bloco do titulo; com o titulo mais
-   alto, "Cmt. do 18º BPM" encostava na linha em negrito. Sobe junto. */
-.visto-side-extra{ bottom:14px; }
+/* O VISTO sobe ate a ALTURA DA LINHA DO TELEFONE da Permanencia, no
+   cabecalho. Este numero e a margem do titulo, acima, andam JUNTOS e por isso
+   sao iguais: o bloco e ancorado pelo rodape do titulo, entao empurrar o
+   titulo para baixo desceria a assinatura na mesma medida se este valor nao
+   subisse junto.
+
+   E a margem precisa crescer: com a assinatura la em cima, o "Cmt. do 18º
+   BPM" — que vem abaixo dela — cairia em cima do titulo em negrito, que era
+   a queixa original. Com 36px o meio da assinatura fica na linha do telefone
+   e ainda sobram 6px entre o cargo e o titulo. Medido no navegador. */
+.visto-side-extra{ bottom:36px; }
 
 .extra{ margin-top:8px; }
 .extra-campos{ margin:8px 0 10px; }

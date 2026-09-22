@@ -501,7 +501,8 @@ const CSS = `
 .fev-root .hdr-left{ width:122px; text-align:center; font-size:11px; display:flex; flex-direction:column; align-items:center; }
 .fev-root .hdr-right{ width:92px; display:flex; justify-content:center; align-items:flex-start; }
 .fev-root .visto{ font-weight:700; }
-.fev-root .visto-img{ max-width:118px; max-height:44px; object-fit:contain; display:block; margin:0 auto; }
+/* ALTURA FIXA, nao max-height — ver a mesma regra na tela de edicao. */
+.fev-root .visto-img{ max-width:118px; height:44px; object-fit:contain; display:block; margin:0 auto; }
 .fev-root .visto-esp{ height:44px; }
 .fev-root .hdr-left-cargo{ font-weight:700; margin-top:2px; }
 .fev-root .titulo-wrap{ position:relative; }
@@ -530,9 +531,11 @@ const CSS = `
 /* Respiro do cabecalho SO na extraordinaria — a escala normal e densa e
    alguns milimetros a mais a jogariam para a segunda pagina. Igual ao da tela
    de edicao, para as duas folhas saírem iguais. */
-.fev-root .titulo-extra{ margin-top:10px; }
+.fev-root .titulo-extra{ margin-top:36px; }
 .fev-root .subt-extra{ margin-top:10px; margin-bottom:12px; }
-.fev-root .visto-side-extra{ bottom:14px; }
+/* Sobe o VISTO ate a linha do telefone; anda junto com a margem do titulo
+   (ver a mesma regra, explicada, na tela de edicao). */
+.fev-root .visto-side-extra{ bottom:36px; }
 
 .fev-root .extra{ margin-top:8px; }
 .fev-root .extra-campos{ margin:8px 0 10px; }
