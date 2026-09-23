@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { joeNoPeriodo, type AutorizacaoJoe, type SaldoJoe } from "@/lib/joeSaldo";
+import { joeNoPeriodo, conferirPeriodo, periodoOk, type AutorizacaoJoe, type SaldoJoe } from "@/lib/joeSaldo";
 import { confirmar } from "@/components/Avisos";
 
 /* =========================================================================
@@ -531,7 +531,10 @@ function ModalSaldo({ ehAdmin, onFechar }: { ehAdmin: boolean; onFechar: () => v
 
   const salvar = async () => {
     if (!novo.despacho.trim()) return aviso("Informe o número do despacho.");
-    if (!novo.periodoInicio || !novo.periodoFim) return aviso("Informe o início e o fim do período.");
+    /* A MESMA conferencia do servidor, do mesmo arquivo: aqui ela avisa antes
+       de gastar a ida ao servidor, e la ela e a que vale. */
+    const problemaPeriodo = conferirPeriodo(novo.periodoInicio, novo.periodoFim);
+    if (problemaPeriodo) return aviso(problemaPeriodo);
     if (!novo.quantidade || Number(novo.quantidade) <= 0) return aviso("Informe a quantidade de vagas autorizadas.");
     if (!novo.valorPorVaga || Number(novo.valorPorVaga) <= 0) return aviso("Informe o valor por vaga deste despacho.");
     setSalvando(true);
@@ -609,8 +612,24 @@ function ModalSaldo({ ehAdmin, onFechar }: { ehAdmin: boolean; onFechar: () => v
 
               <div className="saldo-despacho">
                 <div><b>{saldo.autorizacao.despacho}</b>{saldo.autorizacao.processoSei ? ` · Proc. SEI ${saldo.autorizacao.processoSei}` : ""}</div>
-                <div className="saldo-periodo">Período: {brData(saldo.autorizacao.periodoInicio)} a {brData(saldo.autorizacao.periodoFim)} · {reais(saldo.autorizacao.valorPorVaga)} por vaga</div>
+                <div className="saldo-periodo">
+                  Período: {brData(saldo.autorizacao.periodoInicio)} a {brData(saldo.autorizacao.periodoFim)}
+                  {" · "}{reais(saldo.autorizacao.valorPorVaga)} por vaga
+                </div>
               </div>
+
+              {/* Despacho gravado com periodo impossivel (o ano 0206 de antes
+                  da conferencia). Nao da para "consertar" a conta por baixo: a
+                  data errada e que faz JOE de julho entrar num despacho de
+                  setembro. O que cabe e dizer isso, com todas as letras, em
+                  vez de mostrar numeros errados como se fossem certos. */}
+              {!periodoOk(saldo.autorizacao) && (
+                <div className="joe-banner erro" style={{ marginTop: 8 }}>
+                  <b>Este despacho está com o período inválido</b> ({brData(saldo.autorizacao.periodoInicio)} a {brData(saldo.autorizacao.periodoFim)}).
+                  Enquanto a data não for corrigida, os números abaixo não valem — JOE de fora do período está entrando na conta.
+                  {ehAdmin ? " Use ✎ editar, mais abaixo, para acertar as datas." : " Peça ao P/1 para corrigir."}
+                </div>
+              )}
 
               <div className="saldo-cards">
                 <div className="saldo-card">
@@ -623,17 +642,30 @@ function ModalSaldo({ ehAdmin, onFechar }: { ehAdmin: boolean; onFechar: () => v
                   <span className="saldo-card-l">Comprometido</span>
                   <span className="saldo-card-sub">{reais(saldo.valorComprometido)}</span>
                 </div>
-                <div className="saldo-card disp">
+                {/* Zerado nao pode sair em VERDE. O verde diz "esta tudo bem",
+                    e cota esgotada e justamente o contrario — e a informacao
+                    que faz o P/1 parar de abrir JOE nesta conta. */}
+                <div className={"saldo-card disp" + (saldo.quantidadeDisponivel <= 0 ? " zerado" : "")}>
                   <span className="saldo-card-v">{saldo.quantidadeDisponivel}</span>
                   <span className="saldo-card-l">Disponível</span>
                   <span className="saldo-card-sub">{reais(saldo.valorDisponivel)}</span>
                 </div>
               </div>
 
-              <div className="saldo-barra"><div className="saldo-barra-fill" style={{ width: `${saldo.pctUso}%` }} /></div>
-              <div className="saldo-barra-legenda">{saldo.pctUso}% da cota já comprometida</div>
+              <div className="saldo-barra">
+                <div className={"saldo-barra-fill" + (saldo.pctUso >= 100 ? " cheio" : "")} style={{ width: `${saldo.pctUso}%` }} />
+              </div>
+              <div className="saldo-barra-legenda">
+                {saldo.quantidadeUsada} de {saldo.autorizacao.quantidade} vaga{saldo.autorizacao.quantidade > 1 ? "s" : ""}
+                {" · "}{saldo.pctUso}% da cota comprometida
+              </div>
 
-              <div className="joe-secao" style={{ margin: "16px 2px 8px" }}>JOE que entraram nesta conta</div>
+              {/* A contagem no titulo: com a lista rolando, "31 autorizado x 92
+                  comprometido" so faz sentido quando se ve quantos JOE entraram. */}
+              <div className="joe-secao" style={{ margin: "16px 2px 8px" }}>
+                JOE que entraram nesta conta
+                {saldo.eventos.length > 0 ? ` (${saldo.eventos.length})` : ""}
+              </div>
               {saldo.eventos.length === 0 ? (
                 <div className="jc-sem-cand">Nenhum JOE aprovado dentro do período deste despacho ainda.</div>
               ) : (
@@ -1096,7 +1128,10 @@ const CSS = `
 .jc-cand{ display:flex; justify-content:space-between; align-items:center; gap:8px; background:#13223a; border:1px solid #28395a; border-radius:8px; padding:6px 10px; }
 .jc-cand.aprovado{ border-color:#235b3c; background:#102a1f; }
 .jc-cand.recusado{ opacity:.7; }
-.jc-cand-nome{ font-size:13px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.jc-cand-nome{ font-size:13px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0; flex:1; }
+/* "4 vagas · R$ 1.400,00" estava quebrando em duas linhas dentro da etiqueta e
+   entortando a altura de cada item da lista. */
+.jc-cand .tag{ white-space:nowrap; flex-shrink:0; }
 .jc-cand-acoes{ display:flex; align-items:center; gap:5px; }
 .tag{ font-size:10.5px; border-radius:999px; padding:2px 8px; }
 .tag.ok{ background:#10301f; color:#9fe6bd; border:1px solid #235b3c; }
@@ -1156,9 +1191,12 @@ const CSS = `
 .saldo-card-sub{ display:block; font-size:11px; color:#6f82a0; margin-top:3px; }
 .saldo-card.usado .saldo-card-v{ color:#f3df9d; }
 .saldo-card.disp .saldo-card-v{ color:#9fe6bd; }
+.saldo-card.disp.zerado{ border-color:#7a2f2f; background:#1a0f12; }
+.saldo-card.disp.zerado .saldo-card-v{ color:#ffb3b3; }
 .saldo-barra{ height:8px; border-radius:999px; background:#0a1626; border:1px solid #1d2c44; overflow:hidden; margin-top:4px; }
 .saldo-barra-fill{ height:100%; background:#D4AF37; border-radius:999px; }
-.saldo-barra-legenda{ font-size:11px; color:#6f82a0; margin-top:4px; text-align:right; }
+.saldo-barra-fill.cheio{ background:#e06464; }
+.saldo-barra-legenda{ font-size:11px; color:#9fb0c7; margin-top:5px; text-align:right; }
 .saldo-admin{ border-top:1px solid #1d2c44; padding-top:12px; margin-top:4px; display:flex; flex-direction:column; gap:10px; }
 .saldo-novo-btn{ font-size:14px; padding:11px 14px; }
 .saldo-form{ margin-top:2px; }

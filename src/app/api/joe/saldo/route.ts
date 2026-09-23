@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { calcularSaldo, autorizacaoAtual, type AutorizacaoJoe } from "@/lib/joeSaldo";
+import { calcularSaldo, autorizacaoAtual, conferirPeriodo, type AutorizacaoJoe } from "@/lib/joeSaldo";
 import { registrar } from "@/lib/auditoria";
 import crypto from "crypto";
 
@@ -83,12 +83,11 @@ export async function POST(req: Request) {
     const valorPorVaga = Number(b?.valorPorVaga);
 
     if (!despacho) return NextResponse.json({ error: "Informe o número do despacho." }, { status: 400 });
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(periodoInicio) || !/^\d{4}-\d{2}-\d{2}$/.test(periodoFim)) {
-      return NextResponse.json({ error: "Informe o início e o fim do período (AAAA-MM-DD)." }, { status: 400 });
-    }
-    if (periodoFim < periodoInicio) {
-      return NextResponse.json({ error: "O fim do período não pode vir antes do início." }, { status: 400 });
-    }
+    /* Uma conferencia so, vinda do lib, para o servidor e a tela nao
+       divergirem. Ela pega o ano impossivel (0206) que antes passava pelo
+       \d{4} e bagunçava a conta inteira. */
+    const problema = conferirPeriodo(periodoInicio, periodoFim);
+    if (problema) return NextResponse.json({ error: problema }, { status: 400 });
     if (!Number.isFinite(quantidade) || quantidade <= 0) {
       return NextResponse.json({ error: "Informe a quantidade de vagas autorizadas." }, { status: 400 });
     }
@@ -146,12 +145,11 @@ export async function PUT(req: Request) {
     const valorPorVaga = Number(b?.valorPorVaga);
 
     if (!despacho) return NextResponse.json({ error: "Informe o número do despacho." }, { status: 400 });
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(periodoInicio) || !/^\d{4}-\d{2}-\d{2}$/.test(periodoFim)) {
-      return NextResponse.json({ error: "Informe o início e o fim do período (AAAA-MM-DD)." }, { status: 400 });
-    }
-    if (periodoFim < periodoInicio) {
-      return NextResponse.json({ error: "O fim do período não pode vir antes do início." }, { status: 400 });
-    }
+    /* Uma conferencia so, vinda do lib, para o servidor e a tela nao
+       divergirem. Ela pega o ano impossivel (0206) que antes passava pelo
+       \d{4} e bagunçava a conta inteira. */
+    const problema = conferirPeriodo(periodoInicio, periodoFim);
+    if (problema) return NextResponse.json({ error: problema }, { status: 400 });
     if (!Number.isFinite(quantidade) || quantidade <= 0) {
       return NextResponse.json({ error: "Informe a quantidade de vagas autorizadas." }, { status: 400 });
     }

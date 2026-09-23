@@ -48,6 +48,56 @@ export type SaldoJoe = {
   eventos: { id: string; evento: string; data: string; vagas: number; valor: number }[];
 };
 
+/* =========================================================================
+   O PERÍODO PRECISA SER UMA DATA DE VERDADE, E DE ESTE SÉCULO.
+
+   A conferência era só `^\d{4}-\d{2}-\d{2}$`, e quatro dígitos incluem "0206".
+   Um ano digitado errado passava batido — e o estrago não aparecia como erro,
+   aparecia como CONTA ERRADA: a comparação de datas é por texto, então
+   "2026-07-03" >= "0206-09-22" é verdadeiro, e TODO JOE antigo do sistema caía
+   dentro do despacho novo. Foi assim que um despacho de 31 vagas apareceu com
+   92 comprometidas e saldo zero.
+
+   Por isso a conferência agora exige data que exista no calendário (30/02 não
+   passa) e ano entre 2000 e 2100. Vale no servidor e na tela, do mesmo
+   arquivo, para as duas não divergirem.
+   ========================================================================= */
+const ANO_MIN = 2000, ANO_MAX = 2100;
+
+export function dataValida(iso: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false;
+  const [a, m, d] = iso.split("-").map(Number);
+  if (a < ANO_MIN || a > ANO_MAX) return false;
+  // dia 31/04 ou 30/02 viram outro mês ao construir a data: o round-trip pega
+  const dt = new Date(Date.UTC(a, m - 1, d));
+  return dt.getUTCFullYear() === a && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
+/* Devolve a explicação do problema, ou null quando está tudo certo. Texto
+   pronto para a tela: quem digitou 0206 tem de ver o 0206 na mensagem, senão
+   procura o erro em outro lugar. */
+export function conferirPeriodo(inicio: string, fim: string): string | null {
+  const ano = (iso: string) => iso.slice(0, 4);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(inicio) || !/^\d{4}-\d{2}-\d{2}$/.test(fim)) {
+    return "Informe o início e o fim do período.";
+  }
+  for (const [rotulo, iso] of [["início", inicio], ["fim", fim]] as const) {
+    if (!dataValida(iso)) {
+      const a = Number(ano(iso));
+      return a < ANO_MIN || a > ANO_MAX
+        ? `O ano do ${rotulo} do período ficou como ${ano(iso)} — confira a data.`
+        : `A data de ${rotulo} do período não existe no calendário.`;
+    }
+  }
+  if (fim < inicio) return "O fim do período não pode vir antes do início.";
+  return null;
+}
+
+// Despacho já cadastrado com período impossível (ex.: o ano 0206 de antes da
+// conferência). A tela usa isto para avisar que a conta dele não vale.
+export const periodoOk = (a: Pick<AutorizacaoJoe, "periodoInicio" | "periodoFim">) =>
+  conferirPeriodo(a.periodoInicio, a.periodoFim) === null;
+
 /* Um evento de JOE entra na conta de uma autorização quando a DATA do
    evento cai dentro do período do despacho — é a mesma regra que vale no
    papel: o despacho autoriza serviço extraordinário NAQUELE período. */
