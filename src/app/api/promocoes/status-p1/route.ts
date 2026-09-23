@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { periodoAtivo } from "@/lib/promocoes";
 import { TOTAL_CERTIDOES } from "@/lib/certidoes";
 import { salvarStatusP1, statusP1 } from "@/lib/promocaoStatusP1";
+import { avisarEnvioAoP1, avisarRecebido, avisarReabertura } from "@/lib/promocaoAvisos";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,8 @@ export async function POST(req: Request) {
         );
       }
       const novo = await salvarStatusP1(periodo.id, efetivoId, { enviadoEm: new Date().toISOString() });
+      // o P/1 fica sabendo na hora, em vez de descobrir rolando o painel
+      await avisarEnvioAoP1(efetivoId, periodo.id, periodo.nome);
       return NextResponse.json({ ok: true, status: novo });
     }
 
@@ -59,6 +62,8 @@ export async function POST(req: Request) {
 
       if (acao === "reabrir") {
         const novo = await salvarStatusP1(periodoId, efetivoId, { enviadoEm: null, recebidoEm: null });
+        // reabrir = tem certidao para trocar; quem nao souber fica fora da planilha
+        await avisarReabertura(efetivoId, periodoId);
         return NextResponse.json({ ok: true, status: novo });
       }
       const atual = await statusP1(periodoId, efetivoId);
@@ -66,6 +71,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Este militar ainda nao enviou ao P/1." }, { status: 400 });
       }
       const novo = await salvarStatusP1(periodoId, efetivoId, { recebidoEm: new Date().toISOString() });
+      await avisarRecebido(efetivoId, periodoId);
       return NextResponse.json({ ok: true, status: novo });
     }
 

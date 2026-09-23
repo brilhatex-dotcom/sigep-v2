@@ -131,7 +131,7 @@ export default function SinoNotificacoes() {
                           ? <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-[#D4AF37]" />
                           : n.id.startsWith("pecunia:")
                           ? <Award className="mt-0.5 h-4 w-4 shrink-0 text-[#D4AF37]" />
-                          : n.id.startsWith("memo")
+                          : n.id.startsWith("memo") || n.id.startsWith("promo")
                           ? <FileSignature className="mt-0.5 h-4 w-4 shrink-0 text-[#D4AF37]" />
                           : <ArrowLeftRight className="mt-0.5 h-4 w-4 shrink-0 text-[#D4AF37]" />}
                         <span className="min-w-0">
