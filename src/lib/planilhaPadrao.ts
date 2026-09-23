@@ -7,8 +7,9 @@ import type { DadosHistorico } from "@/lib/historicoPolicial";
    PLANILHA PADRÃO DA PROMOÇÃO — Portaria nº 168/2026-CPPPM
 
    O que a portaria manda (art. 3º e 4º):
-     · UMA planilha com TODO o efetivo, "de Soldado ao 1º Sargento mais
-       antigo da Unidade";
+     · UMA planilha com os militares "de Soldado ao 1º Sargento mais antigo
+       da Unidade" — aqui, os que mandaram documentação no período
+       (planilhaPadraoDb.ts);
      · ela é o documento oficial único de Resumo Histórico e Ficha Conceito;
      · o P/1 confere as certidões "Nada Consta" e informa a situação final de
        cada militar — as certidões ficam arquivadas no P/1, só a planilha
@@ -27,6 +28,9 @@ import type { DadosHistorico } from "@/lib/historicoPolicial";
                           quais faltam, pelo nome; "S/A" quando o P/1 dá o
                           recebido nas oito
      promoções lançadas-> data e boletim de cada promoção de praça
+     ficha: Dados para Promoção -> BG de cada promoção, cursos de carreira com
+                          nota, elogios, medalhas, conceito (preenchidos na ficha
+                          ou importados da planilha de agosto/2026)
      P/1               -> ficha conceito, elogios, e qualquer correção
 
    Toda coluna calculada pode ser SOBRESCRITA pelo P/1 — a exatidão é de
@@ -40,7 +44,7 @@ import type { DadosHistorico } from "@/lib/historicoPolicial";
    o 1º Sargento mais antigo abre a planilha.
    ========================================================================= */
 
-export type Origem = "ficha" | "histórico" | "certidões" | "promoções" | "P/1";
+export type Origem = "ficha" | "dados de promoção" | "histórico" | "certidões" | "promoções" | "P/1";
 
 export type Coluna = {
   chave: string;
@@ -115,6 +119,7 @@ export type EntradaLinha = {
   promocoes: PromocaoLancada[];
   certidoes: CertidoesDoMilitar;
   manual: Record<string, string>;     // o que o P/1 escreveu por cima
+  dadosPromocao?: Record<string, string>; // seção "Dados para Promoção" da ficha (src/lib/dadosPromocao.ts)
 };
 
 export type Celula = { valor: string; origem: Origem; manual: boolean };
@@ -314,6 +319,48 @@ function promocoes(ficha: FichaPlanilha, lancadas: PromocaoLancada[], h: DadosHi
   return out;
 }
 
+/* ------------------------------------------ dados para promoção (ficha) */
+
+/* A seção "Dados para Promoção" da ficha é onde o P/1 declara o que o
+   sistema não tem como saber — e por isso ela VENCE o cálculo quando diz
+   alguma coisa. As exceções são os casos em que o sistema tem prova mais
+   nova do que o que está escrito:
+
+     · promoção: "S/A" na ficha não apaga uma promoção que o sistema
+       enxerga (listão ou data da graduação atual) — o militar foi promovido
+       depois que a ficha foi preenchida;
+     · CEFC/CEFS/CAP/EAP e cursos: "S/A"/"NÃO" na ficha não apaga um curso
+       que o histórico NOMEIA;
+     · medalhas: vale a maior contagem (medalha não se perde);
+     · comportamento e QPMP: o do histórico vem primeiro — ele é que é
+       corrigido quando o comportamento muda. */
+function usarDadosPromocao(auto: Record<string, [string, Origem]>, dp: Record<string, string>) {
+  const DP: Origem = "dados de promoção";
+  const r = (k: string) => (dp[k] || "").trim();
+  const semNada = (v: string) => !v || /^(s\/a|n[ãa]o)$/i.test(v);
+  for (const k of ["promCabo", "prom3", "prom2", "prom1"]) {
+    const [atual] = auto[k];
+    const f = r(k);
+    if (!f || atual === "S/A") continue;              // vazio na ficha, ou graduação não alcançada
+    if (f === "S/A" && atual) continue;               // "S/A" velho não apaga promoção que o sistema vê
+    auto[k] = [f, DP];
+  }
+  for (const k of ["cefc", "cefs", "cap", "eap", "cursos"]) {
+    const [atual] = auto[k];
+    const f = r(k);
+    if (!f) continue;
+    if (semNada(f) && atual && !semNada(atual)) continue;   // o histórico nomeia o curso
+    auto[k] = [f, DP];
+  }
+  if (r("medalhas")) {
+    // "S/A" conta como 0: só perde para um histórico que mostra MAIS medalhas
+    const a = Number(auto.medalhas[0]) || 0, b = Number(r("medalhas")) || 0;
+    if (b >= a) auto.medalhas = [r("medalhas"), DP];
+  }
+  for (const k of ["elogios", "conceito"]) if (r(k)) auto[k] = [r(k), DP];
+  if (!auto.comport[0] && r("comport")) auto.comport = [r("comport"), DP];
+}
+
 /* ---------------------------------------------------------------- a linha */
 
 export function montarLinha(e: EntradaLinha): LinhaPlanilha {
@@ -333,7 +380,8 @@ export function montarLinha(e: EntradaLinha): LinhaPlanilha {
     instrucao: [s(f.grauEscolaridade).toUpperCase(), "ficha"],
     incl: [data(f.dataIncorp), "ficha"],
     // QPMP: toda praça do 18º é QPMP-0 (combatente); o histórico pode dizer outro
-    qpmp: [campo("especialidade") || "0", "histórico"],
+    qpmp: campo("especialidade") ? [campo("especialidade"), "histórico"]
+      : e.dadosPromocao?.qpmp ? [e.dadosPromocao.qpmp.trim(), "dados de promoção"] : ["0", "histórico"],
     comport: [campo("comportamento"), "histórico"],
     // a situação jurídica acompanha a conferência: só "S/A" depois que o
     // P/1 leu as oito e deu o recebido
@@ -353,6 +401,8 @@ export function montarLinha(e: EntradaLinha): LinhaPlanilha {
     medalhas: [medalhas(h), "histórico"],
     conceito: ["", "P/1"],
   };
+
+  usarDadosPromocao(auto, e.dadosPromocao || {});
 
   const celulas: Record<string, Celula> = {};
   for (const c of COLUNAS) {

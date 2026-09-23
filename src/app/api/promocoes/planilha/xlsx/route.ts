@@ -29,7 +29,7 @@ export async function GET() {
   if (!periodo) return NextResponse.json({ error: "Nenhum período de promoção aberto." }, { status: 400 });
 
   try {
-    const linhas = await carregarPlanilha(periodo.id);
+    const linhas = await carregarPlanilha(periodo.id);   // quem mandou documentação
 
     let assinante = { nome: "", cargo: "Chefe do P/1 do 18º BPM" };
     try {

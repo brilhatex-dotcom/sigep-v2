@@ -5,16 +5,35 @@ import { podeVerP1 } from "@/lib/encargos";
 import { periodoAtivo } from "@/lib/promocoes";
 import { registrar } from "@/lib/auditoria";
 import { COLUNAS } from "@/lib/planilhaPadrao";
+import { prisma } from "@/lib/prisma";
 import { carregarPlanilha, colunaEditavel, salvarEmLote, salvarManual } from "@/lib/planilhaPadraoDb";
+import { definirCampoPromocao, ehCampoPromocao, salvarDadosPromocao } from "@/lib/dadosPromocao";
+
+/* ONDE cada correção feita nesta tela é gravada.
+
+   A planilha é o espelho da ficha no dia da promoção. Então, quando o P/1
+   acha um dado faltando ou errado aqui, a correção vai para a FICHA do
+   militar — e já fica certa para a próxima promoção:
+     · promoções, cursos, elogios, medalhas, conceito, comportamento, QPMP
+         -> "Dados para Promoção" da ficha (src/lib/dadosPromocao.ts);
+     · instrução, inclusão, número -> a própria ficha do efetivo.
+   Só o que vale para ESTE ciclo fica gravado só na planilha do período:
+   certidões, situação jurídica e situação administrativa. */
+const NA_FICHA_EFETIVO: Record<string, "grauEscolaridade" | "dataIncorp" | "numeroBarra"> = {
+  instrucao: "grauEscolaridade", incl: "dataIncorp", num: "numeroBarra",
+};
+const vaiParaFicha = (chave: string) => ehCampoPromocao(chave) || chave in NA_FICHA_EFETIVO;
 
 export const dynamic = "force-dynamic";
 
 /* =========================================================================
    /api/promocoes/planilha — a Planilha Padrão do período ativo.
 
-   GET -> { periodo, colunas, linhas, resumo }
+   GET  -> { periodo, colunas, linhas, resumo }  (só quem mandou documentação)
+   POST -> { chave, valor }  preenche os em branco de uma coluna
    PUT -> { efetivoId, chave, valor }  grava o que o P/1 escreveu numa célula
-          (valor null devolve a célula ao cálculo automático)
+          — na ficha do militar ou só na planilha do período (ver abaixo);
+          valor null devolve a célula ao cálculo automático
 
    Só para quem responde pela conferência — Chefe e Auxiliares do P/1, ou os
    admins enquanto não houver Chefe cadastrado (a regra de podeVerP1). A
@@ -43,7 +62,7 @@ export async function GET() {
     const prontas = linhas.filter((l) => l.pendencias.length === 0).length;
     return NextResponse.json({
       periodo: { id: periodo.id, nome: periodo.nome },
-      colunas: COLUNAS,
+      colunas: COLUNAS.map((c) => ({ ...c, naFicha: vaiParaFicha(c.chave) })),
       linhas,
       resumo: { total: linhas.length, prontas, pendentes: linhas.length - prontas },
     });
@@ -73,13 +92,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Esta coluna vem da ficha do militar — corrija lá." }, { status: 400 });
     }
     if (!valor) return NextResponse.json({ error: "Diga o que escrever." }, { status: 400 });
+    if (chave in NA_FICHA_EFETIVO) {
+      return NextResponse.json({ error: "Instrução, inclusão e número são de cada um: corrija militar por militar." }, { status: 400 });
+    }
 
     const linhas = await carregarPlanilha(periodo.id);
     const alvo = linhas
       .filter((l) => !grads.length || grads.includes(l.celulas.grad.valor))
       .filter((l) => !l.celulas[chave]?.valor)
       .map((l) => l.efetivoId);
-    const n = alvo.length ? await salvarEmLote(periodo.id, alvo, chave, valor, quem.login) : 0;
+    let n = 0;
+    if (alvo.length && ehCampoPromocao(chave)) {
+      // vai para a ficha de cada um, só onde o campo está vazio
+      await salvarDadosPromocao(alvo.map((id) => ({ efetivoId: id, dados: { [chave]: valor } })), "completar", "Preenchido em lote na Planilha Padrão", quem.login);
+      n = alvo.length;
+    } else if (alvo.length) {
+      n = await salvarEmLote(periodo.id, alvo, chave, valor, quem.login);
+    }
 
     const titulo = COLUNAS.find((c) => c.chave === chave)?.titulo || chave;
     if (n) {
@@ -112,15 +141,42 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Esta coluna vem da ficha do militar — corrija lá." }, { status: 400 });
     }
 
-    await salvarManual(periodo.id, efetivoId, chave, valor, quem.login);
     const titulo = COLUNAS.find((c) => c.chave === chave)?.titulo || chave;
+
+    // valor null é o ↺ ("voltar ao cálculo"): só tira a correção desta
+    // planilha — nunca apaga nada da ficha
+    if (vaiParaFicha(chave) && valor !== null) {
+      const texto = (valor ?? "").trim();
+      if (chave in NA_FICHA_EFETIVO) {
+        const campo = NA_FICHA_EFETIVO[chave];
+        if (campo === "dataIncorp" && texto && !/^\d{2}\/\d{2}\/\d{4}$/.test(texto)) {
+          return NextResponse.json({ error: "Inclusão no formato dd/mm/aaaa." }, { status: 400 });
+        }
+        await prisma.efetivo.update({
+          where: { id: efetivoId },
+          data: { [campo]: texto || null, ultimaAtualizacao: new Date().toISOString() },
+        });
+      } else {
+        await definirCampoPromocao(efetivoId, chave, texto, quem.login);
+      }
+      /* Se havia uma correção antiga só desta planilha nessa coluna, ela
+         sai — senão ela continuaria tapando o que acabou de ir para a ficha. */
+      await salvarManual(periodo.id, efetivoId, chave, null, quem.login);
+      await registrar({
+        acao: "planilha_padrao_ficha", alvo: efetivoId,
+        detalhe: `Corrigiu na ficha, pela Planilha Padrão, "${titulo}": ${texto.slice(0, 120) || "(apagado)"}`,
+      });
+      return NextResponse.json({ ok: true, gravadoNaFicha: true });
+    }
+
+    await salvarManual(periodo.id, efetivoId, chave, valor, quem.login);
     await registrar({
       acao: "planilha_padrao_editar", alvo: efetivoId,
       detalhe: valor === null
         ? `Devolveu "${titulo}" ao cálculo automático na Planilha Padrão (${periodo.nome}).`
         : `Preencheu "${titulo}" na Planilha Padrão (${periodo.nome}): ${valor.slice(0, 120)}`,
     });
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, gravadoNaFicha: false });
   } catch (err) {
     console.error("[PUT /api/promocoes/planilha]", err);
     return NextResponse.json({ error: "Falha ao gravar." }, { status: 503 });

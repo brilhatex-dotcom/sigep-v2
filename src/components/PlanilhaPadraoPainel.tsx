@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileSpreadsheet, Download, Loader2, RotateCcw, ChevronDown, ChevronUp, Search, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { FileSpreadsheet, Download, Loader2, RotateCcw, ChevronDown, ChevronUp, Search, AlertTriangle, CheckCircle2, Upload } from "lucide-react";
 import { avisar } from "@/components/Avisos";
 
 /* =========================================================================
@@ -20,11 +20,15 @@ import { avisar } from "@/components/Avisos";
    Cor das células:
      · normal  -> calculada pelo sistema (passe o mouse para ver de onde veio);
      · dourada -> o P/1 escreveu por cima (o ↺ devolve ao cálculo);
+     · azul    -> dos "Dados para Promoção" da ficha do militar;
+   Correção nas colunas marcadas "ficha" vai para a FICHA do militar (e vale
+   nas próximas promoções); certidões e situação jurídica/administrativa
+   ficam só na planilha do período.
      · cinza   -> identidade (graduação, nome, matrícula, ID) — corrige-se na
                   ficha, não aqui.
    ========================================================================= */
 
-type Coluna = { chave: string; titulo: string; identidade?: boolean };
+type Coluna = { chave: string; titulo: string; identidade?: boolean; naFicha?: boolean };
 type Celula = { valor: string; origem: string; manual: boolean };
 type Linha = { efetivoId: string; rotulo: string; celulas: Record<string, Celula>; pendencias: string[] };
 type Resposta = {
@@ -32,6 +36,13 @@ type Resposta = {
   colunas: Coluna[];
   linhas: Linha[];
   resumo: { total: number; prontas: number; pendentes: number };
+};
+type ResumoImportacao = {
+  arquivo: string; aba: string; linhas: number; casadas: number; porComo: Record<string, number>;
+  naoEncontrados: { linha: number; grad: string; nome: string }[];
+  ficha: Record<string, number>; promocao: number;
+  porNome: { linha: number; planilha: string; sistema: string }[];
+  fichasAtualizadas?: number;
 };
 
 // Larguras em px para a tela (o XLSX usa as larguras do modelo).
@@ -52,14 +63,15 @@ export default function PlanilhaPadraoPainel() {
   const [editando, setEditando] = useState<{ efetivoId: string; chave: string; valor: string } | null>(null);
   const [gravando, setGravando] = useState(false);
 
-  const carregar = useCallback(async () => {
+  const carregar = useCallback(async (): Promise<Resposta | null> => {
     setCarregando(true); setErro("");
     try {
       const r = await fetch("/api/promocoes/planilha", { cache: "no-store" });
       const d = await r.json();
-      if (!r.ok) { setErro(d?.error || "Não foi possível montar a planilha."); return; }
+      if (!r.ok) { setErro(d?.error || "Não foi possível montar a planilha."); return null; }
       setDados(d);
-    } catch { setErro("Sem conexão com o servidor."); }
+      return d;
+    } catch { setErro("Sem conexão com o servidor."); return null; }
     finally { setCarregando(false); }
   }, []);
 
@@ -89,7 +101,18 @@ export default function PlanilhaPadraoPainel() {
       /* Recarrega a planilha inteira, e não só a célula: mexer na situação
          jurídica ou na ficha conceito muda as PENDÊNCIAS da linha, e o
          resumo lá em cima tem de acompanhar. */
-      await carregar();
+      const novo = await carregar();
+      if (d.gravadoNaFicha && valor !== null) {
+        /* Gravou na ficha, mas o histórico mostra outra coisa e vence (ex.:
+           "S/A" num curso que o histórico nomeia). Avisa, senão parece que
+           a correção não pegou. */
+        const cel = novo?.linhas.find((l) => l.efetivoId === efetivoId)?.celulas[chave];
+        if (cel && cel.valor.trim() !== valor.trim()) {
+          avisar(`Gravado na ficha, mas a planilha mostra "${cel.valor}" porque o ${cel.origem} diz isso. Corrija lá, se estiver errado.`, "atencao");
+        } else {
+          avisar("Gravado na ficha do militar.", "sucesso");
+        }
+      }
     } catch { avisar("Sem conexão com o servidor.", "erro"); }
     finally { setGravando(false); }
   };
@@ -141,6 +164,34 @@ export default function PlanilhaPadraoPainel() {
     finally { setAplicando(false); }
   };
 
+  /* ---- importar a planilha de um ciclo anterior ----
+     Primeiro confere (nada é gravado), mostra o resultado, e só grava
+     quando o P/1 manda. */
+  const [arquivo, setArquivo] = useState<File | null>(null);
+  const [importacao, setImportacao] = useState<ResumoImportacao | null>(null);
+  const [importando, setImportando] = useState(false);
+  const [substituir, setSubstituir] = useState(false);
+  const importar = async (f: File, aplicar: boolean) => {
+    setImportando(true);
+    try {
+      const fd = new FormData();
+      fd.append("arquivo", f);
+      fd.append("aplicar", aplicar ? "1" : "0");
+      fd.append("substituir", substituir ? "1" : "0");
+      const r = await fetch("/api/promocoes/planilha/importar", { method: "POST", body: fd });
+      const d = await r.json();
+      if (!r.ok) { avisar(d?.error || "Não foi possível ler a planilha.", "erro"); return; }
+      setArquivo(f);
+      setImportacao(d.resumo);
+      if (aplicar) {
+        avisar(`Planilha importada: Dados para Promoção gravados em ${d.resumo.promocoesGravadas || 0} ficha(s); ${d.resumo.fichasAtualizadas || 0} ficha(s) com dados funcionais completados.`, "sucesso");
+        setArquivo(null); setImportacao(null);
+        await carregar();
+      }
+    } catch { avisar("Sem conexão com o servidor.", "erro"); }
+    finally { setImportando(false); }
+  };
+
   const r = dados?.resumo;
 
   return (
@@ -150,7 +201,7 @@ export default function PlanilhaPadraoPainel() {
         <div className="flex-1">
           <p className="text-sm font-semibold">Planilha Padrão — Portaria nº 168/2026-CPPPM</p>
           <p className="text-xs text-[#94A3B8]">
-            Soldado a 1º Sargento, em ordem de antiguidade. Monta-se sozinha da ficha, do histórico e das certidões.
+            Quem já mandou documentação, de Soldado a 1º Sargento, em ordem de antiguidade. Vai se alimentando conforme as certidões chegam, com a ficha e o histórico de cada um.
             Entrega à CPPPM até <b className="text-[#D4AF37]">06/11/2026</b>.
           </p>
         </div>
@@ -174,7 +225,7 @@ export default function PlanilhaPadraoPainel() {
               {/* ---- resumo e ações ---- */}
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <span className="rounded-lg border border-white/10 bg-[#0b1626] px-3 py-1.5 text-xs">
-                  <b>{r.total}</b> militares
+                  <b>{r.total}</b> militares com documentação enviada
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-300">
                   <CheckCircle2 className="h-3.5 w-3.5" /> <b>{r.prontas}</b> prontos
@@ -199,13 +250,84 @@ export default function PlanilhaPadraoPainel() {
                   <input type="checkbox" checked={soPendentes} onChange={(e) => setSoPendentes(e.target.checked)} />
                   Só quem tem pendência
                 </label>
+
+              </div>
+
+              {/* ---- importar planilha anterior ---- */}
+              <div className="mb-3 rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-xs text-[#cbd5e1]">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Upload className="h-4 w-4 text-[#D4AF37]" />
+                  <span className="font-semibold text-[#D4AF37]">Aproveitar uma planilha já feita</span>
+                  <span className="text-[#94A3B8]">(ex.: a de agosto) — grava na ficha de cada militar, na seção &quot;Dados para Promoção&quot;, de todo o efetivo que estiver nela.</span>
+                  <label className={`ml-auto inline-flex cursor-pointer items-center gap-1 rounded bg-[#D4AF37]/15 px-2.5 py-1 font-semibold text-[#D4AF37] hover:bg-[#D4AF37]/25 ${importando ? "pointer-events-none opacity-50" : ""}`}>
+                    {importando && !importacao ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                    Escolher .xlsx
+                    <input type="file" accept=".xlsx" className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) importar(f, false); }} />
+                  </label>
+                </div>
+                {importacao && arquivo && (
+                  <div className="mt-2 space-y-1.5 border-t border-white/10 pt-2">
+                    <p>
+                      <b>{importacao.arquivo}</b> (aba &quot;{importacao.aba}&quot;): <b>{importacao.casadas}</b> de {importacao.linhas} militares encontrados no sistema
+                      {Object.keys(importacao.porComo).length > 0 && (
+                        <span className="text-[#94A3B8]"> — por {Object.entries(importacao.porComo).map(([k, n]) => `${k}: ${n}`).join(", ")}</span>
+                      )}.
+                    </p>
+                    <p>
+                      Fichas que serão completadas (só campos vazios):{" "}
+                      {Object.keys(importacao.ficha).length
+                        ? Object.entries(importacao.ficha).map(([k, n]) => `${k}: ${n}`).join(", ")
+                        : <span className="text-[#94A3B8]">nenhuma — as fichas já têm esses dados</span>}.
+                      {" "}Dados para Promoção: <b>{importacao.promocao}</b> ficha(s).
+                    </p>
+                    <p className="text-[#94A3B8]">
+                      Certidões, situação jurídica e situação administrativa NÃO são importadas: valem só para o ciclo delas.
+                      Depois é só abrir a ficha do militar para ver ou corrigir.
+                    </p>
+                    {importacao.porNome.length > 0 && (
+                      <details>
+                        <summary className="cursor-pointer text-amber-300">{importacao.porNome.length} encontrado(s) só pelo nome — confira</summary>
+                        <ul className="mt-1 list-disc pl-5">
+                          {importacao.porNome.map((x) => <li key={x.linha}>linha {x.linha}: {x.planilha} → {x.sistema}</li>)}
+                        </ul>
+                      </details>
+                    )}
+                    {importacao.naoEncontrados.length > 0 && (
+                      <details>
+                        <summary className="cursor-pointer text-amber-300">{importacao.naoEncontrados.length} não encontrado(s) no sistema — ficam de fora</summary>
+                        <ul className="mt-1 list-disc pl-5">
+                          {importacao.naoEncontrados.map((x) => <li key={x.linha}>linha {x.linha}: {x.grad} {x.nome}</li>)}
+                        </ul>
+                      </details>
+                    )}
+                    <label className="flex cursor-pointer items-start gap-2 pt-1">
+                      <input type="checkbox" checked={substituir} onChange={(e) => setSubstituir(e.target.checked)} className="mt-0.5" />
+                      <span>
+                        Substituir o que já está preenchido nos Dados para Promoção
+                        <span className="block text-[#94A3B8]">Deixe desmarcado para só completar o que está em branco (não desfaz o que o P/1 já corrigiu na ficha).</span>
+                      </span>
+                    </label>
+                    <div className="flex gap-2 pt-1">
+                      <button disabled={importando || !importacao.casadas} onClick={() => importar(arquivo, true)}
+                        className="inline-flex items-center gap-1 rounded bg-[#D4AF37] px-3 py-1 font-semibold text-[#1a1205] hover:brightness-110 disabled:opacity-50">
+                        {importando && <Loader2 className="h-3 w-3 animate-spin" />}
+                        Gravar
+                      </button>
+                      <button disabled={importando} onClick={() => { setImportacao(null); setArquivo(null); }}
+                        className="rounded border border-white/15 px-3 py-1 text-[#cbd5e1] hover:bg-white/5">
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-xs text-[#cbd5e1]">
                 <span className="font-semibold text-[#D4AF37]">Preencher os em branco:</span>
                 <select value={lote.chave} onChange={(e) => setLote({ ...lote, chave: e.target.value })}
                   className="rounded border border-white/10 bg-[#0F1B2D] px-2 py-1 text-xs text-white outline-none">
-                  {dados.colunas.filter((c) => !c.identidade).map((c) => (
+                  {dados.colunas.filter((c) => !c.identidade && !["instrucao", "incl", "num"].includes(c.chave)).map((c) => (
                     <option key={c.chave} value={c.chave}>{c.titulo.trim()}</option>
                   ))}
                 </select>
@@ -224,8 +346,10 @@ export default function PlanilhaPadraoPainel() {
               </div>
 
               <p className="mb-2 text-[11px] text-[#6f82a0]">
-                Clique numa célula para preencher ou corrigir. <span className="text-[#D4AF37]">Dourado</span> = escrito pelo P/1
-                (o ↺ devolve ao cálculo). Cinza = vem da ficha — corrija na ficha. Passe o mouse para ver a origem de cada dado.
+                Clique numa célula para preencher ou corrigir. Nas colunas marcadas <span className="text-sky-300">ficha</span>, a correção
+                vai direto para a ficha do militar e já vale nas próximas promoções. Certidões e situação jurídica/administrativa ficam
+                só nesta planilha (<span className="text-[#D4AF37]">dourado</span>; o ↺ devolve ao cálculo).
+                <span className="text-sky-300"> Azul</span> = veio dos Dados para Promoção da ficha. Cinza = identidade — corrija na ficha.
               </p>
 
               {/* ---- a tabela ---- */}
@@ -237,8 +361,10 @@ export default function PlanilhaPadraoPainel() {
                       <th className="min-w-[200px] border-b border-r border-white/10 px-2 py-2 text-left">Pendências</th>
                       {dados.colunas.map((c) => (
                         <th key={c.chave} style={{ minWidth: LARGURA[c.chave] || 90 }}
+                          title={c.naFicha ? "O que você corrigir nesta coluna vai para a ficha do militar" : c.identidade ? undefined : "Vale só para esta planilha (este período)"}
                           className="border-b border-r border-white/10 px-2 py-2 text-left font-semibold text-[#cbd5e1]">
                           {c.titulo}
+                          {c.naFicha && <span className="ml-1 rounded bg-sky-500/15 px-1 text-[9px] font-normal text-sky-300">ficha</span>}
                         </th>
                       ))}
                     </tr>
@@ -261,10 +387,13 @@ export default function PlanilhaPadraoPainel() {
                           const ed = editando && editando.efetivoId === l.efetivoId && editando.chave === c.chave;
                           return (
                             <td key={c.chave}
-                              title={c.identidade ? "Vem da ficha — corrija na ficha do militar" : cel.manual ? "Escrito pelo P/1" : `Calculado: ${cel.origem}`}
+                              title={c.identidade ? "Vem da ficha — corrija na ficha do militar"
+                                : cel.manual ? "Escrito pelo P/1 só nesta planilha"
+                                : `Origem: ${cel.origem}` + (c.naFicha ? " — clique para corrigir; grava na ficha do militar" : " — clique para corrigir só nesta planilha")}
                               className={
                                 "group border-b border-r border-white/5 px-2 py-1.5 align-top " +
-                                (c.identidade ? "text-[#94A3B8]" : cel.manual ? "bg-[#D4AF37]/10 text-[#f3df9d]" : "text-white") +
+                                (c.identidade ? "text-[#94A3B8]" : cel.manual ? "bg-[#D4AF37]/10 text-[#f3df9d]"
+                                  : cel.origem === "dados de promoção" ? "bg-sky-500/10 text-sky-200" : "text-white") +
                                 (!c.identidade && !ed ? " cursor-pointer hover:bg-white/5" : "")
                               }
                               onClick={() => { if (!c.identidade && !ed) setEditando({ efetivoId: l.efetivoId, chave: c.chave, valor: cel.valor }); }}
@@ -302,7 +431,8 @@ export default function PlanilhaPadraoPainel() {
                     ))}
                     {linhas.length === 0 && (
                       <tr><td colSpan={dados.colunas.length + 2} className="px-3 py-6 text-center text-sm text-emerald-300">
-                        {soPendentes ? "Nenhuma pendência — a planilha está pronta para baixar." : "Nenhum militar encontrado."}
+                        {dados.linhas.length === 0 ? "Ninguém mandou documentação ainda — a planilha vai se montando conforme as certidões chegam."
+                          : soPendentes ? "Nenhuma pendência — a planilha está pronta para baixar." : "Nenhum militar encontrado."}
                       </td></tr>
                     )}
                   </tbody>

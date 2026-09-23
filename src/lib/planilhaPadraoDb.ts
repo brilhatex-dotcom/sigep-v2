@@ -5,6 +5,7 @@ import { garantirHistorico } from "@/lib/historicoDb";
 import { garantirPromocoes } from "@/lib/promocaoDb";
 import { normalizar, type DadosHistorico } from "@/lib/historicoPolicial";
 import { lerMapaP1 } from "@/lib/promocaoStatusP1";
+import { lerTodosDadosPromocao } from "@/lib/dadosPromocao";
 import {
   COLUNAS, entraNaPlanilha, montarLinha, type LinhaPlanilha, type PromocaoLancada,
 } from "@/lib/planilhaPadrao";
@@ -102,7 +103,14 @@ export async function salvarEmLote(
 
 export type LinhaComNome = LinhaPlanilha & { rotulo: string };
 
-/* Monta a planilha inteira do período, JÁ na ordem de antiguidade.
+/* Monta a planilha do período, JÁ na ordem de antiguidade.
+
+   Quem entra: quem já mandou documentação no período — ao menos uma
+   certidão, ou o envio ao P/1. A planilha vai se alimentando conforme as
+   certidões chegam, e o P/1 faz o crivo em cima dela (a coluna de
+   pendências diz o que falta de cada um). Quem nunca mandou nada não
+   aparece: não concorre.
+
 
    Poucas consultas, todas em lote: o efetivo, os históricos, as promoções
    lançadas, as certidões do período e o que o P/1 escreveu. Nada de uma ida
@@ -149,8 +157,11 @@ export async function carregarPlanilha(periodoId: string): Promise<LinhaComNome[
   const enviadas = new Map(participantes.map((p) => [p.efetivoId, p.certidoes.map((c) => c.ordem)]));
   const statusP1 = await lerMapaP1();
   const manuais = await lerManuais(periodoId);
+  const dadosPromocao = await lerTodosDadosPromocao();
+  const mandou = (id: string) =>
+    (enviadas.get(id)?.length || 0) > 0 || !!statusP1[`${periodoId}:${id}`]?.enviadoEm;
 
-  return efetivo.map((m) => {
+  return efetivo.filter((m) => mandou(m.id)).map((m) => {
     const st = statusP1[`${periodoId}:${m.id}`] || {};
     const linha = montarLinha({
       ficha: m,
@@ -162,6 +173,7 @@ export async function carregarPlanilha(periodoId: string): Promise<LinhaComNome[
         enviadoAoP1: !!st.enviadoEm,
       },
       manual: manuais.get(m.id) || {},
+      dadosPromocao: dadosPromocao.get(m.id) || {},
     });
     return { ...linha, rotulo: [m.postoGrad, m.nomeGuerra || m.nome].filter(Boolean).join(" ") };
   });
