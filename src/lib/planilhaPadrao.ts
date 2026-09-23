@@ -163,28 +163,51 @@ export function colunaCertidoes(c: CertidoesDoMilitar): { valor: string; pendent
   };
 }
 
-/* Cursos de carreira: só preenche quando o histórico NOMEIA o curso.
-   Não se deduz CEFS de "CFS" nem CAP de "CAS-PM" — são cursos diferentes, e
-   um palpite errado aqui vira informação oficial falsa na mão da Comissão. */
+/* Cursos de carreira (CEFC, CEFS, CAP, EAP).
+
+   Na planilha da Unidade a célula diz SE fez e com que nota: "SIM/ 9,580";
+   "SIM" quando o histórico nomeia o curso mas não traz a nota; "S/A" quando
+   há histórico e ele não fala do curso. Sem histórico fica em branco — não
+   se atesta o que ninguém conferiu.
+
+   Só vale o que o histórico NOMEIA. Não se deduz CEFS de "CFS" — são cursos
+   diferentes, e um palpite errado vira informação oficial falsa na mão da
+   Comissão. A exceção é o CAS-PM: a própria Unidade usa a coluna como
+   "CAP/CAS" (planilha de agosto/2026), e o histórico de praça tem campo
+   próprio para ele (III, 3º item). */
 const CURSO: Record<string, RegExp> = {
   CEFC: /\bCEFC\b|curso especial de forma[çc][ãa]o de cabos/i,
   CEFS: /\bCEFS\b|curso especial de forma[çc][ãa]o de sargentos/i,
   /* "CAP" e tambem a abreviatura de CAPITAO — "ministrado pelo CAP QOPM
      Fulano" nao e curso nenhum. Por isso a sigla so vale quando NAO vem
      seguida de quadro (QO..., PM). */
-  CAP: /\bCAP\b(?!\s*(QO|PM\b))|curso de aperfei[çc]oamento de pra[çc]as/i,
+  CAP: /\bCAP\b(?!\s*(QO|PM\b))|curso de aperfei[çc]oamento de pra[çc]as|\bCAS\b|curso de aperfei[çc]oamento de sargentos/i,
   EAP: /\bEAP\b/,
 };
 
-function cursoDoHistorico(h: DadosHistorico | null, sigla: keyof typeof CURSO): string {
+/* A nota do curso, como a Unidade escreve: vírgula decimal ("9,580").
+   Número de 0 a 10 com casas decimais; "200h" ou o ano não são nota. */
+export function notaDoCurso(linha: string): string {
+  const m = linha.match(/(?:^|[^\d/.,])(10(?:[.,]0{1,3})?|\d[.,]\d{1,3})(?![\d/]|\s*(?:h|hs|horas)\b)/i);
+  return m ? m[1].replace(".", ",") : "";
+}
+
+function cursoDoHistorico(h: DadosHistorico | null, sigla: keyof typeof CURSO, praca: boolean): string {
   if (!h) return "";
   const re = CURSO[sigla];
   for (const chave of ["III.form1", "III.form2", "III.form3", "III.outros"]) {
-    const linhas = s(h.secoes[chave]).split(/\n+/).map((x) => x.trim()).filter(Boolean);
-    const achada = linhas.find((l) => re.test(l));
-    if (achada) return achada;
+    const texto = s(h.secoes[chave]);
+    if (vazioOuPadrao(texto)) continue;
+    const linhas = texto.split(/\n+/).map((x) => x.trim()).filter(Boolean);
+    let achada = linhas.find((l) => re.test(l));
+    // o campo "CAS-PM / ANO" do histórico de praça É o CAS, mesmo sem a sigla
+    if (!achada && sigla === "CAP" && praca && chave === "III.form3") achada = linhas[0];
+    if (achada) {
+      const nota = notaDoCurso(achada);
+      return nota ? `SIM/ ${nota}` : "SIM";
+    }
   }
-  return "";
+  return "S/A";
 }
 
 /* Situação administrativa a partir das seções XII (processos) e XIII
@@ -199,31 +222,95 @@ function sitAdministrativa(h: DadosHistorico | null): string {
   return partes.length ? partes.join("; ") : "S/A";
 }
 
+/* Medalhas: a planilha pede a QUANTIDADE (a da Unidade traz 1, 2...), não a
+   descrição. Conta uma por linha escrita nas alíneas da seção X. */
 function medalhas(h: DadosHistorico | null): string {
   if (!h) return "";
-  const itens = ["X.falcao", "X.merito", "X.estudo", "X.servico"]
-    .map((k) => s(h.secoes[k]))
-    .filter((t) => !vazioOuPadrao(t));
-  return itens.length ? itens.join("; ") : "S/A";
+  let n = 0;
+  for (const k of ["X.falcao", "X.merito", "X.estudo", "X.servico"]) {
+    const t = s(h.secoes[k]);
+    if (vazioOuPadrao(t)) continue;
+    n += t.split(/\n+/).map((x) => x.trim()).filter((x) => x && !vazioOuPadrao(x)).length;
+  }
+  return n ? String(n) : "S/A";
 }
 
-/* Promoções: cada graduação de praça que ele já alcançou, com data e boletim.
+/* ------------------------------------------------------------ promoções */
 
-   Fonte principal: o que o P/1 lançou pelo listão (promocoes_lancadas), que
-   traz a referência da publicação. Se a graduação ATUAL não passou pelo
-   listão, a data sai da ficha — sem o boletim, que o P/1 completa. */
-function promocoes(ficha: FichaPlanilha, lancadas: PromocaoLancada[]): Record<string, string> {
-  const alvo: Record<number, string> = { 12: "promCabo", 11: "prom3", 10: "prom2", 9: "prom1" };
-  const out: Record<string, string> = {};
-  for (const p of lancadas) {
-    const chave = alvo[classificarPatente(p.postoNovo).ordem];
-    if (!chave) continue;
-    const d = data(p.dataPromocao);
-    const ref = s(p.referencia);
-    out[chave] = [d, ref ? `Publicado no ${ref}` : ""].filter(Boolean).join(" - ");
+// ordem de classificarPatente -> coluna da planilha
+const COLUNA_PROM: Record<number, string> = { 12: "promCabo", 11: "prom3", 10: "prom2", 9: "prom1" };
+const NOME_PROM: Record<string, string> = { promCabo: "Cabo", prom3: "3º Sgt", prom2: "2º Sgt", prom1: "1º Sgt" };
+
+function grauDaLinha(l: string): number {
+  const t = l.toLowerCase();
+  if (/\bcabo\b|\bcb\b/.test(t)) return 12;
+  const m = t.match(/\b([123])\s*[º°o]?\s*(sargento|sgt)\b/);
+  return m ? ({ "3": 11, "2": 10, "1": 9 } as Record<string, number>)[m[1]] : 0;
+}
+
+/* A seção IV do histórico ("PROMOÇÕES COM AS RESPECTIVAS DATAS E BG"), lida
+   por graduação. O formato que corre na Unidade:
+     a) Cabo PM:
+     BI nº 028 de 15/07/2011 (11ª CI), publicou ..., transcrito do BG nº 129 de 12/07/2011;
+   Dela sai o BOLETIM de cada promoção — e a data, quando vem "a contar de".
+   É o que cobre as promoções antigas, de antes do SIGEP. */
+export function lerSecaoPromocoes(texto: string): Record<string, { data: string; bg: string }> {
+  const out: Record<string, { data: string; bg: string }> = {};
+  let atual = "";
+  let bloco: string[] = [];
+  const fecha = () => {
+    if (!atual || out[atual]) return;
+    const b = bloco.join(" ");
+    const bg = b.match(/\bBG\s*(?:n[º°o]\.?\s*)?(\d+)\s*,?\s*(?:de\s*)?(\d{1,2}\/\d{1,2}\/\d{4})/i);
+    const dt = b.match(/a\s+contar\s+de\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
+    out[atual] = { data: dt ? dt[1] : "", bg: bg ? `BG nº ${bg[1]} de ${bg[2]}` : "" };
+  };
+  for (const linha of texto.split(/\n+/).map((x) => x.trim()).filter(Boolean)) {
+    // cabeçalho de alínea: "a) Cabo PM:" ou "b) - A 3º SARGENTO PM: a contar de ..."
+    const alinea = /^[a-z]\)/i.test(linha);
+    const coluna = COLUNA_PROM[grauDaLinha(linha)];
+    if (alinea) {
+      fecha();
+      atual = coluna || "";
+      bloco = coluna ? [linha.replace(/^[^:]*:/, "")] : [];
+    } else if (atual) {
+      bloco.push(linha);
+    }
   }
-  const atual = alvo[classificarPatente(ficha.postoGrad).ordem];
-  if (atual && !out[atual] && data(ficha.dataPromocao)) out[atual] = data(ficha.dataPromocao);
+  fecha();
+  return out;
+}
+
+/* Promoções: cada graduação de praça que ele já alcançou — "data" em cima,
+   "BG nº ... de ..." embaixo, como a Unidade escreve.
+
+   Data: do listão lançado no SIGEP; se não houver, "a contar de" do
+   histórico; para a graduação ATUAL, a data da ficha.
+   Boletim: do listão; se não houver, da seção IV do histórico.
+   Graduação que ele ainda NÃO alcançou é "S/A". */
+function promocoes(ficha: FichaPlanilha, lancadas: PromocaoLancada[], h: DadosHistorico | null): Record<string, string> {
+  const datas: Record<string, string> = {};
+  const bgs: Record<string, string> = {};
+  for (const p of lancadas) {
+    const chave = COLUNA_PROM[classificarPatente(p.postoNovo).ordem];
+    if (!chave) continue;
+    if (data(p.dataPromocao)) datas[chave] = data(p.dataPromocao);
+    if (s(p.referencia)) bgs[chave] = s(p.referencia);
+  }
+  const doHistorico = h ? lerSecaoPromocoes(s(h.secoes["IV"])) : {};
+  for (const [chave, v] of Object.entries(doHistorico)) {
+    if (!datas[chave] && v.data) datas[chave] = v.data;
+    if (!bgs[chave] && v.bg) bgs[chave] = v.bg;
+  }
+  const ordemAtual = classificarPatente(ficha.postoGrad).ordem;
+  const atual = COLUNA_PROM[ordemAtual];
+  if (atual && !datas[atual] && data(ficha.dataPromocao)) datas[atual] = data(ficha.dataPromocao);
+
+  const out: Record<string, string> = {};
+  for (const [ordem, chave] of Object.entries(COLUNA_PROM)) {
+    if (Number(ordem) < ordemAtual) { out[chave] = "S/A"; continue; }   // ainda não chegou lá
+    out[chave] = [datas[chave], bgs[chave]].filter(Boolean).join("\n");
+  }
   return out;
 }
 
@@ -232,8 +319,10 @@ function promocoes(ficha: FichaPlanilha, lancadas: PromocaoLancada[]): Record<st
 export function montarLinha(e: EntradaLinha): LinhaPlanilha {
   const f = e.ficha, h = e.historico;
   const cert = colunaCertidoes(e.certidoes);
-  const prom = promocoes(f, e.promocoes);
+  const prom = promocoes(f, e.promocoes, h);
   const campo = (k: string) => (h ? s(h.campos[k]) : "");
+  const praca = entraNaPlanilha(f.postoGrad);
+  const outrosCursos = h ? s(h.secoes["III.outros"]) : "";
 
   const auto: Record<string, [string, Origem]> = {
     grad: [siglaGrad(f.postoGrad), "ficha"],
@@ -243,22 +332,23 @@ export function montarLinha(e: EntradaLinha): LinhaPlanilha {
     id: [s(f.id), "ficha"],
     instrucao: [s(f.grauEscolaridade).toUpperCase(), "ficha"],
     incl: [data(f.dataIncorp), "ficha"],
-    qpmp: [campo("especialidade"), "histórico"],
+    // QPMP: toda praça do 18º é QPMP-0 (combatente); o histórico pode dizer outro
+    qpmp: [campo("especialidade") || "0", "histórico"],
     comport: [campo("comportamento"), "histórico"],
-    // a situação jurídica acompanha a conferência: só "sem alteração" depois
-    // que o P/1 leu as oito e deu o recebido
-    sitJuridica: [cert.valor === "S/A" ? "Sem alteração" : "", "certidões"],
+    // a situação jurídica acompanha a conferência: só "S/A" depois que o
+    // P/1 leu as oito e deu o recebido
+    sitJuridica: [cert.valor === "S/A" ? "S/A" : "", "certidões"],
     certidoes: [cert.valor, "certidões"],
     sitAdm: [sitAdministrativa(h), "histórico"],
-    cursos: [h ? s(h.secoes["III.outros"]) : "", "histórico"],
+    cursos: [h ? (vazioOuPadrao(outrosCursos) ? "S/A" : outrosCursos) : "", "histórico"],
     promCabo: [prom.promCabo || "", "promoções"],
     prom3: [prom.prom3 || "", "promoções"],
     prom2: [prom.prom2 || "", "promoções"],
     prom1: [prom.prom1 || "", "promoções"],
-    cefc: [cursoDoHistorico(h, "CEFC"), "histórico"],
-    cefs: [cursoDoHistorico(h, "CEFS"), "histórico"],
-    cap: [cursoDoHistorico(h, "CAP"), "histórico"],
-    eap: [cursoDoHistorico(h, "EAP"), "histórico"],
+    cefc: [cursoDoHistorico(h, "CEFC", praca), "histórico"],
+    cefs: [cursoDoHistorico(h, "CEFS", praca), "histórico"],
+    cap: [cursoDoHistorico(h, "CAP", praca), "histórico"],
+    eap: [cursoDoHistorico(h, "EAP", praca), "histórico"],
     elogios: ["", "P/1"],
     medalhas: [medalhas(h), "histórico"],
     conceito: ["", "P/1"],
@@ -280,6 +370,13 @@ export function montarLinha(e: EntradaLinha): LinhaPlanilha {
   if (!celulas.certidoes.manual && cert.pendente) pendencias.push(cert.pendente);
   if (!v("sitJuridica")) pendencias.push("situação jurídica");
   if (!v("comport")) pendencias.push("comportamento");
+  // graduação que ele já alcançou tem de ter data e boletim
+  for (const k of ["promCabo", "prom3", "prom2", "prom1"]) {
+    const t = v(k);
+    if (t === "S/A" || celulas[k].manual) continue;
+    if (!t) pendencias.push(`promoção a ${NOME_PROM[k]} (ou S/A, se não passou por ela)`);
+    else if (!/\bBG\b/i.test(t)) pendencias.push(`BG da promoção a ${NOME_PROM[k]}`);
+  }
   // Ficha Conceito é obrigatória a partir de Cabo (art. 3º, § 1º)
   if (classificarPatente(f.postoGrad).ordem <= 12 && !v("conceito")) pendencias.push("ficha conceito");
   if (!h) pendencias.push("sem histórico cadastrado");

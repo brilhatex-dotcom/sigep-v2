@@ -113,6 +113,34 @@ export default function PlanilhaPadraoPainel() {
     finally { setBaixando(false); }
   };
 
+  /* ---- preencher em lote: só as células EM BRANCO da coluna ----
+     Na planilha de agosto/2026 a Unidade escreveu "MB" na ficha conceito de
+     todos e "S/A" onde não havia elogio. Isso não se deduz do sistema — é
+     decisão do P/1 —, mas também não precisa ser digitado 200 vezes. */
+  const [lote, setLote] = useState({ chave: "conceito", valor: "MB" });
+  const [aplicando, setAplicando] = useState(false);
+  const emBranco = useMemo(
+    () => (dados ? dados.linhas.filter((l) => !l.celulas[lote.chave]?.valor).length : 0),
+    [dados, lote.chave],
+  );
+  const aplicarLote = async () => {
+    const titulo = dados?.colunas.find((c) => c.chave === lote.chave)?.titulo || lote.chave;
+    if (!lote.valor.trim() || !emBranco) return;
+    if (!confirm(`Escrever "${lote.valor.trim()}" em "${titulo}" dos ${emBranco} militar(es) que estão em branco nessa coluna?\n\nQuem já tem valor não é alterado.`)) return;
+    setAplicando(true);
+    try {
+      const r = await fetch("/api/promocoes/planilha", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chave: lote.chave, valor: lote.valor.trim() }),
+      });
+      const d = await r.json();
+      if (!r.ok) { avisar(d?.error || "Não foi possível gravar.", "erro"); return; }
+      avisar(`${d.preenchidos} célula(s) preenchida(s).`, "sucesso");
+      await carregar();
+    } catch { avisar("Sem conexão com o servidor.", "erro"); }
+    finally { setAplicando(false); }
+  };
+
   const r = dados?.resumo;
 
   return (
@@ -171,6 +199,28 @@ export default function PlanilhaPadraoPainel() {
                   <input type="checkbox" checked={soPendentes} onChange={(e) => setSoPendentes(e.target.checked)} />
                   Só quem tem pendência
                 </label>
+              </div>
+
+              <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-xs text-[#cbd5e1]">
+                <span className="font-semibold text-[#D4AF37]">Preencher os em branco:</span>
+                <select value={lote.chave} onChange={(e) => setLote({ ...lote, chave: e.target.value })}
+                  className="rounded border border-white/10 bg-[#0F1B2D] px-2 py-1 text-xs text-white outline-none">
+                  {dados.colunas.filter((c) => !c.identidade).map((c) => (
+                    <option key={c.chave} value={c.chave}>{c.titulo.trim()}</option>
+                  ))}
+                </select>
+                <span>com</span>
+                <input value={lote.valor} onChange={(e) => setLote({ ...lote, valor: e.target.value })} list="planilha-lote-sugestoes"
+                  className="w-28 rounded border border-white/10 bg-[#0F1B2D] px-2 py-1 text-xs text-white outline-none focus:border-[#D4AF37]/50" />
+                <datalist id="planilha-lote-sugestoes">
+                  <option value="MB" /><option value="B" /><option value="E" /><option value="S/A" /><option value="0" />
+                </datalist>
+                <button onClick={aplicarLote} disabled={aplicando || !emBranco || !lote.valor.trim()}
+                  className="inline-flex items-center gap-1 rounded bg-[#D4AF37]/15 px-2.5 py-1 font-semibold text-[#D4AF37] hover:bg-[#D4AF37]/25 disabled:opacity-40">
+                  {aplicando && <Loader2 className="h-3 w-3 animate-spin" />}
+                  Aplicar a {emBranco} em branco
+                </button>
+                <span className="text-[#6f82a0]">Não mexe em quem já tem valor.</span>
               </div>
 
               <p className="mb-2 text-[11px] text-[#6f82a0]">

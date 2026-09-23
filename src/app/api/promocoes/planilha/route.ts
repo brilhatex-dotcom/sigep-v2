@@ -5,7 +5,7 @@ import { podeVerP1 } from "@/lib/encargos";
 import { periodoAtivo } from "@/lib/promocoes";
 import { registrar } from "@/lib/auditoria";
 import { COLUNAS } from "@/lib/planilhaPadrao";
-import { carregarPlanilha, colunaEditavel, salvarManual } from "@/lib/planilhaPadraoDb";
+import { carregarPlanilha, colunaEditavel, salvarEmLote, salvarManual } from "@/lib/planilhaPadraoDb";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +50,48 @@ export async function GET() {
   } catch (err) {
     console.error("[GET /api/promocoes/planilha]", err);
     return NextResponse.json({ error: "Falha ao montar a planilha." }, { status: 503 });
+  }
+}
+
+/* POST { chave, valor, grads? } — preenche a coluna de quem ainda está em
+   BRANCO nela. Nunca passa por cima do que já tem valor, seja calculado pelo
+   sistema, seja escrito pelo P/1: é o "MB para todo mundo que falta", não um
+   apagador. `grads` (siglas: CB, 3SGT...) restringe a algumas graduações. */
+export async function POST(req: Request) {
+  const quem = await autorizado();
+  if (!quem) return NextResponse.json({ error: "Apenas o P/1." }, { status: 403 });
+
+  const periodo = await periodoAtivo();
+  if (!periodo) return NextResponse.json({ error: "Nenhum período de promoção aberto." }, { status: 400 });
+
+  try {
+    const b = await req.json();
+    const chave = String(b?.chave || "").trim();
+    const valor = String(b?.valor ?? "").trim();
+    const grads: string[] = Array.isArray(b?.grads) ? b.grads.map(String) : [];
+    if (!colunaEditavel(chave)) {
+      return NextResponse.json({ error: "Esta coluna vem da ficha do militar — corrija lá." }, { status: 400 });
+    }
+    if (!valor) return NextResponse.json({ error: "Diga o que escrever." }, { status: 400 });
+
+    const linhas = await carregarPlanilha(periodo.id);
+    const alvo = linhas
+      .filter((l) => !grads.length || grads.includes(l.celulas.grad.valor))
+      .filter((l) => !l.celulas[chave]?.valor)
+      .map((l) => l.efetivoId);
+    const n = alvo.length ? await salvarEmLote(periodo.id, alvo, chave, valor, quem.login) : 0;
+
+    const titulo = COLUNAS.find((c) => c.chave === chave)?.titulo || chave;
+    if (n) {
+      await registrar({
+        acao: "planilha_padrao_lote", alvo: periodo.id,
+        detalhe: `Preencheu "${titulo}" = ${valor.slice(0, 60)} em ${n} militar(es) que estavam em branco (${periodo.nome}).`,
+      });
+    }
+    return NextResponse.json({ ok: true, preenchidos: n });
+  } catch (err) {
+    console.error("[POST /api/promocoes/planilha]", err);
+    return NextResponse.json({ error: "Falha ao gravar." }, { status: 503 });
   }
 }
 

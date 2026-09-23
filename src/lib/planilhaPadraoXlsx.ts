@@ -12,7 +12,7 @@ import { COLUNAS, type LinhaPlanilha } from "@/lib/planilhaPadrao";
    diferente ou cabeçalho mexido viram retrabalho lá — ou devolução.
 
    O que se mexe no modelo, e só isso:
-     · "XXXX BATALHÃO" vira "18º BATALHÃO DE POLÍCIA MILITAR";
+     · "XXXX BATALHÃO" vira "18º BATALHÃO" (como na planilha de agosto/2026);
      · as linhas de exemplo (Francisco de Tal, Fulano de Tal) saem, e entram
        os militares, a partir da linha 8, na ordem de antiguidade;
      · o termo de assinatura ("Quartel em cidade - MA, xx de mês...") desce
@@ -70,6 +70,24 @@ function alturaDaLinha(ws: ExcelJS.Worksheet, valores: string[]): number {
   return Math.min(409, Math.max(15.75, linhas * 12.75 + 3));
 }
 
+/* Como a Unidade preenche (planilha de agosto/2026): matrícula, ID, QPMP e as
+   quantidades são NÚMERO, e a inclusão é DATA de verdade — dá para ordenar e
+   filtrar no Excel, e a Comissão consolida sem "número armazenado como
+   texto". Texto com zero à esquerda continua texto (senão o zero some). */
+const NUMERICAS = new Set(["mat", "id", "qpmp", "elogios", "medalhas"]);
+export function valorDaCelula(chave: string, v: string): string | number | Date {
+  if (NUMERICAS.has(chave) && /^(0|[1-9]\d{0,14})$/.test(v)) return Number(v);
+  if (chave === "incl") {
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v);
+    // meia-noite UTC: o Excel não tem fuso, e a data não pode "voltar um dia"
+    if (m) return new Date(Date.UTC(+m[3], +m[2] - 1, +m[1]));
+  }
+  return v;
+}
+
+// texto corrido à esquerda; o resto centralizado, como na planilha da Unidade
+const A_ESQUERDA = new Set(["nome", "cursos", "promCabo", "prom3", "prom2", "prom1", "cefc", "cefs", "cap", "eap", "conceito"]);
+
 export type Assinante = { nome: string; cargo: string };
 
 export async function gerarPlanilhaXlsx(
@@ -83,7 +101,7 @@ export async function gerarPlanilhaXlsx(
 
   // ---- cabeçalho: só o nome da unidade muda ----
   const a1 = ws.getCell("A1");
-  a1.value = String(a1.value ?? "").replace(/X+\s*BATALH[ÃA]O/i, "18º BATALHÃO DE POLÍCIA MILITAR");
+  a1.value = String(a1.value ?? "").replace(/X+\s*BATALH[ÃA]O/i, "18º BATALHÃO");
 
   // ---- guarda o estilo do termo de assinatura antes de mexer nas linhas ----
   const estiloTermo = { ...ws.getCell("A26").style };
@@ -126,10 +144,12 @@ export async function gerarPlanilhaXlsx(
     const valores = COLUNAS.map((c) => l.celulas[c.chave]?.valor ?? "");
     const row = ws.getRow(PRIMEIRA_LINHA + i);
     valores.forEach((v, c) => {
+      const chave = COLUNAS[c].chave;
       const cel = row.getCell(c + 1);
-      cel.value = v;
+      cel.value = valorDaCelula(chave, v);
+      if (chave === "incl" && cel.value instanceof Date) cel.numFmt = "dd/mm/yyyy";
       cel.font = { name: "Times New Roman", size: 10 };
-      cel.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+      cel.alignment = { horizontal: A_ESQUERDA.has(chave) ? "left" : "center", vertical: "middle", wrapText: true };
       cel.border = grade;
     });
     row.height = alturaDaLinha(ws, valores);

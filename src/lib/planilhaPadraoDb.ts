@@ -80,6 +80,26 @@ export async function salvarManual(
   return atual;
 }
 
+/* Preenche de uma vez a mesma coluna de vários militares (ex.: FICHA
+   CONCEITO "MB" ou ELOGIOS "S/A" para quem ainda está em branco). Uma leitura
+   só do que já existe, e uma gravação por militar. */
+export async function salvarEmLote(
+  periodoId: string, efetivoIds: string[], chave: string, valor: string, por: string,
+): Promise<number> {
+  await garantir();
+  const todos = await lerManuais(periodoId);
+  for (const id of efetivoIds) {
+    const atual = { ...(todos.get(id) || {}), [chave]: valor.slice(0, 500) };
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO promocao_planilha (periodo_id, efetivo_id, dados, atualizado_em, atualizado_por)
+       VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4)
+       ON CONFLICT (periodo_id, efetivo_id) DO UPDATE
+         SET dados = EXCLUDED.dados, atualizado_em = CURRENT_TIMESTAMP, atualizado_por = EXCLUDED.atualizado_por`,
+      periodoId, id, JSON.stringify(atual), por);
+  }
+  return efetivoIds.length;
+}
+
 export type LinhaComNome = LinhaPlanilha & { rotulo: string };
 
 /* Monta a planilha inteira do período, JÁ na ordem de antiguidade.
