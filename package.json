@@ -24,6 +24,7 @@
     "bcryptjs": "2.4.3",
     "docx": "^9.7.1",
     "docxtemplater": "^3.69.0",
+    "exceljs": "^4.4.0",
     "framer-motion": "^12.40.0",
     "jszip": "^3.10.1",
     "leaflet": "^1.9.4",

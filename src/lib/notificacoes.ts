@@ -4,6 +4,8 @@ import { podeComoEncargo, podeVerP1 } from "@/lib/encargos";
 import { garantirChatSilencioso } from "@/lib/chatDb";
 import { envolvemEfetivo, lerPecunia, refAssinatura, TIPO_ASSINATURA, faltaBanco } from "@/lib/requerimentoPecunia";
 import { refsAssinadas } from "@/lib/assinaturaSigep";
+import { periodoAtivo } from "@/lib/promocoes";
+import { pendentesDeConferencia } from "@/lib/promocaoAvisos";
 
 /* =========================================================================
    AS QUATRO FONTES DO SININHO, NUM LUGAR SÓ
@@ -283,16 +285,44 @@ export async function notificacoesPecunia(quem: Quem): Promise<Notificacao[]> {
   }
 }
 
+/* Certidões de promoção esperando o P/1 conferir.
+
+   So para quem responde pela conferencia (Chefe/Aux P/1, ou admin enquanto
+   nao houver Chefe cadastrado — a mesma regra de podeVerP1). Uma linha so,
+   com a contagem: em epoca de promocao seriam dezenas de envios, e uma linha
+   por militar enterraria o resto do sino. O id leva a contagem, entao cada
+   envio novo volta a acender o sino. */
+export async function notificacoesPromocao(quem: Quem): Promise<Notificacao[]> {
+  try {
+    if (!(await podeVerP1(quem.refEfetivo || null, ehAdmin(quem.perfil)))) return [];
+    const periodo = await periodoAtivo();
+    if (!periodo) return [];
+    const n = await pendentesDeConferencia(periodo.id);
+    if (!n) return [];
+    return [{
+      id: `promo-p1:${periodo.id}:${n}`,
+      texto: n === 1
+        ? `1 militar enviou as certidões da ${periodo.nome} e aguarda a conferência do P/1.`
+        : `${n} militares enviaram as certidões da ${periodo.nome} e aguardam a conferência do P/1.`,
+      em: new Date().toISOString(),
+      href: "/promocoes",
+    }];
+  } catch {
+    return [];
+  }
+}
+
 /* A lista completa do sino, na MESMA ordem que ele montava quando fazia as
    quatro chamadas: segurança, férias, chat, permutas — com a premiação
    pecuniária logo depois dos memorandos, que é o assunto mais próximo. */
 export async function todasNotificacoes(quem: Quem): Promise<Notificacao[]> {
-  const [seg, fer, pec, cha, per] = await Promise.all([
+  const [seg, fer, pec, pro, cha, per] = await Promise.all([
     alertasSeguranca(quem),
     notificacoesFerias(quem),
     notificacoesPecunia(quem),
+    notificacoesPromocao(quem),
     notificacoesChat(quem),
     notificacoesPermutas(quem),
   ]);
-  return [...seg, ...fer, ...pec, ...cha, ...per];
+  return [...seg, ...fer, ...pec, ...pro, ...cha, ...per];
 }
