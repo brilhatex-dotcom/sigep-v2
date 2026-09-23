@@ -21,11 +21,14 @@ import { avisar } from "@/components/Avisos";
      · normal  -> calculada pelo sistema (passe o mouse para ver de onde veio);
      · dourada -> o P/1 escreveu por cima (o ↺ devolve ao cálculo);
      · azul    -> dos "Dados para Promoção" da ficha do militar;
+   Correção nas colunas marcadas "ficha" vai para a FICHA do militar (e vale
+   nas próximas promoções); certidões e situação jurídica/administrativa
+   ficam só na planilha do período.
      · cinza   -> identidade (graduação, nome, matrícula, ID) — corrige-se na
                   ficha, não aqui.
    ========================================================================= */
 
-type Coluna = { chave: string; titulo: string; identidade?: boolean };
+type Coluna = { chave: string; titulo: string; identidade?: boolean; naFicha?: boolean };
 type Celula = { valor: string; origem: string; manual: boolean };
 type Linha = { efetivoId: string; rotulo: string; celulas: Record<string, Celula>; pendencias: string[] };
 type Resposta = {
@@ -60,14 +63,15 @@ export default function PlanilhaPadraoPainel() {
   const [editando, setEditando] = useState<{ efetivoId: string; chave: string; valor: string } | null>(null);
   const [gravando, setGravando] = useState(false);
 
-  const carregar = useCallback(async () => {
+  const carregar = useCallback(async (): Promise<Resposta | null> => {
     setCarregando(true); setErro("");
     try {
       const r = await fetch("/api/promocoes/planilha", { cache: "no-store" });
       const d = await r.json();
-      if (!r.ok) { setErro(d?.error || "Não foi possível montar a planilha."); return; }
+      if (!r.ok) { setErro(d?.error || "Não foi possível montar a planilha."); return null; }
       setDados(d);
-    } catch { setErro("Sem conexão com o servidor."); }
+      return d;
+    } catch { setErro("Sem conexão com o servidor."); return null; }
     finally { setCarregando(false); }
   }, []);
 
@@ -97,7 +101,18 @@ export default function PlanilhaPadraoPainel() {
       /* Recarrega a planilha inteira, e não só a célula: mexer na situação
          jurídica ou na ficha conceito muda as PENDÊNCIAS da linha, e o
          resumo lá em cima tem de acompanhar. */
-      await carregar();
+      const novo = await carregar();
+      if (d.gravadoNaFicha && valor !== null) {
+        /* Gravou na ficha, mas o histórico mostra outra coisa e vence (ex.:
+           "S/A" num curso que o histórico nomeia). Avisa, senão parece que
+           a correção não pegou. */
+        const cel = novo?.linhas.find((l) => l.efetivoId === efetivoId)?.celulas[chave];
+        if (cel && cel.valor.trim() !== valor.trim()) {
+          avisar(`Gravado na ficha, mas a planilha mostra "${cel.valor}" porque o ${cel.origem} diz isso. Corrija lá, se estiver errado.`, "atencao");
+        } else {
+          avisar("Gravado na ficha do militar.", "sucesso");
+        }
+      }
     } catch { avisar("Sem conexão com o servidor.", "erro"); }
     finally { setGravando(false); }
   };
@@ -312,7 +327,7 @@ export default function PlanilhaPadraoPainel() {
                 <span className="font-semibold text-[#D4AF37]">Preencher os em branco:</span>
                 <select value={lote.chave} onChange={(e) => setLote({ ...lote, chave: e.target.value })}
                   className="rounded border border-white/10 bg-[#0F1B2D] px-2 py-1 text-xs text-white outline-none">
-                  {dados.colunas.filter((c) => !c.identidade).map((c) => (
+                  {dados.colunas.filter((c) => !c.identidade && !["instrucao", "incl", "num"].includes(c.chave)).map((c) => (
                     <option key={c.chave} value={c.chave}>{c.titulo.trim()}</option>
                   ))}
                 </select>
@@ -331,9 +346,10 @@ export default function PlanilhaPadraoPainel() {
               </div>
 
               <p className="mb-2 text-[11px] text-[#6f82a0]">
-                Clique numa célula para preencher ou corrigir. <span className="text-[#D4AF37]">Dourado</span> = escrito pelo P/1
-                (o ↺ devolve ao cálculo). <span className="text-sky-300">Azul</span> = vem dos Dados para Promoção da ficha.
-                Cinza = vem da ficha — corrija na ficha. Passe o mouse para ver a origem de cada dado.
+                Clique numa célula para preencher ou corrigir. Nas colunas marcadas <span className="text-sky-300">ficha</span>, a correção
+                vai direto para a ficha do militar e já vale nas próximas promoções. Certidões e situação jurídica/administrativa ficam
+                só nesta planilha (<span className="text-[#D4AF37]">dourado</span>; o ↺ devolve ao cálculo).
+                <span className="text-sky-300"> Azul</span> = veio dos Dados para Promoção da ficha. Cinza = identidade — corrija na ficha.
               </p>
 
               {/* ---- a tabela ---- */}
@@ -345,8 +361,10 @@ export default function PlanilhaPadraoPainel() {
                       <th className="min-w-[200px] border-b border-r border-white/10 px-2 py-2 text-left">Pendências</th>
                       {dados.colunas.map((c) => (
                         <th key={c.chave} style={{ minWidth: LARGURA[c.chave] || 90 }}
+                          title={c.naFicha ? "O que você corrigir nesta coluna vai para a ficha do militar" : c.identidade ? undefined : "Vale só para esta planilha (este período)"}
                           className="border-b border-r border-white/10 px-2 py-2 text-left font-semibold text-[#cbd5e1]">
                           {c.titulo}
+                          {c.naFicha && <span className="ml-1 rounded bg-sky-500/15 px-1 text-[9px] font-normal text-sky-300">ficha</span>}
                         </th>
                       ))}
                     </tr>
@@ -369,8 +387,9 @@ export default function PlanilhaPadraoPainel() {
                           const ed = editando && editando.efetivoId === l.efetivoId && editando.chave === c.chave;
                           return (
                             <td key={c.chave}
-                              title={c.identidade ? "Vem da ficha — corrija na ficha do militar" : cel.manual ? "Escrito pelo P/1"
-                                : cel.origem === "dados de promoção" ? "Dos Dados para Promoção da ficha (clique para corrigir só nesta planilha)" : `Calculado: ${cel.origem}`}
+                              title={c.identidade ? "Vem da ficha — corrija na ficha do militar"
+                                : cel.manual ? "Escrito pelo P/1 só nesta planilha"
+                                : `Origem: ${cel.origem}` + (c.naFicha ? " — clique para corrigir; grava na ficha do militar" : " — clique para corrigir só nesta planilha")}
                               className={
                                 "group border-b border-r border-white/5 px-2 py-1.5 align-top " +
                                 (c.identidade ? "text-[#94A3B8]" : cel.manual ? "bg-[#D4AF37]/10 text-[#f3df9d]"

@@ -34,6 +34,7 @@ export const CAMPOS_PROMOCAO: CampoPromocao[] = [
   { chave: "qpmp", rotulo: "QPMP", dica: "0 = combatente", grupo: "outros" },
 ];
 const CHAVES = new Set(CAMPOS_PROMOCAO.map((c) => c.chave));
+export const ehCampoPromocao = (chave: string) => CHAVES.has(chave);
 
 let pronto: Promise<void> | null = null;
 function garantir(): Promise<void> {
@@ -75,6 +76,16 @@ export async function lerTodosDadosPromocao(): Promise<Map<string, Record<string
   await garantir();
   const rows: any[] = await prisma.$queryRawUnsafe(`SELECT efetivo_id, dados FROM efetivo_dados_promocao`);
   return new Map(rows.map((r) => [String(r.efetivo_id), lerJson(r.dados)]));
+}
+
+/* Grava UM campo de um militar (a correção feita na tela da Planilha
+   Padrão). Vazio ou null apaga o campo da ficha. */
+export async function definirCampoPromocao(efetivoId: string, chave: string, valor: string | null, por: string): Promise<void> {
+  if (!CHAVES.has(chave)) throw new Error(`campo de promoção desconhecido: ${chave}`);
+  const atual = (await lerDadosPromocao(efetivoId)).dados;
+  const v = (valor ?? "").trim();
+  if (v) atual[chave] = v; else delete atual[chave];
+  await salvarDadosPromocao([{ efetivoId, dados: atual }], "tudo", "Corrigido na Planilha Padrão", por);
 }
 
 /* Grava os dados de um ou mais militares.
