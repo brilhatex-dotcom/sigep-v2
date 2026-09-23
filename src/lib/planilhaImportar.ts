@@ -8,14 +8,15 @@ import ExcelJS from "exceljs";
    quantos elogios e medalhas, a data de inclusão que ficou em branco na
    ficha. Digitar isso de novo é retrabalho; perder é pior.
 
-   O que se faz com cada dado:
-     · ficha do efetivo -> só preenche o que está VAZIO (inclusão,
-       escolaridade, número). Ficha preenchida nunca é sobrescrita: ela é a
-       fonte oficial e pode estar mais nova que a planilha;
-     · o resto vira REFERÊNCIA do militar (tabela planilha_referencia): a
-       Planilha Padrão usa quando o sistema não tem o dado, marcado como
-       "planilha anterior" para o P/1 conferir. Nunca passa por cima do que
-       o histórico ou as certidões dizem.
+   O que se faz com cada dado — tudo vai para a FICHA do militar:
+     · dados funcionais (inclusão, escolaridade, número) -> só onde está
+       VAZIO. Ficha preenchida nunca é sobrescrita: ela é a fonte oficial e
+       pode estar mais nova que a planilha;
+     · o resto -> seção "Dados para Promoção" da ficha (src/lib/dadosPromocao.ts):
+       BG das promoções, CEFC/CEFS/CAP/EAP com nota, cursos, elogios,
+       medalhas, conceito, comportamento, QPMP. Dali a Planilha Padrão puxa
+       em toda promoção. Por padrão só completa campo vazio; o P/1 pode
+       mandar atualizar com uma planilha mais nova.
 
    O que NÃO se importa: certidões, situação jurídica e situação
    administrativa. Essas valem só para o ciclo delas — trazer o "S/A" de
@@ -178,15 +179,15 @@ const tituloProprio = (t: string) =>
 export const CAMPOS_FICHA: Record<string, "dataIncorp" | "grauEscolaridade" | "numeroBarra"> = {
   incl: "dataIncorp", instrucao: "grauEscolaridade", num: "numeroBarra",
 };
-export const CAMPOS_REFERENCIA = [
-  "instrucao", "incl", "qpmp", "comport", "cursos", "promCabo", "prom3", "prom2", "prom1",
+export const CAMPOS_DADOS_PROMOCAO = [
+  "qpmp", "comport", "cursos", "promCabo", "prom3", "prom2", "prom1",
   "cefc", "cefs", "cap", "eap", "elogios", "medalhas", "conceito",
 ];
 
 export type PlanoMilitar = {
   efetivoId: string;
   ficha: Partial<Record<"dataIncorp" | "grauEscolaridade" | "numeroBarra", string>>;
-  referencia: Record<string, string>;
+  promocao: Record<string, string>;   // seção "Dados para Promoção" da ficha
 };
 
 export function planejar(casadas: ReturnType<typeof casar>["casadas"]): PlanoMilitar[] {
@@ -199,8 +200,8 @@ export function planejar(casadas: ReturnType<typeof casar>["casadas"]): PlanoMil
       if (campo === "dataIncorp" && !/^\d{2}\/\d{2}\/\d{4}$/.test(novo)) continue;
       ficha[campo] = campo === "grauEscolaridade" ? tituloProprio(novo) : novo;
     }
-    const referencia: Record<string, string> = {};
-    for (const k of CAMPOS_REFERENCIA) if (v[k]) referencia[k] = v[k];
-    return { efetivoId: militar.id, ficha, referencia };
+    const promocao: Record<string, string> = {};
+    for (const k of CAMPOS_DADOS_PROMOCAO) if (v[k]) promocao[k] = v[k];
+    return { efetivoId: militar.id, ficha, promocao };
   });
 }

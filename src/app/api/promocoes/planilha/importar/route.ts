@@ -6,12 +6,12 @@ import { podeVerP1 } from "@/lib/encargos";
 import { registrar } from "@/lib/auditoria";
 import { idsInativos, semInativos } from "@/lib/inativos";
 import { lerPlanilhaAnterior, casar, planejar } from "@/lib/planilhaImportar";
-import { salvarReferencias } from "@/lib/planilhaPadraoDb";
+import { salvarDadosPromocao } from "@/lib/dadosPromocao";
 
 export const dynamic = "force-dynamic";
 
 /* =========================================================================
-   POST /api/promocoes/planilha/importar  (multipart: arquivo, aplicar)
+   POST /api/promocoes/planilha/importar  (multipart: arquivo, aplicar, substituir)
 
    Lê uma Planilha Padrão já preenchida (a de agosto/2026, por exemplo) e
    aproveita o que o sistema ainda não sabe — regras em src/lib/planilhaImportar.ts.
@@ -19,7 +19,9 @@ export const dynamic = "force-dynamic";
    Em DOIS passos, de propósito:
      aplicar=0 -> só confere: quantas linhas casaram, com quem, o que iria
                   para a ficha e quem não foi encontrado. Nada é gravado.
-     aplicar=1 -> grava.
+     aplicar=1 -> grava na ficha de cada militar. Com substituir=1, o que a
+                  planilha traz passa por cima dos Dados para Promoção já
+                  preenchidos (planilha mais nova); sem ele, só completa.
    Mexer em ficha de duzentos militares a partir de um Excel sem o P/1 ver
    antes o que vai acontecer seria pedir para errar em lote.
 
@@ -44,6 +46,7 @@ export async function POST(req: Request) {
     const form = await req.formData();
     const arq = form.get("arquivo");
     const aplicar = form.get("aplicar") === "1";
+    const substituir = form.get("substituir") === "1";
     if (!arq || typeof arq === "string") return NextResponse.json({ error: "Envie o arquivo .xlsx." }, { status: 400 });
     if (!/\.xlsx$/i.test(arq.name)) return NextResponse.json({ error: "O arquivo precisa ser .xlsx (Excel)." }, { status: 400 });
     if (arq.size > 4 * 1024 * 1024) return NextResponse.json({ error: "Arquivo grande demais (máx. 4 MB)." }, { status: 400 });
@@ -76,7 +79,7 @@ export async function POST(req: Request) {
       porComo,
       naoEncontrados: sobras.map((l) => ({ linha: l.linha, grad: l.valores.grad || "", nome: l.valores.nome || "" })),
       ficha: fichaPorCampo,
-      referencias: plano.filter((p) => Object.keys(p.referencia).length).length,
+      promocao: plano.filter((p) => Object.keys(p.promocao).length).length,
       // os casados por NOME, para o P/1 conferir: é o único casamento sem número
       porNome: casadas.filter((c) => c.por === "nome").map((c) => {
         const e = efetivo.find((x) => x.id === c.militar.id);
@@ -86,7 +89,7 @@ export async function POST(req: Request) {
 
     if (!aplicar) return NextResponse.json({ ok: true, aplicado: false, resumo });
 
-    // ---- grava: ficha só onde está vazia (o plano já garante), e a referência ----
+    // ---- grava: dados funcionais só onde estão vazios (o plano já garante) e os Dados para Promoção ----
     const agora = new Date().toISOString();
     let fichas = 0;
     for (const p of plano) {
@@ -94,16 +97,17 @@ export async function POST(req: Request) {
       await prisma.efetivo.update({ where: { id: p.efetivoId }, data: { ...p.ficha, ultimaAtualizacao: agora } });
       fichas++;
     }
-    await salvarReferencias(
-      plano.filter((p) => Object.keys(p.referencia).length).map((p) => ({ efetivoId: p.efetivoId, dados: p.referencia })),
-      arq.name, login,
+    const promocoes = await salvarDadosPromocao(
+      plano.filter((p) => Object.keys(p.promocao).length).map((p) => ({ efetivoId: p.efetivoId, dados: p.promocao })),
+      substituir ? "atualizar" : "completar", `Importado de ${arq.name}`, login,
     );
     await registrar({
       acao: "planilha_importar", alvo: arq.name,
       detalhe: `Importou a planilha "${arq.name}": ${casadas.length} de ${lido.linhas.length} linha(s) casadas; ` +
-        `${fichas} ficha(s) completada(s) (${Object.entries(fichaPorCampo).map(([k, n]) => `${k}: ${n}`).join(", ") || "nada vazio"}).`,
+        `${fichas} ficha(s) completada(s) (${Object.entries(fichaPorCampo).map(([k, n]) => `${k}: ${n}`).join(", ") || "nada vazio"}); ` +
+        `Dados para Promoção gravados em ${promocoes} ficha(s)${substituir ? " (substituindo)" : " (só campos vazios)"}.`,
     });
-    return NextResponse.json({ ok: true, aplicado: true, resumo: { ...resumo, fichasAtualizadas: fichas } });
+    return NextResponse.json({ ok: true, aplicado: true, resumo: { ...resumo, fichasAtualizadas: fichas, promocoesGravadas: promocoes } });
   } catch (err) {
     console.error("[POST /api/promocoes/planilha/importar]", err);
     return NextResponse.json({ error: "Falha ao importar a planilha." }, { status: 503 });

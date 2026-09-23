@@ -11,6 +11,9 @@ import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
 import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
 import { lugarDoUsuario } from "@/lib/lugarUsuario";
 import { pertenceAoNo } from "@/lib/organograma";
+import { podeVerP1 } from "@/lib/encargos";
+import { entraNaPlanilha } from "@/lib/planilhaPadrao";
+import DadosPromocaoCard from "@/components/DadosPromocaoCard";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +71,8 @@ export default async function FichaEfetivoPage({
 
   const ehDono = meuEfetivo === m.id;
   const podeEditar = ehAdmin || ehDono;
+  // Dados para Promoção: só praça (Sd a 1º Sgt), e só o P/1 ou o próprio militar vê
+  const verDadosPromocao = entraNaPlanilha(m.postoGrad) && (ehDono || (await podeVerP1(meuEfetivo || null, ehAdmin)));
 
   // Situacao calculada — mesma composicao da lista de efetivo, para a ficha
   // nunca discordar dela: plano de ferias + ferias avulsas (datas soltas) +
@@ -256,6 +261,7 @@ export default async function FichaEfetivoPage({
               </div>
             </section>
           ))}
+          {verDadosPromocao && <DadosPromocaoCard efetivoId={m.id} />}
         </div>
       </div>
     </AppShell>
