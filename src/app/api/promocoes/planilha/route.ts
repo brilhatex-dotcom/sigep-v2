@@ -5,14 +5,15 @@ import { podeVerP1 } from "@/lib/encargos";
 import { periodoAtivo } from "@/lib/promocoes";
 import { registrar } from "@/lib/auditoria";
 import { COLUNAS } from "@/lib/planilhaPadrao";
-import { carregarPlanilha, colunaEditavel, salvarEmLote, salvarManual } from "@/lib/planilhaPadraoDb";
+import { carregarPlanilha, colunaEditavel, lerLimite, salvarEmLote, salvarManual } from "@/lib/planilhaPadraoDb";
 
 export const dynamic = "force-dynamic";
 
 /* =========================================================================
    /api/promocoes/planilha — a Planilha Padrão do período ativo.
 
-   GET -> { periodo, colunas, linhas, resumo }
+   GET  -> { periodo, colunas, linhas, limiteDefinido, resumo }
+   POST -> { chave, valor }  preenche os em branco de uma coluna
    PUT -> { efetivoId, chave, valor }  grava o que o P/1 escreveu numa célula
           (valor null devolve a célula ao cálculo automático)
 
@@ -40,12 +41,17 @@ export async function GET() {
 
   try {
     const linhas = await carregarPlanilha(periodo.id);
-    const prontas = linhas.filter((l) => l.pendencias.length === 0).length;
+    /* Vão TODOS (com a marca dentroDoLimite): a tela precisa dos de fora para
+       o P/1 montar e conferir o limite. O resumo conta só os de dentro — é
+       deles a planilha que sobe para a CPPPM. */
+    const dentro = linhas.filter((l) => l.dentroDoLimite);
+    const prontas = dentro.filter((l) => l.pendencias.length === 0).length;
     return NextResponse.json({
       periodo: { id: periodo.id, nome: periodo.nome },
       colunas: COLUNAS,
       linhas,
-      resumo: { total: linhas.length, prontas, pendentes: linhas.length - prontas },
+      limiteDefinido: (await lerLimite(periodo.id)).size > 0,
+      resumo: { total: dentro.length, prontas, pendentes: dentro.length - prontas, efetivo: linhas.length },
     });
   } catch (err) {
     console.error("[GET /api/promocoes/planilha]", err);
@@ -76,6 +82,7 @@ export async function POST(req: Request) {
 
     const linhas = await carregarPlanilha(periodo.id);
     const alvo = linhas
+      .filter((l) => l.dentroDoLimite)
       .filter((l) => !grads.length || grads.includes(l.celulas.grad.valor))
       .filter((l) => !l.celulas[chave]?.valor)
       .map((l) => l.efetivoId);

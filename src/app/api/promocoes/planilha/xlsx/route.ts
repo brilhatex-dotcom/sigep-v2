@@ -29,7 +29,8 @@ export async function GET() {
   if (!periodo) return NextResponse.json({ error: "Nenhum período de promoção aberto." }, { status: 400 });
 
   try {
-    const linhas = await carregarPlanilha(periodo.id);
+    // só quem está dentro do Limite Quantitativo (todos, se o limite não foi definido)
+    const linhas = (await carregarPlanilha(periodo.id)).filter((l) => l.dentroDoLimite);
 
     let assinante = { nome: "", cargo: "Chefe do P/1 do 18º BPM" };
     try {

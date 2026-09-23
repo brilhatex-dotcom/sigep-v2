@@ -36,6 +36,24 @@ function garantir(): Promise<void> {
           atualizado_por text,
           CONSTRAINT promocao_planilha_pkey PRIMARY KEY (periodo_id, efetivo_id)
         )`);
+      // o que veio da planilha de um ciclo anterior: por MILITAR, não por período
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS planilha_referencia (
+          efetivo_id text PRIMARY KEY,
+          dados text NOT NULL DEFAULT '{}',
+          fonte text,
+          importado_em timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          importado_por text
+        )`);
+      // quem está dentro do Limite Quantitativo do período (art. 2º, I, e art. 5º)
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS promocao_limite (
+          periodo_id text NOT NULL,
+          efetivo_id text NOT NULL,
+          incluido_em timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          incluido_por text,
+          CONSTRAINT promocao_limite_pkey PRIMARY KEY (periodo_id, efetivo_id)
+        )`);
     })().catch((e) => { pronto = null; throw e; });
   }
   return pronto;
@@ -100,7 +118,63 @@ export async function salvarEmLote(
   return efetivoIds.length;
 }
 
-export type LinhaComNome = LinhaPlanilha & { rotulo: string };
+/* ---------------------------------------------------- planilha anterior */
+
+export async function lerReferencias(): Promise<Map<string, Record<string, string>>> {
+  await garantir();
+  const rows: any[] = await prisma.$queryRawUnsafe(`SELECT efetivo_id, dados FROM planilha_referencia`);
+  return new Map(rows.map((r) => [String(r.efetivo_id), lerJson(r.dados)]));
+}
+
+/* Grava a referência de cada militar. O que veio agora substitui o que havia
+   coluna por coluna (uma planilha nova de dezembro corrige a de agosto), mas
+   coluna que a planilha nova não trouxe fica como estava. */
+export async function salvarReferencias(
+  itens: { efetivoId: string; dados: Record<string, string> }[], fonte: string, por: string,
+): Promise<void> {
+  await garantir();
+  const atuais = await lerReferencias();
+  for (const it of itens) {
+    const dados = { ...(atuais.get(it.efetivoId) || {}), ...it.dados };
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO planilha_referencia (efetivo_id, dados, fonte, importado_em, importado_por)
+       VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4)
+       ON CONFLICT (efetivo_id) DO UPDATE
+         SET dados = EXCLUDED.dados, fonte = EXCLUDED.fonte,
+             importado_em = CURRENT_TIMESTAMP, importado_por = EXCLUDED.importado_por`,
+      it.efetivoId, JSON.stringify(dados), fonte.slice(0, 200), por);
+  }
+}
+
+/* --------------------------------------------------- limite quantitativo */
+
+/* Quem está dentro do limite no período. Conjunto VAZIO = o P/1 ainda não
+   definiu o limite, e a planilha mostra todo o efetivo de Sd a 1º Sgt. */
+export async function lerLimite(periodoId: string): Promise<Set<string>> {
+  await garantir();
+  const rows: any[] = await prisma.$queryRawUnsafe(
+    `SELECT efetivo_id FROM promocao_limite WHERE periodo_id = $1`, periodoId);
+  return new Set(rows.map((r) => String(r.efetivo_id)));
+}
+
+export async function marcarLimite(periodoId: string, efetivoIds: string[], dentro: boolean, por: string): Promise<void> {
+  await garantir();
+  if (!efetivoIds.length) return;
+  // uma consulta só para a lista inteira: na primeira marcação são 200 militares
+  if (dentro) {
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO promocao_limite (periodo_id, efetivo_id, incluido_em, incluido_por)
+       SELECT $1, x, CURRENT_TIMESTAMP, $3 FROM unnest($2::text[]) AS x
+       ON CONFLICT (periodo_id, efetivo_id) DO NOTHING`,
+      periodoId, efetivoIds, por);
+  } else {
+    await prisma.$executeRawUnsafe(
+      `DELETE FROM promocao_limite WHERE periodo_id = $1 AND efetivo_id = ANY($2::text[])`,
+      periodoId, efetivoIds);
+  }
+}
+
+export type LinhaComNome = LinhaPlanilha & { rotulo: string; dentroDoLimite: boolean };
 
 /* Monta a planilha inteira do período, JÁ na ordem de antiguidade.
 
@@ -149,6 +223,8 @@ export async function carregarPlanilha(periodoId: string): Promise<LinhaComNome[
   const enviadas = new Map(participantes.map((p) => [p.efetivoId, p.certidoes.map((c) => c.ordem)]));
   const statusP1 = await lerMapaP1();
   const manuais = await lerManuais(periodoId);
+  const referencias = await lerReferencias();
+  const limite = await lerLimite(periodoId);
 
   return efetivo.map((m) => {
     const st = statusP1[`${periodoId}:${m.id}`] || {};
@@ -162,7 +238,13 @@ export async function carregarPlanilha(periodoId: string): Promise<LinhaComNome[
         enviadoAoP1: !!st.enviadoEm,
       },
       manual: manuais.get(m.id) || {},
+      referencia: referencias.get(m.id) || {},
     });
-    return { ...linha, rotulo: [m.postoGrad, m.nomeGuerra || m.nome].filter(Boolean).join(" ") };
+    return {
+      ...linha,
+      rotulo: [m.postoGrad, m.nomeGuerra || m.nome].filter(Boolean).join(" "),
+      // limite ainda não definido: todo mundo conta
+      dentroDoLimite: limite.size === 0 || limite.has(m.id),
+    };
   });
 }

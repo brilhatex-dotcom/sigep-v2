@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileSpreadsheet, Download, Loader2, RotateCcw, ChevronDown, ChevronUp, Search, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { FileSpreadsheet, Download, Loader2, RotateCcw, ChevronDown, ChevronUp, Search, AlertTriangle, CheckCircle2, Upload, ListOrdered } from "lucide-react";
 import { avisar } from "@/components/Avisos";
 
 /* =========================================================================
@@ -20,19 +20,30 @@ import { avisar } from "@/components/Avisos";
    Cor das células:
      · normal  -> calculada pelo sistema (passe o mouse para ver de onde veio);
      · dourada -> o P/1 escreveu por cima (o ↺ devolve ao cálculo);
+     · azul    -> veio de uma planilha anterior importada — conferir;
      · cinza   -> identidade (graduação, nome, matrícula, ID) — corrige-se na
                   ficha, não aqui.
    ========================================================================= */
 
 type Coluna = { chave: string; titulo: string; identidade?: boolean };
 type Celula = { valor: string; origem: string; manual: boolean };
-type Linha = { efetivoId: string; rotulo: string; celulas: Record<string, Celula>; pendencias: string[] };
+type Linha = { efetivoId: string; rotulo: string; celulas: Record<string, Celula>; pendencias: string[]; dentroDoLimite: boolean };
 type Resposta = {
   periodo: { id: string; nome: string };
   colunas: Coluna[];
   linhas: Linha[];
-  resumo: { total: number; prontas: number; pendentes: number };
+  limiteDefinido: boolean;
+  resumo: { total: number; prontas: number; pendentes: number; efetivo: number };
 };
+type ResumoImportacao = {
+  arquivo: string; aba: string; linhas: number; casadas: number; porComo: Record<string, number>;
+  naoEncontrados: { linha: number; grad: string; nome: string }[];
+  ficha: Record<string, number>; referencias: number;
+  porNome: { linha: number; planilha: string; sistema: string }[];
+  fichasAtualizadas?: number;
+};
+
+const GRADS = ["1SGT", "2SGT", "3SGT", "CB", "SD"];
 
 // Larguras em px para a tela (o XLSX usa as larguras do modelo).
 const LARGURA: Record<string, number> = {
@@ -51,6 +62,7 @@ export default function PlanilhaPadraoPainel() {
   const [busca, setBusca] = useState("");
   const [editando, setEditando] = useState<{ efetivoId: string; chave: string; valor: string } | null>(null);
   const [gravando, setGravando] = useState(false);
+  const [verFora, setVerFora] = useState(false);
 
   const carregar = useCallback(async () => {
     setCarregando(true); setErro("");
@@ -70,11 +82,12 @@ export default function PlanilhaPadraoPainel() {
     if (!dados) return [];
     const t = busca.trim().toLowerCase();
     return dados.linhas.filter((l) => {
+      if (!verFora && !l.dentroDoLimite) return false;
       if (soPendentes && l.pendencias.length === 0) return false;
       if (!t) return true;
       return `${l.rotulo} ${l.celulas.nome?.valor} ${l.celulas.mat?.valor}`.toLowerCase().includes(t);
     });
-  }, [dados, busca, soPendentes]);
+  }, [dados, busca, soPendentes, verFora]);
 
   const gravar = async (efetivoId: string, chave: string, valor: string | null) => {
     setGravando(true);
@@ -120,7 +133,7 @@ export default function PlanilhaPadraoPainel() {
   const [lote, setLote] = useState({ chave: "conceito", valor: "MB" });
   const [aplicando, setAplicando] = useState(false);
   const emBranco = useMemo(
-    () => (dados ? dados.linhas.filter((l) => !l.celulas[lote.chave]?.valor).length : 0),
+    () => (dados ? dados.linhas.filter((l) => l.dentroDoLimite && !l.celulas[lote.chave]?.valor).length : 0),
     [dados, lote.chave],
   );
   const aplicarLote = async () => {
@@ -141,7 +154,70 @@ export default function PlanilhaPadraoPainel() {
     finally { setAplicando(false); }
   };
 
+  /* ---- Limite Quantitativo: quem entra na planilha ----
+     A CPPPM publica quantos de cada graduação concorrem; entram os mais
+     antigos. "Os N mais antigos" resolve a graduação inteira de uma vez, e a
+     caixinha de cada linha acerta um caso ou outro (ex.: impedido). */
+  const [qtd, setQtd] = useState<Record<string, string>>({});
+  const [limiteAberto, setLimiteAberto] = useState(false);
+  const porGrad = useMemo(() => {
+    const out: Record<string, { total: number; dentro: number }> = {};
+    for (const g of GRADS) out[g] = { total: 0, dentro: 0 };
+    for (const l of dados?.linhas || []) {
+      const g = l.celulas.grad.valor;
+      if (!out[g]) continue;
+      out[g].total++;
+      if (l.dentroDoLimite) out[g].dentro++;
+    }
+    return out;
+  }, [dados]);
+  const limite = async (corpo: object) => {
+    setGravando(true);
+    try {
+      const r = await fetch("/api/promocoes/planilha/limite", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo),
+      });
+      const d = await r.json();
+      if (!r.ok) { avisar(d?.error || "Não foi possível gravar o limite.", "erro"); return; }
+      await carregar();
+    } catch { avisar("Sem conexão com o servidor.", "erro"); }
+    finally { setGravando(false); }
+  };
+
+  /* ---- importar a planilha de um ciclo anterior ----
+     Primeiro confere (nada é gravado), mostra o resultado, e só grava
+     quando o P/1 manda. */
+  const [arquivo, setArquivo] = useState<File | null>(null);
+  const [importacao, setImportacao] = useState<ResumoImportacao | null>(null);
+  const [importando, setImportando] = useState(false);
+  const importar = async (f: File, aplicar: boolean) => {
+    setImportando(true);
+    try {
+      const fd = new FormData();
+      fd.append("arquivo", f);
+      fd.append("aplicar", aplicar ? "1" : "0");
+      const r = await fetch("/api/promocoes/planilha/importar", { method: "POST", body: fd });
+      const d = await r.json();
+      if (!r.ok) { avisar(d?.error || "Não foi possível ler a planilha.", "erro"); return; }
+      setArquivo(f);
+      setImportacao(d.resumo);
+      if (aplicar) {
+        avisar(`Planilha importada: ${d.resumo.casadas} militar(es), ${d.resumo.fichasAtualizadas || 0} ficha(s) completada(s).`, "sucesso");
+        setArquivo(null); setImportacao(null);
+        await carregar();
+      }
+    } catch { avisar("Sem conexão com o servidor.", "erro"); }
+    finally { setImportando(false); }
+  };
+
   const r = dados?.resumo;
+  const posicao = useMemo(() => {
+    // número da linha NA PLANILHA (só conta quem está dentro do limite)
+    const m = new Map<string, number>();
+    let i = 0;
+    for (const l of dados?.linhas || []) if (l.dentroDoLimite) m.set(l.efetivoId, ++i);
+    return m;
+  }, [dados]);
 
   return (
     <div className="rounded-xl border border-[#D4AF37]/20 bg-[#0F1B2D] text-white">
@@ -150,7 +226,7 @@ export default function PlanilhaPadraoPainel() {
         <div className="flex-1">
           <p className="text-sm font-semibold">Planilha Padrão — Portaria nº 168/2026-CPPPM</p>
           <p className="text-xs text-[#94A3B8]">
-            Soldado a 1º Sargento, em ordem de antiguidade. Monta-se sozinha da ficha, do histórico e das certidões.
+            Quem está no Limite Quantitativo, de Soldado a 1º Sargento, em ordem de antiguidade. Monta-se sozinha da ficha, do histórico e das certidões.
             Entrega à CPPPM até <b className="text-[#D4AF37]">06/11/2026</b>.
           </p>
         </div>
@@ -174,7 +250,7 @@ export default function PlanilhaPadraoPainel() {
               {/* ---- resumo e ações ---- */}
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <span className="rounded-lg border border-white/10 bg-[#0b1626] px-3 py-1.5 text-xs">
-                  <b>{r.total}</b> militares
+                  <b>{r.total}</b> militares{dados.limiteDefinido ? <span className="text-[#94A3B8]"> no limite (de {r.efetivo})</span> : null}
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-300">
                   <CheckCircle2 className="h-3.5 w-3.5" /> <b>{r.prontas}</b> prontos
@@ -199,6 +275,120 @@ export default function PlanilhaPadraoPainel() {
                   <input type="checkbox" checked={soPendentes} onChange={(e) => setSoPendentes(e.target.checked)} />
                   Só quem tem pendência
                 </label>
+                {dados.limiteDefinido && (
+                  <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-[#cbd5e1]">
+                    <input type="checkbox" checked={verFora} onChange={(e) => setVerFora(e.target.checked)} />
+                    Mostrar quem está fora do limite
+                  </label>
+                )}
+              </div>
+
+              {/* ---- Limite Quantitativo ---- */}
+              <div className={`mb-3 rounded-lg border px-3 py-2 text-xs ${dados.limiteDefinido ? "border-white/10 bg-[#0b1626]" : "border-amber-400/30 bg-amber-500/10"}`}>
+                <button onClick={() => setLimiteAberto((v) => !v)} className="flex w-full items-center gap-2 text-left">
+                  <ListOrdered className="h-4 w-4 text-[#D4AF37]" />
+                  <span className="font-semibold text-[#D4AF37]">Limite Quantitativo</span>
+                  <span className="text-[#cbd5e1]">
+                    {dados.limiteDefinido
+                      ? GRADS.filter((g) => porGrad[g].total).map((g) => `${g} ${porGrad[g].dentro}/${porGrad[g].total}`).join(" · ")
+                      : `ainda não definido — a planilha está com todo o efetivo (${r.efetivo}). Defina quantos de cada graduação entram.`}
+                  </span>
+                  {limiteAberto ? <ChevronUp className="ml-auto h-3.5 w-3.5" /> : <ChevronDown className="ml-auto h-3.5 w-3.5" />}
+                </button>
+                {limiteAberto && (
+                  <div className="mt-2 space-y-2 border-t border-white/10 pt-2 text-[#cbd5e1]">
+                    <p className="text-[#94A3B8]">
+                      Digite quantos de cada graduação estão no limite publicado pela CPPPM: entram os mais antigos, na ordem da planilha.
+                      Para acertar um militar só, marque ou desmarque a caixinha ao lado do número dele (ligue &quot;Mostrar quem está fora&quot;).
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {GRADS.filter((g) => porGrad[g].total).map((g) => (
+                        <div key={g} className="flex items-center gap-1.5 rounded border border-white/10 bg-[#0F1B2D] px-2 py-1">
+                          <b className="w-9">{g}</b>
+                          <input type="number" min={0} max={porGrad[g].total} placeholder={String(porGrad[g].dentro)}
+                            value={qtd[g] ?? ""} onChange={(e) => setQtd({ ...qtd, [g]: e.target.value })}
+                            className="w-14 rounded border border-white/10 bg-[#0b1626] px-1.5 py-0.5 text-white outline-none" />
+                          <span className="text-[#6f82a0]">de {porGrad[g].total}</span>
+                          <button disabled={gravando || qtd[g] === undefined || qtd[g] === ""}
+                            onClick={async () => { await limite({ grad: g, quantidade: Number(qtd[g]) }); setQtd({ ...qtd, [g]: "" }); }}
+                            className="rounded bg-[#D4AF37]/15 px-2 py-0.5 font-semibold text-[#D4AF37] hover:bg-[#D4AF37]/25 disabled:opacity-40">
+                            ok
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    {dados.limiteDefinido && (
+                      <button disabled={gravando}
+                        onClick={() => { if (confirm("Apagar o limite? A planilha volta a ter todo o efetivo.")) limite({ limpar: true }); }}
+                        className="text-[11px] text-red-300 underline-offset-2 hover:underline">
+                        apagar o limite
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* ---- importar planilha anterior ---- */}
+              <div className="mb-3 rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-xs text-[#cbd5e1]">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Upload className="h-4 w-4 text-[#D4AF37]" />
+                  <span className="font-semibold text-[#D4AF37]">Aproveitar uma planilha já feita</span>
+                  <span className="text-[#94A3B8]">(ex.: a de agosto) — completa as fichas vazias e pré-preenche o que o sistema não sabe.</span>
+                  <label className={`ml-auto inline-flex cursor-pointer items-center gap-1 rounded bg-[#D4AF37]/15 px-2.5 py-1 font-semibold text-[#D4AF37] hover:bg-[#D4AF37]/25 ${importando ? "pointer-events-none opacity-50" : ""}`}>
+                    {importando && !importacao ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                    Escolher .xlsx
+                    <input type="file" accept=".xlsx" className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) importar(f, false); }} />
+                  </label>
+                </div>
+                {importacao && arquivo && (
+                  <div className="mt-2 space-y-1.5 border-t border-white/10 pt-2">
+                    <p>
+                      <b>{importacao.arquivo}</b> (aba &quot;{importacao.aba}&quot;): <b>{importacao.casadas}</b> de {importacao.linhas} militares encontrados no sistema
+                      {Object.keys(importacao.porComo).length > 0 && (
+                        <span className="text-[#94A3B8]"> — por {Object.entries(importacao.porComo).map(([k, n]) => `${k}: ${n}`).join(", ")}</span>
+                      )}.
+                    </p>
+                    <p>
+                      Fichas que serão completadas (só campos vazios):{" "}
+                      {Object.keys(importacao.ficha).length
+                        ? Object.entries(importacao.ficha).map(([k, n]) => `${k}: ${n}`).join(", ")
+                        : <span className="text-[#94A3B8]">nenhuma — as fichas já têm esses dados</span>}.
+                      {" "}Dados de referência para a planilha: <b>{importacao.referencias}</b> militar(es).
+                    </p>
+                    <p className="text-[#94A3B8]">
+                      Certidões, situação jurídica e situação administrativa NÃO são importadas: valem só para o ciclo delas.
+                      O que vier da planilha aparece em <span className="text-sky-300">azul</span>, para conferir; o histórico e a ficha sempre vencem.
+                    </p>
+                    {importacao.porNome.length > 0 && (
+                      <details>
+                        <summary className="cursor-pointer text-amber-300">{importacao.porNome.length} encontrado(s) só pelo nome — confira</summary>
+                        <ul className="mt-1 list-disc pl-5">
+                          {importacao.porNome.map((x) => <li key={x.linha}>linha {x.linha}: {x.planilha} → {x.sistema}</li>)}
+                        </ul>
+                      </details>
+                    )}
+                    {importacao.naoEncontrados.length > 0 && (
+                      <details>
+                        <summary className="cursor-pointer text-amber-300">{importacao.naoEncontrados.length} não encontrado(s) no sistema — ficam de fora</summary>
+                        <ul className="mt-1 list-disc pl-5">
+                          {importacao.naoEncontrados.map((x) => <li key={x.linha}>linha {x.linha}: {x.grad} {x.nome}</li>)}
+                        </ul>
+                      </details>
+                    )}
+                    <div className="flex gap-2 pt-1">
+                      <button disabled={importando || !importacao.casadas} onClick={() => importar(arquivo, true)}
+                        className="inline-flex items-center gap-1 rounded bg-[#D4AF37] px-3 py-1 font-semibold text-[#1a1205] hover:brightness-110 disabled:opacity-50">
+                        {importando && <Loader2 className="h-3 w-3 animate-spin" />}
+                        Gravar
+                      </button>
+                      <button disabled={importando} onClick={() => { setImportacao(null); setArquivo(null); }}
+                        className="rounded border border-white/15 px-3 py-1 text-[#cbd5e1] hover:bg-white/5">
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-xs text-[#cbd5e1]">
@@ -225,7 +415,8 @@ export default function PlanilhaPadraoPainel() {
 
               <p className="mb-2 text-[11px] text-[#6f82a0]">
                 Clique numa célula para preencher ou corrigir. <span className="text-[#D4AF37]">Dourado</span> = escrito pelo P/1
-                (o ↺ devolve ao cálculo). Cinza = vem da ficha — corrija na ficha. Passe o mouse para ver a origem de cada dado.
+                (o ↺ devolve ao cálculo). <span className="text-sky-300">Azul</span> = veio da planilha anterior, confira.
+                Cinza = vem da ficha — corrija na ficha. Passe o mouse para ver a origem de cada dado.
               </p>
 
               {/* ---- a tabela ---- */}
@@ -245,9 +436,16 @@ export default function PlanilhaPadraoPainel() {
                   </thead>
                   <tbody>
                     {linhas.map((l) => (
-                      <tr key={l.efetivoId} className="odd:bg-white/[0.02]">
+                      <tr key={l.efetivoId} className={l.dentroDoLimite ? "odd:bg-white/[0.02]" : "opacity-45"}>
                         <td className="sticky left-0 z-10 border-b border-r border-white/5 bg-[#0F1B2D] px-2 py-1.5 text-[#6f82a0]">
-                          {dados.linhas.indexOf(l) + 1}
+                          <span className="flex items-center gap-1">
+                            {dados.limiteDefinido && (
+                              <input type="checkbox" checked={l.dentroDoLimite} disabled={gravando}
+                                title={l.dentroDoLimite ? "No Limite Quantitativo — desmarque para tirar" : "Fora do limite — marque para incluir"}
+                                onChange={(e) => limite({ efetivoId: l.efetivoId, dentro: e.target.checked })} />
+                            )}
+                            {posicao.get(l.efetivoId) ?? "—"}
+                          </span>
                         </td>
                         <td className="border-b border-r border-white/5 px-2 py-1.5">
                           {l.pendencias.length === 0
@@ -261,10 +459,12 @@ export default function PlanilhaPadraoPainel() {
                           const ed = editando && editando.efetivoId === l.efetivoId && editando.chave === c.chave;
                           return (
                             <td key={c.chave}
-                              title={c.identidade ? "Vem da ficha — corrija na ficha do militar" : cel.manual ? "Escrito pelo P/1" : `Calculado: ${cel.origem}`}
+                              title={c.identidade ? "Vem da ficha — corrija na ficha do militar" : cel.manual ? "Escrito pelo P/1"
+                                : cel.origem === "planilha anterior" ? "Veio da planilha anterior — confira (clique para corrigir)" : `Calculado: ${cel.origem}`}
                               className={
                                 "group border-b border-r border-white/5 px-2 py-1.5 align-top " +
-                                (c.identidade ? "text-[#94A3B8]" : cel.manual ? "bg-[#D4AF37]/10 text-[#f3df9d]" : "text-white") +
+                                (c.identidade ? "text-[#94A3B8]" : cel.manual ? "bg-[#D4AF37]/10 text-[#f3df9d]"
+                                  : cel.origem === "planilha anterior" ? "bg-sky-500/10 text-sky-200" : "text-white") +
                                 (!c.identidade && !ed ? " cursor-pointer hover:bg-white/5" : "")
                               }
                               onClick={() => { if (!c.identidade && !ed) setEditando({ efetivoId: l.efetivoId, chave: c.chave, valor: cel.valor }); }}

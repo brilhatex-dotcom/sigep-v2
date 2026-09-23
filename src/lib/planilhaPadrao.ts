@@ -7,8 +7,9 @@ import type { DadosHistorico } from "@/lib/historicoPolicial";
    PLANILHA PADRÃO DA PROMOÇÃO — Portaria nº 168/2026-CPPPM
 
    O que a portaria manda (art. 3º e 4º):
-     · UMA planilha com TODO o efetivo, "de Soldado ao 1º Sargento mais
-       antigo da Unidade";
+     · UMA planilha com os militares "de Soldado ao 1º Sargento mais antigo
+       da Unidade" que estão dentro do Limite Quantitativo publicado em
+       17/09/2026 (quem entra é gravado por período: planilhaPadraoDb.ts);
      · ela é o documento oficial único de Resumo Histórico e Ficha Conceito;
      · o P/1 confere as certidões "Nada Consta" e informa a situação final de
        cada militar — as certidões ficam arquivadas no P/1, só a planilha
@@ -27,6 +28,8 @@ import type { DadosHistorico } from "@/lib/historicoPolicial";
                           quais faltam, pelo nome; "S/A" quando o P/1 dá o
                           recebido nas oito
      promoções lançadas-> data e boletim de cada promoção de praça
+     planilha anterior -> o que o sistema não sabe (BG antigo, nota de curso,
+                          elogios...), importado de uma planilha já feita
      P/1               -> ficha conceito, elogios, e qualquer correção
 
    Toda coluna calculada pode ser SOBRESCRITA pelo P/1 — a exatidão é de
@@ -40,7 +43,7 @@ import type { DadosHistorico } from "@/lib/historicoPolicial";
    o 1º Sargento mais antigo abre a planilha.
    ========================================================================= */
 
-export type Origem = "ficha" | "histórico" | "certidões" | "promoções" | "P/1";
+export type Origem = "ficha" | "histórico" | "certidões" | "promoções" | "planilha anterior" | "P/1";
 
 export type Coluna = {
   chave: string;
@@ -115,6 +118,7 @@ export type EntradaLinha = {
   promocoes: PromocaoLancada[];
   certidoes: CertidoesDoMilitar;
   manual: Record<string, string>;     // o que o P/1 escreveu por cima
+  referencia?: Record<string, string>; // o que veio da planilha de um ciclo anterior
 };
 
 export type Celula = { valor: string; origem: Origem; manual: boolean };
@@ -314,6 +318,42 @@ function promocoes(ficha: FichaPlanilha, lancadas: PromocaoLancada[], h: DadosHi
   return out;
 }
 
+/* ------------------------------------------------- planilha anterior */
+
+/* Onde o dado da planilha de um ciclo anterior entra (src/lib/planilhaImportar.ts).
+   Regra geral: só preenche o que o sistema NÃO sabe. O histórico, a ficha e
+   as certidões de agora vencem sempre — a planilha anterior pode estar velha.
+
+     · promoções: se o sistema não achou nada, ou achou a data mas não o BG;
+       nunca para graduação que ele ainda não alcançou ("S/A" do sistema), e
+       nunca um "S/A" antigo para graduação que ele já alcançou (foi
+       promovido depois da planilha);
+     · CEFC/CEFS/CAP/EAP e cursos: se o histórico não nomeia o curso;
+     · medalhas: a maior contagem entre as duas (medalha não se perde);
+     · elogios, conceito, comportamento, instrução, inclusão: se vazio. */
+function usarReferencia(auto: Record<string, [string, Origem]>, ref: Record<string, string>) {
+  const REF: Origem = "planilha anterior";
+  const r = (k: string) => (ref[k] || "").trim();
+  for (const k of ["promCabo", "prom3", "prom2", "prom1"]) {
+    const [atual] = auto[k];
+    const velho = r(k);
+    if (!velho || atual === "S/A" || velho === "S/A") continue;
+    if (!atual || (!/\bBG\b/i.test(atual) && /\bBG\b/i.test(velho))) auto[k] = [velho, REF];
+  }
+  for (const k of ["cefc", "cefs", "cap", "eap"]) {
+    const [atual] = auto[k];
+    if (r(k) && !/^SIM/i.test(atual)) auto[k] = [r(k), REF];
+  }
+  if (r("cursos") && r("cursos") !== "S/A" && (!auto.cursos[0] || auto.cursos[0] === "S/A")) auto.cursos = [r("cursos"), REF];
+  if (r("medalhas")) {
+    const a = Number(auto.medalhas[0]) || 0, b = Number(r("medalhas")) || 0;
+    if (!auto.medalhas[0] || b > a) auto.medalhas = [b ? String(b) : r("medalhas"), REF];
+  }
+  for (const k of ["elogios", "conceito", "comport", "instrucao", "incl"]) {
+    if (!auto[k][0] && r(k)) auto[k] = [k === "instrucao" ? r(k).toUpperCase() : r(k), REF];
+  }
+}
+
 /* ---------------------------------------------------------------- a linha */
 
 export function montarLinha(e: EntradaLinha): LinhaPlanilha {
@@ -353,6 +393,8 @@ export function montarLinha(e: EntradaLinha): LinhaPlanilha {
     medalhas: [medalhas(h), "histórico"],
     conceito: ["", "P/1"],
   };
+
+  usarReferencia(auto, e.referencia || {});
 
   const celulas: Record<string, Celula> = {};
   for (const c of COLUNAS) {
