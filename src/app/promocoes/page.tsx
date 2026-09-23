@@ -6,6 +6,7 @@ import { FileUp, AlertTriangle, ShieldCheck } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import PainelPromocoes from "@/components/PainelPromocoes";
+import { compararAntiguidade } from "@/lib/antiguidade";
 import CriarPeriodo from "@/components/CriarPeriodo";
 import { periodoAtivo } from "@/lib/promocoes";
 import { TOTAL_CERTIDOES } from "@/lib/certidoes";
@@ -103,6 +104,8 @@ async function PainelConteudo({
       nome: true,
       nomeGuerra: true,
       matricula: true,
+      dataPromocao: true,
+      numeroBarra: true,
     },
   });
   const mapaFicha = new Map(fichas.map((f) => [f.id, f]));
@@ -123,12 +126,20 @@ async function PainelConteudo({
         recebidoP1Em: st?.recebidoEm ?? null,
       };
     })
-    // ordena: enviados ao P/1 e ainda nao recebidos primeiro, depois por certidoes
+    /* Ordem: primeiro quem ENVIOU e aguarda a conferencia (e o trabalho do
+       P/1 agora); dentro de cada grupo, a ANTIGUIDADE. Antes o desempate era
+       "quem mandou mais certidoes", e a lista virava a ordem de chegada — um
+       soldado adiantado aparecia acima do 1º Sargento mais antigo. A mesma
+       regua da Planilha Padrao e da tela de Antiguidade. */
     .sort((a, b) => {
       const pa = a.enviadoP1Em && !a.recebidoP1Em ? 1 : 0;
       const pb = b.enviadoP1Em && !b.recebidoP1Em ? 1 : 0;
       if (pa !== pb) return pb - pa;
-      return b.enviadas - a.enviadas;
+      const fa = mapaFicha.get(a.efetivoId), fb = mapaFicha.get(b.efetivoId);
+      return compararAntiguidade(
+        { postoGrad: a.postoGrad, nome: a.nome, dataPromocao: fa?.dataPromocao ?? null, numeroBarra: fa?.numeroBarra ?? null },
+        { postoGrad: b.postoGrad, nome: b.nome, dataPromocao: fb?.dataPromocao ?? null, numeroBarra: fb?.numeroBarra ?? null },
+      );
     });
 
   // lista de todos os periodos (pro seletor e aba de arquivadas)

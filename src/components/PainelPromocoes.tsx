@@ -1,6 +1,7 @@
 /* eslint-disable react/no-unescaped-entities */
 "use client";
 import { useMemo, useState } from "react";
+import PlanilhaPadraoPainel from "@/components/PlanilhaPadraoPainel";
 import { useRouter } from "next/navigation";
 import {
   Users,
@@ -303,6 +304,11 @@ export default function PainelPromocoes({
           Adicionar todo o efetivo
         </button>
       </div>
+
+      {/* Planilha Padrao da CPPPM: fecha em 06/11, e e o que de fato sobe para
+          a Comissao — as certidoes ficam arquivadas aqui (Portaria 168/2026,
+          art. 4º, § 3º). Fica no alto, recolhida, para nao empurrar a lista. */}
+      <PlanilhaPadraoPainel />
 
       {/* Cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
