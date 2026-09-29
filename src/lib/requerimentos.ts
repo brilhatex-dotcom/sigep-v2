@@ -11,7 +11,9 @@
 //   - Requerimentos reais protocolados no 18º BPM
 // ==========================================================
 
-export type Modelo = "comum" | "cursos" | "aquisicao_restrito" | "aquisicao_permitido";
+export type Modelo =
+  | "comum" | "cursos" | "aquisicao_restrito" | "aquisicao_permitido"
+  | "transferencia_sigma" | "transferencia_sinarm";
 
 /* Aquisicao de arma de fogo: nao usa a folha de requerimento da PMMA — sao os
    formularios de PCE ("REQUERIMENTO/AUTORIZACAO PARA AQUISICAO DE PCE"), com
@@ -20,13 +22,49 @@ export type Modelo = "comum" | "cursos" | "aquisicao_restrito" | "aquisicao_perm
      · USO RESTRITO   -> folha do Exercito (SisFPC), com QR e o campo de
                          autorizacao no alto;
      · USO PERMITIDO  -> folha da Diretoria de Apoio Logistico da PMMA (Secao
-                         de Armamento), com o deferimento no quadro 5. */
+                         de Armamento), com o deferimento no quadro 5.
+
+   Aquisicao POR TRANSFERENCIA (a arma ja existe e muda de dono): outra folha,
+   "REQUERIMENTO PARA TRANSFERENCIA DE ARMA DE FOGO", com adquirente, ALIENANTE
+   (quem passa a arma), a arma ja registrada e o acervo de destino. Duas
+   origens, dois templates:
+     · SIGMA para SIGMA   -> arma ja no Exercito (uso restrito);
+     · SINARM para SIGMA  -> arma vinda da Policia Federal; os anexos pedem
+                             tambem a anuencia do SINARM e a ficha do SIGMA.
+   As duas levam, alem da declaracao de parecer favoravel, o TERMO DE DOACAO
+   assinado pelo alienante (doador) e pelo adquirente (recebedor). */
 export const MODALIDADE_AQUISICAO_RESTRITO = "AQUISIÇÃO DE ARMA DE FOGO DE USO RESTRITO";
 export const MODALIDADE_AQUISICAO_PERMITIDO = "AQUISIÇÃO DE ARMA DE FOGO DE USO PERMITIDO";
+export const MODALIDADE_TRANSFERENCIA_SIGMA = "AQUISIÇÃO DE ARMA DE FOGO DE USO RESTRITO (VIA TRANSFERÊNCIA SIGMA P/ SIGMA)";
+export const MODALIDADE_TRANSFERENCIA_SINARM = "TRANSFERÊNCIA DE ARMA DE FOGO (SINARM PARA SIGMA)";
 
-// true nos dois modelos de aquisicao de PCE (folha propria, campos proprios)
+// true nas duas transferencias (alienante, arma ja registrada e termo de doacao)
+export function ehModeloTransferencia(modelo: string): boolean {
+  return modelo === "transferencia_sigma" || modelo === "transferencia_sinarm";
+}
+
+/* true em todos os formularios de PCE (folha propria, sem amparo legal nem
+   informacoes adicionais, e com a declaracao de parecer favoravel e a GRU da
+   taxa de aquisicao como anexos) — compra direta ou por transferencia. */
 export function ehModeloAquisicao(modelo: string): boolean {
-  return modelo === "aquisicao_restrito" || modelo === "aquisicao_permitido";
+  return modelo === "aquisicao_restrito" || modelo === "aquisicao_permitido" || ehModeloTransferencia(modelo);
+}
+
+// sistema onde a arma esta registrada hoje (o "Nº SIGMA:"/"Nº SINARM:" da folha)
+export function registroDeOrigem(modelo: string): "SIGMA" | "SINARM" {
+  return modelo === "transferencia_sinarm" ? "SINARM" : "SIGMA";
+}
+
+// complemento do titulo das telas: qual folha o sistema vai preencher
+export function descricaoDoModelo(modelo: string): string {
+  switch (modelo) {
+    case "cursos": return " · modelo de cursos";
+    case "aquisicao_restrito": return " · formulário do Exército (SisFPC)";
+    case "aquisicao_permitido": return " · formulário da DAL/PMMA";
+    case "transferencia_sigma": return " · transferência SIGMA para SIGMA";
+    case "transferencia_sinarm": return " · transferência SINARM para SIGMA";
+    default: return "";
+  }
 }
 
 // modalidades do MODELO COMUM (folha de requerimento padrão)
@@ -72,6 +110,8 @@ export const MODALIDADES_MATERIAL: string[] = [
   // formularios de PCE (folha propria), nao a folha de requerimento da PMMA
   MODALIDADE_AQUISICAO_RESTRITO,
   MODALIDADE_AQUISICAO_PERMITIDO,
+  MODALIDADE_TRANSFERENCIA_SIGMA,
+  MODALIDADE_TRANSFERENCIA_SINARM,
 ];
 
 // modalidades que SEMPRE usam o modelo de CURSOS (página 2 detalhada)
@@ -82,6 +122,8 @@ export function modeloDaModalidade(modalidade: string): Modelo {
   const m = modalidade.toUpperCase().trim();
   if (m === MODALIDADE_AQUISICAO_RESTRITO) return "aquisicao_restrito";
   if (m === MODALIDADE_AQUISICAO_PERMITIDO) return "aquisicao_permitido";
+  if (m === MODALIDADE_TRANSFERENCIA_SIGMA) return "transferencia_sigma";
+  if (m === MODALIDADE_TRANSFERENCIA_SINARM) return "transferencia_sinarm";
   return FORCAM_CURSOS.has(m) ? "cursos" : "comum";
 }
 
@@ -260,7 +302,7 @@ export function usaQuadrinhoOutros(modalidade: string): boolean {
   const m = modalidade.toUpperCase().trim();
   // As aquisicoes de PCE nao usam a folha de requerimento da PMMA (tem
   // formulario proprio), entao nao ha quadrinho "OUTROS" pra marcar.
-  if (m === MODALIDADE_AQUISICAO_RESTRITO || m === MODALIDADE_AQUISICAO_PERMITIDO) return false;
+  if (ehModeloAquisicao(modeloDaModalidade(m))) return false;
   if (m === "OUTROS" || m in ESPECIFICACAO_OUTROS) return true;
   // desconhecida (cadastrada pelo admin, ou modalidade de curso — CAS/CFS/CFC
   // tambem nao tem quadrinho proprio no formulario impresso, ver o documento

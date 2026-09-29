@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { removerDoR2 } from "@/lib/r2";
 import { registrar } from "@/lib/auditoria";
 import { ehModeloAquisicao } from "@/lib/requerimentos";
+import { jsonArma, obrigatoriosDoModelo } from "@/lib/requerimentoArma";
 
 export const dynamic = "force-dynamic";
 
@@ -77,8 +78,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
   }
   if (ehModeloAquisicao(r!.modelo) && acao === "enviado") {
-    const obrigatorios = ["nomeCompleto", "idPmmaTxt", "cpf", "endereco", "municipio", "produto", "marca", "modeloArma", "calibre", "quantidade"];
-    const faltando = obrigatorios.filter((k) => !v(k));
+    const faltando = Object.entries(obrigatoriosDoModelo(r!.modelo))
+      .filter(([k]) => !v(k))
+      .map(([, rotulo]) => rotulo);
     if (faltando.length) {
       return NextResponse.json({ error: `Preencha antes de enviar: ${faltando.join(", ")}.` }, { status: 400 });
     }
@@ -99,10 +101,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
      valor de texto que o laco acima pos ali (esse campo de texto so existe no
      modelo de cursos). Mesma convencao da criacao. */
   if (ehModeloAquisicao(r!.modelo)) {
-    const camposPce = ["produto", "marca", "modeloArma", "calibre", "quantidade"];
-    dadosUpdate.p2Complementares = camposPce.some((k) => v(k))
-      ? JSON.stringify(Object.fromEntries(camposPce.map((k) => [k, v(k) || ""])))
-      : null;
+    dadosUpdate.p2Complementares = jsonArma(r!.modelo, v);
   }
 
   // O .docx guardado virou retrato de uma versao que nao existe mais: some

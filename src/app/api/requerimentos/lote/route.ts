@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { modeloDaModalidade, ehModeloAquisicao } from "@/lib/requerimentos";
+import { modeloDaModalidade, ehModeloAquisicao, ehModeloTransferencia } from "@/lib/requerimentos";
 import { dadosPessoais } from "@/lib/requerimentoDados";
 import { registrar } from "@/lib/auditoria";
 
@@ -65,6 +65,14 @@ export async function POST(req: Request) {
   const modalidade = String(body.modalidade || "").trim();
   if (!modalidade) return NextResponse.json({ error: "Modalidade obrigatoria" }, { status: 400 });
   const modelo = modeloDaModalidade(modalidade);
+  // Transferencia e de um para um: cada adquirente tem o seu alienante, a sua
+  // arma registrada e o seu termo de doacao — nao ha o que repetir em lote.
+  if (ehModeloTransferencia(modelo)) {
+    return NextResponse.json(
+      { error: "Transferência de arma de fogo é individual: cada militar abre o seu, com o próprio alienante." },
+      { status: 400 }
+    );
+  }
 
   const idsPmma: string[] = Array.isArray(body?.idsPmma)
     ? Array.from(new Set(body.idsPmma.map((x: any) => String(x || "").trim()).filter(Boolean)))

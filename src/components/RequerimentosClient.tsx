@@ -11,6 +11,7 @@ import {
   MODALIDADES_CURSOS,
   MODALIDADES_MATERIAL,
   modeloDaModalidade,
+  ehModeloTransferencia,
 } from "@/lib/requerimentos";
 import { avisar, confirmar } from "@/components/Avisos";
 
@@ -531,7 +532,9 @@ export default function RequerimentosClient({
               Armamento e material bélico
             </p>
             <div className="mb-5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              {MODALIDADES_MATERIAL.map((m) => (
+              {/* transferência de arma é de um para um (cada militar com o seu
+                  alienante e a sua arma), então não entra no lote */}
+              {MODALIDADES_MATERIAL.filter((m) => !(lote && ehModeloTransferencia(modeloDaModalidade(m)))).map((m) => (
                 <button
                   key={m}
                   onClick={() => novo(m)}

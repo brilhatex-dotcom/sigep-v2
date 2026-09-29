@@ -7,9 +7,10 @@ import { lerPce } from "@/lib/gerarRequerimento";
 /* =========================================================================
    DECLARAÇÃO DE PARECER FAVORÁVEL PARA AQUISIÇÃO DE ARMA DE FOGO
 
-   Documento que anda JUNTO com o requerimento de aquisição de PCE — tanto o
-   de uso RESTRITO quanto o de uso PERMITIDO exigem ele nos anexos ("declaração
-   parecer favorável para aquisição de arma de fogo"). Por isso ele é gerado a
+   Documento que anda JUNTO com o requerimento de aquisição de PCE — o de uso
+   RESTRITO, o de uso PERMITIDO e as duas TRANSFERÊNCIAS (SIGMA e SINARM para
+   SIGMA) exigem ele nos anexos ("declaração parecer favorável para aquisição
+   de arma de fogo"). Por isso ele é gerado a
    partir do MESMO requerimento: os dados do militar e a arma pedida saem do
    que já foi preenchido lá, sem redigitar nada.
 
@@ -21,7 +22,7 @@ import { lerPce } from "@/lib/gerarRequerimento";
    modelo oficial do P/1, brasões inclusive).
    ========================================================================= */
 
-const CIDADE = "Presidente Dutra - MA";
+export const CIDADE = "Presidente Dutra - MA";
 const MESES = [
   "janeiro", "fevereiro", "março", "abril", "maio", "junho",
   "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
@@ -53,14 +54,19 @@ function s(v: string | null | undefined): string {
   return v == null ? "" : String(v).trim();
 }
 
-// "Presidente Dutra - MA, 18 de novembro de 2024"
-function localEData(iso: string): string {
+// "2024-11-18" -> "18 de novembro de 2024" ("" se não reconhecer)
+export function dataExtensoISO(iso: string): string {
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return `${CIDADE}, `;
-  return `${CIDADE}, ${m[3]} de ${MESES[Number(m[2]) - 1] || ""} de ${m[1]}`;
+  if (!m) return "";
+  return `${m[3]} de ${MESES[Number(m[2]) - 1] || ""} de ${m[1]}`;
 }
 
-function hojeISO(): string {
+// "Presidente Dutra - MA, 18 de novembro de 2024"
+function localEData(iso: string): string {
+  return `${CIDADE}, ${dataExtensoISO(iso)}`;
+}
+
+export function hojeISO(): string {
   const f = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
   });
