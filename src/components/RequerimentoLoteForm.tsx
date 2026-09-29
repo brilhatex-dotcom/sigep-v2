@@ -2,9 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Save, Send, Users, AlertTriangle } from "lucide-react";
-import { usaQuadrinhoOutros, ehModeloAquisicao } from "@/lib/requerimentos";
+import { Save, Send, Users, AlertTriangle, ChevronDown } from "lucide-react";
+import {
+  usaQuadrinhoOutros, ehModeloAquisicao, ehModeloTransferencia, registroDeOrigem,
+} from "@/lib/requerimentos";
+import {
+  CAMPOS_ARMA_TRANSFERENCIA, CAMPOS_ALIENANTE, obrigatoriosDoModelo, padraoTransferencia,
+} from "@/lib/requerimentoArma";
 import { BuscaMilitarMultiplo, nomeBusca, type Militar } from "@/components/docs/Comum";
+import {
+  GradeCampos, BuscaAlienante, CAMPOS_TRANSF_ALIENANTE, camposArmaTransferencia,
+} from "@/components/CamposTransferencia";
 import { avisar } from "@/components/Avisos";
 
 // quadro "2. PRODUTO CONTROLADO A SER ADQUIRIDO" das folhas de PCE
@@ -31,8 +39,16 @@ export default function RequerimentoLoteForm({
   inicial: { amparoLegal: string; infoAdicional: string; modalidadeOutros: string };
 }) {
   const router = useRouter();
+  const ehTransferencia = ehModeloTransferencia(modelo);
+  /* O que muda de militar para militar (e por isso vai em `porMilitar`):
+     na compra, a arma pedida; na transferência, a arma registrada E o
+     alienante — cada um compra de quem quiser. O adquirente (RG, CEP,
+     endereço...) sai da ficha de cada um no servidor. */
+  const camposPorMilitar: readonly string[] = ehTransferencia
+    ? [...CAMPOS_ARMA_TRANSFERENCIA, ...CAMPOS_ALIENANTE]
+    : CAMPOS_PCE.map((c) => c.key);
   const [militares, setMilitares] = useState<Militar[]>([]);
-  const [f, setF] = useState<Record<string, string>>({
+  const [f, setF] = useState<Record<string, string>>(() => ({
     amparoLegal: inicial.amparoLegal || "",
     infoAdicional: inicial.infoAdicional || "",
     modalidadeOutros: inicial.modalidadeOutros || "",
@@ -46,7 +62,14 @@ export default function RequerimentoLoteForm({
     modeloArma: "",
     calibre: "",
     quantidade: "",
-  });
+    // transferência: todos os campos da arma e do alienante, já com o padrão
+    ...(ehTransferencia
+      ? {
+          ...Object.fromEntries([...CAMPOS_ARMA_TRANSFERENCIA, ...CAMPOS_ALIENANTE].map((k) => [k, ""])),
+          ...padraoTransferencia(),
+        }
+      : {}),
+  }));
   // página 2 do modelo de cursos: um valor por militar (conceito e última
   // promoção não são iguais entre pessoas)
   const [porMilitar, setPorMilitar] = useState<Record<string, Record<string, string>>>({});
@@ -54,9 +77,10 @@ export default function RequerimentoLoteForm({
   const [erro, setErro] = useState("");
 
   const ehCursos = modelo === "cursos";
-  // aquisição de arma (uso restrito/permitido): folha própria, sem amparo
+  // aquisição de arma (compra ou transferência): folha própria, sem amparo
   // legal nem informações adicionais — o que varia é a arma de cada um
   const ehAquisicao = ehModeloAquisicao(modelo);
+  const obrigatorios = obrigatoriosDoModelo(modelo);
   const ehOutros = !ehAquisicao && usaQuadrinhoOutros(modalidade);
 
   function set(k: string, v: string) {
@@ -67,13 +91,22 @@ export default function RequerimentoLoteForm({
     setPorMilitar((o) => ({ ...o, [id]: { ...(o[id] || {}), [k]: v } }));
   }
 
+  // vários campos de um militar (o alienante puxado da ficha)
+  function setVariosLinha(id: string, novos: Record<string, string>) {
+    setPorMilitar((o) => ({ ...o, [id]: { ...(o[id] || {}), ...novos } }));
+  }
+
   /* A linha "igual para todos" é atalho, não um valor à parte: escreve de uma
      vez na tabela para o P/1 só ajustar quem foge do padrão. */
   function aplicarATodos(k: string, v: string) {
-    set(k, v);
+    aplicarVariosATodos({ [k]: v });
+  }
+
+  function aplicarVariosATodos(novos: Record<string, string>) {
+    setF((o) => ({ ...o, ...novos }));
     setPorMilitar((o) => {
       const novo = { ...o };
-      for (const m of militares) novo[m.id] = { ...(novo[m.id] || {}), [k]: v };
+      for (const m of militares) novo[m.id] = { ...(novo[m.id] || {}), ...novos };
       return novo;
     });
   }
@@ -88,11 +121,7 @@ export default function RequerimentoLoteForm({
         p2UltimaPromocao: f.p2UltimaPromocao,
         p2BgNumero: f.p2BgNumero,
         p2BgData: f.p2BgData,
-        produto: f.produto,
-        marca: f.marca,
-        modeloArma: f.modeloArma,
-        calibre: f.calibre,
-        quantidade: f.quantidade,
+        ...Object.fromEntries(camposPorMilitar.map((k) => [k, f[k] ?? ""])),
         ...(o[m.id] || {}),
       },
     }));
@@ -199,8 +228,113 @@ export default function RequerimentoLoteForm({
         </>
       )}
 
+      {/* transferência: arma registrada e alienante de cada um */}
+      {ehTransferencia && (
+        <>
+          <section className="ui-card p-6">
+            <h2 className="mb-1 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+              <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Igual para todos
+            </h2>
+            <p className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-[12px] text-amber-200">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              O que você preencher aqui vai para <b>todos</b> os militares escolhidos (ex.: o mesmo
+              alienante, o mesmo tipo de arma). O que for diferente — nº de registro, nº de série,
+              outro alienante — ajuste no cartão de cada um, logo abaixo. Os dados do adquirente
+              saem da ficha de cada militar.
+            </p>
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
+              Alienante (quem passa a arma)
+            </p>
+            <BuscaAlienante valores={f} setVarios={aplicarVariosATodos} />
+            <GradeCampos campos={CAMPOS_TRANSF_ALIENANTE} valores={f} set={aplicarATodos} />
+            <p className="mb-3 mt-6 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
+              Arma
+            </p>
+            <GradeCampos
+              campos={camposArmaTransferencia(registroDeOrigem(modelo))
+                .filter((c) => c.key !== "registro" && c.key !== "serie")}
+              valores={f}
+              set={aplicarATodos}
+            />
+          </section>
+
+          <section className="ui-card p-6">
+            <h2 className="mb-1 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+              <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Cada militar
+            </h2>
+            <p className="mb-4 text-[12px] text-[#94A3B8]">
+              Abra o cartão para conferir e completar. Ao <b>enviar</b>, é tudo ou nada: se faltar
+              dado de alguém, nada é criado e o sistema diz de quem.
+            </p>
+            {militares.length === 0 ? (
+              <p className="text-[12px] text-[#94A3B8]">Escolha os militares acima.</p>
+            ) : (
+              <div className="space-y-3">
+                {militares.map((m) => {
+                  const linha = porMilitar[m.id] || {};
+                  const falta = Object.entries(obrigatorios)
+                    .filter(([k]) => camposPorMilitar.includes(k) && !(linha[k] ?? "").trim())
+                    .map(([, rotulo]) => rotulo);
+                  const resumo = [
+                    [linha.produto, linha.marca, linha.modeloArma].filter(Boolean).join(" "),
+                    linha.serie ? `série ${linha.serie}` : "",
+                    linha.alienanteNome ? `de ${linha.alienanteNome}` : "",
+                  ].filter(Boolean).join(" · ");
+                  return (
+                    <details key={m.id} className="group rounded-lg border border-white/10 bg-[#0b1626]">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold text-white">{nomeBusca(m)}</span>
+                          <span className="block truncate text-[11px] text-[#94A3B8]">{resumo || "—"}</span>
+                        </span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          {falta.length > 0 ? (
+                            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-200">
+                              falta {falta.length}
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] text-emerald-300">
+                              completo
+                            </span>
+                          )}
+                          <ChevronDown className="h-4 w-4 text-[#94A3B8] transition group-open:rotate-180" />
+                        </span>
+                      </summary>
+                      <div className="border-t border-white/10 p-4">
+                        {falta.length > 0 && (
+                          <p className="mb-3 text-[12px] text-amber-200">Falta: {falta.join(", ")}.</p>
+                        )}
+                        <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
+                          Alienante
+                        </p>
+                        <BuscaAlienante valores={linha} setVarios={(o) => setVariosLinha(m.id, o)} />
+                        <GradeCampos
+                          campos={CAMPOS_TRANSF_ALIENANTE}
+                          valores={linha}
+                          set={(k, v) => setLinha(m.id, k, v)}
+                          obrigatorios={obrigatorios}
+                        />
+                        <p className="mb-3 mt-6 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
+                          Arma
+                        </p>
+                        <GradeCampos
+                          campos={camposArmaTransferencia(registroDeOrigem(modelo))}
+                          valores={linha}
+                          set={(k, v) => setLinha(m.id, k, v)}
+                          obrigatorios={obrigatorios}
+                        />
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </>
+      )}
+
       {/* aquisição de arma: a arma é de cada um */}
-      {ehAquisicao && (
+      {ehAquisicao && !ehTransferencia && (
         <section className="ui-card p-6">
           <h2 className="mb-1 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
             <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Produto controlado de cada militar
