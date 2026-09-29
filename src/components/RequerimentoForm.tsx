@@ -2,16 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Save, Send, AlertTriangle } from "lucide-react";
+import { Save, Send } from "lucide-react";
 import {
   usaQuadrinhoOutros, ehModeloAquisicao, ehModeloTransferencia, registroDeOrigem,
 } from "@/lib/requerimentos";
-import { obrigatoriosDoModelo, CAMPOS_ALIENANTE } from "@/lib/requerimentoArma";
-import { BuscaMilitar, type Militar } from "@/components/docs/Comum";
+import { obrigatoriosDoModelo } from "@/lib/requerimentoArma";
+import {
+  GradeCampos, BuscaAlienante, CAMPOS_TRANSF_ALIENANTE, camposArmaTransferencia, type Campo,
+} from "@/components/CamposTransferencia";
 
 type Dados = Record<string, string>;
 
-const CAMPOS_PESSOAIS: { key: string; label: string; col?: number }[] = [
+const CAMPOS_PESSOAIS: Campo[] = [
   { key: "nomeCompleto", label: "Nome completo", col: 3 },
   { key: "endereco", label: "Endereço", col: 2 },
   { key: "complemento", label: "Complemento" },
@@ -36,7 +38,7 @@ const CAMPOS_PESSOAIS: { key: string; label: string; col?: number }[] = [
    civil e OPM, que nao tem onde sair no papel. O endereco vai na linha
    "Endereço de entrega" (logradouro + complemento + bairro juntos).
    O Posto/Graduacao entra no "Cargo:" da folha de uso permitido. */
-const CAMPOS_AQUISICAO: { key: string; label: string; col?: number }[] = [
+const CAMPOS_AQUISICAO: Campo[] = [
   { key: "nomeCompleto", label: "Nome completo", col: 3 },
   { key: "postoGrad", label: "Cargo (posto/graduação)" },
   { key: "idPmmaTxt", label: "Identidade (ID PMMA)" },
@@ -48,8 +50,6 @@ const CAMPOS_AQUISICAO: { key: string; label: string; col?: number }[] = [
   { key: "municipio", label: "Cidade/UF" },
   { key: "fone", label: "Telefone pessoal" },
 ];
-
-type Campo = { key: string; label: string; col?: number; dica?: string };
 
 /* Transferencia de arma (SIGMA/SINARM para SIGMA): o quadro 1 da folha pede
    posto, nome, identidade, CPF, orgao de vinculacao e o endereco "com Tlf e
@@ -72,40 +72,8 @@ const CAMPOS_TRANSF_ADQUIRENTE: Campo[] = [
   { key: "cep", label: "CEP" },
 ];
 
-// quadro "2. IDENTIFICACAO DO ALIENANTE" + o que o termo pede do DOADOR
-const CAMPOS_TRANSF_ALIENANTE: Campo[] = [
-  { key: "alienanteNome", label: "Nome completo", col: 2 },
-  { key: "alienantePosto", label: "Posto/Grad/Função/CR" },
-  { key: "alienanteIdentidade", label: "Identidade" },
-  { key: "alienanteRg", label: "RG PMMA (termo)" },
-  { key: "alienanteCpf", label: "CPF" },
-  { key: "alienanteOrgao", label: "Órgão de vinculação" },
-  { key: "alienanteAcervo", label: "Acervo atual da arma", dica: "Ex: CIDADÃO" },
-  { key: "alienanteNacionalidade", label: "Nacionalidade (termo)" },
-  { key: "alienanteEstadoCivil", label: "Estado civil (termo)" },
-  { key: "alienanteNasc", label: "Data de nascimento (termo)", dica: "dd/mm/aaaa" },
-  { key: "alienanteNaturalidade", label: "Naturalidade — cidade (termo)" },
-  { key: "alienantePai", label: "Nome do pai (termo)", col: 3 },
-  { key: "alienanteMae", label: "Nome da mãe (termo)", col: 3 },
-];
-
-// quadro "3. IDENTIFICACAO DA ARMA OBJETO DA AQUISICAO POR TRANSFERENCIA"
-function camposArmaTransferencia(registro: string): Campo[] {
-  return [
-    { key: "registro", label: `Nº ${registro}`, dica: `Nº do registro no ${registro}` },
-    { key: "produto", label: "Tipo", dica: "Ex: PISTOLA" },
-    { key: "marca", label: "Marca", dica: "Ex: TAURUS" },
-    { key: "modeloArma", label: "Modelo", dica: "Ex: G2C" },
-    { key: "serie", label: "Número de série" },
-    { key: "calibre", label: "Calibre", dica: "Ex: 9MM" },
-    { key: "acabamento", label: "Acabamento (termo)", dica: "Ex: OXIDADO" },
-    { key: "acessorios", label: "Acessórios e/ou sobressalentes (quando for o caso)", col: 2 },
-    { key: "outras", label: "Outras especificações (quando for o caso)", col: 3 },
-  ];
-}
-
 // quadro "2. PRODUTO CONTROLADO A SER ADQUIRIDO" das folhas de PCE
-const CAMPOS_PCE: { key: string; label: string; dica: string }[] = [
+const CAMPOS_PCE: Campo[] = [
   { key: "produto", label: "Produto", dica: "Ex: PISTOLA" },
   { key: "marca", label: "Marca", dica: "Ex: TAURUS" },
   { key: "modeloArma", label: "Modelo", dica: "Ex: G3C" },
@@ -144,56 +112,13 @@ export default function RequerimentoForm({
   // marca com * o que a folha nao deixa sair em branco
   const obrigatorios = obrigatoriosDoModelo(modelo);
 
-  // alienante escolhido no buscador do efetivo (opcional: pode ser de fora)
-  const [alienanteSel, setAlienanteSel] = useState<Militar | null>(
-    inicial.alienanteId
-      ? { id: inicial.alienanteId, nome: inicial.alienanteNome, postoGrad: inicial.alienantePosto }
-      : null
-  );
-  const [avisoAlienante, setAvisoAlienante] = useState("");
-
   function set(k: string, v: string) {
     setF((o) => ({ ...o, [k]: v }));
   }
 
-  /* Alienante do Batalhao: puxa da ficha o que der. Quem nao e o P/1 recebe
-     o colega sem estado civil, nascimento, naturalidade e filiacao (a API
-     nao entrega) — esses ele pede ao alienante e digita. */
-  async function puxarAlienante(m: Militar) {
-    setAlienanteSel(m);
-    setAvisoAlienante("");
-    try {
-      const res = await fetch(`/api/requerimentos/alienante?id=${encodeURIComponent(m.id)}`);
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) { setAvisoAlienante(d.error || "Não foi possível ler a ficha do alienante."); return; }
-      const dados = (d.dados || {}) as Record<string, string>;
-      setF((o) => {
-        const novo = { ...o };
-        for (const [k, v] of Object.entries(dados)) if (v) novo[k] = v;
-        return novo;
-      });
-      if (d.parcial) {
-        setAvisoAlienante(
-          "Estado civil, nascimento, naturalidade e filiação do alienante não vêm da ficha para você — " +
-          "peça a ele e preencha (só o P/1 puxa esses dados de outro militar)."
-        );
-      }
-    } catch {
-      setAvisoAlienante("Erro de conexão ao ler a ficha do alienante.");
-    }
-  }
-
-  // trocar o alienante: some o vinculo com a ficha e os dados dele
-  function limparAlienante() {
-    setAlienanteSel(null);
-    setAvisoAlienante("");
-    setF((o) => {
-      const novo = { ...o };
-      for (const k of CAMPOS_ALIENANTE) novo[k] = "";
-      novo.alienanteOrgao = "PMMA";
-      novo.alienanteNacionalidade = "brasileiro";
-      return novo;
-    });
+  // varios campos de uma vez (o alienante puxado da ficha)
+  function setVarios(novos: Dados) {
+    setF((o) => ({ ...o, ...novos }));
   }
 
   // Campos obrigatorios so para ENVIAR (rascunho pode ficar incompleto).
@@ -252,29 +177,6 @@ export default function RequerimentoForm({
     }
   }
 
-  function classeCol(col?: number): string {
-    if (col === 3) return "sm:col-span-2 md:col-span-3";
-    if (col === 2) return "sm:col-span-2";
-    return "";
-  }
-
-  function campo(c: Campo) {
-    return (
-      <div key={c.key} className={classeCol(c.col)}>
-        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
-          {c.label}{obrigatorios[c.key] ? " *" : ""}
-        </label>
-        <input
-          type="text"
-          value={f[c.key] ?? ""}
-          onChange={(e) => set(c.key, e.target.value)}
-          placeholder={c.dica}
-          className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-5">
       {/* dados pessoais */}
@@ -293,9 +195,7 @@ export default function RequerimentoForm({
             “termo” só saem no Termo de Doação.
           </p>
         )}
-        <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
-          {campos.map(campo)}
-
+        <GradeCampos campos={campos} valores={f} set={set} obrigatorios={obrigatorios}>
           {ehCursos && (
             <>
               <div>
@@ -310,7 +210,7 @@ export default function RequerimentoForm({
               </div>
             </>
           )}
-        </div>
+        </GradeCampos>
       </section>
 
       {/* transferencia, quadro 2: quem passa a arma (o doador do termo) */}
@@ -323,22 +223,8 @@ export default function RequerimentoForm({
             É o <b>doador</b> no termo de doação. Se for militar do Batalhão, busque pelo nome e os
             dados vêm da ficha; se for de fora, preencha à mão.
           </p>
-          <div className="mb-4 rounded-lg border border-white/10 bg-[#0b1626] p-3">
-            <BuscaMilitar
-              sel={alienanteSel}
-              onEscolher={puxarAlienante}
-              onLimpar={limparAlienante}
-              rotulo="Buscar alienante no efetivo (opcional)"
-            />
-          </div>
-          {avisoAlienante && (
-            <p className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-[12px] text-amber-200">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {avisoAlienante}
-            </p>
-          )}
-          <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
-            {CAMPOS_TRANSF_ALIENANTE.map(campo)}
-          </div>
+          <BuscaAlienante valores={f} setVarios={setVarios} />
+          <GradeCampos campos={CAMPOS_TRANSF_ALIENANTE} valores={f} set={set} obrigatorios={obrigatorios} />
         </section>
       )}
 
@@ -351,9 +237,10 @@ export default function RequerimentoForm({
           <p className="mb-4 text-[12px] text-[#94A3B8]">
             Copie do CRAF da arma. O novo acervo sai como “cidadão”, como já vem impresso na folha.
           </p>
-          <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
-            {camposArmaTransferencia(registroDeOrigem(modelo)).map(campo)}
-          </div>
+          <GradeCampos
+            campos={camposArmaTransferencia(registroDeOrigem(modelo))}
+            valores={f} set={set} obrigatorios={obrigatorios}
+          />
         </section>
       )}
 
@@ -367,9 +254,7 @@ export default function RequerimentoForm({
             Sai na tabela do quadro 2 do formulário. A quantidade somada ao que você já possui não pode
             passar do limite das normas da COLOG.
           </p>
-          <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
-            {CAMPOS_PCE.map(campo)}
-          </div>
+          <GradeCampos campos={CAMPOS_PCE} valores={f} set={set} obrigatorios={obrigatorios} />
         </section>
       )}
 

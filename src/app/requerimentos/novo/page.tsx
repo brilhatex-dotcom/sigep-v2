@@ -27,9 +27,7 @@ export default async function NovoRequerimentoPage({
   const ehAdmin = (session.user.perfil ?? "").toLowerCase() === "admin";
   // Lote: o P/1 monta o MESMO requerimento para varios militares de uma vez.
   // Aqui nao se exige ficha propria — o requerimento e dos outros, nao dele.
-  // Transferencia de arma nao tem lote (cada um tem o seu alienante e a sua
-  // arma): cai no formulario individual.
-  const ehLote = ehAdmin && searchParams.lote === "1" && !ehModeloTransferencia(modelo);
+  const ehLote = ehAdmin && searchParams.lote === "1";
 
   const textos = await textoDaModalidade(modalidade);
 
