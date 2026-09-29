@@ -19,8 +19,10 @@ function ehAdmin(perfil: string | null | undefined): boolean {
    GET -> devolve, já pronto para download, o DOCX da "Declaração de Parecer
           Favorável para Aquisição de Arma de Fogo" daquele requerimento.
 
-   É anexo obrigatório dos dois requerimentos de aquisição (uso restrito e uso
-   permitido), então sai do mesmo cadastro — nada é redigitado. Diferente do
+   É anexo obrigatório de todos os requerimentos de aquisição (uso restrito,
+   uso permitido e as transferências SIGMA/SINARM para SIGMA), então sai do
+   mesmo cadastro — nada é redigitado. Na transferência, o "Produto" é o tipo
+   da arma transferida. Diferente do
    requerimento, este documento NÃO fica guardado no R2: é montado na hora, a
    partir do que está salvo, e sempre sai com os nomes de quem assina hoje.
    Dono ou admin.

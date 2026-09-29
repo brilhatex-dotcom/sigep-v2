@@ -2,8 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Save, Send } from "lucide-react";
-import { usaQuadrinhoOutros, ehModeloAquisicao } from "@/lib/requerimentos";
+import { Save, Send, AlertTriangle } from "lucide-react";
+import {
+  usaQuadrinhoOutros, ehModeloAquisicao, ehModeloTransferencia, registroDeOrigem,
+} from "@/lib/requerimentos";
+import { obrigatoriosDoModelo, CAMPOS_ALIENANTE } from "@/lib/requerimentoArma";
+import { BuscaMilitar, type Militar } from "@/components/docs/Comum";
 
 type Dados = Record<string, string>;
 
@@ -45,6 +49,61 @@ const CAMPOS_AQUISICAO: { key: string; label: string; col?: number }[] = [
   { key: "fone", label: "Telefone pessoal" },
 ];
 
+type Campo = { key: string; label: string; col?: number; dica?: string };
+
+/* Transferencia de arma (SIGMA/SINARM para SIGMA): o quadro 1 da folha pede
+   posto, nome, identidade, CPF, orgao de vinculacao e o endereco "com Tlf e
+   email" numa linha so. O RG PMMA, o estado civil e o CEP nao saem na folha
+   — sao do TERMO DE DOACAO, que o adquirente assina como recebedor. */
+const CAMPOS_TRANSF_ADQUIRENTE: Campo[] = [
+  { key: "nomeCompleto", label: "Nome completo", col: 3 },
+  { key: "postoGrad", label: "Posto/Grad/Função" },
+  { key: "idPmmaTxt", label: "Identidade (ID PMMA)" },
+  { key: "rg", label: "RG PMMA (termo)" },
+  { key: "cpf", label: "CPF" },
+  { key: "orgao", label: "Órgão de vinculação" },
+  { key: "estadoCivil", label: "Estado civil (termo)" },
+  { key: "fone", label: "Telefone" },
+  { key: "email", label: "E-mail", col: 2 },
+  { key: "endereco", label: "Endereço (rua e nº)", col: 2 },
+  { key: "complemento", label: "Complemento" },
+  { key: "bairro", label: "Bairro" },
+  { key: "municipio", label: "Cidade/UF" },
+  { key: "cep", label: "CEP" },
+];
+
+// quadro "2. IDENTIFICACAO DO ALIENANTE" + o que o termo pede do DOADOR
+const CAMPOS_TRANSF_ALIENANTE: Campo[] = [
+  { key: "alienanteNome", label: "Nome completo", col: 2 },
+  { key: "alienantePosto", label: "Posto/Grad/Função/CR" },
+  { key: "alienanteIdentidade", label: "Identidade" },
+  { key: "alienanteRg", label: "RG PMMA (termo)" },
+  { key: "alienanteCpf", label: "CPF" },
+  { key: "alienanteOrgao", label: "Órgão de vinculação" },
+  { key: "alienanteAcervo", label: "Acervo atual da arma", dica: "Ex: CIDADÃO" },
+  { key: "alienanteNacionalidade", label: "Nacionalidade (termo)" },
+  { key: "alienanteEstadoCivil", label: "Estado civil (termo)" },
+  { key: "alienanteNasc", label: "Data de nascimento (termo)", dica: "dd/mm/aaaa" },
+  { key: "alienanteNaturalidade", label: "Naturalidade — cidade (termo)" },
+  { key: "alienantePai", label: "Nome do pai (termo)", col: 3 },
+  { key: "alienanteMae", label: "Nome da mãe (termo)", col: 3 },
+];
+
+// quadro "3. IDENTIFICACAO DA ARMA OBJETO DA AQUISICAO POR TRANSFERENCIA"
+function camposArmaTransferencia(registro: string): Campo[] {
+  return [
+    { key: "registro", label: `Nº ${registro}`, dica: `Nº do registro no ${registro}` },
+    { key: "produto", label: "Tipo", dica: "Ex: PISTOLA" },
+    { key: "marca", label: "Marca", dica: "Ex: TAURUS" },
+    { key: "modeloArma", label: "Modelo", dica: "Ex: G2C" },
+    { key: "serie", label: "Número de série" },
+    { key: "calibre", label: "Calibre", dica: "Ex: 9MM" },
+    { key: "acabamento", label: "Acabamento (termo)", dica: "Ex: OXIDADO" },
+    { key: "acessorios", label: "Acessórios e/ou sobressalentes (quando for o caso)", col: 2 },
+    { key: "outras", label: "Outras especificações (quando for o caso)", col: 3 },
+  ];
+}
+
 // quadro "2. PRODUTO CONTROLADO A SER ADQUIRIDO" das folhas de PCE
 const CAMPOS_PCE: { key: string; label: string; dica: string }[] = [
   { key: "produto", label: "Produto", dica: "Ex: PISTOLA" },
@@ -73,14 +132,68 @@ export default function RequerimentoForm({
   const [erro, setErro] = useState("");
 
   const ehCursos = modelo === "cursos";
-  // formularios de PCE (uso restrito/permitido), nao a folha da PMMA
+  // formularios de PCE (uso restrito/permitido e transferencias), nao a folha da PMMA
   const ehAquisicao = ehModeloAquisicao(modelo);
+  // transferencia: tem alienante, arma ja registrada e termo de doacao
+  const ehTransferencia = ehModeloTransferencia(modelo);
   // "OUTROS" puro ou modalidade que cai no quadrinho OUTROS (arma, colete...)
   const ehOutros = !ehAquisicao && usaQuadrinhoOutros(modalidade);
-  const campos = ehAquisicao ? CAMPOS_AQUISICAO : CAMPOS_PESSOAIS;
+  const campos: Campo[] = ehTransferencia
+    ? CAMPOS_TRANSF_ADQUIRENTE
+    : ehAquisicao ? CAMPOS_AQUISICAO : CAMPOS_PESSOAIS;
+  // marca com * o que a folha nao deixa sair em branco
+  const obrigatorios = obrigatoriosDoModelo(modelo);
+
+  // alienante escolhido no buscador do efetivo (opcional: pode ser de fora)
+  const [alienanteSel, setAlienanteSel] = useState<Militar | null>(
+    inicial.alienanteId
+      ? { id: inicial.alienanteId, nome: inicial.alienanteNome, postoGrad: inicial.alienantePosto }
+      : null
+  );
+  const [avisoAlienante, setAvisoAlienante] = useState("");
 
   function set(k: string, v: string) {
     setF((o) => ({ ...o, [k]: v }));
+  }
+
+  /* Alienante do Batalhao: puxa da ficha o que der. Quem nao e o P/1 recebe
+     o colega sem estado civil, nascimento, naturalidade e filiacao (a API
+     nao entrega) — esses ele pede ao alienante e digita. */
+  async function puxarAlienante(m: Militar) {
+    setAlienanteSel(m);
+    setAvisoAlienante("");
+    try {
+      const res = await fetch(`/api/requerimentos/alienante?id=${encodeURIComponent(m.id)}`);
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { setAvisoAlienante(d.error || "Não foi possível ler a ficha do alienante."); return; }
+      const dados = (d.dados || {}) as Record<string, string>;
+      setF((o) => {
+        const novo = { ...o };
+        for (const [k, v] of Object.entries(dados)) if (v) novo[k] = v;
+        return novo;
+      });
+      if (d.parcial) {
+        setAvisoAlienante(
+          "Estado civil, nascimento, naturalidade e filiação do alienante não vêm da ficha para você — " +
+          "peça a ele e preencha (só o P/1 puxa esses dados de outro militar)."
+        );
+      }
+    } catch {
+      setAvisoAlienante("Erro de conexão ao ler a ficha do alienante.");
+    }
+  }
+
+  // trocar o alienante: some o vinculo com a ficha e os dados dele
+  function limparAlienante() {
+    setAlienanteSel(null);
+    setAvisoAlienante("");
+    setF((o) => {
+      const novo = { ...o };
+      for (const k of CAMPOS_ALIENANTE) novo[k] = "";
+      novo.alienanteOrgao = "PMMA";
+      novo.alienanteNacionalidade = "brasileiro";
+      return novo;
+    });
   }
 
   // Campos obrigatorios so para ENVIAR (rascunho pode ficar incompleto).
@@ -89,15 +202,10 @@ export default function RequerimentoForm({
   // de inclusao, o sistema deriva sozinho da ficha — nao precisa pedir).
   function faltando(): string[] {
     // Aquisicao de arma: a folha so anda com o adquirente identificado e o
-    // produto descrito — sem isso o pedido volta.
+    // produto (ou a arma transferida e o alienante) descrito — sem isso o
+    // pedido volta. A lista e a mesma que a API confere.
     if (ehAquisicao) {
-      const nomes: Record<string, string> = {
-        nomeCompleto: "Nome completo", idPmmaTxt: "Identidade (ID PMMA)", cpf: "CPF",
-        endereco: "Endereço de entrega", municipio: "Cidade/UF",
-        produto: "Produto", marca: "Marca", modeloArma: "Modelo",
-        calibre: "Calibre", quantidade: "Quantidade",
-      };
-      return Object.entries(nomes)
+      return Object.entries(obrigatorios)
         .filter(([k]) => !(f[k] ?? "").trim())
         .map(([, rotulo]) => rotulo);
     }
@@ -150,6 +258,23 @@ export default function RequerimentoForm({
     return "";
   }
 
+  function campo(c: Campo) {
+    return (
+      <div key={c.key} className={classeCol(c.col)}>
+        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+          {c.label}{obrigatorios[c.key] ? " *" : ""}
+        </label>
+        <input
+          type="text"
+          value={f[c.key] ?? ""}
+          onChange={(e) => set(c.key, e.target.value)}
+          placeholder={c.dica}
+          className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       {/* dados pessoais */}
@@ -162,20 +287,14 @@ export default function RequerimentoForm({
             ? "Ajuste o que precisar. Se o documento já tinha sido gerado, ele é descartado — gere de novo depois de salvar, para sair com o texto novo."
             : "Os campos vêm da sua ficha. Confira e ajuste o que precisar — fica salvo para os próximos requerimentos."}
         </p>
+        {ehTransferencia && (
+          <p className="mb-4 text-[12px] text-[#94A3B8]">
+            O requerente é o <b>adquirente</b> (o recebedor no termo de doação). Os campos marcados com
+            “termo” só saem no Termo de Doação.
+          </p>
+        )}
         <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
-          {campos.map((c) => (
-            <div key={c.key} className={classeCol(c.col)}>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
-                {c.label}
-              </label>
-              <input
-                type="text"
-                value={f[c.key] ?? ""}
-                onChange={(e) => set(c.key, e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
-              />
-            </div>
-          ))}
+          {campos.map(campo)}
 
           {ehCursos && (
             <>
@@ -194,8 +313,52 @@ export default function RequerimentoForm({
         </div>
       </section>
 
+      {/* transferencia, quadro 2: quem passa a arma (o doador do termo) */}
+      {ehTransferencia && (
+        <section className="ui-card p-6">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+            <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Alienante (quem passa a arma)
+          </h2>
+          <p className="mb-4 text-[12px] text-[#94A3B8]">
+            É o <b>doador</b> no termo de doação. Se for militar do Batalhão, busque pelo nome e os
+            dados vêm da ficha; se for de fora, preencha à mão.
+          </p>
+          <div className="mb-4 rounded-lg border border-white/10 bg-[#0b1626] p-3">
+            <BuscaMilitar
+              sel={alienanteSel}
+              onEscolher={puxarAlienante}
+              onLimpar={limparAlienante}
+              rotulo="Buscar alienante no efetivo (opcional)"
+            />
+          </div>
+          {avisoAlienante && (
+            <p className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-[12px] text-amber-200">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {avisoAlienante}
+            </p>
+          )}
+          <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
+            {CAMPOS_TRANSF_ALIENANTE.map(campo)}
+          </div>
+        </section>
+      )}
+
+      {/* transferencia, quadro 3: a arma, que ja tem registro e numero de serie */}
+      {ehTransferencia && (
+        <section className="ui-card p-6">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+            <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Arma objeto da transferência
+          </h2>
+          <p className="mb-4 text-[12px] text-[#94A3B8]">
+            Copie do CRAF da arma. O novo acervo sai como “cidadão”, como já vem impresso na folha.
+          </p>
+          <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
+            {camposArmaTransferencia(registroDeOrigem(modelo)).map(campo)}
+          </div>
+        </section>
+      )}
+
       {/* quadro 2 do formulario do Exercito: o produto controlado */}
-      {ehAquisicao && (
+      {ehAquisicao && !ehTransferencia && (
         <section className="ui-card p-6">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
             <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Produto controlado a ser adquirido
@@ -205,20 +368,7 @@ export default function RequerimentoForm({
             passar do limite das normas da COLOG.
           </p>
           <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
-            {CAMPOS_PCE.map((c) => (
-              <div key={c.key}>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
-                  {c.label}
-                </label>
-                <input
-                  type="text"
-                  value={f[c.key] ?? ""}
-                  onChange={(e) => set(c.key, e.target.value)}
-                  placeholder={c.dica}
-                  className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
-                />
-              </div>
-            ))}
+            {CAMPOS_PCE.map(campo)}
           </div>
         </section>
       )}

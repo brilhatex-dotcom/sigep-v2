@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Download, Loader2, Pencil, Trash2 } from "lucide-react";
-import { ehModeloAquisicao } from "@/lib/requerimentos";
+import { FileText, Download, Loader2, Pencil, Trash2, Receipt, ExternalLink } from "lucide-react";
+import { ehModeloAquisicao, ehModeloTransferencia } from "@/lib/requerimentos";
+import { GRU_TAXA_PCE, competenciaAtual } from "@/lib/gru";
 import { confirmar } from "@/components/Avisos";
 
 type Dados = {
@@ -11,8 +12,12 @@ type Dados = {
   nomeCompleto: string; postoGrad: string; matricula: string;
   amparoLegal: string; infoAdicional: string; temDocx: boolean;
   parecer: string; criadoEm: string;
-  // resumo do produto controlado (so no modelo de aquisicao de uso restrito)
+  // resumo do produto controlado (so nos modelos de aquisicao de arma)
   pce?: string;
+  // quem passa a arma (so na transferencia)
+  alienante?: string;
+  // CPF do adquirente: o contribuinte da GRU
+  cpf?: string;
 };
 
 export default function RequerimentoDetalhe({
@@ -27,6 +32,8 @@ export default function RequerimentoDetalhe({
   const [temDocx, setTemDocx] = useState(dados.temDocx);
   const [erro, setErro] = useState("");
   const [excluindo, setExcluindo] = useState(false);
+
+  const transferencia = ehModeloTransferencia(dados.modelo);
 
   // O admin mexe em qualquer um. O policial, só enquanto está em rascunho —
   // depois de enviado, alterar por fora mudaria o que o P/1 já está vendo.
@@ -83,12 +90,22 @@ export default function RequerimentoDetalhe({
           adicionais — o que importa ali é o produto controlado pedido. */}
       <section className="ui-card p-6 space-y-3">
         {ehModeloAquisicao(dados.modelo) ? (
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
-              Produto controlado a ser adquirido
-            </p>
-            <p className="mt-0.5 text-sm text-white">{dados.pce || "—"}</p>
-          </div>
+          <>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+                {transferencia ? "Arma objeto da transferência" : "Produto controlado a ser adquirido"}
+              </p>
+              <p className="mt-0.5 text-sm text-white">{dados.pce || "—"}</p>
+            </div>
+            {transferencia && (
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+                  Alienante (doador)
+                </p>
+                <p className="mt-0.5 text-sm text-white">{dados.alienante || "—"}</p>
+              </div>
+            )}
+          </>
         ) : (
           <>
             <div>
@@ -129,8 +146,8 @@ export default function RequerimentoDetalhe({
         </div>
       </section>
 
-      {/* Anexo obrigatório dos dois requerimentos de aquisição: sai do mesmo
-          cadastro, com os nomes de quem assina hoje. */}
+      {/* Anexo obrigatório de todos os requerimentos de aquisição (compra e
+          transferência): sai do mesmo cadastro, com os nomes de quem assina hoje. */}
       {ehModeloAquisicao(dados.modelo) && (
         <section className="ui-card p-6">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
@@ -146,6 +163,70 @@ export default function RequerimentoDetalhe({
           >
             <Download className="h-4 w-4" /> Baixar declaração (.docx)
           </a>
+        </section>
+      )}
+
+      {/* Transferência: o alienante doa a arma ao adquirente. */}
+      {transferencia && (
+        <section className="ui-card p-6">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+            <FileText className="h-4 w-4 text-[#D4AF37]" /> Termo de doação de arma de fogo
+          </h2>
+          <p className="mb-4 text-[12px] text-[#94A3B8]">
+            Assinado pelo alienante (doador) e pelo adquirente (recebedor), com firma reconhecida em
+            cartório. Sai com os dados deste requerimento e a data de hoje — o que faltar volta como
+            linha em branco, para completar à mão.
+          </p>
+          <a
+            href={`/api/requerimentos/${dados.id}/termo`}
+            className="inline-flex items-center gap-2 rounded-lg border border-[#2b3f63] bg-[#16243a] px-4 py-2 text-sm font-semibold text-[#E8EEF6] transition hover:border-[#D4AF37]"
+          >
+            <Download className="h-4 w-4" /> Baixar termo de doação (.docx)
+          </a>
+        </section>
+      )}
+
+      {/* A taxa de aquisição de PCE: a GRU paga também vai nos anexos. */}
+      {ehModeloAquisicao(dados.modelo) && (
+        <section className="ui-card p-6">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+            <Receipt className="h-4 w-4 text-[#D4AF37]" /> GRU da taxa de aquisição de PCE
+          </h2>
+          <p className="mb-4 text-[12px] text-[#94A3B8]">
+            Anexo obrigatório: cópia da GRU e do comprovante de pagamento. Emita no PagTesouro com os
+            dados abaixo — pagamento exclusivo no Banco do Brasil.
+          </p>
+          <dl className="mb-4 grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+            {[
+              ["(1) Unidade Gestora (UG)", `${GRU_TAXA_PCE.ug} — ${GRU_TAXA_PCE.ugNome}`],
+              ["(2) Código de recolhimento", `${GRU_TAXA_PCE.codigoRecolhimento} — ${GRU_TAXA_PCE.codigoNome}`],
+              ["(3) Número de referência", `${GRU_TAXA_PCE.referencia} — ${GRU_TAXA_PCE.referenciaNome}`],
+              ["(4) Competência", competenciaAtual()],
+              ["(5) Valor", `R$ ${GRU_TAXA_PCE.valor}`],
+              ["Contribuinte", [dados.nomeCompleto, dados.cpf ? `CPF ${dados.cpf}` : ""].filter(Boolean).join(" · ") || "—"],
+            ].map(([rotulo, valor]) => (
+              <div key={rotulo}>
+                <dt className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">{rotulo}</dt>
+                <dd className="mt-0.5 text-white">{valor}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="flex flex-wrap gap-3">
+            <a
+              href={GRU_TAXA_PCE.site}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110"
+            >
+              <ExternalLink className="h-4 w-4" /> Emitir no PagTesouro
+            </a>
+            <a
+              href={`/api/requerimentos/${dados.id}/gru`}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#2b3f63] bg-[#16243a] px-4 py-2 text-sm font-semibold text-[#E8EEF6] transition hover:border-[#D4AF37]"
+            >
+              <Download className="h-4 w-4" /> Baixar instruções da GRU (.docx)
+            </a>
+          </div>
         </section>
       )}
 

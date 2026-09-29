@@ -2,7 +2,8 @@ import fs from "fs";
 import path from "path";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
-import { ehModeloAquisicao } from "@/lib/requerimentos";
+import { ehModeloAquisicao, ehModeloTransferencia } from "@/lib/requerimentos";
+import { lerDadosArma } from "@/lib/requerimentoArma";
 
 /* =========================================================================
    Gera o DOCX do requerimento a partir do template (substitui dados +
@@ -12,6 +13,8 @@ import { ehModeloAquisicao } from "@/lib/requerimentos";
      - requerimento_comum.docx
      - requerimento_cursos.docx   (quando disponivel)
      - requerimento_aquisicao_restrito.docx  (formulario do Exercito/SisFPC)
+     - requerimento_aquisicao_permitido.docx (formulario da DAL/PMMA)
+     - requerimento_transferencia_sigma.docx / _sinarm.docx (transferencia)
 
    IMPORTANTE (Vercel): arquivos de /public NAO entram no bundle da
    serverless function por padrao. Para o fs.readFileSync funcionar em
@@ -222,15 +225,27 @@ function enderecoEntrega(d: DadosReq): string {
   return [s(d.endereco).trim(), s(d.complemento).trim(), s(d.bairro).trim()].filter(Boolean).join(", ");
 }
 
+/* "Endereço (com Tlf e email):" da folha de transferencia — tudo numa linha:
+   logradouro, bairro, cidade e CEP, depois telefone e e-mail. */
+function enderecoComContato(d: DadosReq, cep: string): string {
+  const endereco = [enderecoEntrega(d), s(d.municipio).trim(), cep ? `CEP ${cep}` : ""]
+    .filter(Boolean).join(", ");
+  const fone = s(d.fone).trim();
+  const email = s(d.email).trim();
+  return [endereco, fone ? `TEL: ${fone}` : "", email ? `E-MAIL: ${email}` : ""]
+    .filter(Boolean).join(" - ");
+}
+
+const TEMPLATE_DO_MODELO: Record<string, string> = {
+  aquisicao_restrito: "requerimento_aquisicao_restrito.docx",
+  aquisicao_permitido: "requerimento_aquisicao_permitido.docx",
+  transferencia_sigma: "requerimento_transferencia_sigma.docx",
+  transferencia_sinarm: "requerimento_transferencia_sinarm.docx",
+  cursos: "requerimento_cursos.docx",
+};
+
 export function gerarRequerimentoDocx(d: DadosReq): Buffer {
-  const nomeTemplate =
-    d.modelo === "aquisicao_restrito"
-      ? "requerimento_aquisicao_restrito.docx"
-      : d.modelo === "aquisicao_permitido"
-      ? "requerimento_aquisicao_permitido.docx"
-      : d.modelo === "cursos"
-      ? "requerimento_cursos.docx"
-      : "requerimento_comum.docx";
+  const nomeTemplate = TEMPLATE_DO_MODELO[d.modelo] ?? "requerimento_comum.docx";
   const caminho = path.join(process.cwd(), "public", "templates", nomeTemplate);
 
   let content: string;
@@ -257,6 +272,37 @@ export function gerarRequerimentoDocx(d: DadosReq): Buffer {
      sem informacoes adicionais — o papel nao tem esses quadros. Os dois usam
      os mesmos campos; muda so o template. Sai daqui antes da montagem da
      folha de requerimento da PMMA. */
+  /* Transferencia (SIGMA ou SINARM para SIGMA): adquirente, alienante e a
+     arma ja registrada. Os anexos, o "Novo Acervo: cidadao" e os quadros de
+     parecer/despacho ja vem impressos — ficam como estao. */
+  if (ehModeloTransferencia(d.modelo)) {
+    const a = lerDadosArma(d.p2Complementares);
+    const g = (k: string) => s(a[k]).trim();
+    doc.render({
+      postograd: s(d.postoGrad),
+      nome: s(d.nomeCompleto),
+      identidade: s(d.idPmmaTxt) || s(d.matricula),
+      cpf: s(d.cpf),
+      orgao: g("orgao"),
+      contato: enderecoComContato(d, g("cep")),
+      alposto: g("alienantePosto"),
+      alnome: g("alienanteNome"),
+      alidentidade: g("alienanteIdentidade"),
+      alcpf: g("alienanteCpf"),
+      alorgao: g("alienanteOrgao"),
+      alacervo: g("alienanteAcervo"),
+      registro: g("registro"),
+      tipo: g("produto"),
+      marca: g("marca"),
+      modeloarma: g("modeloArma"),
+      serie: g("serie"),
+      calibre: g("calibre"),
+      acessorios: g("acessorios"),
+      outras: g("outras"),
+    });
+    return doc.getZip().generate({ type: "nodebuffer" });
+  }
+
   if (ehModeloAquisicao(d.modelo)) {
     const pce = lerPce(d.p2Complementares);
     doc.render({

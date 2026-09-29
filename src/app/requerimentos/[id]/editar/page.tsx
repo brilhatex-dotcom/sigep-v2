@@ -5,8 +5,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import RequerimentoForm from "@/components/RequerimentoForm";
-import { lerPce } from "@/lib/gerarRequerimento";
 import { ehModeloAquisicao } from "@/lib/requerimentos";
+import { lerDadosArma } from "@/lib/requerimentoArma";
 import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -46,9 +46,10 @@ export default async function EditarRequerimentoPage({
   if (!ehAdmin && r.status !== "rascunho") redirect(`/requerimentos/${r.id}`);
 
   const bg = lerBg(r.p2SituacaoJur);
-  // Aquisicao de uso restrito: os dados do produto ficam como JSON dentro de
-  // p2Complementares — desfazemos aqui para o formulario mostrar campo a campo.
-  const pce = ehModeloAquisicao(r.modelo) ? lerPce(r.p2Complementares) : null;
+  // Aquisicao de arma: o produto (e, na transferencia, a arma registrada e o
+  // alienante) fica como JSON dentro de p2Complementares — desfazemos aqui
+  // para o formulario mostrar campo a campo.
+  const arma = ehModeloAquisicao(r.modelo) ? lerDadosArma(r.p2Complementares) : null;
 
   const inicial: Record<string, string> = {
     nomeCompleto: r.nomeCompleto ?? "",
@@ -77,16 +78,8 @@ export default async function EditarRequerimentoPage({
     p2UltimaPromocao: r.p2UltimaPromocao ?? "",
     p2BgNumero: bg.bgNumero,
     p2BgData: bg.bgData,
-    p2Complementares: pce ? "" : (r.p2Complementares ?? ""),
-    ...(pce
-      ? {
-          produto: pce.produto,
-          marca: pce.marca,
-          modeloArma: pce.modeloArma,
-          calibre: pce.calibre,
-          quantidade: pce.quantidade,
-        }
-      : {}),
+    p2Complementares: arma ? "" : (r.p2Complementares ?? ""),
+    ...(arma ?? {}),
   };
 
   return (

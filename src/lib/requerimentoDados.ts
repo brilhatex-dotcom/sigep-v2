@@ -131,5 +131,8 @@ export async function dadosPessoais(efetivoId: string): Promise<Record<string, s
     opmExercicio: perfil?.opmExercicio || "18º BPM",
     cpf: perfil?.cpf || m.cpf || "",
     email: perfil?.email || m.email || "",
+    // o termo de doação da transferência de arma pede RG PMMA e CEP
+    rg: m.rg || "",
+    cep: m.cep || "",
   };
 }

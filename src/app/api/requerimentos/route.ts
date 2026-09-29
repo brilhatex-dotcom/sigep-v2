@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { modeloDaModalidade, ehModeloAquisicao } from "@/lib/requerimentos";
+import { jsonArma, obrigatoriosDoModelo } from "@/lib/requerimentoArma";
 import { registrar } from "@/lib/auditoria";
 
 export const dynamic = "force-dynamic";
@@ -40,8 +41,9 @@ export async function POST(req: Request) {
     }
   }
   if (ehModeloAquisicao(modelo) && acao === "enviado") {
-    const obrigatorios = ["nomeCompleto", "idPmmaTxt", "cpf", "endereco", "municipio", "produto", "marca", "modeloArma", "calibre", "quantidade"];
-    const faltando = obrigatorios.filter((k) => !v(k));
+    const faltando = Object.entries(obrigatoriosDoModelo(modelo))
+      .filter(([k]) => !v(k))
+      .map(([, rotulo]) => rotulo);
     if (faltando.length) {
       return NextResponse.json({ error: `Preencha antes de enviar: ${faltando.join(", ")}.` }, { status: 400 });
     }
@@ -56,16 +58,11 @@ export async function POST(req: Request) {
     ? JSON.stringify({ bgNumero: v("p2BgNumero") || "", bgData: v("p2BgData") || "" })
     : null;
 
-  /* Aquisicao de arma: produto/marca/modelo/calibre/quantidade tambem
-     nao tem coluna propria — mesma solucao, viajam como JSON em
-     p2Complementares (que so o modelo de cursos usa, nunca os dois juntos). */
-  const camposPce = ["produto", "marca", "modeloArma", "calibre", "quantidade"];
-  const p2Complementares =
-    ehModeloAquisicao(modelo)
-      ? (camposPce.some((k) => v(k))
-          ? JSON.stringify(Object.fromEntries(camposPce.map((k) => [k, v(k) || ""])))
-          : null)
-      : v("p2Complementares");
+  /* Aquisicao de arma: produto/marca/modelo/calibre/quantidade (e, na
+     transferencia, a arma registrada e o alienante) tambem nao tem coluna
+     propria — mesma solucao, viajam como JSON em p2Complementares (que so o
+     modelo de cursos usa, nunca os dois juntos). Ver lib/requerimentoArma. */
+  const p2Complementares = ehModeloAquisicao(modelo) ? jsonArma(modelo, v) : v("p2Complementares");
 
   try {
     const criado = await prisma.requerimento.create({

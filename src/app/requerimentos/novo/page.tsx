@@ -5,7 +5,8 @@ import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import RequerimentoForm from "@/components/RequerimentoForm";
 import RequerimentoLoteForm from "@/components/RequerimentoLoteForm";
-import { modeloDaModalidade } from "@/lib/requerimentos";
+import { modeloDaModalidade, ehModeloTransferencia, descricaoDoModelo } from "@/lib/requerimentos";
+import { padraoTransferencia } from "@/lib/requerimentoArma";
 import { textoDaModalidade, dadosPessoais } from "@/lib/requerimentoDados";
 import { ArrowLeft } from "lucide-react";
 
@@ -26,7 +27,9 @@ export default async function NovoRequerimentoPage({
   const ehAdmin = (session.user.perfil ?? "").toLowerCase() === "admin";
   // Lote: o P/1 monta o MESMO requerimento para varios militares de uma vez.
   // Aqui nao se exige ficha propria — o requerimento e dos outros, nao dele.
-  const ehLote = ehAdmin && searchParams.lote === "1";
+  // Transferencia de arma nao tem lote (cada um tem o seu alienante e a sua
+  // arma): cai no formulario individual.
+  const ehLote = ehAdmin && searchParams.lote === "1" && !ehModeloTransferencia(modelo);
 
   const textos = await textoDaModalidade(modalidade);
 
@@ -43,7 +46,7 @@ export default async function NovoRequerimentoPage({
           <h1 className="mb-1 text-2xl font-bold text-white">Requerimento em lote</h1>
           <p className="mb-5 text-sm text-[#94A3B8]">
             Modalidade: <span className="font-semibold text-[#D4AF37]">{modalidade}</span>
-            {modelo === "cursos" ? " · modelo de cursos" : modelo === "aquisicao_restrito" ? " · formulário do Exército (SisFPC)" : modelo === "aquisicao_permitido" ? " · formulário da DAL/PMMA" : ""}
+            {descricaoDoModelo(modelo)}
           </p>
 
           <RequerimentoLoteForm modalidade={modalidade} modelo={modelo} inicial={textos} />
@@ -66,6 +69,8 @@ export default async function NovoRequerimentoPage({
     p2BgNumero: "",
     p2BgData: "",
     p2Complementares: "",
+    // transferencia: orgao de vinculacao e nacionalidade ja com o comum
+    ...(ehModeloTransferencia(modelo) ? padraoTransferencia() : {}),
   };
 
   return (
@@ -80,7 +85,7 @@ export default async function NovoRequerimentoPage({
         <h1 className="mb-1 text-2xl font-bold text-white">Novo requerimento</h1>
         <p className="mb-5 text-sm text-[#94A3B8]">
           Modalidade: <span className="font-semibold text-[#D4AF37]">{modalidade}</span>
-          {modelo === "cursos" ? " · modelo de cursos" : modelo === "aquisicao_restrito" ? " · formulário do Exército (SisFPC)" : modelo === "aquisicao_permitido" ? " · formulário da DAL/PMMA" : ""}
+          {descricaoDoModelo(modelo)}
         </p>
 
         <RequerimentoForm
