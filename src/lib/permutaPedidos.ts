@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { podeComoEncargo, podeVerP1 } from "@/lib/encargos";
+import { gravarConfig } from "@/lib/escalaGuarda";
+import { assinaturas } from "@/lib/escalaVersao";
 
 /* =========================================================================
    SOLICITAÇÃO DE PERMUTA — documento iniciado pelo policial, ANTES da escala.
@@ -174,6 +176,48 @@ export async function lerPermutas(): Promise<Permuta[]> {
   }
 }
 
+/* Só as permutas em certos estados, filtradas no banco (índice em "estado"). */
+export async function permutasPorEstado(estados: string[]): Promise<Permuta[]> {
+  if (!estados.length) return [];
+  try {
+    await garantirPerm();
+    const rows: any[] = await prisma.$queryRawUnsafe(
+      `SELECT dados FROM permuta WHERE estado = ANY($1::text[]) ORDER BY criado_em ASC`, estados);
+    const out: Permuta[] = [];
+    for (const r of rows) { try { out.push(JSON.parse(r.dados) as Permuta); } catch { /* ignora linha corrompida */ } }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/* As permutas que podem virar aviso no sino DESTE usuário, filtradas no banco.
+   O sino pergunta de minuto em minuto, para cada usuário logado; ler a tabela
+   inteira toda vez (o JSON completo de todas as permutas já feitas) era tráfego
+   do Neon jogado fora — quase nada daquilo era do usuário. */
+export async function permutasParaOSino(meuId: string | null, veP1: boolean, podeSub: boolean): Promise<Permuta[]> {
+  const cond: string[] = [];
+  const args: string[] = [];
+  if (meuId) {
+    args.push(meuId);
+    cond.push(`(solicitado_id = $1 AND estado = 'aguardando_solicitado')`);
+    cond.push(`((solicitante_id = $1 OR solicitado_id = $1) AND estado IN ('autorizada', 'nao_autorizada'))`);
+  }
+  if (veP1) cond.push(`estado = 'aguardando_p1'`);
+  if (podeSub) cond.push(`estado = 'aguardando_subcmt'`);
+  if (!cond.length) return [];
+  try {
+    await garantirPerm();
+    const rows: any[] = await prisma.$queryRawUnsafe(
+      `SELECT dados FROM permuta WHERE ${cond.join(" OR ")} ORDER BY criado_em ASC`, ...args);
+    const out: Permuta[] = [];
+    for (const r of rows) { try { out.push(JSON.parse(r.dados) as Permuta); } catch { /* ignora linha corrompida */ } }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 // Grava UMA permuta (add ou atualização). É o caminho normal de escrita.
 export async function upsertPermuta(p: Permuta): Promise<void> {
   await garantirPerm();
@@ -237,6 +281,22 @@ function titularEhDoMilitar(titular: string, f: FichaMin & { matricula?: string 
   return cands.some((c) => { const t = String(c).trim().toLowerCase(); return t.length >= 3 && alvo.includes(t); });
 }
 
+/* Algum destes dias (aaaa-mm-dd) já é uma chave da escala gravada? A conta é
+   feita no banco: procura o texto "<dia>": no JSON, sem trazê-lo para cá. Na
+   dúvida (erro), responde que sim — e segue o caminho completo de antes. */
+async function algumDiaNaEscala(dias: string[]): Promise<boolean> {
+  const validos = dias.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+  if (!validos.length) return false;
+  try {
+    const rows: any[] = await prisma.$queryRawUnsafe(
+      `SELECT EXISTS (SELECT 1 FROM config WHERE "Chave" = $1 AND "Valor" LIKE ANY ($2::text[])) AS tem`,
+      CHAVE_ESCALA, validos.map((d) => `%"${d}":%`));
+    return !!rows[0]?.tem;
+  } catch {
+    return true;
+  }
+}
+
 async function lerEscalaDias(): Promise<Record<string, any>> {
   try {
     const row = await prisma.config.findUnique({ where: { chave: CHAVE_ESCALA } });
@@ -274,6 +334,8 @@ function lancarNoDia(dia: any, ficha: FichaMin, substituto: string): boolean {
    e tira o peso do caminho quente. */
 const ESPERA_APLICACAO = 60_000;
 let ultimaAplicacao = 0;
+// escala + pendentes da última tentativa que não lançou nada (ver abaixo)
+let tentativaSemEfeito = "";
 
 export async function aplicarPermutasSeVencido(): Promise<void> {
   const agora = Date.now();
@@ -283,9 +345,28 @@ export async function aplicarPermutasSeVencido(): Promise<void> {
 }
 
 export async function aplicarPermutasNaEscala(): Promise<void> {
-  const pedidos = await lerPermutas();
-  const pend = pedidos.filter((p) => p.estado === "autorizada" && (!p.aplicadaPermuta || !p.aplicadaRetorno));
+  const pedidos = await permutasPorEstado(["autorizada"]);
+  const pend = pedidos.filter((p) => !p.aplicadaPermuta || !p.aplicadaRetorno);
   if (pend.length === 0) return;
+
+  /* A escala inteira é grande. Antes de baixá-la, pergunta ao banco se algum
+     dos dias pendentes JÁ EXISTE nela. Permuta autorizada para um dia que a
+     escala ainda não tem (ou nunca vai ter, como um dia que passou sem ser
+     gerado) ficava pendente para sempre — e fazia a escala inteira ser baixada
+     a cada minuto, à toa, enquanto houvesse alguém no sistema. */
+  const dias = new Set<string>();
+  for (const p of pend) {
+    if (!p.aplicadaPermuta && p.dataPermuta) dias.add(p.dataPermuta);
+    if (!p.aplicadaRetorno && p.dataRetorno) dias.add(p.dataRetorno);
+  }
+  if (!(await algumDiaNaEscala(Array.from(dias)))) return;
+
+  /* O dia existe, mas o titular pode não estar escalado nele (e aí não há o
+     que trocar). Sem nada novo — mesma escala, mesmas pendentes — desde a
+     última tentativa que não lançou nada, não baixa a escala de novo. */
+  const marca = (await assinaturas(CHAVE_ESCALA, CHAVE_ESCALA))[CHAVE_ESCALA] + "|" +
+    pend.map((p) => `${p.id}:${p.aplicadaPermuta ? 1 : 0}${p.aplicadaRetorno ? 1 : 0}`).join(",");
+  if (marca === tentativaSemEfeito) return;
 
   const escalas = await lerEscalaDias();
   let mudouEscala = false;
@@ -310,12 +391,10 @@ export async function aplicarPermutasNaEscala(): Promise<void> {
     if (mudou) mudadas.push(p);
   }
 
+  tentativaSemEfeito = mudadas.length ? "" : marca;
   if (mudouEscala) {
-    await prisma.config.upsert({
-      where: { chave: CHAVE_ESCALA },
-      update: { valor: JSON.stringify(escalas) },
-      create: { chave: CHAVE_ESCALA, valor: JSON.stringify(escalas), descricao: "Dias gerados/editados da Escala de Servico" },
-    });
+    // grava sem devolver a escala (ver escalaGuarda)
+    await gravarConfig(CHAVE_ESCALA, JSON.stringify(escalas), "Dias gerados/editados da Escala de Servico");
   }
   // grava só as permutas que mudaram (uma a uma)
   for (const p of mudadas) await upsertPermuta(p);
@@ -325,9 +404,9 @@ export async function aplicarPermutasNaEscala(): Promise<void> {
 // policial: permutas aguardando a assinatura dele (como solicitado).
 // admin: permutas aguardando o parecer do P/1.
 export async function pendenciasDe(efetivoId: string | null, admin: boolean): Promise<number> {
-  const pedidos = await lerPermutas();
   const veP1 = await podeVerP1(efetivoId, admin); // Chefe + Auxiliares do P/1
   const podeSub = await podeComoEncargo(efetivoId, "subcmt", admin);
+  const pedidos = await permutasParaOSino(efetivoId, veP1, podeSub);
   let n = 0;
   for (const p of pedidos) {
     if (efetivoId && p.solicitadoId === efetivoId && p.estado === "aguardando_solicitado") n++;

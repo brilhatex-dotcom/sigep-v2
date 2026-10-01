@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { lerPermutas } from "@/lib/permutaPedidos";
+import { permutasParaOSino } from "@/lib/permutaPedidos";
 import { podeComoEncargo, podeVerP1 } from "@/lib/encargos";
 import { garantirChatSilencioso } from "@/lib/chatDb";
 import { envolvemEfetivo, lerPecunia, refAssinatura, TIPO_ASSINATURA, faltaBanco } from "@/lib/requerimentoPecunia";
@@ -46,7 +46,8 @@ export async function notificacoesPermutas(quem: Quem): Promise<Notificacao[]> {
     const podeP1 = await podeComoEncargo(meuId, "chefe_p1", admin); // pode assinar
     const veP1 = await podeVerP1(meuId, admin);                     // Chefe + Auxiliares
     const podeSub = await podeComoEncargo(meuId, "subcmt", admin);
-    const pedidos = await lerPermutas();
+    // só as que podem interessar a este usuário, filtradas no banco
+    const pedidos = await permutasParaOSino(meuId, veP1, podeSub);
     const nots: Notificacao[] = [];
     for (const p of pedidos) {
       if (meuId && p.solicitadoId === meuId && p.estado === "aguardando_solicitado") {
@@ -91,19 +92,18 @@ export async function alertasSeguranca(quem: Quem): Promise<Notificacao[]> {
   if (!ehAdmin(quem.perfil)) return [];
   try {
     const desde = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // só os bloqueios e só os campos do aviso (o registro de auditoria é longo)
     const regs = await prisma.auditoria.findMany({
-      where: { acao: "login_falha", quando: { gte: desde } },
+      where: { acao: "login_falha", quando: { gte: desde }, detalhe: { contains: "BLOQUEADA" } },
       orderBy: { quando: "desc" },
-      take: 50,
+      take: 20,
+      select: { id: true, autorLogin: true, ip: true, quando: true },
     });
-    return regs
-      .filter((r) => (r.detalhe || "").includes("BLOQUEADA"))
-      .slice(0, 20)
-      .map((r) => ({
-        id: "bloq-" + r.id,
-        texto: `🔒 Conta bloqueada: ${r.autorLogin || "—"} (${(r as any).ip || "IP ?"})`,
-        em: r.quando.toISOString(),
-      }));
+    return regs.map((r) => ({
+      id: "bloq-" + r.id,
+      texto: `🔒 Conta bloqueada: ${r.autorLogin || "—"} (${r.ip || "IP ?"})`,
+      em: r.quando.toISOString(),
+    }));
   } catch { return []; }
 }
 
@@ -184,43 +184,58 @@ export async function notificacoesChat(quem: Quem): Promise<Notificacao[]> {
 export async function notificacoesFerias(quem: Quem): Promise<Notificacao[]> {
   const admin = ehAdmin(quem.perfil);
   const meuId = (quem.refEfetivo || "") as string;
+  /* As 400 assinaturas de memorando mais recentes, agrupadas por documento —
+     tudo DENTRO do banco. Antes as 400 linhas vinham para cá de minuto em
+     minuto, para cada usuário logado, e quase todas eram descartadas; agora
+     só sai do banco o que vira aviso. Mesma regra de antes: o "militar" é a
+     assinatura mais recente do próprio militar, e o "chefe" a mais recente de
+     qualquer outro papel. */
+  const JANELA = `WITH ultimas AS (
+      SELECT tipo, ref, papel, nome, em FROM assinatura_sigep
+       WHERE tipo IN ('memorando_ferias','memorando_lp')
+       ORDER BY em DESC LIMIT 400)`;
   try {
-    const linhas: any[] = await prisma.$queryRawUnsafe(
-      `SELECT tipo, ref, papel, nome, em FROM assinatura_sigep
-        WHERE tipo IN ('memorando_ferias','memorando_lp')
-        ORDER BY em DESC LIMIT 400`
-    );
-    if (!linhas.length) return [];
-
-    type Doc = { tipo: string; ref: string; militar?: any; chefe?: any };
-    const doc = new Map<string, Doc>();
-    for (const l of linhas) {
-      const k = l.tipo + "|" + l.ref;
-      const d: Doc = doc.get(k) || { tipo: String(l.tipo), ref: String(l.ref) };
-      if (l.papel === "militar") { if (!d.militar) d.militar = l; }
-      else if (!d.chefe) d.chefe = l;
-      doc.set(k, d);
-    }
-
     const nots: Notificacao[] = [];
     if (admin) {
-      for (const d of [...doc.values()].filter((x) => x.militar && !x.chefe)) {
+      // assinados pelo militar e ainda sem a assinatura da seção
+      const pendentes: any[] = await prisma.$queryRawUnsafe(
+        `${JANELA}
+         SELECT tipo, ref,
+                (array_agg(nome ORDER BY em DESC) FILTER (WHERE papel = 'militar'))[1] AS nome,
+                MAX(em) FILTER (WHERE papel = 'militar') AS em
+           FROM ultimas
+          GROUP BY tipo, ref
+         HAVING bool_or(papel = 'militar') AND NOT bool_or(papel <> 'militar')`
+      );
+      for (const d of pendentes) {
         const oQue = d.tipo === "memorando_lp" ? "licença-prêmio" : "férias";
         nots.push({
           id: "memo:" + d.tipo + ":" + d.ref,
-          texto: `${d.militar.nome} assinou o memorando de ${oQue}. Aguardando a assinatura da seção.`,
-          em: new Date(d.militar.em).toISOString(),
+          texto: `${d.nome} assinou o memorando de ${oQue}. Aguardando a assinatura da seção.`,
+          em: new Date(d.em).toISOString(),
           href: "/ferias",
         });
       }
     }
     if (meuId) {
-      for (const d of [...doc.values()].filter((x) => x.ref.startsWith(meuId + ":") && x.chefe)) {
+      // os meus que a seção já assinou
+      const prontos: any[] = await prisma.$queryRawUnsafe(
+        `${JANELA}
+         SELECT tipo, ref,
+                (array_agg(nome ORDER BY em DESC) FILTER (WHERE papel <> 'militar'))[1] AS nome,
+                MAX(em) FILTER (WHERE papel <> 'militar') AS em
+           FROM ultimas
+          WHERE LEFT(ref, LENGTH($1) + 1) = $1 || ':'
+          GROUP BY tipo, ref
+         HAVING bool_or(papel <> 'militar')`,
+        meuId,
+      );
+      for (const d of prontos) {
         const oQue = d.tipo === "memorando_lp" ? "licença-prêmio" : "férias";
         nots.push({
           id: "memo-ok:" + d.tipo + ":" + d.ref,
-          texto: `Seu memorando de ${oQue} foi assinado por ${d.chefe.nome}. Já pode baixar.`,
-          em: new Date(d.chefe.em).toISOString(),
+          texto: `Seu memorando de ${oQue} foi assinado por ${d.nome}. Já pode baixar.`,
+          em: new Date(d.em).toISOString(),
           href: "/minhas-ferias",
         });
       }

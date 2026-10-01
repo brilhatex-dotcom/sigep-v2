@@ -21,8 +21,8 @@ export const dynamic = "force-dynamic";
 
    DOIS NÍVEIS, de propósito — porque nem tudo custa o mesmo:
 
-   - RÁPIDO (padrão, de 2 em 2s): só as assinaturas da escala. Uma consulta
-     indexada, ~70 bytes. Pode bater nesse ritmo à vontade.
+   - RÁPIDO (padrão, de 3 em 3s, e só enquanto alguma tela de escala está
+     aberta): só as assinaturas da escala. Uma consulta indexada, ~70 bytes.
    - COMPLETO (?notif=1, de 60 em 60s): traz também as notificações do sino,
      que precisam varrer permutas, auditoria, chat e assinaturas. Caro, e
      ninguém precisa disso de 2 em 2 segundos.
@@ -37,10 +37,15 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const comNotif = url.searchParams.get("notif") === "1";
+  /* escala=0: nenhuma tela de escala aberta no navegador (ver lib/sincronia),
+     então a assinatura não interessa a ninguém — e nem a aplicação de
+     permutas, que mexe na escala inteira. Sem o parâmetro (aba antiga), segue
+     como antes. */
+  const querEscala = url.searchParams.get("escala") !== "0";
 
   /* Escopo da escala: admin na sede, ou o lugar do Cmt/Sargenteante. Quem não
      tem escala nenhuma (policial comum) simplesmente não recebe esta parte. */
-  const ctx = await chaveEscopada(req, "escala_dias");
+  const ctx = querEscala ? await chaveEscopada(req, "escala_dias") : null;
 
   const [escala, notificacoes] = await Promise.all([
     (async () => {

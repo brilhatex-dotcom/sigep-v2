@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { gravarConfig } from "@/lib/escalaGuarda";
+import {
+  assinaturaDoValor, cabecalhosVersao, respostaNaoMudou, versaoQueONavegadorTem,
+} from "@/lib/escalaVersao";
 
 export const dynamic = "force-dynamic";
 
@@ -46,12 +50,18 @@ function temSubstituto(sl: Slot | null | undefined): boolean {
   return !!(sl && typeof sl.permuta === "string" && sl.permuta.trim() !== "");
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
 
   try {
-    const row = await prisma.config.findUnique({ where: { chave: CHAVE } });
+    /* A lista sai da escala inteira, e a tela pergunta de 15 em 15 s. Se a
+       escala não mudou desde a última resposta, 304: o navegador reusa a lista
+       que já tem e a escala nem sai do banco (ver escalaVersao). */
+    const igual = await versaoQueONavegadorTem(req, CHAVE);
+    if (igual) return respostaNaoMudou(igual);
+
+    const row = await prisma.config.findUnique({ where: { chave: CHAVE }, select: { valor: true } });
     const escalas: Record<string, any> = row?.valor ? safeParse(row.valor) : {};
     const permutas: Linha[] = [];
 
@@ -75,7 +85,7 @@ export async function GET() {
     const peso = (s: string) => (s === "pendente" || s === "" ? 0 : s === "aprovada" ? 1 : 2);
     permutas.sort((a, b) => peso(a.status) - peso(b.status) || a.data.localeCompare(b.data));
 
-    return NextResponse.json({ permutas });
+    return NextResponse.json({ permutas }, { headers: cabecalhosVersao(assinaturaDoValor(row?.valor)) });
   } catch (err) {
     console.error("[GET /api/permutas]", err);
     return NextResponse.json({ permutas: [] });
@@ -117,11 +127,8 @@ export async function POST(req: Request) {
     }
     alvo!.status = status;
 
-    await prisma.config.upsert({
-      where: { chave: CHAVE },
-      update: { valor: JSON.stringify(escalas) },
-      create: { chave: CHAVE, valor: JSON.stringify(escalas), descricao: "Dias gerados/editados da Escala de Servico" },
-    });
+    // grava sem devolver a escala (ver escalaGuarda)
+    await gravarConfig(CHAVE, JSON.stringify(escalas), "Dias gerados/editados da Escala de Servico");
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[POST /api/permutas]", err);

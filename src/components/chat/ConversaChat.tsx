@@ -179,7 +179,8 @@ export default function ConversaChat({
     return () => { vivo = false; };
   }, [contato.login]);
 
-  /* novas mensagens, a cada 3 s (a Vercel não tem WebSocket) */
+  /* novas mensagens, a cada 4 s com a tela à vista (a Vercel não tem
+     WebSocket; cada busca são três consultas no banco) */
   useEffect(() => {
     const t = setInterval(async () => {
       if (document.hidden) return;
@@ -200,7 +201,7 @@ export default function ConversaChat({
           ultimaRef.current = novas[novas.length - 1].em;
         }
       } catch { /* silencioso */ }
-    }, 3000);
+    }, 4000);
     return () => clearInterval(t);
   }, []);
 

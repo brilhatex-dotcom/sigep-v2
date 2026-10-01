@@ -17,6 +17,65 @@ export const dynamic = "force-dynamic";
 
 const JANELA_ONLINE = 70_000; // ms
 
+/* QUEM ESTÁ NO CHAT — a parte que quase nunca muda (login, nome, posto,
+   lotação, se tem foto). É a maior parte da resposta e era relida do banco a
+   cada poucos segundos para cada usuário com o chat aberto, pesando na cota de
+   tráfego do Neon (5 GB/mês). Agora fica 5 min na memória deste servidor; o
+   que muda de verdade (online, não lidas, última mensagem) continua vindo do
+   banco a cada chamada. Login novo aparece em até 5 minutos. */
+type Pessoa = {
+  login: string; nomeCompleto: string | null; perfil: string | null; refEfetivo: string | null;
+  postoGrad: string | null; nome: string | null; nomeGuerra: string | null; lotacao: string | null;
+  fotoV: string | null; // versão da foto (muda quando a foto muda); null = sem foto
+};
+const LISTA_MS = 5 * 60_000;
+let lista: { em: number; pessoas: Pessoa[] } | null = null;
+
+async function pessoasDoChat(): Promise<Pessoa[]> {
+  if (lista && Date.now() - lista.em < LISTA_MS) return lista.pessoas;
+
+  const usuarios = await prisma.usuario.findMany({
+    select: { login: true, nomeCompleto: true, perfil: true, refEfetivo: true, ativo: true },
+  });
+  const ativos = usuarios.filter((u) => {
+    const a = (u.ativo ?? "").toString().trim().toLowerCase();
+    return a === "" || a === "sim" || a === "true" || a === "1" || a === "ativo";
+  });
+
+  /* Fichas para posto/graduação e lotação. A foto não vem: só uma VERSÃO dela
+     (md5 curto calculado no próprio banco), que vai no endereço do avatar —
+     assim o navegador guarda a imagem e só baixa de novo quando ela muda. */
+  const ids = Array.from(new Set(ativos.map((u) => u.refEfetivo).filter(Boolean) as string[]));
+  const fichas = ids.length
+    ? await prisma.$queryRaw<
+        { id: string; postoGrad: string | null; nome: string | null; nomeGuerra: string | null; lotacao: string | null; fotoV: string | null }[]
+      >(Prisma.sql`
+        SELECT e."ID" AS "id", e."Posto_Grad" AS "postoGrad", e."Nome" AS "nome",
+               e."NomeGuerra" AS "nomeGuerra", e."Lotacao" AS "lotacao",
+               CASE
+                 WHEN COALESCE(e."FotoURL", '') = '' THEN NULL
+                 WHEN e."FotoURL" LIKE 'config:%' THEN
+                   (SELECT LEFT(md5(COALESCE(c."Valor", '')), 10) FROM config c WHERE c."Chave" = SUBSTRING(e."FotoURL" FROM 8))
+                 ELSE LEFT(md5(e."FotoURL"), 10)
+               END AS "fotoV"
+          FROM efetivo e
+         WHERE e."ID" IN (${Prisma.join(ids)})
+      `)
+    : [];
+  const ficha = new Map(fichas.map((f) => [f.id, f]));
+
+  const pessoas = ativos.map((u) => {
+    const f = u.refEfetivo ? ficha.get(u.refEfetivo) : null;
+    return {
+      login: u.login, nomeCompleto: u.nomeCompleto, perfil: u.perfil, refEfetivo: u.refEfetivo,
+      postoGrad: f?.postoGrad ?? null, nome: f?.nome ?? null, nomeGuerra: f?.nomeGuerra ?? null,
+      lotacao: f?.lotacao ?? null, fotoV: f?.fotoV ?? null,
+    };
+  });
+  lista = { em: Date.now(), pessoas };
+  return pessoas;
+}
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   const eu = (session?.user as any)?.login as string | undefined;
@@ -25,24 +84,7 @@ export async function GET() {
   try {
     await garantirChatSilencioso();
 
-    const usuarios = await prisma.usuario.findMany({
-      where: { login: { not: eu } },
-      select: { login: true, nomeCompleto: true, perfil: true, refEfetivo: true, ativo: true },
-    });
-    const ativos = usuarios.filter((u) => {
-      const a = (u.ativo ?? "").toString().trim().toLowerCase();
-      return a === "" || a === "sim" || a === "true" || a === "1" || a === "ativo";
-    });
-
-    // fichas para posto/graduacao e lotacao
-    const ids = ativos.map((u) => u.refEfetivo).filter(Boolean) as string[];
-    const fichas = ids.length
-      ? await prisma.efetivo.findMany({
-          where: { id: { in: ids } },
-          select: { id: true, postoGrad: true, nome: true, nomeGuerra: true, lotacao: true, fotoURL: true },
-        })
-      : [];
-    const ficha = new Map(fichas.map((f) => [f.id, f]));
+    const ativos = (await pessoasDoChat()).filter((p) => p.login !== eu);
 
     // presenca
     const limite = new Date(Date.now() - JANELA_ONLINE);
@@ -106,19 +148,20 @@ export async function GET() {
     const agora = Date.now();
 
     const contatos = ativos.map((u) => {
-      const f = u.refEfetivo ? ficha.get(u.refEfetivo) : null;
       const nome =
-        (f?.nomeGuerra || f?.nome || u.nomeCompleto || u.login || "").toString().trim() || u.login;
+        (u.nomeGuerra || u.nome || u.nomeCompleto || u.login || "").toString().trim() || u.login;
       const ult = ultima.get(u.login);
       const pref = prefs.get(u.login);
       return {
         login: u.login,
         nome,
-        postoGrad: f?.postoGrad ?? null,
-        lotacao: f?.lotacao ?? null,
+        postoGrad: u.postoGrad,
+        lotacao: u.lotacao,
         admin: (u.perfil ?? "").toLowerCase() === "admin",
-        // avatar só quando o militar tem foto cadastrada
-        foto: f?.fotoURL && u.refEfetivo ? `/api/foto/${encodeURIComponent(u.refEfetivo)}?avatar=1` : null,
+        // avatar só quando o militar tem foto cadastrada; "h" = versão da foto
+        foto: u.fotoV && u.refEfetivo
+          ? `/api/foto/${encodeURIComponent(u.refEfetivo)}?avatar=1&h=${encodeURIComponent(u.fotoV)}`
+          : null,
         online: online.has(u.login),
         naoLidas: mapaNaoLidas.get(u.login) ?? 0,
         previa: ult?.previa ?? "",

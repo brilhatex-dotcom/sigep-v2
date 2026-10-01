@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { chaveEscopada } from "@/lib/escalaEscopo";
-import { lerConfig, guardarAnterior, objetoDe, quantosNoCadastro } from "@/lib/escalaGuarda";
-import { assinaturaDoValor } from "@/lib/escalaVersao";
+import { lerConfig, guardarAnterior, gravarConfig, objetoDe, quantosNoCadastro } from "@/lib/escalaGuarda";
+import {
+  assinaturaDoValor, assinaturas, cabecalhosVersao, respostaNaoMudou, versaoQueONavegadorTem,
+} from "@/lib/escalaVersao";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,20 @@ export async function GET(req: Request) {
   const ctx = await chaveEscopada(req, CHAVE);
   if (!ctx) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
 
+  // ?so=versao — só a assinatura, sem baixar as equipes (ver /api/escala-dias)
+  if (new URL(req.url).searchParams.get("so") === "versao") {
+    try {
+      const a = await assinaturas(ctx.chave, ctx.chave);
+      return NextResponse.json({ versao: a[ctx.chave] ?? "" });
+    } catch {
+      return NextResponse.json({ error: "Banco de dados indisponivel" }, { status: 503 });
+    }
+  }
+
+  // o navegador já tem estas equipes? 304, sem baixar de novo (ver escalaVersao)
+  const igual = await versaoQueONavegadorTem(req, ctx.chave);
+  if (igual) return respostaNaoMudou(igual);
+
   const lida = await lerConfig(ctx.chave);
   /* Mesmo cuidado dos dias, e aqui o estrago era ainda maior: "cad: null" com
      HTTP 200 fazia a tela ficar com as equipes de EXEMPLO em vez das de
@@ -31,9 +46,13 @@ export async function GET(req: Request) {
     console.error("[GET /api/escala-config]", lida.erro);
     return NextResponse.json({ error: "Banco de dados indisponivel" }, { status: 503 });
   }
-  if (!lida.valor) return NextResponse.json({ cad: null, versao: assinaturaDoValor(null) });
+  if (!lida.valor) {
+    const v = assinaturaDoValor(null);
+    return NextResponse.json({ cad: null, versao: v }, { headers: cabecalhosVersao(v) });
+  }
   try {
-    return NextResponse.json({ cad: JSON.parse(lida.valor), versao: assinaturaDoValor(lida.valor) });
+    const v = assinaturaDoValor(lida.valor);
+    return NextResponse.json({ cad: JSON.parse(lida.valor), versao: v }, { headers: cabecalhosVersao(v) });
   } catch (err) {
     console.error("[GET /api/escala-config] valor corrompido", err);
     return NextResponse.json({ error: "Configuracao gravada ilegivel" }, { status: 500 });
@@ -71,12 +90,8 @@ export async function POST(req: Request) {
 
   try {
     if (nDepois < nAntes) await guardarAnterior(ctx.chave, lida.valor);
-    const valor = JSON.stringify(b.cad);
-    await prisma.config.upsert({
-      where: { chave: ctx.chave },
-      update: { valor },
-      create: { chave: ctx.chave, valor, descricao: "Equipes/afastamentos do motor da Escala de Servico" },
-    });
+    // grava sem devolver a linha (ver escalaGuarda: o upsert trazia tudo de volta)
+    await gravarConfig(ctx.chave, JSON.stringify(b.cad), "Equipes/afastamentos do motor da Escala de Servico");
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[POST /api/escala-config]", err);

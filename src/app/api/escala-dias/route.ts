@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { aplicarPermutasSeVencido } from "@/lib/permutaPedidos";
 import { chaveEscopada } from "@/lib/escalaEscopo";
-import { lerConfig, guardarAnterior, objetoDe } from "@/lib/escalaGuarda";
-import { assinaturaDoValor } from "@/lib/escalaVersao";
+import { lerConfig, contarChaves, guardarAnteriorNoBanco, gravarConfig } from "@/lib/escalaGuarda";
+import {
+  assinaturaDoValor, assinaturas, cabecalhosVersao, respostaNaoMudou, versaoQueONavegadorTem,
+} from "@/lib/escalaVersao";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,18 @@ export async function GET(req: Request) {
   const ctx = await chaveEscopada(req, CHAVE);
   if (!ctx) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
 
+  /* ?so=versao — só a assinatura (md5 feito no banco, ~70 bytes). É o que o
+     Mapa de uma unidade destacada pergunta de tempos em tempos para saber se
+     precisa baixar a escala inteira de novo. */
+  if (new URL(req.url).searchParams.get("so") === "versao") {
+    try {
+      const a = await assinaturas(ctx.chave, ctx.chave);
+      return NextResponse.json({ versao: a[ctx.chave] ?? "" });
+    } catch {
+      return NextResponse.json({ error: "Banco de dados indisponivel" }, { status: 503 });
+    }
+  }
+
   // Só na SEDE: lança na escala as permutas já autorizadas que ainda não
   // entraram. As permutas são da sede — não se aplicam à escala do interior.
   /* Com freio: a leitura passou a ser frequente e varrer a tabela de permutas
@@ -31,6 +44,10 @@ export async function GET(req: Request) {
   if (ctx.escopo === null) {
     try { await aplicarPermutasSeVencido(); } catch { /* nao bloqueia a escala */ }
   }
+
+  // o navegador já tem esta escala? 304, sem baixar de novo (ver escalaVersao)
+  const igual = await versaoQueONavegadorTem(req, ctx.chave);
+  if (igual) return respostaNaoMudou(igual);
 
   const lida = await lerConfig(ctx.chave);
   /* Falha de banco NÃO pode sair daqui como escala vazia. Antes saía "{}" com
@@ -43,9 +60,13 @@ export async function GET(req: Request) {
   }
   /* A assinatura vai junto para a tela saber exatamente o que tem na mão e
      poder comparar com a assinatura do /api/pulso sem baixar tudo de novo. */
-  if (!lida.valor) return NextResponse.json({ escalas: {}, versao: assinaturaDoValor(null) });
+  if (!lida.valor) {
+    const v = assinaturaDoValor(null);
+    return NextResponse.json({ escalas: {}, versao: v }, { headers: cabecalhosVersao(v) });
+  }
   try {
-    return NextResponse.json({ escalas: JSON.parse(lida.valor), versao: assinaturaDoValor(lida.valor) });
+    const v = assinaturaDoValor(lida.valor);
+    return NextResponse.json({ escalas: JSON.parse(lida.valor), versao: v }, { headers: cabecalhosVersao(v) });
   } catch (err) {
     // Existe conteúdo gravado, mas ilegível: também é erro, não "vazio".
     console.error("[GET /api/escala-dias] valor corrompido", err);
@@ -63,14 +84,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Dados invalidos" }, { status: 400 });
   }
 
-  const lida = await lerConfig(ctx.chave);
-  /* Sem conseguir ler o que já está gravado não dá para saber se esta gravação
-     destrói alguma coisa — então não grava. */
-  if (!lida.ok) {
-    console.error("[POST /api/escala-dias]", lida.erro);
+  /* Quantos dias já estão gravados — contado no banco, sem baixar a escala
+     (ver escalaGuarda). Sem conseguir saber isso não dá para saber se esta
+     gravação destrói alguma coisa — então não grava. */
+  const contagem = await contarChaves(ctx.chave);
+  if (!contagem.ok) {
+    console.error("[POST /api/escala-dias]", contagem.erro);
     return NextResponse.json({ error: "Banco de dados indisponivel" }, { status: 503 });
   }
-  const nAntes = Object.keys(objetoDe(lida.valor)).length;
+  const nAntes = contagem.n;
   const nDepois = Object.keys(b.escalas).length;
 
   /* Apagar TODOS os dias de uma vez não é uma edição de verdade: é uma tela
@@ -86,13 +108,8 @@ export async function POST(req: Request) {
 
   try {
     // Encolheu? Guarda o anterior antes de trocar, para dar de onde recuperar.
-    if (nDepois < nAntes) await guardarAnterior(ctx.chave, lida.valor);
-    const valor = JSON.stringify(b.escalas);
-    await prisma.config.upsert({
-      where: { chave: ctx.chave },
-      update: { valor },
-      create: { chave: ctx.chave, valor, descricao: "Dias gerados/editados da Escala de Servico" },
-    });
+    if (nDepois < nAntes) await guardarAnteriorNoBanco(ctx.chave);
+    await gravarConfig(ctx.chave, JSON.stringify(b.escalas), "Dias gerados/editados da Escala de Servico");
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[POST /api/escala-dias]", err);

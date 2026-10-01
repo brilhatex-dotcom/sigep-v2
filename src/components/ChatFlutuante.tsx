@@ -20,6 +20,10 @@ import ConversaChat, { type ContatoChat } from "@/components/chat/ConversaChat";
    uma vez. Aqui ficam só a bolha, a lista e o cabeçalho.
 
    Na própria /chat ele não aparece, para não duplicar.
+
+   OCULTO (out/2026): saiu do AppShell para economizar a cota de tráfego do
+   Neon — montado em toda tela, ele consultava o banco o tempo todo. O código
+   fica aqui para voltar fácil: é só recolocar <ChatFlutuante /> no AppShell.
    ========================================================================= */
 
 type Contato = ContatoChat & {

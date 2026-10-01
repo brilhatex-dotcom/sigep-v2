@@ -108,10 +108,15 @@ export default function ChatClient({ eu }: { eu: string; meuNome: string }) {
     } catch { /* silencioso */ }
     finally { setCarregando(false); }
   }, []);
+  /* De 20 em 20 s com a tela à vista (eram 8 s): a lista traz todo mundo e,
+     com o chat aberto o dia inteiro, pesava na cota de tráfego do banco. A
+     mensagem nova da conversa aberta chega pelo ciclo próprio dela. */
   useEffect(() => {
     puxarContatos();
-    const t = setInterval(() => { if (!document.hidden) puxarContatos(); }, 8000);
-    return () => clearInterval(t);
+    const t = setInterval(() => { if (!document.hidden) puxarContatos(); }, 20000);
+    const aoVoltar = () => { if (!document.hidden) puxarContatos(); };
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", aoVoltar); };
   }, [puxarContatos]);
 
   const abrirConversa = useCallback((c: Contato) => {

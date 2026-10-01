@@ -34,10 +34,17 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   // AVATAR do chat (?avatar=1). No chat todos falam com todos, então cada um
   // precisa ver o rosto de quem está do outro lado da conversa. Fora daí a
   // regra continua a de sempre: só o dono e o admin.
-  const comoAvatar = new URL(_req.url).searchParams.get("avatar") === "1";
+  const parametros = new URL(_req.url).searchParams;
+  const comoAvatar = parametros.get("avatar") === "1";
   if (!admin && efetivoId !== meuEfetivo && !comoAvatar) {
     return NextResponse.json({ error: "Sem permissao" }, { status: 403 });
   }
+
+  /* A foto mora no banco (Config), então cada vez que o navegador a pede é
+     tráfego do Neon. Com "h" (a versão da foto: md5 curto do conteúdo) o
+     endereço muda quando a foto muda — dá para o navegador guardar por 7 dias
+     sem risco de mostrar a antiga. Sem "h", vale o cache curto de antes. */
+  const guardar = parametros.get("h") ? "private, max-age=604800, immutable" : "private, max-age=60";
 
   try {
     const ficha = await prisma.efetivo.findUnique({
@@ -49,14 +56,17 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
     // Foto guardada na tabela Config (caminho atual): fotoURL = "config:foto_<id>".
     if (key.startsWith("config:")) {
-      const row = await prisma.config.findUnique({ where: { chave: key.slice("config:".length) } });
+      const row = await prisma.config.findUnique({
+        where: { chave: key.slice("config:".length) },
+        select: { valor: true },
+      });
       const dataUrl = row?.valor || "";
       const m = dataUrl.match(/^data:([^;]+);base64,(.*)$/s);
       if (!m) return NextResponse.json({ error: "Sem foto" }, { status: 404 });
       const buffer = Buffer.from(m[2], "base64");
       return new NextResponse(new Uint8Array(buffer), {
         status: 200,
-        headers: { "Content-Type": m[1] || "image/jpeg", "Cache-Control": "private, max-age=60" },
+        headers: { "Content-Type": m[1] || "image/jpeg", "Cache-Control": guardar },
       });
     }
 
@@ -67,7 +77,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       const buffer = Buffer.from(m[2], "base64");
       return new NextResponse(new Uint8Array(buffer), {
         status: 200,
-        headers: { "Content-Type": m[1] || "image/jpeg", "Cache-Control": "private, max-age=60" },
+        headers: { "Content-Type": m[1] || "image/jpeg", "Cache-Control": guardar },
       });
     }
 

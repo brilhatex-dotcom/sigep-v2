@@ -2082,7 +2082,7 @@ export default function EscalaClient() {
     }, 900);
   }, [escalas, ready]);
 
-  /* Atualização ao vivo a cada 2s, aplicando só quando não há edição local
+  /* Atualização ao vivo a cada 3s, aplicando só quando não há edição local
      pendente — não apaga o que você está editando.
 
      Rápido sem ser pesado: quem pergunta é o pulso do sistema (lib/sincronia),
@@ -2136,7 +2136,7 @@ export default function EscalaClient() {
       if (versaoCad.current === null || p.escala.cad !== versaoCad.current) await baixarCad();
     } catch { /* rede caiu: o próximo pulso tenta de novo */ }
     finally { puxando.current = false; }
-  });
+  }, { escala: true });
 
   // Chefe do P/1: vem do servidor (aba "Chefe do P1"), igual em todos os PCs.
   useEffect(() => {

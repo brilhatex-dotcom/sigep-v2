@@ -9,6 +9,11 @@ import { confirmar } from "@/components/Avisos";
 type Ajuste = { zoom: number; x: number; y: number };
 const PADRAO: Ajuste = { zoom: 1, x: 0, y: 0 };
 
+const chaveAjuste = (efetivoId: string) => `sigep_foto_ajuste_${efetivoId}`;
+function lembrarAjuste(efetivoId: string, a: Ajuste) {
+  try { sessionStorage.setItem(chaveAjuste(efetivoId), JSON.stringify(a)); } catch { /* sem sessionStorage */ }
+}
+
 // Redimensiona preservando o aspecto (lado maior = 512), para haver margem de
 // reposicionamento dentro do circulo. Devolve JPEG.
 async function redimensionar(file: File): Promise<Blob> {
@@ -44,9 +49,13 @@ function Circulo({ src, ajuste, size, inicial }: { src: string | null; ajuste: A
 }
 
 export default function AvatarPerfil({
-  efetivoId, inicial, temFoto, podeEditar, tamanho = 44,
+  efetivoId, inicial, temFoto, versaoFoto, podeEditar, tamanho = 44,
 }: {
-  efetivoId: string | null; inicial: string; temFoto: boolean; podeEditar: boolean; tamanho?: number;
+  efetivoId: string | null; inicial: string; temFoto: boolean;
+  // md5 curto da foto (vem do /api/eu): com ele o navegador guarda a imagem
+  // e não a baixa do banco a cada tela
+  versaoFoto?: string | null;
+  podeEditar: boolean; tamanho?: number;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [versao, setVersao] = useState(0);
@@ -66,12 +75,24 @@ export default function AvatarPerfil({
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
-  const src = efetivoId && tem ? `/api/foto/${encodeURIComponent(efetivoId)}?v=${versao}` : null;
+  const src = efetivoId && tem
+    ? `/api/foto/${encodeURIComponent(efetivoId)}?${versaoFoto ? `h=${encodeURIComponent(versaoFoto)}&` : ""}v=${versao}`
+    : null;
 
+  /* A posição da foto quase nunca muda: fica guardada na sessão do navegador
+     e não é pedida ao servidor de novo a cada tela (o cabeçalho é remontado
+     em toda navegação). */
   useEffect(() => {
     if (!efetivoId) return;
+    try {
+      const salvo = sessionStorage.getItem(chaveAjuste(efetivoId));
+      const a = salvo ? JSON.parse(salvo) : null;
+      if (a && typeof a.zoom === "number") { setAjuste(a); return; }
+    } catch { /* sem sessionStorage: pergunta ao servidor */ }
     fetch(`/api/foto/ajuste?efetivoId=${encodeURIComponent(efetivoId)}`)
-      .then((r) => r.json()).then((d) => { if (d?.ajuste) setAjuste(d.ajuste); }).catch(() => {});
+      .then((r) => r.json())
+      .then((d) => { if (d?.ajuste) { setAjuste(d.ajuste); lembrarAjuste(efetivoId, d.ajuste); } })
+      .catch(() => {});
   }, [efetivoId]);
 
   async function aoSelecionar(e: ChangeEvent<HTMLInputElement>) {
@@ -89,6 +110,7 @@ export default function AvatarPerfil({
       if (!r.ok) { setErro(d.error || "Falha ao enviar."); return; }
       setTem(true); setVersao((v) => v + 1);
       setAjuste(PADRAO);
+      lembrarAjuste(efetivoId, PADRAO);
       await fetch("/api/foto/ajuste", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ efetivoId, ...PADRAO }) }).catch(() => {});
     } catch { setErro("Não foi possível processar a imagem."); }
     finally { setOcupado(null); }
@@ -110,6 +132,7 @@ export default function AvatarPerfil({
     setOcupado("posicao");
     try {
       await fetch("/api/foto/ajuste", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ efetivoId, ...ajuste }) });
+      lembrarAjuste(efetivoId, ajuste);
       setModo("ver");
     } catch { setErro("Erro ao salvar a posição."); }
     finally { setOcupado(null); }

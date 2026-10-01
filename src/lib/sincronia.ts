@@ -40,17 +40,27 @@ export type Pulso = {
 export type Assunto = "escala" | "notificacoes" | "chat";
 
 const CANAL = "sigep-sincronia";
-const RAPIDO_MS = 2000;          // assinaturas da escala
+const RAPIDO_MS = 3000;          // assinaturas da escala (só com a escala aberta)
 const NOTIF_MS = 60000;          // notificações do sino (consultas caras)
 const ANUNCIO_MS = 1500;         // de quanto em quanto a líder diz "estou aqui"
 const SEM_LIDER_MS = 4000;       // sem notícia da líder por este tempo: assumo
+const INTERESSE_MS = 5000;       // "tem escala aberta aqui" vale por este tempo
 export const OCIOSO_MS = 15 * 60 * 1000;  // 15 min parado = ninguém na frente
+
+/* A batida rápida (a assinatura da escala, de poucos em poucos segundos) só
+   serve a quem está com uma tela de ESCALA aberta. Antes ela rodava em
+   qualquer tela de qualquer admin — o dia inteiro, uma consulta a cada 2 s,
+   pesando na cota de tráfego do Neon. Agora a aba que tem escala aberta avisa
+   as outras ("tenho interesse"), e a líder só bate rápido enquanto alguém
+   avisou. Sem escala aberta em lugar nenhum, sobra só o sino, de minuto em
+   minuto. */
 
 type Msg =
   | { t: "lider"; id: string }
   | { t: "abdica"; id: string }
   | { t: "pulso"; dados: Pulso }
-  | { t: "mudou"; o: Assunto };
+  | { t: "mudou"; o: Assunto }
+  | { t: "escala" };
 
 /* ---------------- estado do módulo (um por aba) ---------------- */
 
@@ -65,6 +75,10 @@ let tRapido: any = null;
 let tNotif: any = null;
 let tAnuncio: any = null;
 let tEleicao: any = null;
+
+let telasDeEscala = 0;     // telas de escala montadas NESTA aba
+let querEscalaAte = 0;     // alguém (esta aba ou outra) tem escala aberta até lá
+const querEscala = () => Date.now() < querEscalaAte;
 
 const assinantes = new Set<(p: Pulso) => void>();
 const ouvintesMudanca = new Set<(o: Assunto) => void>();
@@ -86,9 +100,14 @@ let bloqueadoAte = 0;
 
 async function buscar(comNotif: boolean) {
   if (buscando || !ativo() || Date.now() < bloqueadoAte) return;
+  // a batida rápida é só da escala: sem escala aberta, não há o que perguntar
+  if (!comNotif && !querEscala()) return;
   buscando = true;
   try {
-    const r = await fetch("/api/pulso" + (comNotif ? "?notif=1" : ""));
+    const q = new URLSearchParams();
+    if (comNotif) q.set("notif", "1");
+    if (!querEscala()) q.set("escala", "0");   // o servidor pula a parte da escala
+    const r = await fetch("/api/pulso" + (q.toString() ? "?" + q : ""));
     if (r.status === 401 || r.status === 403) { bloqueadoAte = Date.now() + 60000; return; }
     if (!r.ok) return;
     const d = (await r.json()) as Pulso;
@@ -135,6 +154,8 @@ function aoReceber(m: Msg) {
   } else if (m.t === "mudou") {
     for (const f of ouvintesMudanca) { try { f(m.o); } catch { /* ignora */ } }
     if (souLider) buscar(m.o === "notificacoes");   // confirma no servidor já
+  } else if (m.t === "escala") {
+    querEscalaAte = Date.now() + INTERESSE_MS;      // outra aba está com a escala aberta
   }
 }
 
@@ -158,6 +179,12 @@ function ligar() {
   window.addEventListener("focus", aoVoltar);
   window.addEventListener("pagehide", () => { if (souLider) enviar({ t: "abdica", id: meuId }); });
 
+  /* Com uma tela de escala montada aqui, renova o interesse e avisa as outras
+     abas — a líder pode ser outra. */
+  setInterval(() => {
+    if (telasDeEscala > 0) { querEscalaAte = Date.now() + INTERESSE_MS; enviar({ t: "escala" }); }
+  }, ANUNCIO_MS);
+
   /* Sem BroadcastChannel não há com quem conversar: esta aba é a líder. */
   if (!canal) { assumir(); return; }
 
@@ -174,17 +201,30 @@ function ligar() {
 /* ---------------- o que as telas usam ---------------- */
 
 /* Recebe cada pulso (assinaturas da escala e, de minuto em minuto, o sino).
-   A tela não precisa saber se veio do servidor ou da aba ao lado. */
-export function usePulso(aoPulso: (p: Pulso) => void) {
+   A tela não precisa saber se veio do servidor ou da aba ao lado.
+
+   Telas de ESCALA passam { escala: true }: é o que liga a batida rápida (a
+   assinatura da escala) enquanto elas estiverem abertas. */
+export function usePulso(aoPulso: (p: Pulso) => void, opcoes: { escala?: boolean } = {}) {
   const ref = useRef(aoPulso);
   ref.current = aoPulso;
+  const escala = !!opcoes.escala;
   useEffect(() => {
     ligar();
     const f = (p: Pulso) => ref.current(p);
     assinantes.add(f);
+    if (escala) {
+      telasDeEscala++;
+      querEscalaAte = Date.now() + INTERESSE_MS;
+      enviar({ t: "escala" });
+      if (souLider) buscar(false);     // a assinatura já, sem esperar o tique
+    }
     if (ultimoPulso) f(ultimoPulso);   // já tem algo na mão: entrega na hora
-    return () => { assinantes.delete(f); };
-  }, []);
+    return () => {
+      assinantes.delete(f);
+      if (escala) telasDeEscala = Math.max(0, telasDeEscala - 1);
+    };
+  }, [escala]);
 }
 
 /* Ouve o aviso de que ALGUÉM (outra aba) mexeu em alguma coisa. */

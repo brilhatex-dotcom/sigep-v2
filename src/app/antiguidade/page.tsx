@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import AntiguidadeTabela, { MilitarLinha } from "@/components/AntiguidadeTabela";
-import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
+import { hojeLocal, situacaoCalculada } from "@/lib/situacao";
+import { feriasHoje, licencaPremioHoje } from "@/lib/afastadosHoje";
 import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
 import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
 import { idsInativos, semInativos } from "@/lib/inativos";
@@ -33,9 +34,8 @@ export default async function AntiguidadePage({
     await idsInativos(),
   );
 
-  const equipes = await prisma.equipeFerias.findMany();
-  const membros = await prisma.membroFerias.findMany();
-  const idsFerias = montarIdsEmFerias(equipes, membros, hoje, await idsFeriasAdiadas());
+  // só as equipes do ano e os membros das que estão em gozo hoje (lib/afastadosHoje)
+  const idsFerias = await feriasHoje(hoje, await idsFeriasAdiadas());
   // ferias em datas soltas contam igual as do plano — sem isso, quem esta de
   // ferias avulsas aparecia aqui como se estivesse a disposicao
   // As férias avulsas também respeitam o adiamento: sem isto, quem o P/1
@@ -44,9 +44,7 @@ export default async function AntiguidadePage({
   for (const id of await idsFeriasAvulsasHoje(hoje)) if (!idsAdiadosAvulsas.has(id)) idsFerias.add(id);
 
   // licenca-premio de hoje
-  const equipesLicenca = await prisma.equipeLicencaPremio.findMany();
-  const membrosLicenca = await prisma.membroLicencaPremio.findMany();
-  const idsLicencaPremio = montarIdsEmLicencaPremio(equipesLicenca, membrosLicenca, hoje);
+  const idsLicencaPremio = await licencaPremioHoje(hoje);
 
   // a regra mora em src/lib/antiguidade.ts (a Planilha Padrao usa a mesma)
   const ordenados = [...militares].sort(compararAntiguidade);

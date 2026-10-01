@@ -84,7 +84,7 @@ export async function garantirChatSilencioso(): Promise<void> {
 
    1) a pessoa silenciou essa conversa (por 8 h, uma semana ou para sempre);
    2) a pessoa está com essa conversa ABERTA na tela agora — o balão já vai
-      aparecer sozinho em 3 s, não precisa vibrar o aparelho.
+      aparecer sozinho em segundos, não precisa vibrar o aparelho.
 
    Na dúvida (banco fora, coluna ainda não criada), notifica: é melhor uma
    notificação a mais do que uma mensagem que ninguém viu.

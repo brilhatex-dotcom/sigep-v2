@@ -37,11 +37,57 @@ export async function lerConfig(chave: string): Promise<Leitura> {
 export async function guardarAnterior(chave: string, valor: string | null): Promise<void> {
   if (!valor) return;
   try {
-    await prisma.config.upsert({
-      where: { chave: `${chave}__anterior` },
-      update: { valor },
-      create: { chave: `${chave}__anterior`, valor, descricao: "Cópia anterior da escala (recuperação)" },
-    });
+    await gravarConfig(`${chave}__anterior`, valor, "Cópia anterior da escala (recuperação)");
+  } catch { /* silencioso: é rede de segurança, não parte da gravação */ }
+}
+
+/* ---------------------------------------------------------------------------
+   GRAVAR E CONFERIR SEM TRAZER A ESCALA DE VOLTA
+
+   O Neon cobra o tráfego que SAI do banco (cota de 5 GB/mês). O
+   prisma.config.upsert devolve a linha gravada inteira — ou seja, cada vez
+   que a escala era salva, ela voltava do banco completa, à toa; e a leitura
+   feita antes, só para contar quantos dias havia, trazia ela de novo. Numa
+   tarde de edição da escala isso era o mesmo bloco grande indo e voltando
+   centenas de vezes. As três funções abaixo fazem o mesmo trabalho sem que o
+   conteúdo saia do banco.
+   --------------------------------------------------------------------------- */
+
+// Grava (cria ou troca) sem devolver nada.
+export async function gravarConfig(chave: string, valor: string, descricao: string): Promise<void> {
+  await prisma.$executeRaw`
+    INSERT INTO config ("Chave", "Valor", "Descricao") VALUES (${chave}, ${valor}, ${descricao})
+    ON CONFLICT ("Chave") DO UPDATE SET "Valor" = EXCLUDED."Valor"`;
+}
+
+/* Quantas chaves (dias) o objeto guardado tem — contado no próprio banco.
+   Conteúdo que não é objeto JSON conta 0, como o objetoDe acima. */
+export async function contarChaves(chave: string): Promise<{ ok: true; n: number } | { ok: false; erro: unknown }> {
+  try {
+    const rows = await prisma.$queryRaw<{ n: number }[]>`
+      SELECT CASE WHEN jsonb_typeof("Valor"::jsonb) = 'object'
+                  THEN (SELECT count(*)::int FROM jsonb_object_keys("Valor"::jsonb))
+                  ELSE 0 END AS n
+        FROM config WHERE "Chave" = ${chave}`;
+    return { ok: true, n: rows[0]?.n ?? 0 };
+  } catch {
+    /* JSON ilegível no banco (o ::jsonb falha) ou banco fora: tenta do jeito
+       antigo, lendo — e, se nem isso der, devolve o erro (a gravação para). */
+    const lida = await lerConfig(chave);
+    if (!lida.ok) return lida;
+    return { ok: true, n: Object.keys(objetoDe(lida.valor)).length };
+  }
+}
+
+/* Mesma cópia de segurança do guardarAnterior, feita dentro do banco (o valor
+   atual é copiado para "<chave>__anterior" sem passar pelo servidor). */
+export async function guardarAnteriorNoBanco(chave: string): Promise<void> {
+  try {
+    await prisma.$executeRaw`
+      INSERT INTO config ("Chave", "Valor", "Descricao")
+      SELECT ${`${chave}__anterior`}, "Valor", 'Cópia anterior da escala (recuperação)'
+        FROM config WHERE "Chave" = ${chave} AND COALESCE("Valor", '') <> ''
+      ON CONFLICT ("Chave") DO UPDATE SET "Valor" = EXCLUDED."Valor"`;
   } catch { /* silencioso: é rede de segurança, não parte da gravação */ }
 }
 

@@ -1425,25 +1425,57 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
   };
 
   const ultimaBuscaEscopo = useRef(0);
+  const versaoEscopo = useRef<string>("");
+
+  /* Unidade destacada: pergunta só as ASSINATURAS da escala dela (~70 bytes
+     cada) e baixa a escala inteira apenas quando alguma mudou. Antes baixava
+     tudo de 15 em 15 s, mudasse ou não — tráfego do banco à toa. */
+  const conferirEscopo = async () => {
+    try {
+      const sep = qs ? "&" : "?";
+      const [a, b] = await Promise.all([
+        fetch(`/api/escala-dias${qs}${sep}so=versao`).then((r) => (r.ok ? r.json() : null)),
+        fetch(`/api/escala-config${qs}${sep}so=versao`).then((r) => (r.ok ? r.json() : null)),
+      ]);
+      if (typeof a?.versao !== "string" || typeof b?.versao !== "string") return;
+      const marca = `${a.versao}|${b.versao}`;
+      if (marca === versaoEscopo.current) return;   // nada mudou
+      versaoEscopo.current = marca;
+      puxar();
+    } catch { /* rede caiu: confere no próximo ciclo */ }
+  };
+
+  /* Ponto de partida: as assinaturas que vieram junto com a carga inicial.
+     Sem isto, o primeiro pulso achava que "mudou" e baixava a escala inteira
+     de novo logo depois de a página acabar de baixá-la. */
+  const partida = useRef<{ dias?: string; cad?: string }>({});
+  const marcarPartida = (k: "dias" | "cad", v: unknown) => {
+    if (typeof v !== "string") return;
+    partida.current[k] = v;
+    const { dias, cad: c } = partida.current;
+    if (dias === undefined || c === undefined) return;
+    const marca = `${dias}|${c}`;
+    if (!versaoPulso.current) versaoPulso.current = marca;
+    if (!versaoEscopo.current) versaoEscopo.current = marca;
+  };
 
   usePulso((p) => {
     if (!p.escala) return;
     if (escopo) {
       /* Unidade destacada: a assinatura do pulso e a da SEDE, nao serve de
          referencia aqui. Entao o pulso vale so como batida de relogio, e a
-         conferencia sai no maximo de 15 em 15s — o mesmo ritmo de antes, e
-         nao de 2 em 2, que seria buscar a escala inteira o tempo todo. */
+         conferencia (so das assinaturas) sai no maximo de 15 em 15s. */
       const agora = Date.now();
       if (agora - ultimaBuscaEscopo.current < 15000) return;
       ultimaBuscaEscopo.current = agora;
-      puxar();
+      conferirEscopo();
       return;
     }
     const marca = `${p.escala.dias}|${p.escala.cad}`;
     if (marca === versaoPulso.current) return;   // nada mudou: nem toca no servidor
     versaoPulso.current = marca;
     puxar();
-  });
+  }, { escala: true });
 
   useEffect(() => {
     // cache local só vale para a SEDE (escopo vazio) — evita misturar unidades.
@@ -1460,13 +1492,17 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     // Dias salvos vem do servidor (localStorage acima e so fallback instantaneo).
     fetch(`/api/escala-dias${qs}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d && d.escalas && Object.keys(d.escalas).length > 0) setEscalas(d.escalas); })
+      .then((d) => {
+        marcarPartida("dias", d?.versao);
+        if (d && d.escalas && Object.keys(d.escalas).length > 0) setEscalas(d.escalas);
+      })
       .catch(() => {});
     // Equipes/afastamentos do servidor (migra o localStorage antigo se preciso).
     (async () => {
       try {
         const r = await fetch(`/api/escala-config${qs}`);
         const d = r.ok ? await r.json() : null;
+        marcarPartida("cad", d?.versao);
         if (d && d.cad) { setCad(d.cad); ultimoCadSalvo.current = JSON.stringify(d.cad); return; }
       } catch {}
       if (escopo) return; // sem cadastro salvo ainda para a unidade -> começa do zero

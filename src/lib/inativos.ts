@@ -13,19 +13,35 @@ import { prisma } from "@/lib/prisma";
 
 /* Conjunto de IDs inativos. Nunca quebra: se a tabela ainda não existir,
    devolve conjunto vazio. */
+// garante a coluna "tipo" (tabela criada em runtime pelo Controle) — uma vez
+// por processo, e não a cada tela que lista o efetivo
+let colunaTipo: Promise<void> | null = null;
+function garantirColunaTipo(): Promise<void> {
+  if (!colunaTipo) {
+    colunaTipo = prisma.$executeRawUnsafe(
+      `ALTER TABLE cc_acesso ADD COLUMN IF NOT EXISTS tipo text NOT NULL DEFAULT 'saida'`
+    ).then(() => undefined, () => { colunaTipo = null; });
+  }
+  return colunaTipo;
+}
+
 export async function idsInativos(): Promise<Set<string>> {
   const set = new Set<string>();
   try {
-    // garante a coluna "tipo" (tabela criada em runtime pelo Controle)
-    try { await prisma.$executeRawUnsafe(`ALTER TABLE cc_acesso ADD COLUMN IF NOT EXISTS tipo text NOT NULL DEFAULT 'saida'`); } catch {}
-    // pega a ÚLTIMA movimentação de cada militar
-    const rows: { efetivo_id: string; tipo: string }[] = await prisma.$queryRawUnsafe(
-      `SELECT DISTINCT ON (efetivo_id) efetivo_id, tipo
-         FROM cc_acesso
-        WHERE efetivo_id <> ''
-        ORDER BY efetivo_id, data DESC, criado_em DESC`
+    await garantirColunaTipo();
+    /* A ÚLTIMA movimentação de cada militar, já filtrada no banco: só voltam
+       os que saíram (antes vinha uma linha por militar com movimentação, e a
+       filtragem era feita aqui). */
+    const rows: { efetivo_id: string }[] = await prisma.$queryRawUnsafe(
+      `SELECT efetivo_id FROM (
+         SELECT DISTINCT ON (efetivo_id) efetivo_id, tipo
+           FROM cc_acesso
+          WHERE efetivo_id <> ''
+          ORDER BY efetivo_id, data DESC, criado_em DESC
+       ) ultima
+       WHERE tipo = 'saida'`
     );
-    for (const r of rows) if (r.tipo === "saida") set.add(r.efetivo_id);
+    for (const r of rows) set.add(r.efetivo_id);
   } catch {
     /* tabela ainda não existe -> ninguém inativo */
   }
