@@ -108,7 +108,7 @@ export default function MinhasCertidoes({
   efetivoId: string;
   enviadoP1Em: string | null;
   recebidoP1Em: string | null;
-  // o que mais a página quiser mostrar depois da lista (ex.: a certidão do P/1)
+  // o que mais a página quiser mostrar depois da lista (ex.: a declaração individual)
   children?: React.ReactNode;
 }) {
   const router = useRouter();
@@ -622,7 +622,7 @@ export default function MinhasCertidoes({
       </div>
       </section>
 
-      {/* Oficiais e subtenentes: a certidão/declaração do P/1 (fora da
+      {/* Oficiais e subtenentes: a declaração individual (fora da
           sequência dos passos — vai junto para o SEI) */}
       {children && (
         <section className="overflow-hidden rounded-xl border border-violet-400/40 bg-[#0F1B2D]">
@@ -632,8 +632,8 @@ export default function MinhasCertidoes({
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-[11px] font-black uppercase tracking-[0.22em] opacity-80">Oficiais e subtenentes</p>
-              <p className="text-base font-bold leading-tight">Certidão/declaração do P/1</p>
-              <p className="text-[11px] opacity-80">Gere a sua e o PDF único (certidão + certidões) que vai para o SEI.</p>
+              <p className="text-base font-bold leading-tight">Declaração individual</p>
+              <p className="text-[11px] opacity-80">Gere a sua e o PDF único (declaração + certidões) que vai para o SEI.</p>
             </div>
           </div>
           <div className="p-3">{children}</div>

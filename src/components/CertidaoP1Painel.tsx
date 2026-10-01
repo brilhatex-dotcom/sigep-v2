@@ -14,22 +14,22 @@ import {
 } from "@/lib/certidaoP1Cliente";
 
 /* =========================================================================
-   CERTIDÃO DO P/1 — oficiais (Portaria nº 040/2026-GCG, Of. Circ. 003/2026-CAE)
+   DECLARAÇÃO INDIVIDUAL — oficiais e subtenentes (Of. Circ. 003/2026-CAE)
 
    O P/1 põe na lista os policiais (um a um, ou "os oficiais do período") e o
    sistema faz, para CADA UM:
-     · a certidão do P/1, numerada em sequência (002/2026, 003/2026...);
-     · o PDF ÚNICO que vai para o SEI: a certidão + as certidões das regiões
+     · a declaração individual (protocolou as certidões negativas, não é réu,
+       situação regular), no modelo do CAE;
+     · o PDF ÚNICO que vai para o SEI: a declaração + as certidões das regiões
        que o militar mandou pelo sistema (na ordem oficial) + o que o P/1
        anexar aqui na hora — já com o nome do policial no arquivo.
 
    A Justiça Federal muda com o posto: oficial e subtenente (os que concorrem
    pela CPOPM) apresentam da 1ª à 6ª Região; praça, da 1ª à 5ª.
 
-   Cada linha tem Ver (o PDF da certidão no navegador) e Editar (ajustar os
-   dados que saem no documento, inclusive o número). O próprio oficial ou
-   subtenente também gera e ajusta a dele em "Minhas certidões" — o número
-   sai da mesma sequência.
+   Cada linha tem Ver (o PDF da declaração no navegador) e Editar (ajustar os
+   dados que saem no documento). O próprio oficial ou subtenente também gera e
+   ajusta a dele em "Minhas certidões" — é o mesmo registro.
 
    A junção acontece NO NAVEGADOR (pdf-lib): os PDFs descem direto do R2 para
    o computador do P/1. Pela Vercel não daria — ela corta resposta acima de
@@ -45,7 +45,7 @@ type Linha = {
   quadro: string;
   oficial: boolean;
   arquivo: string;
-  numero: string | null;
+  gerada: boolean;
   data: string | null;
   exigidas: { ordem: number; rotulo: string }[];
   enviadas: number[];
@@ -54,9 +54,6 @@ type Linha = {
 };
 type Resposta = {
   periodo: { id: string; nome: string };
-  portaria: string;
-  ano: number;
-  proximo: number;
   hoje: string;
   oficiaisDoPeriodo: string[];
   linhas: Linha[];
@@ -71,15 +68,13 @@ export default function CertidaoP1Painel() {
   const [dados, setDados] = useState<Resposta | null>(null);
   const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(false);
-  // ids postos na lista que ainda não têm certidão emitida
+  // ids postos na lista que ainda não têm declaração gerada
   const [pendentes, setPendentes] = useState<string[]>([]);
   // desmarcados (o padrão é todo mundo marcado)
   const [desmarcados, setDesmarcados] = useState<Set<string>>(new Set());
   // PDFs que o P/1 anexou aqui, por militar (entram no fim do arquivo único)
   const [anexos, setAnexos] = useState<Record<string, File[]>>({});
   const [data, setData] = useState("");
-  const [portaria, setPortaria] = useState("");
-  const [proximo, setProximo] = useState("");
   const [ocupado, setOcupado] = useState("");
   const [editando, setEditando] = useState<Linha | null>(null);
 
@@ -91,8 +86,6 @@ export default function CertidaoP1Painel() {
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { setErro(d.error || "Falha ao carregar."); return null; }
       setDados(d as Resposta);
-      setPortaria(d.portaria);
-      setProximo(String(d.proximo));
       setData((v) => v || d.hoje);
       return d as Resposta;
     } catch {
@@ -117,18 +110,11 @@ export default function CertidaoP1Painel() {
     carregar(todos);
   }
 
-  async function salvarConfig(patch: { portaria?: string; proximo?: number }) {
-    await fetch("/api/promocoes/certidao-p1", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ acao: "config", ...patch }),
-    }).catch(() => {});
-  }
-
   async function removerLinha(l: Linha) {
-    if (l.numero) {
+    if (l.gerada) {
       if (!await confirmar(
         `Tirar ${l.postoGrad} ${l.nomeGuerra || l.nome} da lista?\n\n` +
-        `A certidão nº ${l.numero} deixa de existir no sistema e esse número não volta a ser usado.`
+        `A declaração gerada (e os ajustes feitos nela) deixa de existir no sistema.`
       )) return;
       await fetch("/api/promocoes/certidao-p1", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -140,31 +126,31 @@ export default function CertidaoP1Painel() {
     carregar(resto);
   }
 
-  /* Numera quem ainda não tem (na ordem de antiguidade) e devolve as linhas
-     atualizadas — os downloads sempre partem daqui. */
+  /* Gera a de quem ainda não tem e devolve as linhas atualizadas — os
+     downloads sempre partem daqui. */
   async function garantirEmitidas(alvo: Linha[]): Promise<Linha[]> {
-    const semNumero = alvo.filter((l) => !l.numero).map((l) => l.efetivoId);
-    if (!semNumero.length) return alvo;
+    const semDeclaracao = alvo.filter((l) => !l.gerada).map((l) => l.efetivoId);
+    if (!semDeclaracao.length) return alvo;
     const r = await fetch("/api/promocoes/certidao-p1", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ acao: "emitir", efetivoIds: semNumero, data }),
+      body: JSON.stringify({ acao: "emitir", efetivoIds: semDeclaracao, data }),
     });
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d.error || "Falha ao numerar as certidões.");
-    // quem foi numerado passa a vir do servidor; os outros da lista continuam
-    const resto = pendentes.filter((id) => !semNumero.includes(id));
+    if (!r.ok) throw new Error(d.error || "Falha ao gerar as declarações.");
+    // quem foi gerado passa a vir do servidor; os outros da lista continuam
+    const resto = pendentes.filter((id) => !semDeclaracao.includes(id));
     setPendentes(resto);
     const novo = await carregar(resto);
     const porId = new Map((novo?.linhas ?? []).map((l) => [l.efetivoId, l]));
     return alvo.map((l) => porId.get(l.efetivoId) ?? l);
   }
 
-  // certidão do P/1 + certidões das regiões (sistema) + anexos daqui -> 1 PDF
+  // declaração + certidões das regiões (sistema) + anexos daqui -> 1 PDF
   function montarUnificado(l: Linha): Promise<Uint8Array> {
     return juntarPdf(l.efetivoId, l.arquivo, anexos[l.efetivoId] ?? []);
   }
 
-  // Ver: a certidão em PDF numa aba nova (numera antes, se ainda não tinha)
+  // Ver: a declaração em PDF numa aba nova (gera antes, se ainda não tinha)
   async function visualizar(l: Linha) {
     const aba = abaReservada();
     try {
@@ -172,11 +158,11 @@ export default function CertidaoP1Painel() {
       aba.ir(urlDocumento(l.efetivoId, "pdf", true));
     } catch (e) {
       aba.fechar();
-      setErro((e as Error).message || "Falha ao abrir a certidão.");
+      setErro((e as Error).message || "Falha ao abrir a declaração.");
     }
   }
 
-  // Editar: numera antes (para ter número e data), depois abre a janela
+  // Editar: gera antes (para ter a data), depois abre a janela
   async function abrirEdicao(l: Linha) {
     setErro("");
     try {
@@ -227,7 +213,7 @@ export default function CertidaoP1Painel() {
     if (!await conferirFaltas(alvo)) return;
     setErro("");
     try {
-      setOcupado("Numerando as certidões…");
+      setOcupado("Gerando as declarações…");
       const prontas = await garantirEmitidas(alvo);
       const arquivos: { nome: string; bytes: Uint8Array }[] = [];
       for (const [i, l] of prontas.entries()) {
@@ -245,7 +231,7 @@ export default function CertidaoP1Painel() {
         const JSZip = (await import("jszip")).default;
         const zip = new JSZip();
         for (const a of arquivos) zip.file(a.nome, a.bytes);
-        salvarArquivo(await zip.generateAsync({ type: "blob" }), `Certidoes P1 - ${dados?.periodo.nome || "promocao"}.zip`);
+        salvarArquivo(await zip.generateAsync({ type: "blob" }), `Declaracoes e certidoes - ${dados?.periodo.nome || "promocao"}.zip`);
       }
     } catch (e) {
       setErro((e as Error).message || "Falha ao gerar.");
@@ -258,13 +244,13 @@ export default function CertidaoP1Painel() {
     if (!alvo.length) { avisar("Marque ao menos um policial."); return; }
     setErro("");
     try {
-      setOcupado("Numerando as certidões…");
+      setOcupado("Gerando as declarações…");
       const prontas = await garantirEmitidas(alvo);
       const arquivos: { nome: string; dados: ArrayBuffer }[] = [];
       for (const [i, l] of prontas.entries()) {
-        setOcupado(`Certidão ${i + 1} de ${prontas.length}…`);
+        setOcupado(`Declaração ${i + 1} de ${prontas.length}…`);
         arquivos.push({
-          nome: `Certidao P1 - ${l.arquivo}.docx`,
+          nome: `Declaracao - ${l.arquivo}.docx`,
           dados: await baixarBytes(`/api/promocoes/certidao-p1/documento?efetivoId=${encodeURIComponent(l.efetivoId)}&formato=docx`),
         });
       }
@@ -275,7 +261,7 @@ export default function CertidaoP1Painel() {
         const JSZip = (await import("jszip")).default;
         const zip = new JSZip();
         for (const a of arquivos) zip.file(a.nome, a.dados);
-        salvarArquivo(await zip.generateAsync({ type: "blob" }), `Certidoes P1 (Word) - ${dados?.periodo.nome || "promocao"}.zip`);
+        salvarArquivo(await zip.generateAsync({ type: "blob" }), `Declaracoes (Word) - ${dados?.periodo.nome || "promocao"}.zip`);
       }
     } catch (e) {
       setErro((e as Error).message || "Falha ao gerar.");
@@ -291,10 +277,10 @@ export default function CertidaoP1Painel() {
       <button onClick={() => setAberto((v) => !v)} className="flex w-full items-center gap-3 p-4 text-left">
         <FileBadge className="h-6 w-6 shrink-0 text-[#D4AF37]" />
         <div className="flex-1">
-          <p className="text-sm font-semibold">Certidão do P/1 — Oficiais e Subtenentes (Portaria nº 040/2026-GCG)</p>
+          <p className="text-sm font-semibold">Declaração individual — Oficiais e Subtenentes</p>
           <p className="text-xs text-[#94A3B8]">
-            Escolha os policiais: o sistema faz a certidão numerada de cada um e junta com as certidões das regiões
-            num PDF só, já com o nome do policial. Oficial e subtenente: TRF da 1ª à <b className="text-[#D4AF37]">6ª</b> Região; praça: da 1ª à 5ª.
+            Escolha os policiais: o sistema faz a declaração de cada um (certidões negativas protocoladas, situação
+            regular) e junta com as certidões das regiões num PDF só, já com o nome do policial. Oficial e subtenente: TRF da 1ª à <b className="text-[#D4AF37]">6ª</b> Região; praça: da 1ª à 5ª.
             Cada um também pode gerar e ajustar a própria em “Minhas certidões”.
           </p>
         </div>
@@ -314,30 +300,17 @@ export default function CertidaoP1Painel() {
 
           {dados && (
             <>
-              {/* ---- texto e numeração ---- */}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto]">
-                <label className="block">
-                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Portaria citada no texto</span>
-                  <input value={portaria} onChange={(e) => setPortaria(e.target.value)}
-                    onBlur={() => { if (portaria.trim() && portaria !== dados.portaria) salvarConfig({ portaria }); }}
-                    className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Próximo nº ({dados.ano})</span>
-                  <input type="number" min={1} value={proximo} onChange={(e) => setProximo(e.target.value)}
-                    onBlur={() => { const n = Number(proximo); if (Number.isInteger(n) && n > 0 && n !== dados.proximo) salvarConfig({ proximo: n }); }}
-                    className="w-28 rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
-                </label>
+              {/* ---- data ---- */}
+              <div className="flex flex-wrap items-end gap-3">
                 <label className="block">
                   <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">Data das novas</span>
                   <input type="date" value={data} onChange={(e) => setData(e.target.value)}
                     className="rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
                 </label>
+                <p className="pb-2 text-[11px] text-[#94A3B8]">
+                  Quem já tem declaração fica com a data e os ajustes dela — baixar de novo sai igual.
+                </p>
               </div>
-              <p className="text-[11px] text-[#94A3B8]">
-                Quem já tem certidão fica com o número e a data dela — baixar de novo sai igual. O próximo número só
-                anda quando sai uma certidão nova (ajuste se já emitiu alguma à mão).
-              </p>
 
               {/* ---- quem entra ---- */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
@@ -364,7 +337,7 @@ export default function CertidaoP1Painel() {
                             onChange={(e) => setDesmarcados(e.target.checked ? new Set() : new Set(linhas.map((l) => l.efetivoId)))} />
                         </th>
                         <th className="px-3 py-2 font-semibold">Policial</th>
-                        <th className="px-3 py-2 font-semibold">Certidão</th>
+                        <th className="px-3 py-2 font-semibold">Declaração</th>
                         <th className="px-3 py-2 font-semibold">Regiões no sistema</th>
                         <th className="px-3 py-2 font-semibold">Anexar aqui</th>
                         <th className="px-3 py-2 font-semibold">Ações</th>
@@ -392,9 +365,9 @@ export default function CertidaoP1Painel() {
                               </span>
                             </td>
                             <td className="whitespace-nowrap px-3 py-2.5">
-                              {l.numero ? (
+                              {l.gerada ? (
                                 <span className="font-medium text-white">
-                                  nº {l.numero}
+                                  gerada{l.data ? ` · ${l.data.split("-").reverse().join("/")}` : ""}
                                   {l.ajustado && (
                                     <span className="ml-1.5 rounded-full bg-[#D4AF37]/15 px-1.5 py-0.5 text-[10px] text-[#D4AF37]" title="Algum dado foi mudado em relação à ficha">
                                       editada
@@ -425,19 +398,19 @@ export default function CertidaoP1Painel() {
                             </td>
                             <td className="px-3 py-2.5">
                               <div className="flex flex-wrap gap-1.5">
-                                <button onClick={() => visualizar(l)} disabled={!!ocupado} title="Ver a certidão (PDF) numa aba nova"
+                                <button onClick={() => visualizar(l)} disabled={!!ocupado} title="Ver a declaração (PDF) numa aba nova"
                                   className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-xs text-white transition hover:bg-white/5 disabled:opacity-40">
                                   <Eye className="h-3.5 w-3.5" /> Ver
                                 </button>
-                                <button onClick={() => abrirEdicao(l)} disabled={!!ocupado} title="Mudar nome, posto, quadro, matrícula, data, número…"
+                                <button onClick={() => abrirEdicao(l)} disabled={!!ocupado} title="Mudar nome, posto, quadro, matrícula, local, data…"
                                   className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-xs text-white transition hover:bg-white/5 disabled:opacity-40">
                                   <Pencil className="h-3.5 w-3.5" /> Editar
                                 </button>
-                                <button onClick={() => gerarWord([l])} disabled={!!ocupado} title="Só a certidão, em Word"
+                                <button onClick={() => gerarWord([l])} disabled={!!ocupado} title="Só a declaração, em Word"
                                   className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-xs text-white transition hover:bg-white/5 disabled:opacity-40">
                                   <FileText className="h-3.5 w-3.5" /> Word
                                 </button>
-                                <button onClick={() => gerarUnificados([l])} disabled={!!ocupado} title="Certidão + certidões das regiões, num PDF só"
+                                <button onClick={() => gerarUnificados([l])} disabled={!!ocupado} title="Declaração + certidões das regiões, num PDF só"
                                   className="inline-flex items-center gap-1 rounded-lg border border-[#D4AF37]/30 px-2 py-1 text-xs font-medium text-[#D4AF37] transition hover:bg-[#D4AF37] hover:text-[#1a1205] disabled:opacity-40">
                                   <FileStack className="h-3.5 w-3.5" /> PDF único
                                 </button>
@@ -464,7 +437,7 @@ export default function CertidaoP1Painel() {
                   </button>
                   <button onClick={() => gerarWord(marcadas)} disabled={!!ocupado || !marcadas.length}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-sm text-white transition hover:bg-white/5 disabled:opacity-50">
-                    <FileText className="h-4 w-4" /> Só as certidões em Word ({marcadas.length})
+                    <FileText className="h-4 w-4" /> Só as declarações em Word ({marcadas.length})
                   </button>
                   <span className="text-[11px] text-[#94A3B8]">
                     Mais de um: sai um .zip com um arquivo por policial.
@@ -486,8 +459,6 @@ export default function CertidaoP1Painel() {
         <EditarCertidaoP1
           titulo={`${editando.postoGrad} ${editando.nomeGuerra || editando.nome}`}
           campos={editando.campos}
-          ano={Number((editando.numero || "").split("/")[1]) || dados.ano}
-          podeNumero
           ajustado={editando.ajustado}
           onSalvar={(campos, depois) => salvarEdicao(editando, campos, depois)}
           onRestaurar={() => restaurarEdicao(editando)}

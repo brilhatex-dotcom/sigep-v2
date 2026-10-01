@@ -10,20 +10,18 @@ import {
 export const dynamic = "force-dynamic";
 
 /* =========================================================================
-   /api/promocoes/minha-certidao — a certidão/declaração do P/1 do PRÓPRIO
+   /api/promocoes/minha-certidao — a declaração individual do PRÓPRIO
    militar, para quem concorre pela CPOPM (oficiais e subtenentes).
 
    GET                          -> { pode, periodo, linha }  (linha: null se
                                    não houver período ou ficha)
-   POST { acao: "emitir" }      -> gera (numera) a dele, com a data de hoje
+   POST { acao: "emitir" }      -> gera a dele, com a data de hoje
    POST { acao: "editar", campos } -> ajusta os dados que saem no documento
                                    (nome, posto por extenso, quadro, matrícula,
-                                   Id, regiões, portaria, data). O NÚMERO não:
-                                   a numeração é do P/1.
+                                   Id, regiões, local, data)
    POST { acao: "restaurar" }   -> volta aos dados da ficha
 
-   O número sai da MESMA sequência do painel do P/1, então não há duas
-   certidões com o mesmo número, quem quer que tenha gerado.
+   É o mesmo registro que o painel do P/1 vê: o que um ajusta, o outro vê.
    ========================================================================= */
 
 async function contexto() {
@@ -56,7 +54,7 @@ export async function POST(req: Request) {
   const { s, efetivoId } = await contexto();
   if (!s) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
   if (!efetivoId || !s.proprio) {
-    return NextResponse.json({ error: "A certidão/declaração é para oficiais e subtenentes." }, { status: 403 });
+    return NextResponse.json({ error: "A declaração individual é para oficiais e subtenentes." }, { status: 403 });
   }
   const periodo = await periodoAtivo();
   if (!periodo) return NextResponse.json({ error: "Nenhum período de promoção aberto." }, { status: 400 });
@@ -73,12 +71,9 @@ export async function POST(req: Request) {
     if (acao === "emitir" || acao === "editar") {
       const campos = (b?.campos && typeof b.campos === "object" ? b.campos : {}) as Partial<CamposCertidao>;
       const data = typeof campos.data === "string" && /^\d{4}-\d{2}-\d{2}$/.test(campos.data) ? campos.data : hojeISO();
-      await emitir(periodo.id, [efetivoId], data); // quem já tem número fica com ele
+      await emitir(periodo.id, [efetivoId], data); // quem já tem fica com a dele
       if (acao === "editar") {
-        // o número é do P/1: o próprio militar não troca
-        const { numero: _ignorado, ...semNumero } = campos;
-        void _ignorado;
-        const r = await editar(periodo.id, f, semNumero, { podeNumero: false, quem: s.login });
+        const r = await editar(periodo.id, f, campos, { quem: s.login });
         if ("erro" in r) return NextResponse.json({ error: r.erro }, { status: 400 });
       }
       try {
@@ -86,7 +81,7 @@ export async function POST(req: Request) {
           acao: "certidao_p1_propria",
           alvo: efetivoId,
           alvoNome: periodo.nome,
-          detalhe: acao === "emitir" ? "Militar gerou a própria certidão/declaração" : "Militar ajustou a própria certidão/declaração",
+          detalhe: acao === "emitir" ? "Militar gerou a própria declaração individual" : "Militar ajustou a própria declaração individual",
         });
       } catch {}
     } else if (acao === "restaurar") {

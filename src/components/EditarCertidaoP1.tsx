@@ -4,16 +4,14 @@ import { useState } from "react";
 import { X, Loader2, Save, Eye, RotateCcw } from "lucide-react";
 import type { CamposCertidao } from "@/lib/certidaoP1Db";
 
-/* Editar a certidão/declaração do P/1 antes de gerar: tudo o que identifica o
-   militar (vem da ficha, mas pode ter erro ou faltar) e a data. O texto que
-   atesta a situação é fixo. O número só o P/1 troca. "Voltar aos dados da
-   ficha" apaga os ajustes. */
+/* Editar a declaração individual antes de gerar: tudo o que identifica o
+   militar (vem da ficha, mas pode ter erro ou faltar), o local e a data. O
+   texto que o militar declara é fixo. "Voltar aos dados da ficha" apaga os
+   ajustes. */
 
 type Props = {
   titulo: string;
   campos: CamposCertidao;
-  ano: number;
-  podeNumero: boolean;
   ajustado: boolean;
   onSalvar: (campos: CamposCertidao, depois?: "visualizar") => Promise<string | null>;
   onRestaurar: () => Promise<void>;
@@ -33,7 +31,7 @@ function Campo({ rotulo, dica, children, largo }: { rotulo: string; dica?: strin
   );
 }
 
-export default function EditarCertidaoP1({ titulo, campos, ano, podeNumero, ajustado, onSalvar, onRestaurar, onFechar }: Props) {
+export default function EditarCertidaoP1({ titulo, campos, ajustado, onSalvar, onRestaurar, onFechar }: Props) {
   const [c, setC] = useState<CamposCertidao>(campos);
   const [salvando, setSalvando] = useState<"" | "salvar" | "ver" | "restaurar">("");
   const [erro, setErro] = useState("");
@@ -59,12 +57,12 @@ export default function EditarCertidaoP1({ titulo, campos, ano, podeNumero, ajus
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-auto bg-black/60 p-4" onClick={onFechar}>
       <div className="mt-8 w-full max-w-2xl rounded-xl border border-white/10 bg-[#0F1B2D] p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-1 flex items-center justify-between gap-3">
-          <h3 className="text-lg font-semibold text-white">Editar certidão — {titulo}</h3>
+          <h3 className="text-lg font-semibold text-white">Editar declaração — {titulo}</h3>
           <button onClick={onFechar} className="text-[#94A3B8] hover:text-white"><X className="h-5 w-5" /></button>
         </div>
         <p className="mb-4 text-xs text-[#94A3B8]">
-          Os dados vêm da ficha; o que você mudar aqui vale só para esta certidão. O texto que atesta a
-          situação (“NÃO POSSUI registros impeditivos…”) não muda.
+          Os dados vêm da ficha; o que você mudar aqui vale só para esta declaração. O texto declarado
+          (certidões negativas, “não sou réu…”, “SITUAÇÃO REGULAR”) não muda.
         </p>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -101,15 +99,11 @@ export default function EditarCertidaoP1({ titulo, campos, ano, podeNumero, ajus
               </label>
             </div>
           </Campo>
-          <Campo rotulo="Portaria citada no texto" largo>
-            <input value={c.portaria} onChange={(e) => set("portaria", e.target.value)} className={entrada} />
+          <Campo rotulo="Local" dica="Sai antes da data, no fecho.">
+            <input value={c.local} onChange={(e) => set("local", e.target.value)} className={entrada} />
           </Campo>
-          <Campo rotulo="Data da certidão">
+          <Campo rotulo="Data da declaração">
             <input type="date" value={c.data} onChange={(e) => set("data", e.target.value)} className={entrada} />
-          </Campo>
-          <Campo rotulo={`Número (${ano})`} dica={podeNumero ? "Não pode repetir o de outra certidão do ano." : "A numeração é do P/1."}>
-            <input type="number" min={1} value={c.numero} disabled={!podeNumero}
-              onChange={(e) => set("numero", Number(e.target.value))} className={`${entrada} disabled:opacity-60`} />
           </Campo>
         </div>
 
@@ -117,7 +111,7 @@ export default function EditarCertidaoP1({ titulo, campos, ano, podeNumero, ajus
 
         <div className="mt-5 flex flex-wrap items-center gap-2">
           {ajustado && (
-            <button onClick={restaurar} disabled={!!salvando} title="Apaga os ajustes e volta aos dados da ficha (número e data ficam)"
+            <button onClick={restaurar} disabled={!!salvando} title="Apaga os ajustes e volta aos dados da ficha (a data fica)"
               className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-sm text-[#94A3B8] transition hover:bg-white/5 hover:text-white disabled:opacity-50">
               {salvando === "restaurar" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
               Voltar à ficha

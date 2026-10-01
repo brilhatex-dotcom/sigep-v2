@@ -1,5 +1,5 @@
 /* =========================================================================
-   Certidão do P/1 — o que roda NO NAVEGADOR, usado pelo painel do P/1 e pela
+   Declaração individual — o que roda NO NAVEGADOR, usado pelo painel do P/1 e pela
    tela "Minhas certidões" do oficial/subtenente.
 
    A junção do PDF único é feita aqui (pdf-lib), com os arquivos descendo
@@ -41,7 +41,7 @@ export function abaReservada(): { ir: (url: string) => void; fechar: () => void 
   };
 }
 
-/* Certidão do P/1 + certidões das regiões que o militar mandou pelo sistema
+/* Declaração individual + certidões das regiões que o militar mandou pelo sistema
    (ordem oficial; a Certidão Unificada entra uma vez) + PDFs anexados na
    hora -> um PDF só. */
 export async function montarUnificado(efetivoId: string, titulo: string, extras: File[] = []): Promise<Uint8Array> {
@@ -56,7 +56,7 @@ export async function montarUnificado(efetivoId: string, titulo: string, extras:
   };
 
   const id = encodeURIComponent(efetivoId);
-  await juntar(await baixarBytes(urlDocumento(efetivoId, "pdf")), "A certidão do P/1");
+  await juntar(await baixarBytes(urlDocumento(efetivoId, "pdf")), "A declaração");
 
   const r = await fetch(`/api/promocoes/certidao-p1/arquivos?efetivoId=${id}`);
   const lista = await r.json().catch(() => ({}));

@@ -311,9 +311,9 @@ export default function PainelPromocoes({
           art. 4º, § 3º). Fica no alto, recolhida, para nao empurrar a lista. */}
       <PlanilhaPadraoPainel />
 
-      {/* Certidão do P/1 dos OFICIAIS (Portaria 040/2026-GCG, CAE): a de praça
+      {/* Declaração individual dos OFICIAIS e subtenentes (CAE): a de praça
           vai na Planilha Padrão; a de oficial sobe ao SEI num PDF único por
-          policial — certidão do P/1 + as certidões das regiões. */}
+          policial — declaração + as certidões das regiões. */}
       <CertidaoP1Painel />
 
       {/* Cards */}
