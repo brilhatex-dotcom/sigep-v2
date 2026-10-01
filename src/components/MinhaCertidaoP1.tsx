@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FileBadge, Loader2, Eye, Pencil, FileText, FileStack, Download, Paperclip, AlertTriangle } from "lucide-react";
+import { Loader2, Eye, Pencil, FileText, FileStack, Download, Paperclip, AlertTriangle } from "lucide-react";
 import EditarCertidaoP1 from "@/components/EditarCertidaoP1";
 import type { CamposCertidao, LinhaCertidaoP1 } from "@/lib/certidaoP1Db";
 import {
@@ -119,12 +119,11 @@ export default function MinhaCertidaoP1() {
   const faltam = l ? l.exigidas.filter((c) => !l.enviadas.includes(c.ordem)) : [];
 
   return (
-    <div className="ui-card border border-[#D4AF37]/30 p-5">
+    <div className="p-2">
+      {/* o título vem na faixa da página ("Oficiais e subtenentes") */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-        <FileBadge className="h-6 w-6 shrink-0 text-[#D4AF37]" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-white">Minha certidão/declaração do P/1 — oficiais e subtenentes</p>
-          <p className="mt-0.5 text-xs text-[#94A3B8]">
+          <p className="text-xs text-[#94A3B8]">
             A certidão de “nada consta” da Portaria nº 040/2026-GCG. Gere a sua, confira, ajuste o que estiver
             errado e baixe o <b className="text-white">PDF único</b> (certidão + as suas certidões das regiões),
             já com o seu nome — é o arquivo que vai para o SEI.
