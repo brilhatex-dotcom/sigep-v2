@@ -16,6 +16,10 @@ import {
   ChevronDown,
   Link2,
   Zap,
+  Check,
+  Lock,
+  ChevronRight,
+  FileBadge,
 } from "lucide-react";
 import { LINKS_OFICIAIS, LINK_CERTIDAO_UNIFICADA, ORDENS_UNIFICADA } from "@/lib/certidoes";
 import { LIMITE_CERTIDAO_BYTES as LIMITE_BYTES } from "@/lib/promocaoUpload";
@@ -32,6 +36,52 @@ type Item = {
   // preenchida de uma vez pela Certidão Unificada da Justiça Federal (itens 4 a 8)
   pelaUnificada: boolean;
 };
+
+/* =========================================================================
+   OS TRÊS PASSOS — cada um abre com uma FAIXA que muda de cor com o andamento,
+   para o militar ver de longe onde está:
+     · dourada  -> é o passo da vez;
+     · verde    -> concluído;
+     · azul     -> enviado, esperando o P/1;
+     · cinza    -> ainda não liberou (depende do passo anterior).
+   ========================================================================= */
+type EstadoPasso = "feito" | "atual" | "espera" | "bloqueado";
+
+const COR_FAIXA: Record<EstadoPasso, string> = {
+  feito: "bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 text-white",
+  atual: "bg-gradient-to-r from-[#D4AF37] via-[#e8c55a] to-amber-500 text-[#1a1205]",
+  espera: "bg-gradient-to-r from-sky-600 via-sky-500 to-cyan-500 text-white",
+  bloqueado: "bg-gradient-to-r from-slate-700 via-slate-600 to-slate-700 text-slate-200",
+};
+const COR_MOLDURA: Record<EstadoPasso, string> = {
+  feito: "border-emerald-500/40",
+  atual: "border-[#D4AF37]/70 shadow-[0_10px_30px_-12px_rgba(212,175,55,0.55)]",
+  espera: "border-sky-500/40",
+  bloqueado: "border-white/10",
+};
+
+function FaixaPasso({ numero, titulo, dica, estado, situacao }: {
+  numero: number; titulo: string; dica: string; estado: EstadoPasso; situacao: string;
+}) {
+  return (
+    <div className={`flex items-center gap-3 px-4 py-3 ${COR_FAIXA[estado]}`}>
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/20 text-lg font-black ring-2 ring-white/30">
+        {estado === "feito" ? <Check className="h-5 w-5" strokeWidth={3} />
+          : estado === "bloqueado" ? <Lock className="h-4 w-4" />
+          : numero}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-black uppercase tracking-[0.22em] opacity-80">{numero}º passo</p>
+        <p className="text-base font-bold leading-tight">{titulo}</p>
+        <p className="text-[11px] opacity-80">{dica}</p>
+      </div>
+      <span className="hidden shrink-0 items-center gap-1.5 rounded-full bg-black/20 px-3 py-1 text-xs font-semibold sm:inline-flex">
+        {estado === "atual" && <span className="h-2 w-2 animate-pulse rounded-full bg-current" />}
+        {situacao}
+      </span>
+    </div>
+  );
+}
 
 function dataHora(iso: string | null): string {
   if (!iso) return "";
@@ -214,24 +264,63 @@ export default function MinhasCertidoes({
     }
   }
 
+  // onde o militar está em cada passo
+  const passo1: EstadoPasso = completo ? "feito" : "atual";
+  const passo2: EstadoPasso = unificadoKey ? "feito" : completo ? "atual" : "bloqueado";
+  const passo3: EstadoPasso = recebidoP1 ? "feito" : enviadoP1 ? "espera"
+    : completo && unificadoKey ? "atual" : "bloqueado";
+  const trilha: { n: number; rotulo: string; estado: EstadoPasso }[] = [
+    { n: 1, rotulo: "Enviar as certidões", estado: passo1 },
+    { n: 2, rotulo: "Gerar o PDF", estado: passo2 },
+    { n: 3, rotulo: "Enviar ao P/1", estado: passo3 },
+  ];
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      {/* A trilha dos três passos, de relance */}
+      <div className="ui-card flex flex-wrap items-center gap-2 p-3">
+        {trilha.map((t, k) => (
+          <Fragment key={t.n}>
+            <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold ${COR_FAIXA[t.estado]}`}>
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black/20 text-[11px]">
+                {t.estado === "feito" ? <Check className="h-3 w-3" strokeWidth={3} /> : t.n}
+              </span>
+              {t.n}º passo · {t.rotulo}
+            </span>
+            {k < trilha.length - 1 && <ChevronRight className="h-4 w-4 text-[#94A3B8]" />}
+          </Fragment>
+        ))}
+      </div>
+
+      {erro && (
+        <p className="flex items-center gap-2 rounded-lg border border-red-800 bg-red-950/50 p-3 text-sm text-red-300">
+          <AlertTriangle className="h-4 w-4 shrink-0" /> {erro}
+        </p>
+      )}
+
+      {/* ============ 1º PASSO: enviar as certidões ============ */}
+      <section className={`overflow-hidden rounded-xl border bg-[#0F1B2D] ${COR_MOLDURA[passo1]}`}>
+        <FaixaPasso
+          numero={1}
+          titulo="Envie as suas certidões"
+          dica="Emita nos sites oficiais e envie cada uma em PDF."
+          estado={passo1}
+          situacao={completo ? `Concluído · ${totalEnviadas}/${total}` : `${totalEnviadas} de ${total} enviadas`}
+        />
+        <div className="space-y-3 p-4">
       {/* Progresso */}
-      <div className="ui-card p-4">
-        <div className="mb-1 flex items-center justify-between text-sm">
-          <span className="font-medium text-white">Progresso</span>
-          <span className="text-[#94A3B8]">{totalEnviadas} de {total} enviadas</span>
-        </div>
-        <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+      <div>
+        <div className="h-2.5 w-full overflow-hidden rounded-full bg-white/10">
           <div
-            className="h-full rounded-full bg-[#D4AF37] transition-all"
+            className={`h-full rounded-full transition-all ${completo ? "bg-emerald-500" : "bg-[#D4AF37]"}`}
             style={{ width: `${(totalEnviadas / total) * 100}%` }}
           />
         </div>
+        <p className="mt-1 text-right text-[11px] text-[#94A3B8]">{totalEnviadas} de {total} enviadas</p>
       </div>
 
       {/* Links oficiais (orientacao) */}
-      <div className="ui-card overflow-hidden">
+      <div className="overflow-hidden rounded-lg border border-white/10">
         <button
           onClick={() => setLinksAbertos((v) => !v)}
           className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium text-white hover:bg-white/5"
@@ -269,12 +358,6 @@ export default function MinhasCertidoes({
         )}
       </div>
 
-      {erro && (
-        <p className="flex items-center gap-2 rounded-lg border border-red-800 bg-red-950/50 p-3 text-sm text-red-300">
-          <AlertTriangle className="h-4 w-4 shrink-0" /> {erro}
-        </p>
-      )}
-
       {travado && (
         <p className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-[#94A3B8]">
           <Clock className="h-4 w-4 shrink-0 text-[#D4AF37]" />
@@ -284,7 +367,7 @@ export default function MinhasCertidoes({
       )}
 
       {/* Lista das certidoes */}
-      <div className="ui-card overflow-hidden">
+      <div className="overflow-hidden rounded-lg border border-white/10">
         <ul className="divide-y divide-white/5">
           {lista.map((i) => (
             <Fragment key={i.ordem}>
@@ -415,11 +498,19 @@ export default function MinhasCertidoes({
           ))}
         </ul>
       </div>
+        </div>
+      </section>
 
-      {children}
-
-      {/* PDF unificado */}
-      <div className="ui-card p-5">
+      {/* ============ 2º PASSO: gerar o PDF unificado ============ */}
+      <section className={`overflow-hidden rounded-xl border bg-[#0F1B2D] ${COR_MOLDURA[passo2]}`}>
+        <FaixaPasso
+          numero={2}
+          titulo="Gere o PDF unificado"
+          dica="Junta todas as certidões num arquivo só, na ordem oficial."
+          estado={passo2}
+          situacao={passo2 === "feito" ? "PDF gerado" : passo2 === "atual" ? "Liberado — gere agora" : `Libera com as ${total} certidões`}
+        />
+      <div className="p-5">
         {unificadoKey ? (
           <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
             <FileStack className="h-6 w-6 text-emerald-400" />
@@ -448,7 +539,7 @@ export default function MinhasCertidoes({
             <button
               onClick={gerarUnificado}
               disabled={!completo || gerando || travado}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white disabled:opacity-40"
             >
               {gerando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileStack className="h-4 w-4" />}
               {gerando ? "Gerando..." : "Gerar PDF unificado"}
@@ -456,9 +547,23 @@ export default function MinhasCertidoes({
           </div>
         )}
       </div>
+      </section>
 
-      {/* Enviar ao P/1 + status de recebimento */}
-      <div className="ui-card p-5">
+      {/* ============ 3º PASSO: enviar ao P/1 ============ */}
+      <section className={`overflow-hidden rounded-xl border bg-[#0F1B2D] ${COR_MOLDURA[passo3]}`}>
+        <FaixaPasso
+          numero={3}
+          titulo="Envie ao P/1"
+          dica="O P/1 recebe o seu PDF, confere e confirma aqui."
+          estado={passo3}
+          situacao={
+            passo3 === "feito" ? "Recebido pelo P/1"
+              : passo3 === "espera" ? "Enviado — aguardando o P/1"
+              : passo3 === "atual" ? "Pronto para enviar"
+              : "Libera depois do PDF"
+          }
+        />
+      <div className="p-5">
         {recebidoP1 ? (
           <div className="flex items-start gap-3">
             <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-emerald-400" />
@@ -506,6 +611,25 @@ export default function MinhasCertidoes({
           </div>
         )}
       </div>
+      </section>
+
+      {/* Oficiais e subtenentes: a certidão/declaração do P/1 (fora da
+          sequência dos passos — vai junto para o SEI) */}
+      {children && (
+        <section className="overflow-hidden rounded-xl border border-violet-400/40 bg-[#0F1B2D]">
+          <div className="flex items-center gap-3 bg-gradient-to-r from-violet-700 via-violet-600 to-fuchsia-600 px-4 py-3 text-white">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/20 ring-2 ring-white/30">
+              <FileBadge className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-black uppercase tracking-[0.22em] opacity-80">Oficiais e subtenentes</p>
+              <p className="text-base font-bold leading-tight">Certidão/declaração do P/1</p>
+              <p className="text-[11px] opacity-80">Gere a sua e o PDF único (certidão + certidões) que vai para o SEI.</p>
+            </div>
+          </div>
+          <div className="p-3">{children}</div>
+        </section>
+      )}
     </div>
   );
 }
