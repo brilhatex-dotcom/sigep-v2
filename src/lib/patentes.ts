@@ -53,7 +53,8 @@ export function classificarPatente(postoGrad: string | null): Patente {
   const num = (t.match(/[123]/) || [])[0];
   const tem = (re: RegExp) => re.test(t);
 
-  if (tem(/sub\s*tenente/) || tem(/\bsubten/) || tem(/\bsub ten\b/)) {
+  // "ST" sozinho tambem e Subtenente (e como o posto aparece abreviado)
+  if (tem(/sub\s*tenente/) || tem(/\bsubten/) || tem(/\bsub ten\b/) || tem(/\bst\b/)) {
     return patente(8);
   }
   if (tem(/tenente\s*coronel/) || tem(/\bten\s*cel\b/) || tem(/\btc\b/)) {

@@ -3,14 +3,16 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { periodoAtivo, postoDoMilitar } from "@/lib/promocoes";
-import { totalCertidoes } from "@/lib/certidoes";
+import { totalCertidoes, ORDENS_UNIFICADA } from "@/lib/certidoes";
 import { statusP1 } from "@/lib/promocaoStatusP1";
-import { chaveCertidao } from "@/lib/promocaoUpload";
+import { chaveCertidao, chaveCertidaoUnificada } from "@/lib/promocaoUpload";
 
 export const dynamic = "force-dynamic";
 
 /* POST /api/promocoes/upload/confirmar
    { ordem, key, nomeArquivo, tam, efetivoId? }
+   { unificada: true, key, nomeArquivo, tam } -> a Certidao Unificada da
+   Justica Federal: o MESMO arquivo vale pelos itens 4 a 8 (TRF1 a TRF5).
 
    Segundo passo do envio: o PDF ja subiu direto para o R2 pela URL assinada,
    aqui a gente grava a certidao no banco. */
@@ -26,6 +28,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const b = await req.json().catch(() => ({}));
+    const unificada = b?.unificada === true;
     const ordem = parseInt(String(b?.ordem ?? ""), 10);
     const key = String(b?.key || "");
     const nomeArquivo = String(b?.nomeArquivo || "certidao.pdf").slice(0, 200);
@@ -41,13 +44,16 @@ export async function POST(req: NextRequest) {
       );
     }
     const total = totalCertidoes(await postoDoMilitar(efetivoId));
-    if (!ordem || ordem < 1 || ordem > total) {
+    if (!unificada && (!ordem || ordem < 1 || ordem > total)) {
       return NextResponse.json({ erro: "Certidão inválida." }, { status: 400 });
     }
 
     // A chave tem que ser exatamente a que este militar receberia para esta
     // certidao — ninguem aponta a propria certidao para arquivo de outro.
-    if (key !== chaveCertidao(periodo.id, efetivoId, ordem)) {
+    const esperada = unificada
+      ? chaveCertidaoUnificada(periodo.id, efetivoId)
+      : chaveCertidao(periodo.id, efetivoId, ordem);
+    if (key !== esperada) {
       return NextResponse.json({ erro: "Arquivo não confere com o envio." }, { status: 400 });
     }
 
@@ -65,22 +71,15 @@ export async function POST(req: NextRequest) {
       create: { periodoId: periodo.id, efetivoId },
     });
 
-    await prisma.certidaoEnviada.upsert({
-      where: { participanteId_ordem: { participanteId: participante.id, ordem } },
-      update: {
-        r2Key: key,
-        nomeArquivo,
-        tamanhoBytes: Number.isFinite(tam) && tam > 0 ? Math.round(tam) : 0,
-        enviadaEm: new Date(),
-      },
-      create: {
-        participanteId: participante.id,
-        ordem,
-        r2Key: key,
-        nomeArquivo,
-        tamanhoBytes: Number.isFinite(tam) && tam > 0 ? Math.round(tam) : 0,
-      },
-    });
+    // a unificada preenche os itens 4 a 8 de uma vez, todos com o mesmo arquivo
+    const tamanhoBytes = Number.isFinite(tam) && tam > 0 ? Math.round(tam) : 0;
+    for (const o of unificada ? ORDENS_UNIFICADA : [ordem]) {
+      await prisma.certidaoEnviada.upsert({
+        where: { participanteId_ordem: { participanteId: participante.id, ordem: o } },
+        update: { r2Key: key, nomeArquivo, tamanhoBytes, enviadaEm: new Date() },
+        create: { participanteId: participante.id, ordem: o, r2Key: key, nomeArquivo, tamanhoBytes },
+      });
+    }
 
     // se o PDF unificado ja existia, invalida (mudou uma certidao)
     if (participante.pdfUnificado) {
@@ -90,7 +89,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ ok: true, ordem });
+    return NextResponse.json({ ok: true, ordens: unificada ? ORDENS_UNIFICADA : [ordem] });
   } catch (e) {
     console.error("[POST /api/promocoes/upload/confirmar]", e);
     return NextResponse.json({ erro: "Falha ao registrar a certidão." }, { status: 500 });

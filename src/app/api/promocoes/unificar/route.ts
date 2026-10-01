@@ -7,6 +7,7 @@ import { unirPdfs } from "@/lib/pdf";
 import { periodoAtivo, postoDoMilitar } from "@/lib/promocoes";
 import { certidoesExigidas } from "@/lib/certidoes";
 import { statusP1 } from "@/lib/promocaoStatusP1";
+import { semRepetirArquivo } from "@/lib/promocaoUpload";
 
 // POST: junta as certidoes exigidas (8 da praca, 9 do oficial — ordem
 // oficial) num PDF unico, salva no R2 e guarda a chave no participante.
@@ -56,9 +57,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // baixa cada PDF na ordem e une
+    // baixa cada PDF na ordem e une (a Certidao Unificada da Justica Federal
+    // vale pelos itens 4 a 8 e entra uma vez so)
     const partes: Buffer[] = [];
-    for (const c of certidoes) {
+    for (const c of semRepetirArquivo(certidoes)) {
       partes.push(await baixarDoR2(c.r2Key));
     }
     const unido = await unirPdfs(partes);

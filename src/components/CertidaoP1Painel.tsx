@@ -3,10 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FileBadge, ChevronDown, ChevronUp, Loader2, FileText, FileStack, Trash2, Paperclip,
-  Users, AlertTriangle, CheckCircle2,
+  Users, AlertTriangle, CheckCircle2, Eye, Pencil,
 } from "lucide-react";
 import { BuscaMilitar } from "@/components/docs/Comum";
 import { avisar, confirmar } from "@/components/Avisos";
+import EditarCertidaoP1 from "@/components/EditarCertidaoP1";
+import type { CamposCertidao } from "@/lib/certidaoP1Db";
+import {
+  salvarArquivo, baixarBytes, montarUnificado as juntarPdf, urlDocumento, abaReservada, pdfBlob,
+} from "@/lib/certidaoP1Cliente";
 
 /* =========================================================================
    CERTIDÃO DO P/1 — oficiais (Portaria nº 040/2026-GCG, Of. Circ. 003/2026-CAE)
@@ -18,8 +23,13 @@ import { avisar, confirmar } from "@/components/Avisos";
        que o militar mandou pelo sistema (na ordem oficial) + o que o P/1
        anexar aqui na hora — já com o nome do policial no arquivo.
 
-   A Justiça Federal muda com o posto: oficial apresenta da 1ª à 6ª Região;
-   praça, da 1ª à 5ª.
+   A Justiça Federal muda com o posto: oficial e subtenente (os que concorrem
+   pela CPOPM) apresentam da 1ª à 6ª Região; praça, da 1ª à 5ª.
+
+   Cada linha tem Ver (o PDF da certidão no navegador) e Editar (ajustar os
+   dados que saem no documento, inclusive o número). O próprio oficial ou
+   subtenente também gera e ajusta a dele em "Minhas certidões" — o número
+   sai da mesma sequência.
 
    A junção acontece NO NAVEGADOR (pdf-lib): os PDFs descem direto do R2 para
    o computador do P/1. Pela Vercel não daria — ela corta resposta acima de
@@ -39,6 +49,8 @@ type Linha = {
   data: string | null;
   exigidas: { ordem: number; rotulo: string }[];
   enviadas: number[];
+  campos: CamposCertidao | null;
+  ajustado: boolean;
 };
 type Resposta = {
   periodo: { id: string; nome: string };
@@ -49,16 +61,6 @@ type Resposta = {
   oficiaisDoPeriodo: string[];
   linhas: Linha[];
 };
-
-function salvarArquivo(dados: Blob, nome: string) {
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(dados);
-  a.download = nome;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-}
 
 function faltamDe(l: Linha): string[] {
   return l.exigidas.filter((c) => !l.enviadas.includes(c.ordem)).map((c) => c.rotulo);
@@ -79,6 +81,7 @@ export default function CertidaoP1Painel() {
   const [portaria, setPortaria] = useState("");
   const [proximo, setProximo] = useState("");
   const [ocupado, setOcupado] = useState("");
+  const [editando, setEditando] = useState<Linha | null>(null);
 
   const carregar = useCallback(async (ids: string[]): Promise<Resposta | null> => {
     setCarregando(true);
@@ -156,44 +159,53 @@ export default function CertidaoP1Painel() {
     return alvo.map((l) => porId.get(l.efetivoId) ?? l);
   }
 
-  async function baixarBytes(url: string): Promise<ArrayBuffer> {
-    const r = await fetch(url);
-    if (!r.ok) {
-      const d = await r.json().catch(() => ({}));
-      throw new Error(d.error || `Falha ao baixar (${r.status}).`);
-    }
-    return r.arrayBuffer();
+  // certidão do P/1 + certidões das regiões (sistema) + anexos daqui -> 1 PDF
+  function montarUnificado(l: Linha): Promise<Uint8Array> {
+    return juntarPdf(l.efetivoId, l.arquivo, anexos[l.efetivoId] ?? []);
   }
 
-  // certidão do P/1 + certidões das regiões (sistema) + anexos daqui -> 1 PDF
-  async function montarUnificado(l: Linha): Promise<Uint8Array> {
-    const { PDFDocument } = await import("pdf-lib");
-    const final = await PDFDocument.create();
-    const juntar = async (buf: ArrayBuffer, origem: string) => {
-      let doc;
-      try { doc = await PDFDocument.load(buf, { ignoreEncryption: true }); }
-      catch { throw new Error(`${origem} não é um PDF que dê para abrir.`); }
-      const paginas = await final.copyPages(doc, doc.getPageIndices());
-      paginas.forEach((p) => final.addPage(p));
-    };
-
-    const id = encodeURIComponent(l.efetivoId);
-    await juntar(await baixarBytes(`/api/promocoes/certidao-p1/documento?efetivoId=${id}&formato=pdf`), "A certidão do P/1");
-
-    const lista = await fetch(`/api/promocoes/certidao-p1/arquivos?efetivoId=${id}`).then((r) => r.json());
-    for (const a of (lista?.arquivos ?? []) as { ordem: number; rotulo: string; url: string }[]) {
-      let buf: ArrayBuffer;
-      try {
-        buf = await baixarBytes(a.url);           // direto do R2
-      } catch {
-        buf = await baixarBytes(`/api/promocoes/certidao-p1/arquivos?efetivoId=${id}&ordem=${a.ordem}`);
-      }
-      await juntar(buf, a.rotulo);
+  // Ver: a certidão em PDF numa aba nova (numera antes, se ainda não tinha)
+  async function visualizar(l: Linha) {
+    const aba = abaReservada();
+    try {
+      await garantirEmitidas([l]);
+      aba.ir(urlDocumento(l.efetivoId, "pdf", true));
+    } catch (e) {
+      aba.fechar();
+      setErro((e as Error).message || "Falha ao abrir a certidão.");
     }
+  }
 
-    for (const f of anexos[l.efetivoId] ?? []) await juntar(await f.arrayBuffer(), `O anexo "${f.name}"`);
-    final.setTitle(l.arquivo);
-    return final.save();
+  // Editar: numera antes (para ter número e data), depois abre a janela
+  async function abrirEdicao(l: Linha) {
+    setErro("");
+    try {
+      const [pronta] = await garantirEmitidas([l]);
+      if (pronta?.campos) setEditando(pronta);
+    } catch (e) {
+      setErro((e as Error).message || "Falha ao abrir a edição.");
+    }
+  }
+
+  async function salvarEdicao(l: Linha, campos: CamposCertidao, depois?: "visualizar"): Promise<string | null> {
+    const aba = depois === "visualizar" ? abaReservada() : null;
+    const r = await fetch("/api/promocoes/certidao-p1", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ acao: "editar", efetivoId: l.efetivoId, campos }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { aba?.fechar(); return d.error || "Falha ao salvar."; }
+    await carregar(pendentes);
+    aba?.ir(urlDocumento(l.efetivoId, "pdf", true));
+    return null;
+  }
+
+  async function restaurarEdicao(l: Linha) {
+    await fetch("/api/promocoes/certidao-p1", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ acao: "restaurar", efetivoId: l.efetivoId }),
+    }).catch(() => {});
+    await carregar(pendentes);
   }
 
   // avisa antes de gerar quem ainda não tem todas as certidões no sistema
@@ -227,7 +239,7 @@ export default function CertidaoP1Painel() {
         }
       }
       if (arquivos.length === 1) {
-        salvarArquivo(new Blob([arquivos[0].bytes as BlobPart], { type: "application/pdf" }), arquivos[0].nome);
+        salvarArquivo(pdfBlob(arquivos[0].bytes), arquivos[0].nome);
       } else {
         setOcupado("Fechando o .zip…");
         const JSZip = (await import("jszip")).default;
@@ -279,10 +291,11 @@ export default function CertidaoP1Painel() {
       <button onClick={() => setAberto((v) => !v)} className="flex w-full items-center gap-3 p-4 text-left">
         <FileBadge className="h-6 w-6 shrink-0 text-[#D4AF37]" />
         <div className="flex-1">
-          <p className="text-sm font-semibold">Certidão do P/1 — Oficiais (Portaria nº 040/2026-GCG)</p>
+          <p className="text-sm font-semibold">Certidão do P/1 — Oficiais e Subtenentes (Portaria nº 040/2026-GCG)</p>
           <p className="text-xs text-[#94A3B8]">
             Escolha os policiais: o sistema faz a certidão numerada de cada um e junta com as certidões das regiões
-            num PDF só, já com o nome do policial. Oficial: TRF da 1ª à <b className="text-[#D4AF37]">6ª</b> Região; praça: da 1ª à 5ª.
+            num PDF só, já com o nome do policial. Oficial e subtenente: TRF da 1ª à <b className="text-[#D4AF37]">6ª</b> Região; praça: da 1ª à 5ª.
+            Cada um também pode gerar e ajustar a própria em “Minhas certidões”.
           </p>
         </div>
         {dados && linhas.length > 0 && (
@@ -331,7 +344,7 @@ export default function CertidaoP1Painel() {
                 <BuscaMilitar sel={null} onEscolher={(m) => adicionar([m.id])} onLimpar={() => {}} rotulo="Adicionar policial" />
                 <button onClick={() => adicionar(oficiaisFora)} disabled={!oficiaisFora.length || carregando}
                   className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#D4AF37]/40 px-3 py-2 text-sm font-medium text-[#D4AF37] transition hover:bg-[#D4AF37]/10 disabled:opacity-40">
-                  <Users className="h-4 w-4" /> Oficiais do período ({oficiaisFora.length})
+                  <Users className="h-4 w-4" /> Oficiais e subtenentes do período ({oficiaisFora.length})
                 </button>
               </div>
 
@@ -375,12 +388,19 @@ export default function CertidaoP1Painel() {
                             <td className="px-3 py-2.5">
                               <span className="block font-medium text-white">{l.postoGrad} {l.nomeGuerra || l.nome}</span>
                               <span className="block text-[11px] text-[#94A3B8]">
-                                {l.nome}{l.quadro ? ` · ${l.quadro}` : ""} · {l.oficial ? "oficial (1ª–6ª Região)" : "praça (1ª–5ª Região)"}
+                                {l.nome}{l.quadro ? ` · ${l.quadro}` : ""} · {l.oficial ? "oficial/subtenente (1ª–6ª Região)" : "praça (1ª–5ª Região)"}
                               </span>
                             </td>
                             <td className="whitespace-nowrap px-3 py-2.5">
                               {l.numero ? (
-                                <span className="font-medium text-white">nº {l.numero}</span>
+                                <span className="font-medium text-white">
+                                  nº {l.numero}
+                                  {l.ajustado && (
+                                    <span className="ml-1.5 rounded-full bg-[#D4AF37]/15 px-1.5 py-0.5 text-[10px] text-[#D4AF37]" title="Algum dado foi mudado em relação à ficha">
+                                      editada
+                                    </span>
+                                  )}
+                                </span>
                               ) : (
                                 <span className="text-xs text-[#94A3B8]">sai ao gerar</span>
                               )}
@@ -405,6 +425,14 @@ export default function CertidaoP1Painel() {
                             </td>
                             <td className="px-3 py-2.5">
                               <div className="flex flex-wrap gap-1.5">
+                                <button onClick={() => visualizar(l)} disabled={!!ocupado} title="Ver a certidão (PDF) numa aba nova"
+                                  className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-xs text-white transition hover:bg-white/5 disabled:opacity-40">
+                                  <Eye className="h-3.5 w-3.5" /> Ver
+                                </button>
+                                <button onClick={() => abrirEdicao(l)} disabled={!!ocupado} title="Mudar nome, posto, quadro, matrícula, data, número…"
+                                  className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-xs text-white transition hover:bg-white/5 disabled:opacity-40">
+                                  <Pencil className="h-3.5 w-3.5" /> Editar
+                                </button>
                                 <button onClick={() => gerarWord([l])} disabled={!!ocupado} title="Só a certidão, em Word"
                                   className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-xs text-white transition hover:bg-white/5 disabled:opacity-40">
                                   <FileText className="h-3.5 w-3.5" /> Word
@@ -452,6 +480,19 @@ export default function CertidaoP1Painel() {
 
           {erro && <p className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{erro}</p>}
         </div>
+      )}
+
+      {editando?.campos && dados && (
+        <EditarCertidaoP1
+          titulo={`${editando.postoGrad} ${editando.nomeGuerra || editando.nome}`}
+          campos={editando.campos}
+          ano={Number((editando.numero || "").split("/")[1]) || dados.ano}
+          podeNumero
+          ajustado={editando.ajustado}
+          onSalvar={(campos, depois) => salvarEdicao(editando, campos, depois)}
+          onRestaurar={() => restaurarEdicao(editando)}
+          onFechar={() => setEditando(null)}
+        />
       )}
     </div>
   );

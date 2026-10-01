@@ -45,11 +45,21 @@ export const CERTIDOES_EXIGIDAS: CertidaoExigida[] = [
 ];
 
 // Bloco de links oficiais (mostrado no topo, como orientação geral).
-export type LinkOficial = { titulo: string; url: string; obs?: string };
+/* CERTIDÃO UNIFICADA DA JUSTIÇA FEDERAL (CJF): um pedido só gera a certidão
+   do TRF1 ao TRF5 — é o caminho mais curto, para oficial e para praça, e por
+   isso vem em destaque logo depois das estaduais. Um PDF só vale pelos itens
+   4 a 8; o TRF da 6ª Região (só oficial) continua à parte. */
+export const LINK_CERTIDAO_UNIFICADA = LINK_TRF.unificada;
+export const ORDENS_UNIFICADA = [4, 5, 6, 7, 8];
+
+export type LinkOficial = { titulo: string; url: string; obs?: string; destaque?: boolean };
 export const LINKS_OFICIAIS: LinkOficial[] = [
   { titulo: "Justiça Estadual (1º e 2º graus) — TJMA", url: LINK_TJMA },
   { titulo: "Justiça Militar Estadual (1º grau) — TJMA", url: LINK_TJMA },
-  { titulo: "Certidão Unificada da Justiça Federal (TRF1 a TRF5)", url: LINK_TRF.unificada, obs: "Reúne TRF1, TRF2, TRF3, TRF4 e TRF5 em uma solicitação" },
+  {
+    titulo: "Certidão Unificada da Justiça Federal (TRF1 a TRF5)", url: LINK_TRF.unificada, destaque: true,
+    obs: "Um pedido só gera a certidão do TRF1 ao TRF5 — vale pelos 5 itens da Justiça Federal",
+  },
   { titulo: "TRF 1ª Região", url: LINK_TRF.trf1 },
   { titulo: "TRF 2ª Região", url: LINK_TRF.trf2 },
   { titulo: "TRF 3ª Região", url: LINK_TRF.trf3 },
@@ -58,7 +68,7 @@ export const LINKS_OFICIAIS: LinkOficial[] = [
   { titulo: "TRF 6ª Região", url: LINK_TRF.trf6 },
 ];
 
-// so para oficiais (ordem 9: entra no fim do PDF unificado)
+// so para quem concorre pela CPOPM (ordem 9: entra no fim do PDF unificado)
 export const CERTIDAO_TRF6: CertidaoExigida = {
   ordem: 9, orgao: "TRF 6ª Região", descricao: "Certidão Criminal Negativa", link: LINK_TRF.trf6, linkRotulo: "Emitir no TRF6",
 };
@@ -71,9 +81,17 @@ export function ehOficial(postoGrad: string | null | undefined): boolean {
   return classificarPatente(postoGrad ?? null).ordem <= 7;
 }
 
+/* Concorre pela Comissao de Promocao de OFICIAIS (CPOPM): os oficiais e o
+   SUBTENENTE — a promocao dele e a 2º Tenente, julgada pela mesma comissao.
+   Para esses vale o rito da CAE (Of. Circular 003/2026): certidao do TRF da
+   6ª Regiao e a certidao/declaracao do P/1, que o proprio militar pode gerar. */
+export function ehCpopm(postoGrad: string | null | undefined): boolean {
+  return classificarPatente(postoGrad ?? null).ordem <= 8;
+}
+
 // as certidoes que ESTE militar tem de apresentar, na ordem oficial
 export function certidoesExigidas(postoGrad: string | null | undefined): CertidaoExigida[] {
-  return ehOficial(postoGrad) ? [...CERTIDOES_EXIGIDAS, CERTIDAO_TRF6] : CERTIDOES_EXIGIDAS;
+  return ehCpopm(postoGrad) ? [...CERTIDOES_EXIGIDAS, CERTIDAO_TRF6] : CERTIDOES_EXIGIDAS;
 }
 
 export function totalCertidoes(postoGrad: string | null | undefined): number {

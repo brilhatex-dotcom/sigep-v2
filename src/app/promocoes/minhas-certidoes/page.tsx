@@ -4,9 +4,11 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import MinhasCertidoes from "@/components/MinhasCertidoes";
+import MinhaCertidaoP1 from "@/components/MinhaCertidaoP1";
 import { periodoAtivo, postoDoMilitar } from "@/lib/promocoes";
-import { certidoesExigidas, ehOficial } from "@/lib/certidoes";
+import { certidoesExigidas, ehCpopm } from "@/lib/certidoes";
 import { statusP1 } from "@/lib/promocaoStatusP1";
+import { chaveCertidaoUnificada } from "@/lib/promocaoUpload";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft } from "lucide-react";
 
@@ -70,6 +72,11 @@ async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
   const enviadas = new Map(
     (participante?.certidoes ?? []).map((c) => [c.ordem, c.nomeArquivo])
   );
+  // itens 4 a 8 preenchidos de uma vez pela Certidao Unificada da Justica Federal
+  const chaveUnificada = chaveCertidaoUnificada(periodo.id, efetivoId);
+  const pelaUnificada = new Set(
+    (participante?.certidoes ?? []).filter((c) => c.r2Key === chaveUnificada).map((c) => c.ordem)
+  );
 
   // oficial: 9 certidoes (inclui o TRF da 6ª Regiao); praca: 8
   const posto = await postoDoMilitar(efetivoId);
@@ -83,6 +90,7 @@ async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
     linkRotulo: c.linkRotulo,
     enviada: enviadas.has(c.ordem),
     nomeArquivo: enviadas.get(c.ordem) ?? null,
+    pelaUnificada: pelaUnificada.has(c.ordem),
   }));
 
   const st = await statusP1(periodo.id, efetivoId);
@@ -93,7 +101,7 @@ async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
         Período: <span className="font-semibold text-[#D4AF37]">{periodo.nome}</span>.
         Envie cada certidão em PDF. Quando as {total} estiverem
         enviadas, gere o PDF unificado e envie ao P/1.
-        {ehOficial(posto) && " Para oficial, a do TRF da 6ª Região também é exigida."}
+        {ehCpopm(posto) && " Para oficial e subtenente, a do TRF da 6ª Região também é exigida."}
       </p>
       <MinhasCertidoes
         itens={itens}
@@ -102,7 +110,10 @@ async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
         efetivoId={efetivoId}
         enviadoP1Em={st?.enviadoEm ?? null}
         recebidoP1Em={st?.recebidoEm ?? null}
-      />
+      >
+        {/* oficial e subtenente geram aqui a própria certidão/declaração do P/1 */}
+        {ehCpopm(posto) && <MinhaCertidaoP1 />}
+      </MinhasCertidoes>
     </>
   );
 }

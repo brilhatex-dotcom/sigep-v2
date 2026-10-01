@@ -1,32 +1,30 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { podeVerP1 } from "@/lib/encargos";
 import { periodoAtivo } from "@/lib/promocoes";
 import { gerarCertidaoP1Docx, gerarCertidaoP1Pdf, nomeArquivoDoMilitar } from "@/lib/certidaoP1";
-import { lerEstado, emitidaDe } from "@/lib/certidaoP1Db";
+import { lerEstado, emitidaDe, dadosDaCertidao } from "@/lib/certidaoP1Db";
+import { acessoCertidao } from "@/lib/certidaoP1Acesso";
 
 export const dynamic = "force-dynamic";
 
-/* GET /api/promocoes/certidao-p1/documento?efetivoId=X&formato=pdf|docx
+/* GET /api/promocoes/certidao-p1/documento?efetivoId=X&formato=pdf|docx[&ver=1]
 
-   A certidão do P/1 daquele militar, com o número e a data com que foi
-   emitida (sempre a mesma, por mais que se baixe de novo). O PDF é a peça que
-   a tela junta, no navegador, com as certidões das regiões. Só o P/1. */
+   A certidão do P/1 daquele militar, com o número, a data e os ajustes com
+   que foi emitida (sempre a mesma, por mais que se baixe de novo). O PDF é a
+   peça que a tela junta, no navegador, com as certidões das regiões.
+   ver=1 -> abre no navegador (visualizar) em vez de baixar.
+
+   P/1 (qualquer militar) ou o próprio oficial/subtenente (a dele). */
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
-  const u = session.user as any;
-  const admin = (u.perfil || "").toLowerCase() === "admin";
-  if (!(await podeVerP1(u.refEfetivo || null, admin))) {
-    return NextResponse.json({ error: "Apenas o P/1." }, { status: 403 });
-  }
-
   const url = new URL(req.url);
   const efetivoId = (url.searchParams.get("efetivoId") || "").trim();
   const formato = url.searchParams.get("formato") === "docx" ? "docx" : "pdf";
+  const ver = url.searchParams.get("ver") === "1" && formato === "pdf";
   if (!efetivoId) return NextResponse.json({ error: "Policial não informado." }, { status: 400 });
+
+  const acesso = await acessoCertidao(efetivoId);
+  if (!acesso) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
+  if (!acesso.p1 && !acesso.proprio) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
   const periodo = await periodoAtivo();
   if (!periodo) return NextResponse.json({ error: "Nenhum período de promoção aberto." }, { status: 400 });
@@ -42,19 +40,8 @@ export async function GET(req: Request) {
     });
     if (!f) return NextResponse.json({ error: "Policial não encontrado." }, { status: 404 });
 
-    const dados = {
-      numero: em.numero,
-      ano: em.ano,
-      portaria: e.portaria,
-      nome: f.nome || f.nomeGuerra || "",
-      nomeGuerra: f.nomeGuerra,
-      postoGrad: f.postoGrad,
-      matricula: f.matricula,
-      idPmma: f.id,
-      quadro: f.quadro,
-      data: em.data,
-    };
-    const nome = `Certidao P1 - ${nomeArquivoDoMilitar(f.postoGrad, f.nome || f.nomeGuerra || f.id)}`;
+    const dados = dadosDaCertidao(f, em, e);
+    const nome = `Certidao P1 - ${nomeArquivoDoMilitar(f.postoGrad, dados.nome || f.id)}`;
 
     const corpo = formato === "docx" ? await gerarCertidaoP1Docx(dados) : await gerarCertidaoP1Pdf(dados);
     const tipo = formato === "docx"
@@ -66,7 +53,8 @@ export async function GET(req: Request) {
       status: 200,
       headers: {
         "Content-Type": tipo,
-        "Content-Disposition": `attachment; filename="${ascii}.${formato}"; filename*=UTF-8''${encodeURIComponent(nome)}.${formato}`,
+        "Content-Disposition": `${ver ? "inline" : "attachment"}; filename="${ascii}.${formato}"; filename*=UTF-8''${encodeURIComponent(nome)}.${formato}`,
+        "Cache-Control": "no-store",
       },
     });
   } catch (err) {

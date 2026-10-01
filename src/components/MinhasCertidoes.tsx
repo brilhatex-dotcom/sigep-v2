@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { Fragment, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Upload,
@@ -15,8 +15,9 @@ import {
   Clock,
   ChevronDown,
   Link2,
+  Zap,
 } from "lucide-react";
-import { LINKS_OFICIAIS } from "@/lib/certidoes";
+import { LINKS_OFICIAIS, LINK_CERTIDAO_UNIFICADA, ORDENS_UNIFICADA } from "@/lib/certidoes";
 import { LIMITE_CERTIDAO_BYTES as LIMITE_BYTES } from "@/lib/promocaoUpload";
 import { confirmar } from "@/components/Avisos";
 
@@ -28,6 +29,8 @@ type Item = {
   linkRotulo: string;
   enviada: boolean;
   nomeArquivo: string | null;
+  // preenchida de uma vez pela Certidão Unificada da Justiça Federal (itens 4 a 8)
+  pelaUnificada: boolean;
 };
 
 function dataHora(iso: string | null): string {
@@ -47,6 +50,7 @@ export default function MinhasCertidoes({
   efetivoId,
   enviadoP1Em,
   recebidoP1Em,
+  children,
 }: {
   itens: Item[];
   total: number;
@@ -54,11 +58,14 @@ export default function MinhasCertidoes({
   efetivoId: string;
   enviadoP1Em: string | null;
   recebidoP1Em: string | null;
+  // o que mais a página quiser mostrar depois da lista (ex.: a certidão do P/1)
+  children?: React.ReactNode;
 }) {
   const router = useRouter();
   const [lista, setLista] = useState(itens);
   const [unificadoKey, setUnificadoKey] = useState(pdfUnificadoKey);
-  const [enviando, setEnviando] = useState<number | null>(null);
+  // o item sendo enviado, ou "unificada" (a Certidão Unificada, itens 4 a 8)
+  const [enviando, setEnviando] = useState<number | "unificada" | null>(null);
   const [progresso, setProgresso] = useState<number | null>(null);
   const [gerando, setGerando] = useState(false);
   const [erro, setErro] = useState("");
@@ -67,6 +74,10 @@ export default function MinhasCertidoes({
   const [recebidoP1, setRecebidoP1] = useState<string | null>(recebidoP1Em);
   const [enviandoP1, setEnviandoP1] = useState(false);
   const inputs = useRef<Record<number, HTMLInputElement | null>>({});
+  const inputUnificada = useRef<HTMLInputElement | null>(null);
+  // oficial tem o TRF da 6ª Região à parte (a unificada vai só até o TRF5)
+  const ehOficial = lista.some((i) => i.ordem === 9);
+  const unificadaEnviada = ORDENS_UNIFICADA.every((o) => lista.find((i) => i.ordem === o)?.pelaUnificada);
 
   const totalEnviadas = lista.filter((i) => i.enviada).length;
   const completo = totalEnviadas >= total;
@@ -78,7 +89,11 @@ export default function MinhasCertidoes({
      e fazia certidao digitalizada falhar sem explicacao. Depois de subir, o
      segundo passo grava a certidao no banco. Mesmo caminho dos anexos do
      chat. */
-  async function enviar(ordem: number, file: File) {
+  /* `alvo` é o número do item, ou "unificada": a Certidão Unificada da Justiça
+     Federal sobe UMA vez e vale pelos itens 4 a 8 (TRF1 a TRF5). */
+  async function enviar(alvo: number | "unificada", file: File) {
+    const unificada = alvo === "unificada";
+    const ordem = unificada ? 0 : alvo;
     setErro("");
     if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
       setErro("Envie um arquivo PDF.");
@@ -88,7 +103,7 @@ export default function MinhasCertidoes({
       setErro(`"${file.name}" tem ${(file.size / 1048576).toFixed(1)} MB. O limite é ${LIMITE_BYTES / 1048576} MB.`);
       return;
     }
-    setEnviando(ordem);
+    setEnviando(alvo);
     setProgresso(0);
 
     try {
@@ -96,7 +111,7 @@ export default function MinhasCertidoes({
       const r1 = await fetch("/api/promocoes/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ordem, tam: file.size }),
+        body: JSON.stringify(unificada ? { unificada: true, tam: file.size } : { ordem, tam: file.size }),
       });
       const d1 = await r1.json().catch(() => ({}));
       if (!r1.ok) {
@@ -121,7 +136,11 @@ export default function MinhasCertidoes({
       const r2 = await fetch("/api/promocoes/upload/confirmar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ordem, key: d1.key, nomeArquivo: file.name, tam: file.size }),
+        body: JSON.stringify(
+          unificada
+            ? { unificada: true, key: d1.key, nomeArquivo: file.name, tam: file.size }
+            : { ordem, key: d1.key, nomeArquivo: file.name, tam: file.size }
+        ),
       });
       const d2 = await r2.json().catch(() => ({}));
       if (!r2.ok) {
@@ -129,9 +148,12 @@ export default function MinhasCertidoes({
         return;
       }
 
+      const preenchidas = unificada ? ORDENS_UNIFICADA : [ordem];
       setLista((l) =>
         l.map((i) =>
-          i.ordem === ordem ? { ...i, enviada: true, nomeArquivo: file.name } : i
+          preenchidas.includes(i.ordem)
+            ? { ...i, enviada: true, nomeArquivo: file.name, pelaUnificada: unificada }
+            : i
         )
       );
       setUnificadoKey(null); // mudou uma certidao, invalida o unificado
@@ -226,16 +248,20 @@ export default function MinhasCertidoes({
             </p>
             <ul className="space-y-2">
               {LINKS_OFICIAIS.map((l) => (
-                <li key={l.titulo + l.url} className="flex flex-wrap items-center gap-2">
+                <li key={l.titulo + l.url} className={l.destaque
+                  ? "flex flex-wrap items-center gap-2 rounded-lg border border-[#D4AF37]/50 bg-[#D4AF37]/10 p-2"
+                  : "flex flex-wrap items-center gap-2"}>
                   <a
                     href={l.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/40 px-2.5 py-1 text-xs font-medium text-[#D4AF37] transition hover:bg-[#D4AF37]/10"
+                    className={l.destaque
+                      ? "inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-2.5 py-1 text-xs font-bold text-[#1a1205] transition hover:brightness-110"
+                      : "inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/40 px-2.5 py-1 text-xs font-medium text-[#D4AF37] transition hover:bg-[#D4AF37]/10"}
                   >
-                    <ExternalLink className="h-3.5 w-3.5" /> {l.titulo}
+                    {l.destaque ? <Zap className="h-3.5 w-3.5" /> : <ExternalLink className="h-3.5 w-3.5" />} {l.titulo}
                   </a>
-                  {l.obs && <span className="text-[11px] text-[#94A3B8]">{l.obs}</span>}
+                  {l.obs && <span className={l.destaque ? "text-[11px] font-medium text-[#f3df9d]" : "text-[11px] text-[#94A3B8]"}>{l.obs}</span>}
                 </li>
               ))}
             </ul>
@@ -261,7 +287,74 @@ export default function MinhasCertidoes({
       <div className="ui-card overflow-hidden">
         <ul className="divide-y divide-white/5">
           {lista.map((i) => (
-            <li key={i.ordem} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+            <Fragment key={i.ordem}>
+            {/* Justiça Federal: a Certidão Unificada primeiro, em destaque —
+                um pedido só no CJF gera do TRF1 ao TRF5 e vale pelos itens 4 a 8 */}
+            {i.ordem === ORDENS_UNIFICADA[0] && (
+              <li className="border-y border-[#D4AF37]/40 bg-[#D4AF37]/[.08] p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#D4AF37] text-[#1a1205]">
+                    <Zap className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-[#D4AF37]">
+                      Justiça Federal — o jeito mais rápido
+                    </p>
+                    <p className="text-sm font-semibold text-white">
+                      Certidão Unificada da Justiça Federal (TRF1 a TRF5)
+                    </p>
+                    <p className="mt-0.5 text-xs text-[#E8EEF6]">
+                      É <b>uma certidão só</b>, emitida num pedido só no site do Conselho da Justiça Federal, que vale
+                      pelas cinco regiões. Envie o PDF aqui uma vez e ele preenche os itens 4 a 8 abaixo.
+                      {ehOficial && " A do TRF da 6ª Região (item 9) é emitida à parte."}
+                    </p>
+                    {unificadaEnviada && (
+                      <p className="mt-1 truncate text-xs text-emerald-400">
+                        {lista.find((x) => x.ordem === ORDENS_UNIFICADA[0])?.nomeArquivo} — vale pelos itens 4 a 8
+                      </p>
+                    )}
+                    <a
+                      href={LINK_CERTIDAO_UNIFICADA}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-xs font-bold text-[#1a1205] transition hover:brightness-110"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" /> Emitir a Certidão Unificada
+                    </a>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {unificadaEnviada && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-medium text-emerald-300">
+                        <FileCheck2 className="h-3.5 w-3.5" /> Enviada
+                      </span>
+                    )}
+                    <input
+                      ref={inputUnificada}
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) enviar("unificada", f);
+                        e.target.value = "";
+                      }}
+                    />
+                    <button
+                      onClick={() => inputUnificada.current?.click()}
+                      disabled={enviando === "unificada" || travado}
+                      title={travado ? "Enviado ao P/1 — peça reabertura para trocar" : "Vale pelos itens 4 a 8"}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/50 px-3 py-1.5 text-sm font-medium text-[#D4AF37] transition hover:bg-[#D4AF37]/10 disabled:opacity-40"
+                    >
+                      {enviando === "unificada" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                      {enviando === "unificada"
+                        ? progresso === null ? "Enviando..." : `${progresso}%`
+                        : unificadaEnviada ? "Trocar" : "Enviar a unificada"}
+                    </button>
+                  </div>
+                </div>
+              </li>
+            )}
+            <li className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-sm font-bold text-white">
                 {i.ordem}
               </div>
@@ -269,7 +362,9 @@ export default function MinhasCertidoes({
                 <p className="text-sm font-medium text-white">{i.orgao}</p>
                 <p className="text-xs text-[#94A3B8]">{i.descricao}</p>
                 {i.enviada && i.nomeArquivo && (
-                  <p className="mt-0.5 truncate text-xs text-emerald-400">{i.nomeArquivo}</p>
+                  <p className="mt-0.5 truncate text-xs text-emerald-400">
+                    {i.pelaUnificada ? "pela Certidão Unificada" : i.nomeArquivo}
+                  </p>
                 )}
                 <a
                   href={i.link}
@@ -316,9 +411,12 @@ export default function MinhasCertidoes({
                 </button>
               </div>
             </li>
+            </Fragment>
           ))}
         </ul>
       </div>
+
+      {children}
 
       {/* PDF unificado */}
       <div className="ui-card p-5">

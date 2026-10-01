@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { PORTARIA_PADRAO, nomeArquivoDoMilitar, numeroCertidao } from "@/lib/certidaoP1";
-import { certidoesExigidas, ehOficial, rotuloCertidao } from "@/lib/certidoes";
+import {
+  PORTARIA_PADRAO, nomeArquivoDoMilitar, numeroCertidao, postoPorExtenso, descricaoQuadro,
+  type DadosCertidaoP1,
+} from "@/lib/certidaoP1";
+import { certidoesExigidas, ehCpopm, rotuloCertidao } from "@/lib/certidoes";
 import { compararAntiguidade } from "@/lib/antiguidade";
 
 /* =========================================================================
@@ -22,7 +25,39 @@ import { compararAntiguidade } from "@/lib/antiguidade";
 
 const CHAVE = "promocao_certidao_p1";
 
-export type Emitida = { numero: number; ano: number; data: string };
+/* O que foi mudado na tela em relação à ficha. Só se guarda o que DIFERE
+   (vazio/ausente = vem da ficha), para que "voltar aos dados da ficha"
+   seja só apagar os ajustes. String vazia é valor de propósito (ex.: tirar
+   a matrícula do texto). */
+export type Ajustes = {
+  nome?: string;
+  nomeGuerra?: string;
+  postoExtenso?: string;
+  matricula?: string;
+  idPmma?: string;
+  quadro?: string;
+  quadroDescricao?: string;
+  seisRegioes?: boolean;
+  portaria?: string;
+};
+export type Emitida = {
+  numero: number; ano: number; data: string;
+  ajustes?: Ajustes; editadoPor?: string; editadoEm?: string;
+};
+
+// a ficha, do jeito que a certidão precisa dela
+export type FichaCertidao = {
+  id: string; nome: string | null; nomeGuerra: string | null; postoGrad: string | null;
+  matricula: string | null; quadro: string | null;
+};
+
+/* Os campos da tela de edição, já com o valor que VAI SAIR no documento
+   (ajuste, se houver; senão o que vem da ficha). */
+export type CamposCertidao = {
+  nome: string; nomeGuerra: string; postoExtenso: string; matricula: string; idPmma: string;
+  quadro: string; quadroDescricao: string; seisRegioes: boolean; portaria: string;
+  data: string; numero: number;
+};
 export type EstadoCertidaoP1 = {
   portaria: string;
   proximo: Record<string, number>;
@@ -95,6 +130,105 @@ export async function emitir(periodoId: string, efetivoIds: string[], data: stri
   return e;
 }
 
+// o que sai da ficha, sem ajuste nenhum
+function padraoDaFicha(f: FichaCertidao, e: EstadoCertidaoP1): Omit<CamposCertidao, "data" | "numero"> {
+  return {
+    nome: f.nome || f.nomeGuerra || "",
+    nomeGuerra: f.nomeGuerra ?? "",
+    postoExtenso: postoPorExtenso(f.postoGrad),
+    matricula: f.matricula ?? "",
+    idPmma: f.id,
+    quadro: f.quadro ?? "",
+    quadroDescricao: descricaoQuadro(f.quadro),
+    seisRegioes: ehCpopm(f.postoGrad),
+    portaria: e.portaria,
+  };
+}
+
+export function camposDaCertidao(f: FichaCertidao, em: Emitida, e: EstadoCertidaoP1): CamposCertidao {
+  const c: CamposCertidao = { ...padraoDaFicha(f, e), ...(em.ajustes ?? {}), data: em.data, numero: em.numero };
+  // trocou a sigla do quadro e não escreveu a descrição: completa pela sigla
+  if (!c.quadroDescricao.trim()) c.quadroDescricao = descricaoQuadro(c.quadro);
+  return c;
+}
+
+// o que o gerador (Word/PDF) recebe
+export function dadosDaCertidao(f: FichaCertidao, em: Emitida, e: EstadoCertidaoP1): DadosCertidaoP1 {
+  const c = camposDaCertidao(f, em, e);
+  return {
+    numero: em.numero,
+    ano: em.ano,
+    data: em.data,
+    portaria: c.portaria,
+    nome: c.nome,
+    nomeGuerra: c.nomeGuerra,
+    postoGrad: f.postoGrad,
+    postoExtenso: c.postoExtenso,
+    matricula: c.matricula,
+    idPmma: c.idPmma,
+    quadro: c.quadro,
+    quadroDescricao: c.quadroDescricao,
+    seisRegioes: c.seisRegioes,
+  };
+}
+
+/* Grava o que foi mudado na tela. `podeNumero`: só o P/1 troca o número (e
+   nunca para um que outra certidão do mesmo ano já usa). O militar que gera
+   a própria certidão ajusta os dados e a data, não a numeração. */
+export async function editar(
+  periodoId: string,
+  f: FichaCertidao,
+  campos: Partial<CamposCertidao>,
+  opcoes: { podeNumero: boolean; quem: string },
+): Promise<{ ok: true } | { erro: string }> {
+  const e = await lerEstado();
+  const k = chaveDe(periodoId, f.id);
+  const em = e.emitidas[k];
+  if (!em) return { erro: "Certidão ainda não emitida." };
+
+  if (campos.data !== undefined) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(campos.data)) return { erro: "Data inválida." };
+    em.data = campos.data;
+  }
+  if (opcoes.podeNumero && campos.numero !== undefined && campos.numero !== em.numero) {
+    const n = Number(campos.numero);
+    if (!Number.isInteger(n) || n < 1) return { erro: "Número inválido." };
+    const ocupado = Object.entries(e.emitidas).some(([outra, x]) => outra !== k && x.ano === em.ano && x.numero === n);
+    if (ocupado) return { erro: `O nº ${numeroCertidao(n, em.ano)} já é de outra certidão.` };
+    em.numero = n;
+    if (n >= proximoNumero(e, em.ano)) e.proximo[String(em.ano)] = n + 1;
+  }
+
+  // guarda só o que difere do que viria da ficha
+  const padrao = padraoDaFicha(f, e);
+  const ajustes: Ajustes = { ...(em.ajustes ?? {}) };
+  const textos = ["nome", "nomeGuerra", "postoExtenso", "matricula", "idPmma", "quadro", "quadroDescricao", "portaria"] as const;
+  for (const c of textos) {
+    const v = campos[c];
+    if (v === undefined) continue;
+    const limpo = String(v).replace(/\s+/g, " ").trim().slice(0, 300);
+    if (limpo === padrao[c]) delete ajustes[c]; else ajustes[c] = limpo;
+  }
+  if (typeof campos.seisRegioes === "boolean") {
+    if (campos.seisRegioes === padrao.seisRegioes) delete ajustes.seisRegioes;
+    else ajustes.seisRegioes = campos.seisRegioes;
+  }
+  em.ajustes = Object.keys(ajustes).length ? ajustes : undefined;
+  em.editadoPor = opcoes.quem;
+  em.editadoEm = new Date().toISOString();
+  await salvar(e);
+  return { ok: true };
+}
+
+// "voltar aos dados da ficha": apaga os ajustes (número e data ficam)
+export async function restaurar(periodoId: string, efetivoId: string): Promise<void> {
+  const e = await lerEstado();
+  const em = e.emitidas[chaveDe(periodoId, efetivoId)];
+  if (!em) return;
+  delete em.ajustes;
+  await salvar(e);
+}
+
 // tira o militar da lista (o número não volta a ser usado)
 export async function remover(periodoId: string, efetivoId: string): Promise<void> {
   const e = await lerEstado();
@@ -130,12 +264,14 @@ export type LinhaCertidaoP1 = {
   nomeGuerra: string;
   matricula: string;
   quadro: string;
-  oficial: boolean;
+  oficial: boolean;             // concorre pela CPOPM (oficial ou subtenente)
   arquivo: string;              // nome do arquivo final (sem extensão)
   numero: string | null;        // "002/2026"
   data: string | null;          // aaaa-mm-dd
   exigidas: { ordem: number; rotulo: string }[];
   enviadas: number[];
+  campos: CamposCertidao | null; // o que vai sair no documento (null = não emitida)
+  ajustado: boolean;             // tem algum dado mudado em relação à ficha
 };
 
 export async function linhasCertidaoP1(
@@ -174,12 +310,14 @@ export async function linhasCertidaoP1(
         nomeGuerra: f.nomeGuerra ?? "",
         matricula: f.matricula ?? "",
         quadro: f.quadro ?? "",
-        oficial: ehOficial(f.postoGrad),
+        oficial: ehCpopm(f.postoGrad),
         arquivo: nomeArquivoDoMilitar(f.postoGrad, f.nome || f.nomeGuerra || f.id),
         numero: em ? numeroCertidao(em.numero, em.ano) : null,
         data: em?.data ?? null,
         exigidas: exigidas.map((c) => ({ ordem: c.ordem, rotulo: rotuloCertidao(c.ordem) })),
         enviadas: (enviadasDe.get(f.id) ?? []).filter((o) => exigidas.some((c) => c.ordem === o)).sort((a, b) => a - b),
+        campos: em ? camposDaCertidao(f, em, e) : null,
+        ajustado: !!(em?.ajustes && Object.keys(em.ajustes).length),
       };
     });
 }
