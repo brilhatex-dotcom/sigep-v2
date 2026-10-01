@@ -21,7 +21,7 @@ import {
   ChevronRight,
   FileBadge,
 } from "lucide-react";
-import { LINKS_OFICIAIS, LINK_CERTIDAO_UNIFICADA, ORDENS_UNIFICADA } from "@/lib/certidoes";
+import { LINKS_OFICIAIS, LINK_CERTIDAO_UNIFICADA, ORDENS_UNIFICADA, faltasDidaticas } from "@/lib/certidoes";
 import { LIMITE_CERTIDAO_BYTES as LIMITE_BYTES } from "@/lib/promocaoUpload";
 import { confirmar } from "@/components/Avisos";
 
@@ -131,6 +131,10 @@ export default function MinhasCertidoes({
 
   const totalEnviadas = lista.filter((i) => i.enviada).length;
   const completo = totalEnviadas >= total;
+  /* O que falta, em português — e sem "envie as 8 certidões": com a Certidão
+     Unificada a Federal (TRF1 a TRF5) é um arquivo só. */
+  const faltas = faltasDidaticas(lista.filter((i) => !i.enviada).map((i) => i.ordem));
+  const textoFaltas = faltas.join("; ");
   // Depois de enviado ao P/1, trava o reenvio/troca para nao bagunçar o que ja foi protocolado.
   const travado = !!enviadoP1;
 
@@ -303,9 +307,11 @@ export default function MinhasCertidoes({
         <FaixaPasso
           numero={1}
           titulo="Envie as suas certidões"
-          dica="Emita nos sites oficiais e envie cada uma em PDF."
+          dica={ehOficial
+            ? "As 3 estaduais, a Certidão Unificada (TRF1 a TRF5) e a do TRF da 6ª Região, em PDF."
+            : "As 3 estaduais e a Certidão Unificada (TRF1 a TRF5), em PDF."}
           estado={passo1}
-          situacao={completo ? `Concluído · ${totalEnviadas}/${total}` : `${totalEnviadas} de ${total} enviadas`}
+          situacao={completo ? "Concluído" : `${totalEnviadas} de ${total} itens prontos`}
         />
         <div className="space-y-3 p-4">
       {/* Progresso */}
@@ -316,7 +322,10 @@ export default function MinhasCertidoes({
             style={{ width: `${(totalEnviadas / total) * 100}%` }}
           />
         </div>
-        <p className="mt-1 text-right text-[11px] text-[#94A3B8]">{totalEnviadas} de {total} enviadas</p>
+        <p className="mt-1 text-right text-[11px] text-[#94A3B8]">
+          {totalEnviadas} de {total} itens prontos
+          {!completo && " — a Certidão Unificada sozinha completa os 5 da Justiça Federal"}
+        </p>
       </div>
 
       {/* Links oficiais (orientacao) */}
@@ -508,7 +517,7 @@ export default function MinhasCertidoes({
           titulo="Gere o PDF unificado"
           dica="Junta todas as certidões num arquivo só, na ordem oficial."
           estado={passo2}
-          situacao={passo2 === "feito" ? "PDF gerado" : passo2 === "atual" ? "Liberado — gere agora" : `Libera com as ${total} certidões`}
+          situacao={passo2 === "feito" ? "PDF gerado" : passo2 === "atual" ? "Liberado — gere agora" : "Libera ao terminar o 1º passo"}
         />
       <div className="p-5">
         {unificadoKey ? (
@@ -516,7 +525,7 @@ export default function MinhasCertidoes({
             <FileStack className="h-6 w-6 text-emerald-400" />
             <div className="flex-1">
               <p className="text-sm font-semibold text-white">PDF unificado gerado</p>
-              <p className="text-xs text-[#94A3B8]">As {total} certidões reunidas num único arquivo, na ordem oficial.</p>
+              <p className="text-xs text-[#94A3B8]">Todas as suas certidões reunidas num único arquivo, na ordem oficial.</p>
             </div>
             <a
               href={`/api/promocoes/download?key=${encodeURIComponent(unificadoKey)}`}
@@ -533,7 +542,7 @@ export default function MinhasCertidoes({
               <p className="text-xs text-[#94A3B8]">
                 {completo
                   ? "Tudo pronto. Junte as certidões num único PDF na ordem oficial."
-                  : `Envie as ${total} certidões para liberar a geração.`}
+                  : `Falta no 1º passo: ${textoFaltas}.`}
               </p>
             </div>
             <button
@@ -596,8 +605,8 @@ export default function MinhasCertidoes({
                 {completo && unificadoKey
                   ? "Tudo pronto. Envie o PDF unificado ao P/1 para análise."
                   : completo
-                  ? "Gere o PDF unificado antes de enviar ao P/1."
-                  : `Envie as ${total} certidões e gere o PDF unificado para liberar o envio.`}
+                  ? "Falta o 2º passo: gere o PDF unificado."
+                  : "Termine o 1º passo e gere o PDF no 2º passo."}
               </p>
             </div>
             <button

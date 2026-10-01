@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { baixarDoR2, enviarParaR2 } from "@/lib/r2";
 import { unirPdfs } from "@/lib/pdf";
 import { periodoAtivo, postoDoMilitar } from "@/lib/promocoes";
-import { certidoesExigidas } from "@/lib/certidoes";
+import { certidoesExigidas, faltasDidaticas } from "@/lib/certidoes";
 import { statusP1 } from "@/lib/promocaoStatusP1";
 import { semRepetirArquivo } from "@/lib/promocaoUpload";
 
@@ -51,8 +51,10 @@ export async function POST(req: NextRequest) {
     const exigidas = new Set(certidoesExigidas(await postoDoMilitar(efetivoId)).map((c) => c.ordem));
     const certidoes = (participante?.certidoes ?? []).filter((c) => exigidas.has(c.ordem));
     if (certidoes.length < exigidas.size) {
+      const chegaram = new Set(certidoes.map((c) => c.ordem));
+      const faltam = faltasDidaticas(Array.from(exigidas).filter((o) => !chegaram.has(o)));
       return NextResponse.json(
-        { erro: `Envie as ${exigidas.size} certidões antes de gerar o PDF.` },
+        { erro: `Antes de gerar o PDF, falta enviar: ${faltam.join("; ")}.` },
         { status: 400 }
       );
     }
