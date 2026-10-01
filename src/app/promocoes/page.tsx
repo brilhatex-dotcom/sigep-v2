@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { FileUp, AlertTriangle, ShieldCheck } from "lucide-react";
+import { FileUp, AlertTriangle, ShieldCheck, ChevronRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import PainelPromocoes from "@/components/PainelPromocoes";
@@ -54,13 +54,29 @@ export default async function PromocoesPage() {
           </span>
         </Link>
 
+        {/* As certidões do PRÓPRIO admin: uma faixa bem visível, no mesmo
+            dourado do 1º passo da tela para onde ela leva. */}
         {temFicha ? (
           <Link
             href="/promocoes/minhas-certidoes"
-            className="mb-5 inline-flex items-center gap-2 rounded-lg border border-[#D4AF37]/40 px-3 py-2 text-sm font-medium text-[#D4AF37] transition hover:bg-[#D4AF37]/10"
+            className="group mb-5 flex items-center gap-3 overflow-hidden rounded-xl bg-gradient-to-r from-[#D4AF37] via-[#e8c55a] to-amber-500 px-4 py-3 text-[#1a1205] shadow-[0_10px_30px_-12px_rgba(212,175,55,0.55)] ring-1 ring-[#D4AF37]/60 transition hover:brightness-110"
           >
-            <FileUp className="h-4 w-4" />
-            Enviar as minhas certidões
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/20 ring-2 ring-white/30">
+              <FileUp className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[11px] font-black uppercase tracking-[0.22em] opacity-80">
+                O senhor também concorre
+              </span>
+              <span className="block text-base font-bold leading-tight">Enviar as minhas certidões</span>
+              <span className="block text-[11px] opacity-80">
+                1º envie as certidões · 2º gere o PDF · 3º envie ao P/1
+              </span>
+            </span>
+            <span className="hidden shrink-0 items-center gap-1 rounded-full bg-black/20 px-3 py-1 text-xs font-semibold sm:inline-flex">
+              Abrir <ChevronRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
+            </span>
+            <ChevronRight className="h-5 w-5 shrink-0 sm:hidden" />
           </Link>
         ) : (
           <p className="mb-5 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
