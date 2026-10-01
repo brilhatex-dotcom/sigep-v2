@@ -9,13 +9,13 @@ import {
 } from "@/lib/certidaoP1Cliente";
 
 /* =========================================================================
-   MINHA CERTIDÃO/DECLARAÇÃO DO P/1 — para oficiais e subtenentes
+   MINHA DECLARAÇÃO INDIVIDUAL — para oficiais e subtenentes
 
-   O próprio militar gera a certidão de "nada consta" (Portaria nº
-   040/2026-GCG), confere (Ver), ajusta o que estiver errado (Editar) e baixa o
-   PDF ÚNICO: a certidão + as certidões das regiões que ele mandou aqui, já com
-   o nome dele — o arquivo que vai para o SEI. O número sai da mesma sequência
-   do painel do P/1.
+   O próprio militar gera a declaração (protocolou as certidões negativas, não
+   é réu, situação regular), confere (Ver), ajusta o que estiver errado
+   (Editar) e baixa o PDF ÚNICO: a declaração + as certidões das regiões que
+   ele mandou aqui, já com o nome dele — o arquivo que vai para o SEI. É o
+   mesmo registro que o painel do P/1 vê.
    ========================================================================= */
 
 type Resposta = { pode: boolean; periodo: { id: string; nome: string } | null; linha: LinhaCertidaoP1 | null };
@@ -54,9 +54,9 @@ export default function MinhaCertidaoP1() {
     }
   }
 
-  // gera (numera) se ainda não tinha
+  // gera se ainda não tinha
   async function garantir(): Promise<LinhaCertidaoP1 | null> {
-    if (dados?.linha?.numero) return dados.linha;
+    if (dados?.linha?.gerada) return dados.linha;
     const { erro: e, linha } = await acao({ acao: "emitir" });
     if (e) { setErro(e); return null; }
     return linha;
@@ -78,14 +78,14 @@ export default function MinhaCertidaoP1() {
 
   async function word() {
     setErro("");
-    setOcupado("Gerando a certidão…");
+    setOcupado("Gerando a declaração…");
     try {
       const l = await garantir();
       if (!l) return;
       const dadosDoc = await baixarBytes(urlDocumento(l.efetivoId, "docx"));
       salvarArquivo(
         new Blob([dadosDoc], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
-        `Certidao P1 - ${l.arquivo}.docx`,
+        `Declaracao - ${l.arquivo}.docx`,
       );
     } catch (e) {
       setErro((e as Error).message || "Falha ao gerar.");
@@ -97,7 +97,7 @@ export default function MinhaCertidaoP1() {
   async function pdfUnico(modo: "ver" | "baixar") {
     setErro("");
     const aba = modo === "ver" ? abaReservada() : null;
-    setOcupado("Juntando a certidão com as suas certidões…");
+    setOcupado("Juntando a declaração com as suas certidões…");
     try {
       const l = await garantir();
       if (!l) { aba?.fechar(); return; }
@@ -124,20 +124,21 @@ export default function MinhaCertidaoP1() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
         <div className="min-w-0 flex-1">
           <p className="text-xs text-[#94A3B8]">
-            A certidão de “nada consta” da Portaria nº 040/2026-GCG. Gere a sua, confira, ajuste o que estiver
-            errado e baixe o <b className="text-white">PDF único</b> (certidão + as suas certidões das regiões),
-            já com o seu nome — é o arquivo que vai para o SEI.
+            A declaração de que você protocolou as certidões negativas e está em situação regular. Gere a sua,
+            confira, ajuste o que estiver errado e baixe o <b className="text-white">PDF único</b> (declaração + as
+            suas certidões das regiões), já com o seu nome — é o arquivo que vai para o SEI. A declaração sai com o
+            campo “Assinatura do Declarante”.
           </p>
-          {l?.numero ? (
+          {l?.gerada ? (
             <p className="mt-2 text-sm text-white">
-              Certidão nº <b>{l.numero}</b>
-              {l.data && <span className="text-[#94A3B8]"> · {l.data.split("-").reverse().join("/")}</span>}
+              Declaração gerada
+              {l.data && <span className="text-[#94A3B8]"> · data {l.data.split("-").reverse().join("/")}</span>}
               {l.ajustado && (
                 <span className="ml-2 rounded-full bg-[#D4AF37]/15 px-2 py-0.5 text-[11px] text-[#D4AF37]">editada</span>
               )}
             </p>
           ) : (
-            <p className="mt-2 text-xs text-[#94A3B8]">Ainda não gerada — o número sai na primeira vez que você ver, editar ou baixar.</p>
+            <p className="mt-2 text-xs text-[#94A3B8]">Ainda não gerada — ela é gerada na primeira vez que você ver, editar ou baixar.</p>
           )}
           {l && faltam.length > 0 && (
             <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-300">
@@ -183,10 +184,8 @@ export default function MinhaCertidaoP1() {
 
       {editando && l?.campos && (
         <EditarCertidaoP1
-          titulo="minha certidão"
+          titulo="minha declaração"
           campos={l.campos}
-          ano={Number((l.numero || "").split("/")[1]) || new Date().getFullYear()}
-          podeNumero={false}
           ajustado={l.ajustado}
           onSalvar={async (campos: CamposCertidao, depois) => {
             const aba = depois === "visualizar" ? abaReservada() : null;

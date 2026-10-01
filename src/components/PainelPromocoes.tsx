@@ -131,9 +131,13 @@ export default function PainelPromocoes({
     return { completos, parciais, naoIniciaram };
   }, [participantes]);
 
+  /* Na lista só aparece quem tem PELO MENOS 1 certidão no sistema: quem
+     ainda não mandou nada (ou mandou e excluiu todas) some daqui — fica só
+     contado no card "Não iniciaram". */
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return participantes.filter((p) => {
+      if (p.enviadas < 1) return false;
       const st = statusDe(p.enviadas, p.total).rotulo;
       if (filtroStatus && st !== filtroStatus) return false;
       if (!q) return true;
@@ -311,9 +315,9 @@ export default function PainelPromocoes({
           art. 4º, § 3º). Fica no alto, recolhida, para nao empurrar a lista. */}
       <PlanilhaPadraoPainel />
 
-      {/* Certidão do P/1 dos OFICIAIS (Portaria 040/2026-GCG, CAE): a de praça
+      {/* Declaração individual dos OFICIAIS e subtenentes (CAE): a de praça
           vai na Planilha Padrão; a de oficial sobe ao SEI num PDF único por
-          policial — certidão do P/1 + as certidões das regiões. */}
+          policial — declaração + as certidões das regiões. */}
       <CertidaoP1Painel />
 
       {/* Cards */}
@@ -343,7 +347,6 @@ export default function PainelPromocoes({
           <option value="">Todos os status</option>
           <option value="Completo">Completos</option>
           <option value="Parcial">Parciais</option>
-          <option value="Não iniciou">Não iniciaram</option>
         </select>
         {(busca || filtroStatus) && (
           <button
@@ -450,7 +453,9 @@ export default function PainelPromocoes({
             {filtrados.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-10 text-center text-[#94A3B8]">
-                  Nenhum policial no processo ainda. Use 'Adicionar todo o efetivo' ou aguarde os envios.
+                  {busca || filtroStatus
+                    ? "Ninguém com certidão bate com a busca."
+                    : "Ninguém enviou certidão ainda. Quem mandar pelo menos uma aparece aqui."}
                 </td>
               </tr>
             )}

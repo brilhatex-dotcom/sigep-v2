@@ -9,9 +9,9 @@ export const dynamic = "force-dynamic";
 
 /* GET /api/promocoes/certidao-p1/documento?efetivoId=X&formato=pdf|docx[&ver=1]
 
-   A certidão do P/1 daquele militar, com o número, a data e os ajustes com
-   que foi emitida (sempre a mesma, por mais que se baixe de novo). O PDF é a
-   peça que a tela junta, no navegador, com as certidões das regiões.
+   A declaração individual daquele militar, com a data e os ajustes com que
+   foi gerada (sempre a mesma, por mais que se baixe de novo). O PDF é a peça
+   que a tela junta, no navegador, com as certidões das regiões.
    ver=1 -> abre no navegador (visualizar) em vez de baixar.
 
    P/1 (qualquer militar) ou o próprio oficial/subtenente (a dele). */
@@ -32,7 +32,7 @@ export async function GET(req: Request) {
   try {
     const e = await lerEstado();
     const em = emitidaDe(e, periodo.id, efetivoId);
-    if (!em) return NextResponse.json({ error: "Certidão ainda não emitida para este policial." }, { status: 400 });
+    if (!em) return NextResponse.json({ error: "Declaração ainda não gerada para este policial." }, { status: 400 });
 
     const f = await prisma.efetivo.findUnique({
       where: { id: efetivoId },
@@ -40,8 +40,8 @@ export async function GET(req: Request) {
     });
     if (!f) return NextResponse.json({ error: "Policial não encontrado." }, { status: 404 });
 
-    const dados = dadosDaCertidao(f, em, e);
-    const nome = `Certidao P1 - ${nomeArquivoDoMilitar(f.postoGrad, dados.nome || f.id)}`;
+    const dados = dadosDaCertidao(f, em);
+    const nome = `Declaracao - ${nomeArquivoDoMilitar(f.postoGrad, dados.nome || f.id)}`;
 
     const corpo = formato === "docx" ? await gerarCertidaoP1Docx(dados) : await gerarCertidaoP1Pdf(dados);
     const tipo = formato === "docx"
@@ -59,6 +59,6 @@ export async function GET(req: Request) {
     });
   } catch (err) {
     console.error("[GET /api/promocoes/certidao-p1/documento]", err);
-    return NextResponse.json({ error: "Falha ao gerar a certidão." }, { status: 500 });
+    return NextResponse.json({ error: "Falha ao gerar a declaração." }, { status: 500 });
   }
 }

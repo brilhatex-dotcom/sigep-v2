@@ -112,7 +112,7 @@ async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
         enviadoP1Em={st?.enviadoEm ?? null}
         recebidoP1Em={st?.recebidoEm ?? null}
       >
-        {/* oficial e subtenente geram aqui a própria certidão/declaração do P/1 */}
+        {/* oficial e subtenente geram aqui a própria declaração individual */}
         {ehCpopm(posto) && <MinhaCertidaoP1 />}
       </MinhasCertidoes>
     </>

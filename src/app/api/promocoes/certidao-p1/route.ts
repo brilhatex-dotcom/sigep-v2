@@ -7,27 +7,23 @@ import { periodoAtivo } from "@/lib/promocoes";
 import { ehCpopm } from "@/lib/certidoes";
 import { registrar } from "@/lib/auditoria";
 import {
-  lerEstado, emitir, remover, configurar, proximoNumero, anoAtual, hojeISO,
-  emitidasDoPeriodo, linhasCertidaoP1, editar, restaurar, type CamposCertidao,
+  lerEstado, emitir, remover, hojeISO, emitidasDoPeriodo, linhasCertidaoP1, editar, restaurar, type CamposCertidao,
 } from "@/lib/certidaoP1Db";
 
 export const dynamic = "force-dynamic";
 
 /* =========================================================================
-   /api/promocoes/certidao-p1 — CERTIDÃO DO P/1 (nada consta) da promoção
+   /api/promocoes/certidao-p1 — DECLARAÇÃO INDIVIDUAL da promoção (oficiais
+   e subtenentes), pelo painel do P/1
 
-   GET  ?ids=a,b   -> { periodo, portaria, ano, proximo, hoje, oficiaisDoPeriodo,
-                        linhas }
-                      linhas = quem já tem certidão emitida no período + os ids
-                      pedidos (os que o P/1 acabou de pôr na lista)
-   POST { acao: "emitir", efetivoIds, data }  -> numera quem ainda não tem
+   GET  ?ids=a,b   -> { periodo, hoje, oficiaisDoPeriodo, linhas }
+                      linhas = quem já tem declaração gerada no período + os
+                      ids pedidos (os que o P/1 acabou de pôr na lista)
+   POST { acao: "emitir", efetivoIds, data }  -> gera a de quem ainda não tem
    POST { acao: "remover", efetivoId }        -> tira da lista
-   POST { acao: "config", portaria?, proximo? } -> portaria do texto e o
-                                                 próximo número do ano
    POST { acao: "editar", efetivoId, campos }  -> muda os dados que saem no
-                                                 documento (e o número, que só
-                                                 o P/1 troca); emite antes se
-                                                 ainda não tinha número
+                                                 documento; gera antes se
+                                                 ainda não tinha
    POST { acao: "restaurar", efetivoId }       -> volta aos dados da ficha
 
    Só quem responde pelo P/1 (mesma regra da Planilha Padrão).
@@ -44,7 +40,6 @@ async function autorizado() {
 
 async function resposta(periodo: { id: string; nome: string }, ids: string[]) {
   const e = await lerEstado();
-  const ano = anoAtual();
 
   // oficiais que estão no período (atalho "adicionar os oficiais")
   const participantes = await prisma.participantePromocao.findMany({
@@ -63,9 +58,6 @@ async function resposta(periodo: { id: string; nome: string }, ids: string[]) {
   const linhas = await linhasCertidaoP1(periodo.id, [...emitidasDoPeriodo(e, periodo.id), ...ids], e);
   return {
     periodo,
-    portaria: e.portaria,
-    ano,
-    proximo: proximoNumero(e, ano),
     hoje: hojeISO(),
     oficiaisDoPeriodo,
     linhas,
@@ -83,7 +75,7 @@ export async function GET(req: Request) {
     return NextResponse.json(await resposta({ id: periodo.id, nome: periodo.nome }, ids));
   } catch (err) {
     console.error("[GET /api/promocoes/certidao-p1]", err);
-    return NextResponse.json({ error: "Falha ao carregar as certidões." }, { status: 500 });
+    return NextResponse.json({ error: "Falha ao carregar as declarações." }, { status: 500 });
   }
 }
 
@@ -103,7 +95,7 @@ export async function POST(req: Request) {
       if (!ids.length) return NextResponse.json({ error: "Escolha ao menos um policial." }, { status: 400 });
       const data = /^\d{4}-\d{2}-\d{2}$/.test(String(b?.data || "")) ? String(b.data) : hojeISO();
 
-      // numera na ordem de antiguidade, como a lista aparece na tela
+      // na ordem de antiguidade, como a lista aparece na tela
       const ordem = (await linhasCertidaoP1(periodo.id, ids, await lerEstado())).map((l) => l.efetivoId);
       await emitir(periodo.id, ordem, data);
       try {
@@ -111,7 +103,7 @@ export async function POST(req: Request) {
           acao: "certidao_p1_promocao",
           alvo: periodo.id,
           alvoNome: periodo.nome,
-          detalhe: `${ordem.length} certidão(ões) do P/1 emitida(s)/conferida(s) por ${quem.login}`,
+          detalhe: `${ordem.length} declaração(ões) individual(is) gerada(s)/conferida(s) por ${quem.login}`,
         });
       } catch {}
       return NextResponse.json(await resposta({ id: periodo.id, nome: periodo.nome }, ids));
@@ -138,21 +130,11 @@ export async function POST(req: Request) {
       } else {
         const campos = (b?.campos && typeof b.campos === "object" ? b.campos : {}) as Partial<CamposCertidao>;
         const dataNova = typeof campos.data === "string" ? campos.data : hojeISO();
-        await emitir(periodo.id, [f.id], dataNova); // sem número ainda: numera agora
-        const r = await editar(periodo.id, f, campos, { podeNumero: true, quem: quem.login });
+        await emitir(periodo.id, [f.id], dataNova); // ainda não gerada: gera agora
+        const r = await editar(periodo.id, f, campos, { quem: quem.login });
         if ("erro" in r) return NextResponse.json({ error: r.erro }, { status: 400 });
       }
       return NextResponse.json(await resposta({ id: periodo.id, nome: periodo.nome }, [f.id]));
-    }
-
-    if (acao === "config") {
-      const proximo = Number(b?.proximo);
-      await configurar({
-        portaria: typeof b?.portaria === "string" ? b.portaria : undefined,
-        proximo: Number.isInteger(proximo) && proximo > 0 ? proximo : undefined,
-        ano: anoAtual(),
-      });
-      return NextResponse.json({ ok: true });
     }
 
     return NextResponse.json({ error: "Ação inválida." }, { status: 400 });

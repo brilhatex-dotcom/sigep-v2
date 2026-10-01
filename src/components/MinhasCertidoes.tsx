@@ -20,6 +20,7 @@ import {
   Lock,
   ChevronRight,
   FileBadge,
+  Trash2,
 } from "lucide-react";
 import { LINKS_OFICIAIS, LINK_CERTIDAO_UNIFICADA, ORDENS_UNIFICADA, faltasDidaticas } from "@/lib/certidoes";
 import { LIMITE_CERTIDAO_BYTES as LIMITE_BYTES } from "@/lib/promocaoUpload";
@@ -83,6 +84,23 @@ function FaixaPasso({ numero, titulo, dica, estado, situacao }: {
   );
 }
 
+function BotaoExcluir({ onClick, carregando, disabled, title }: {
+  onClick: () => void; carregando: boolean; disabled: boolean; title: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-label="Excluir"
+      className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/40 px-3 py-1.5 text-sm text-red-300 transition hover:bg-red-500/10 hover:text-red-200 disabled:opacity-40"
+    >
+      {carregando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+      Excluir
+    </button>
+  );
+}
+
 function dataHora(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -108,7 +126,7 @@ export default function MinhasCertidoes({
   efetivoId: string;
   enviadoP1Em: string | null;
   recebidoP1Em: string | null;
-  // o que mais a página quiser mostrar depois da lista (ex.: a certidão do P/1)
+  // o que mais a página quiser mostrar depois da lista (ex.: a declaração individual)
   children?: React.ReactNode;
 }) {
   const router = useRouter();
@@ -116,6 +134,7 @@ export default function MinhasCertidoes({
   const [unificadoKey, setUnificadoKey] = useState(pdfUnificadoKey);
   // o item sendo enviado, ou "unificada" (a Certidão Unificada, itens 4 a 8)
   const [enviando, setEnviando] = useState<number | "unificada" | null>(null);
+  const [excluindo, setExcluindo] = useState<number | "unificada" | null>(null);
   const [progresso, setProgresso] = useState<number | null>(null);
   const [gerando, setGerando] = useState(false);
   const [erro, setErro] = useState("");
@@ -128,6 +147,9 @@ export default function MinhasCertidoes({
   // oficial tem o TRF da 6ª Região à parte (a unificada vai só até o TRF5)
   const ehOficial = lista.some((i) => i.ordem === 9);
   const unificadaEnviada = ORDENS_UNIFICADA.every((o) => lista.find((i) => i.ordem === o)?.pelaUnificada);
+  // algum item ainda usa a unificada (dá para excluí-la)
+  const temUnificada = lista.some((i) => i.pelaUnificada);
+  const ocupado = enviando !== null || excluindo !== null;
 
   const totalEnviadas = lista.filter((i) => i.enviada).length;
   const completo = totalEnviadas >= total;
@@ -216,6 +238,43 @@ export default function MinhasCertidoes({
     } finally {
       setEnviando(null);
       setProgresso(null);
+    }
+  }
+
+  /* Excluir: tira a certidão do sistema (o arquivo some do R2) e o item volta
+     a "Falta". A unificada sai de uma vez dos itens 4 a 8. Quem fica sem
+     nenhuma certidão deixa de aparecer na lista do P/1. */
+  async function excluir(alvo: number | "unificada") {
+    const unificada = alvo === "unificada";
+    const item = unificada ? null : lista.find((i) => i.ordem === alvo);
+    const pergunta = unificada
+      ? "Excluir a Certidão Unificada?\n\nOs itens 4 a 8 (TRF1 a TRF5) que ela preenchia voltam a ficar em falta."
+      : item?.pelaUnificada
+        ? `Tirar o item ${alvo} — ${item.orgao}?\n\nEle volta a ficar em falta. A Certidão Unificada continua valendo para os outros itens.`
+        : `Excluir a certidão do item ${alvo} — ${item?.orgao ?? ""}?\n\nO arquivo é apagado e o item volta a ficar em falta.`;
+    if (!await confirmar(pergunta)) return;
+    setErro("");
+    setExcluindo(alvo);
+    try {
+      const r = await fetch("/api/promocoes/upload/excluir", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(unificada ? { unificada: true } : { ordem: alvo }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setErro(d.erro || "Falha ao excluir a certidão.");
+        return;
+      }
+      const ordens: number[] = Array.isArray(d.ordens) ? d.ordens : [];
+      setLista((l) =>
+        l.map((i) => (ordens.includes(i.ordem) ? { ...i, enviada: false, nomeArquivo: null, pelaUnificada: false } : i))
+      );
+      setUnificadoKey(null); // o PDF unificado tinha essa certidão
+    } catch {
+      setErro("Erro de conexão ao excluir. Confira a internet e tente de novo.");
+    } finally {
+      setExcluindo(null);
     }
   }
 
@@ -433,7 +492,7 @@ export default function MinhasCertidoes({
                     />
                     <button
                       onClick={() => inputUnificada.current?.click()}
-                      disabled={enviando === "unificada" || travado}
+                      disabled={ocupado || travado}
                       title={travado ? "Enviado ao P/1 — peça reabertura para trocar" : "Vale pelos itens 4 a 8"}
                       className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/50 px-3 py-1.5 text-sm font-medium text-[#D4AF37] transition hover:bg-[#D4AF37]/10 disabled:opacity-40"
                     >
@@ -442,6 +501,14 @@ export default function MinhasCertidoes({
                         ? progresso === null ? "Enviando..." : `${progresso}%`
                         : unificadaEnviada ? "Trocar" : "Enviar a unificada"}
                     </button>
+                    {temUnificada && (
+                      <BotaoExcluir
+                        onClick={() => excluir("unificada")}
+                        carregando={excluindo === "unificada"}
+                        disabled={ocupado || travado}
+                        title={travado ? "Enviado ao P/1 — peça reabertura para excluir" : "Excluir a Certidão Unificada (itens 4 a 8)"}
+                      />
+                    )}
                   </div>
                 </div>
               </li>
@@ -492,7 +559,7 @@ export default function MinhasCertidoes({
                 />
                 <button
                   onClick={() => inputs.current[i.ordem]?.click()}
-                  disabled={enviando === i.ordem || travado}
+                  disabled={ocupado || travado}
                   title={travado ? "Enviado ao P/1 — peça reabertura para trocar" : undefined}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-sm text-white transition hover:bg-white/5 disabled:opacity-40"
                 >
@@ -501,6 +568,15 @@ export default function MinhasCertidoes({
                     ? progresso === null ? "Enviando..." : `${progresso}%`
                     : i.enviada ? "Trocar" : "Enviar"}
                 </button>
+                {i.enviada && (
+                  <BotaoExcluir
+                    onClick={() => excluir(i.ordem)}
+                    carregando={excluindo === i.ordem}
+                    disabled={ocupado || travado}
+                    title={travado ? "Enviado ao P/1 — peça reabertura para excluir"
+                      : i.pelaUnificada ? "Tirar só este item (a unificada continua nos outros)" : "Excluir o arquivo deste item"}
+                  />
+                )}
               </div>
             </li>
             </Fragment>
@@ -622,7 +698,7 @@ export default function MinhasCertidoes({
       </div>
       </section>
 
-      {/* Oficiais e subtenentes: a certidão/declaração do P/1 (fora da
+      {/* Oficiais e subtenentes: a declaração individual (fora da
           sequência dos passos — vai junto para o SEI) */}
       {children && (
         <section className="overflow-hidden rounded-xl border border-violet-400/40 bg-[#0F1B2D]">
@@ -632,8 +708,8 @@ export default function MinhasCertidoes({
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-[11px] font-black uppercase tracking-[0.22em] opacity-80">Oficiais e subtenentes</p>
-              <p className="text-base font-bold leading-tight">Certidão/declaração do P/1</p>
-              <p className="text-[11px] opacity-80">Gere a sua e o PDF único (certidão + certidões) que vai para o SEI.</p>
+              <p className="text-base font-bold leading-tight">Declaração individual</p>
+              <p className="text-[11px] opacity-80">Gere a sua e o PDF único (declaração + certidões) que vai para o SEI.</p>
             </div>
           </div>
           <div className="p-3">{children}</div>
