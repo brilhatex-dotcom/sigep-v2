@@ -74,7 +74,9 @@ export default function ChatFlutuante() {
 
   useEffect(() => {
     puxar();
-    const t = setInterval(puxar, aberto ? 6000 : 20000);
+    // 45 s fechado (a janela de "online" e de 70 s) e 10 s com a janela
+    // aberta: cada batida le contatos + mensagens no banco
+    const t = setInterval(puxar, aberto ? 10000 : 45000);
     return () => clearInterval(t);
   }, [puxar, aberto]);
 

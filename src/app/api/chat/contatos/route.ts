@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { garantirChatSilencioso } from "@/lib/chatDb";
 
 export const dynamic = "force-dynamic";
@@ -59,13 +60,22 @@ export async function GET() {
     });
     const mapaNaoLidas = new Map(naoLidas.map((n) => [n.de, n._count._all]));
 
-    // ultima mensagem de cada conversa (busca as recentes e reduz em memoria)
-    const recentes = await prisma.chatMensagem.findMany({
-      where: { OR: [{ de: eu }, { para: eu }] },
-      orderBy: { criadoEm: "desc" },
-      take: 400,
-      select: { de: true, para: true, texto: true, arqNome: true, arqTipo: true, apagadaEm: true, criadoEm: true },
-    });
+    /* Ultima mensagem de cada conversa, ja reduzida no banco (DISTINCT ON) e
+       com o texto cortado na previa. Antes vinham as 400 mensagens mais
+       recentes, com o texto inteiro, so para sobrar uma linha por conversa —
+       e esta rota roda de poucos em poucos segundos para cada usuario logado,
+       entao o trafego de saida do Neon (cota de 5 GB/mes) ia embora aqui. */
+    const recentes = await prisma.$queryRaw<
+      { de: string; para: string; texto: string | null; arqNome: string | null; arqTipo: string | null; apagadaEm: Date | null; criadoEm: Date }[]
+    >(Prisma.sql`
+      SELECT DISTINCT ON (CASE WHEN "De" = ${eu} THEN "Para" ELSE "De" END)
+        "De" AS "de", "Para" AS "para", LEFT("Texto", 120) AS "texto",
+        "ArqNome" AS "arqNome", "ArqTipo" AS "arqTipo",
+        "ApagadaEm" AS "apagadaEm", "CriadoEm" AS "criadoEm"
+      FROM "chat_mensagens"
+      WHERE "De" = ${eu} OR "Para" = ${eu}
+      ORDER BY (CASE WHEN "De" = ${eu} THEN "Para" ELSE "De" END), "CriadoEm" DESC
+    `);
     const ultima = new Map<string, { previa: string; em: string }>();
     for (const m of recentes) {
       const outro = m.de === eu ? m.para : m.de;
