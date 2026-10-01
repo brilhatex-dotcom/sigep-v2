@@ -61,6 +61,8 @@ const nextConfig = {
       "/api/disciplinar/termo-docx": ["./public/brasoes/**"],
       "/api/escala/docx": ["./public/brasoes/**"],
       "/api/escala/pdf": ["./public/brasoes/**"],
+      // brasão da certidão do P/1 (promoção de oficiais), em Word e PDF
+      "/api/promocoes/certidao-p1/documento": ["./public/brasoes/**"],
       // modelo oficial da CPPPM (Portaria 168/2026) preenchido pelo sistema
       "/api/promocoes/planilha/xlsx": ["./public/templates/**"],
     },

@@ -4,8 +4,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import MinhasCertidoes from "@/components/MinhasCertidoes";
-import { periodoAtivo } from "@/lib/promocoes";
-import { CERTIDOES_EXIGIDAS, TOTAL_CERTIDOES } from "@/lib/certidoes";
+import { periodoAtivo, postoDoMilitar } from "@/lib/promocoes";
+import { certidoesExigidas, ehOficial } from "@/lib/certidoes";
 import { statusP1 } from "@/lib/promocaoStatusP1";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft } from "lucide-react";
@@ -71,7 +71,11 @@ async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
     (participante?.certidoes ?? []).map((c) => [c.ordem, c.nomeArquivo])
   );
 
-  const itens = CERTIDOES_EXIGIDAS.map((c) => ({
+  // oficial: 9 certidoes (inclui o TRF da 6ª Regiao); praca: 8
+  const posto = await postoDoMilitar(efetivoId);
+  const exigidas = certidoesExigidas(posto);
+  const total = exigidas.length;
+  const itens = exigidas.map((c) => ({
     ordem: c.ordem,
     orgao: c.orgao,
     descricao: c.descricao,
@@ -87,12 +91,13 @@ async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
     <>
       <p className="mb-5 text-sm text-[#94A3B8]">
         Período: <span className="font-semibold text-[#D4AF37]">{periodo.nome}</span>.
-        Envie cada certidão em PDF. Quando as {TOTAL_CERTIDOES} estiverem
+        Envie cada certidão em PDF. Quando as {total} estiverem
         enviadas, gere o PDF unificado e envie ao P/1.
+        {ehOficial(posto) && " Para oficial, a do TRF da 6ª Região também é exigida."}
       </p>
       <MinhasCertidoes
         itens={itens}
-        total={TOTAL_CERTIDOES}
+        total={total}
         pdfUnificadoKey={participante?.pdfUnificado ?? null}
         efetivoId={efetivoId}
         enviadoP1Em={st?.enviadoEm ?? null}

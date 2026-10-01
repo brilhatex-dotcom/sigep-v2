@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { periodoAtivo } from "@/lib/promocoes";
-import { TOTAL_CERTIDOES } from "@/lib/certidoes";
+import { periodoAtivo, postoDoMilitar } from "@/lib/promocoes";
+import { certidoesExigidas } from "@/lib/certidoes";
 import { salvarStatusP1, statusP1 } from "@/lib/promocaoStatusP1";
 import { avisarEnvioAoP1, avisarRecebido, avisarReabertura } from "@/lib/promocaoAvisos";
 
@@ -35,15 +35,18 @@ export async function POST(req: Request) {
       const efetivoId = (session.user as any).refEfetivo as string | null;
       if (!efetivoId) return NextResponse.json({ error: "Usuario sem ficha vinculada." }, { status: 400 });
 
-      // exige as 8 certidoes enviadas
-      const participante = await prisma.participantePromocao.findUnique({
-        where: { periodoId_efetivoId: { periodoId: periodo.id, efetivoId } },
-        include: { _count: { select: { certidoes: true } } },
+      // exige todas as certidoes do posto (8 da praca, 9 do oficial)
+      const exigidas = certidoesExigidas(await postoDoMilitar(efetivoId)).map((c) => c.ordem);
+      const enviadas = await prisma.certidaoEnviada.count({
+        where: {
+          ordem: { in: exigidas },
+          participante: { periodoId: periodo.id, efetivoId },
+        },
       });
-      const enviadas = participante?._count.certidoes ?? 0;
-      if (enviadas < TOTAL_CERTIDOES) {
+      const total = exigidas.length;
+      if (enviadas < total) {
         return NextResponse.json(
-          { error: `Envie as ${TOTAL_CERTIDOES} certidoes antes de enviar ao P/1 (faltam ${TOTAL_CERTIDOES - enviadas}).` },
+          { error: `Envie as ${total} certidoes antes de enviar ao P/1 (faltam ${total - enviadas}).` },
           { status: 400 }
         );
       }

@@ -1,8 +1,16 @@
+import { classificarPatente } from "@/lib/patentes";
+
 // ==========================================================
-//  As 8 certidoes exigidas para promocao, na ORDEM OFICIAL.
-//  (Por enquanto fixas aqui; editaveis no futuro.)
-//  A "ordem" e usada como chave (1..8) e define a ordem no
+//  Certidoes exigidas para promocao, na ORDEM OFICIAL.
+//  A "ordem" e usada como chave (1..9) e define a ordem no
 //  PDF unificado.
+//
+//  PRACA: as 8 de sempre (TJMA 1º e 2º graus, Justica Militar
+//  e TRF da 1ª a 5ª Regiao).
+//  OFICIAL: as mesmas 8 + a do TRF da 6ª Regiao — exigencia da
+//  Comissao Administrativa Especial (Of. Circular nº 003/2026-
+//  CAE, Portaria nº 040/2026-GCG). Por isso a lista depende do
+//  posto: use certidoesExigidas(postoGrad).
 // ==========================================================
 
 export type CertidaoExigida = {
@@ -50,9 +58,29 @@ export const LINKS_OFICIAIS: LinkOficial[] = [
   { titulo: "TRF 6ª Região", url: LINK_TRF.trf6 },
 ];
 
+// so para oficiais (ordem 9: entra no fim do PDF unificado)
+export const CERTIDAO_TRF6: CertidaoExigida = {
+  ordem: 9, orgao: "TRF 6ª Região", descricao: "Certidão Criminal Negativa", link: LINK_TRF.trf6, linkRotulo: "Emitir no TRF6",
+};
+
+// total das PRACAS (a Planilha Padrao da CPPPM e so de praca)
 export const TOTAL_CERTIDOES = CERTIDOES_EXIGIDAS.length;
 
+// Coronel a Aspirante (ordem 1..7 da hierarquia)
+export function ehOficial(postoGrad: string | null | undefined): boolean {
+  return classificarPatente(postoGrad ?? null).ordem <= 7;
+}
+
+// as certidoes que ESTE militar tem de apresentar, na ordem oficial
+export function certidoesExigidas(postoGrad: string | null | undefined): CertidaoExigida[] {
+  return ehOficial(postoGrad) ? [...CERTIDOES_EXIGIDAS, CERTIDAO_TRF6] : CERTIDOES_EXIGIDAS;
+}
+
+export function totalCertidoes(postoGrad: string | null | undefined): number {
+  return certidoesExigidas(postoGrad).length;
+}
+
 export function rotuloCertidao(ordem: number): string {
-  const c = CERTIDOES_EXIGIDAS.find((x) => x.ordem === ordem);
+  const c = [...CERTIDOES_EXIGIDAS, CERTIDAO_TRF6].find((x) => x.ordem === ordem);
   return c ? `${c.orgao} — ${c.descricao}` : `Certidão ${ordem}`;
 }

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { urlAssinadaUpload } from "@/lib/r2";
-import { periodoAtivo } from "@/lib/promocoes";
-import { TOTAL_CERTIDOES } from "@/lib/certidoes";
+import { periodoAtivo, postoDoMilitar } from "@/lib/promocoes";
+import { totalCertidoes } from "@/lib/certidoes";
 import { statusP1 } from "@/lib/promocaoStatusP1";
 import { chaveCertidao, LIMITE_CERTIDAO_BYTES } from "@/lib/promocaoUpload";
 
@@ -44,7 +44,9 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (!ordem || ordem < 1 || ordem > TOTAL_CERTIDOES) {
+    // oficial tem 9 (inclui o TRF da 6ª Regiao); praca, 8
+    const total = totalCertidoes(await postoDoMilitar(efetivoId));
+    if (!ordem || ordem < 1 || ordem > total) {
       return NextResponse.json({ erro: "Certidão inválida." }, { status: 400 });
     }
     if (!Number.isFinite(tam) || tam <= 0) {
