@@ -2,6 +2,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import PlanilhaPadraoPainel from "@/components/PlanilhaPadraoPainel";
+import CertidaoP1Painel from "@/components/CertidaoP1Painel";
 import { useRouter } from "next/navigation";
 import {
   Users,
@@ -29,6 +30,8 @@ export type LinhaParticipante = {
   nome: string | null;
   matricula: string | null;
   enviadas: number;
+  // quantas este militar deve: 8 (praca) ou 9 (oficial, com o TRF6)
+  total: number;
   pdfUnificado: string | null;
   enviadoP1Em: string | null;
   recebidoP1Em: string | null;
@@ -46,7 +49,6 @@ type Props = {
   periodoId: string;
   periodoNome: string;
   periodoData: string | null;
-  total: number;
   participantes: LinhaParticipante[];
   periodos: PeriodoResumo[]; // todos os periodos (pro seletor e arquivadas)
 };
@@ -61,7 +63,6 @@ export default function PainelPromocoes({
   periodoId,
   periodoNome,
   periodoData,
-  total,
   participantes,
   periodos,
 }: Props) {
@@ -123,23 +124,23 @@ export default function PainelPromocoes({
   const resumo = useMemo(() => {
     let completos = 0, parciais = 0, naoIniciaram = 0;
     participantes.forEach((p) => {
-      if (p.enviadas >= total) completos++;
+      if (p.enviadas >= p.total) completos++;
       else if (p.enviadas > 0) parciais++;
       else naoIniciaram++;
     });
     return { completos, parciais, naoIniciaram };
-  }, [participantes, total]);
+  }, [participantes]);
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return participantes.filter((p) => {
-      const st = statusDe(p.enviadas, total).rotulo;
+      const st = statusDe(p.enviadas, p.total).rotulo;
       if (filtroStatus && st !== filtroStatus) return false;
       if (!q) return true;
       const alvo = `${p.nome ?? ""} ${p.nomeGuerra ?? ""} ${p.matricula ?? ""} ${p.postoGrad ?? ""}`.toLowerCase();
       return alvo.includes(q);
     });
-  }, [participantes, busca, filtroStatus, total]);
+  }, [participantes, busca, filtroStatus]);
 
   async function adicionarTodos() {
     setCarregando(true);
@@ -310,6 +311,11 @@ export default function PainelPromocoes({
           art. 4º, § 3º). Fica no alto, recolhida, para nao empurrar a lista. */}
       <PlanilhaPadraoPainel />
 
+      {/* Certidão do P/1 dos OFICIAIS (Portaria 040/2026-GCG, CAE): a de praça
+          vai na Planilha Padrão; a de oficial sobe ao SEI num PDF único por
+          policial — certidão do P/1 + as certidões das regiões. */}
+      <CertidaoP1Painel />
+
       {/* Cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card Icone={Users} valor={participantes.length} rotulo="Total no processo" cor="text-[#D4AF37]" />
@@ -365,7 +371,7 @@ export default function PainelPromocoes({
           </thead>
           <tbody className="divide-y divide-white/5">
             {filtrados.map((p) => {
-              const st = statusDe(p.enviadas, total);
+              const st = statusDe(p.enviadas, p.total);
               return (
                 <tr key={p.efetivoId} className="hover:bg-white/5">
                   <td className="whitespace-nowrap px-4 py-2.5 text-[#94A3B8]">
@@ -381,7 +387,7 @@ export default function PainelPromocoes({
                   </td>
                   <td className="px-4 py-2.5">
                     <span className="font-medium text-white">{p.enviadas}</span>
-                    <span className="text-[#94A3B8]">/{total}</span>
+                    <span className="text-[#94A3B8]">/{p.total}</span>
                   </td>
                   <td className="px-4 py-2.5">
                     <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${st.cor}`}>

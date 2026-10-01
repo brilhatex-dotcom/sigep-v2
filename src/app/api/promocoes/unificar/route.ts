@@ -4,12 +4,12 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { baixarDoR2, enviarParaR2 } from "@/lib/r2";
 import { unirPdfs } from "@/lib/pdf";
-import { periodoAtivo } from "@/lib/promocoes";
-import { TOTAL_CERTIDOES } from "@/lib/certidoes";
+import { periodoAtivo, postoDoMilitar } from "@/lib/promocoes";
+import { certidoesExigidas } from "@/lib/certidoes";
 import { statusP1 } from "@/lib/promocaoStatusP1";
 
-// POST: junta as 8 certidoes (ordem oficial) num PDF unico, salva no
-// R2 e guarda a chave no participante.
+// POST: junta as certidoes exigidas (8 da praca, 9 do oficial — ordem
+// oficial) num PDF unico, salva no R2 e guarda a chave no participante.
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ erro: "Nao autorizado" }, { status: 401 });
@@ -47,16 +47,18 @@ export async function POST(req: NextRequest) {
       include: { certidoes: { orderBy: { ordem: "asc" } } },
     });
 
-    if (!participante || participante.certidoes.length < TOTAL_CERTIDOES) {
+    const exigidas = new Set(certidoesExigidas(await postoDoMilitar(efetivoId)).map((c) => c.ordem));
+    const certidoes = (participante?.certidoes ?? []).filter((c) => exigidas.has(c.ordem));
+    if (certidoes.length < exigidas.size) {
       return NextResponse.json(
-        { erro: `Envie as ${TOTAL_CERTIDOES} certidões antes de gerar o PDF.` },
+        { erro: `Envie as ${exigidas.size} certidões antes de gerar o PDF.` },
         { status: 400 }
       );
     }
 
     // baixa cada PDF na ordem e une
     const partes: Buffer[] = [];
-    for (const c of participante.certidoes) {
+    for (const c of certidoes) {
       partes.push(await baixarDoR2(c.r2Key));
     }
     const unido = await unirPdfs(partes);
@@ -65,7 +67,7 @@ export async function POST(req: NextRequest) {
     await enviarParaR2(key, Buffer.from(unido), "application/pdf");
 
     await prisma.participantePromocao.update({
-      where: { id: participante.id },
+      where: { id: participante!.id },
       data: { pdfUnificado: key, geradoEm: new Date() },
     });
 

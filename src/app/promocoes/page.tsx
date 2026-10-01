@@ -9,7 +9,7 @@ import PainelPromocoes from "@/components/PainelPromocoes";
 import { compararAntiguidade } from "@/lib/antiguidade";
 import CriarPeriodo from "@/components/CriarPeriodo";
 import { periodoAtivo } from "@/lib/promocoes";
-import { TOTAL_CERTIDOES } from "@/lib/certidoes";
+import { totalCertidoes } from "@/lib/certidoes";
 import { lerMapaP1 } from "@/lib/promocaoStatusP1";
 
 export const dynamic = "force-dynamic";
@@ -121,6 +121,8 @@ async function PainelConteudo({
         nomeGuerra: f?.nomeGuerra ?? null,
         matricula: f?.matricula ?? null,
         enviadas: p._count.certidoes,
+        // oficial deve 9 certidoes (inclui o TRF da 6ª Regiao); praca, 8
+        total: totalCertidoes(f?.postoGrad ?? null),
         pdfUnificado: p.pdfUnificado,
         enviadoP1Em: st?.enviadoEm ?? null,
         recebidoP1Em: st?.recebidoEm ?? null,
@@ -160,7 +162,6 @@ async function PainelConteudo({
       periodoId={periodoId}
       periodoNome={nome}
       periodoData={dataAlvo}
-      total={TOTAL_CERTIDOES}
       participantes={linhas}
       periodos={periodos}
     />
