@@ -6,6 +6,7 @@ import { podeVerP1 } from "@/lib/encargos";
 import { periodoAtivo, postoDoMilitar } from "@/lib/promocoes";
 import { certidoesExigidas, rotuloCertidao } from "@/lib/certidoes";
 import { baixarDoR2, urlAssinada } from "@/lib/r2";
+import { semRepetirArquivo } from "@/lib/promocaoUpload";
 
 export const dynamic = "force-dynamic";
 
@@ -52,11 +53,17 @@ export async function GET(req: Request) {
       return new NextResponse(new Uint8Array(bytes), { status: 200, headers: { "Content-Type": "application/pdf" } });
     }
 
-    const arquivos = await Promise.all(certidoes.map(async (c) => ({
-      ordem: c.ordem,
-      rotulo: rotuloCertidao(c.ordem),
-      url: await urlAssinada(c.r2Key, 600),
-    })));
+    // a Certidao Unificada da Justica Federal (itens 4 a 8) e um arquivo so:
+    // entra uma vez, no lugar do TRF1
+    const unicos = semRepetirArquivo(certidoes);
+    const arquivos = await Promise.all(unicos.map(async (c) => {
+      const cobre = certidoes.filter((x) => x.r2Key === c.r2Key).length;
+      return {
+        ordem: c.ordem,
+        rotulo: cobre > 1 ? "Certidão Unificada da Justiça Federal (TRF1 a TRF5)" : rotuloCertidao(c.ordem),
+        url: await urlAssinada(c.r2Key, 600),
+      };
+    }));
     return NextResponse.json({ arquivos });
   } catch (err) {
     console.error("[GET /api/promocoes/certidao-p1/arquivos]", err);

@@ -45,11 +45,21 @@ export const CERTIDOES_EXIGIDAS: CertidaoExigida[] = [
 ];
 
 // Bloco de links oficiais (mostrado no topo, como orientação geral).
-export type LinkOficial = { titulo: string; url: string; obs?: string };
+/* CERTIDÃO UNIFICADA DA JUSTIÇA FEDERAL (CJF): um pedido só gera a certidão
+   do TRF1 ao TRF5 — é o caminho mais curto, para oficial e para praça, e por
+   isso vem em destaque logo depois das estaduais. Um PDF só vale pelos itens
+   4 a 8; o TRF da 6ª Região (só oficial) continua à parte. */
+export const LINK_CERTIDAO_UNIFICADA = LINK_TRF.unificada;
+export const ORDENS_UNIFICADA = [4, 5, 6, 7, 8];
+
+export type LinkOficial = { titulo: string; url: string; obs?: string; destaque?: boolean };
 export const LINKS_OFICIAIS: LinkOficial[] = [
   { titulo: "Justiça Estadual (1º e 2º graus) — TJMA", url: LINK_TJMA },
   { titulo: "Justiça Militar Estadual (1º grau) — TJMA", url: LINK_TJMA },
-  { titulo: "Certidão Unificada da Justiça Federal (TRF1 a TRF5)", url: LINK_TRF.unificada, obs: "Reúne TRF1, TRF2, TRF3, TRF4 e TRF5 em uma solicitação" },
+  {
+    titulo: "Certidão Unificada da Justiça Federal (TRF1 a TRF5)", url: LINK_TRF.unificada, destaque: true,
+    obs: "Um pedido só gera a certidão do TRF1 ao TRF5 — vale pelos 5 itens da Justiça Federal",
+  },
   { titulo: "TRF 1ª Região", url: LINK_TRF.trf1 },
   { titulo: "TRF 2ª Região", url: LINK_TRF.trf2 },
   { titulo: "TRF 3ª Região", url: LINK_TRF.trf3 },

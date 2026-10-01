@@ -5,11 +5,13 @@ import { urlAssinadaUpload } from "@/lib/r2";
 import { periodoAtivo, postoDoMilitar } from "@/lib/promocoes";
 import { totalCertidoes } from "@/lib/certidoes";
 import { statusP1 } from "@/lib/promocaoStatusP1";
-import { chaveCertidao, LIMITE_CERTIDAO_BYTES } from "@/lib/promocaoUpload";
+import { chaveCertidao, chaveCertidaoUnificada, LIMITE_CERTIDAO_BYTES } from "@/lib/promocaoUpload";
 
 export const dynamic = "force-dynamic";
 
 /* POST /api/promocoes/upload   { ordem, tam, efetivoId? } -> { url, key }
+                               { unificada: true, tam } -> a Certidao Unificada
+                               da Justica Federal (vale pelos itens 4 a 8)
 
    PREPARA o envio de uma certidao: devolve uma URL assinada para o NAVEGADOR
    mandar o PDF DIRETO ao R2. Depois de subir, o navegador chama
@@ -31,6 +33,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const b = await req.json().catch(() => ({}));
+    const unificada = b?.unificada === true;
     const ordem = parseInt(String(b?.ordem ?? ""), 10);
     const tam = Number(b?.tam);
 
@@ -46,7 +49,7 @@ export async function POST(req: NextRequest) {
     }
     // oficial tem 9 (inclui o TRF da 6ª Regiao); praca, 8
     const total = totalCertidoes(await postoDoMilitar(efetivoId));
-    if (!ordem || ordem < 1 || ordem > total) {
+    if (!unificada && (!ordem || ordem < 1 || ordem > total)) {
       return NextResponse.json({ erro: "Certidão inválida." }, { status: 400 });
     }
     if (!Number.isFinite(tam) || tam <= 0) {
@@ -75,7 +78,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const key = chaveCertidao(periodo.id, efetivoId, ordem);
+    const key = unificada
+      ? chaveCertidaoUnificada(periodo.id, efetivoId)
+      : chaveCertidao(periodo.id, efetivoId, ordem);
     const url = await urlAssinadaUpload(key, "application/pdf");
     return NextResponse.json({ url, key });
   } catch (e) {
