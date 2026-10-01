@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { periodoAtivo, postoDoMilitar } from "@/lib/promocoes";
-import { certidoesExigidas } from "@/lib/certidoes";
+import { certidoesExigidas, faltasDidaticas } from "@/lib/certidoes";
 import { salvarStatusP1, statusP1 } from "@/lib/promocaoStatusP1";
 import { avisarEnvioAoP1, avisarRecebido, avisarReabertura } from "@/lib/promocaoAvisos";
 
@@ -37,16 +37,18 @@ export async function POST(req: Request) {
 
       // exige todas as certidoes do posto (8 da praca, 9 do oficial)
       const exigidas = certidoesExigidas(await postoDoMilitar(efetivoId)).map((c) => c.ordem);
-      const enviadas = await prisma.certidaoEnviada.count({
+      const chegaram = await prisma.certidaoEnviada.findMany({
         where: {
           ordem: { in: exigidas },
           participante: { periodoId: periodo.id, efetivoId },
         },
+        select: { ordem: true },
       });
-      const total = exigidas.length;
-      if (enviadas < total) {
+      const ja = new Set(chegaram.map((c) => c.ordem));
+      const faltam = exigidas.filter((o) => !ja.has(o));
+      if (faltam.length) {
         return NextResponse.json(
-          { error: `Envie as ${total} certidoes antes de enviar ao P/1 (faltam ${total - enviadas}).` },
+          { error: `Antes de enviar ao P/1, falta enviar: ${faltasDidaticas(faltam).join("; ")}.` },
           { status: 400 }
         );
       }

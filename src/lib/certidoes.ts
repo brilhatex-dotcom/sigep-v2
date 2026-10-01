@@ -52,6 +52,32 @@ export const CERTIDOES_EXIGIDAS: CertidaoExigida[] = [
 export const LINK_CERTIDAO_UNIFICADA = LINK_TRF.unificada;
 export const ORDENS_UNIFICADA = [4, 5, 6, 7, 8];
 
+// nome curto de cada item, para dizer O QUE falta
+const NOME_CURTO: Record<number, string> = {
+  1: "TJMA 1º grau", 2: "TJMA 2º grau", 3: "Justiça Militar Estadual",
+  4: "TRF1", 5: "TRF2", 6: "TRF3", 7: "TRF4", 8: "TRF5", 9: "TRF 6ª Região",
+};
+
+/* O que ainda falta enviar, do jeito que o militar entende. Com a Certidão
+   Unificada, a Justiça Federal do TRF1 ao TRF5 é UM arquivo só — então nada
+   de "envie as 8 certidões": faltando a Federal inteira, a mensagem manda
+   para a unificada; faltando só algumas regiões, diz quais.
+   Ex.: ["TJMA 2º grau", "Justiça Federal do TRF1 ao TRF5 (a Certidão
+   Unificada resolve de uma vez)"]. */
+export function faltasDidaticas(faltando: number[]): string[] {
+  const set = new Set(faltando);
+  const out: string[] = [];
+  for (const o of [1, 2, 3]) if (set.has(o)) out.push(NOME_CURTO[o]);
+  const federal = ORDENS_UNIFICADA.filter((o) => set.has(o));
+  if (federal.length === ORDENS_UNIFICADA.length) {
+    out.push("Justiça Federal do TRF1 ao TRF5 (a Certidão Unificada resolve de uma vez)");
+  } else if (federal.length) {
+    out.push(`${federal.map((o) => NOME_CURTO[o]).join(", ")} (ou a Certidão Unificada)`);
+  }
+  if (set.has(9)) out.push(NOME_CURTO[9]);
+  return out;
+}
+
 export type LinkOficial = { titulo: string; url: string; obs?: string; destaque?: boolean };
 export const LINKS_OFICIAIS: LinkOficial[] = [
   { titulo: "Justiça Estadual (1º e 2º graus) — TJMA", url: LINK_TJMA },

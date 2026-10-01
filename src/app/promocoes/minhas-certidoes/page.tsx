@@ -99,9 +99,10 @@ async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
     <>
       <p className="mb-5 text-sm text-[#94A3B8]">
         Período: <span className="font-semibold text-[#D4AF37]">{periodo.nome}</span>.
-        Envie cada certidão em PDF. Quando as {total} estiverem
-        enviadas, gere o PDF unificado e envie ao P/1.
-        {ehCpopm(posto) && " Para oficial e subtenente, a do TRF da 6ª Região também é exigida."}
+        Siga os 3 passos: envie as certidões em PDF (as 3 estaduais e a
+        Certidão Unificada da Justiça Federal, que vale do TRF1 ao TRF5
+        {ehCpopm(posto) ? " — e, para oficial e subtenente, a do TRF da 6ª Região" : ""}),
+        gere o PDF unificado e envie ao P/1.
       </p>
       <MinhasCertidoes
         itens={itens}
