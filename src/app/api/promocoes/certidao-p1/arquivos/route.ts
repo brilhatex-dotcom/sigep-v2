@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { podeVerP1 } from "@/lib/encargos";
+import { acessoCertidao } from "@/lib/certidaoP1Acesso";
 import { periodoAtivo, postoDoMilitar } from "@/lib/promocoes";
 import { certidoesExigidas, rotuloCertidao } from "@/lib/certidoes";
 import { baixarDoR2, urlAssinada } from "@/lib/r2";
@@ -20,20 +18,16 @@ export const dynamic = "force-dynamic";
 
    GET ...&ordem=N  -> o próprio PDF, passando por aqui. Plano B, para quando
    o navegador não consegue buscar no R2 (CORS do bucket não configurado
-   para a origem). Só o P/1. */
+   para a origem). P/1, ou o próprio oficial/subtenente (as dele). */
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
-  const u = session.user as any;
-  const admin = (u.perfil || "").toLowerCase() === "admin";
-  if (!(await podeVerP1(u.refEfetivo || null, admin))) {
-    return NextResponse.json({ error: "Apenas o P/1." }, { status: 403 });
-  }
-
   const url = new URL(req.url);
   const efetivoId = (url.searchParams.get("efetivoId") || "").trim();
   const ordemPedida = Number(url.searchParams.get("ordem") || 0);
   if (!efetivoId) return NextResponse.json({ error: "Policial não informado." }, { status: 400 });
+
+  const acesso = await acessoCertidao(efetivoId);
+  if (!acesso) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
+  if (!acesso.p1 && !acesso.proprio) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
   const periodo = await periodoAtivo();
   if (!periodo) return NextResponse.json({ error: "Nenhum período de promoção aberto." }, { status: 400 });

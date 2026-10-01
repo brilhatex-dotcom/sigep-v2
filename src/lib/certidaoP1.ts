@@ -6,7 +6,7 @@ import {
 } from "docx";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { classificarPatente } from "@/lib/patentes";
-import { ehOficial } from "@/lib/certidoes";
+import { ehCpopm } from "@/lib/certidoes";
 
 /* =========================================================================
    CERTIDÃO DO P/1 — "nada consta" para a promoção (Portaria nº 040/2026-GCG)
@@ -16,8 +16,13 @@ import { ehOficial } from "@/lib/certidoes";
    003/2026-CAE). É o modelo usado para os OFICIAIS, numerado em sequência
    ("CERTIDÃO Nº 002/2026 – P/1").
 
-   A Justiça Federal muda conforme o posto: oficial apresenta da 1ª à 6ª
-   Região; praça, da 1ª à 5ª (a 6ª é exigência só dos oficiais).
+   A Justiça Federal muda conforme o posto: oficial e subtenente (os que
+   concorrem pela CPOPM) apresentam da 1ª à 6ª Região; praça, da 1ª à 5ª.
+
+   Os dados saem da ficha, mas tudo o que identifica o militar pode ser
+   ajustado antes de gerar (nome, posto por extenso, quadro, matrícula, Id,
+   regiões, data, portaria) — ver os "ajustes" em certidaoP1Db. O texto que
+   atesta a situação ("NÃO POSSUI registros impeditivos...") é fixo.
 
    Sai em dois formatos a partir do MESMO conteúdo (montarCertidao):
      · Word (.docx) — para conferir/ajustar antes de assinar;
@@ -47,6 +52,10 @@ export type DadosCertidaoP1 = {
   idPmma?: string | null;
   quadro?: string | null;
   data: string; // aaaa-mm-dd
+  // ajustes feitos na tela (vazio = o que sai da ficha)
+  postoExtenso?: string | null;      // "Major" (no lugar do calculado do posto)
+  quadroDescricao?: string | null;   // "Quadro de Oficiais do Estado Maior"
+  seisRegioes?: boolean | null;      // Justiça Federal da 1ª à 6ª (true) ou à 5ª
 };
 
 type Trecho = { t: string; b?: boolean };
@@ -73,7 +82,7 @@ function dataExtenso(iso: string): string {
 }
 
 // "MAJ QOEM" -> "Major"; o que a régua não conhece sai como está na ficha
-function postoPorExtenso(postoGrad: string | null | undefined): string {
+export function postoPorExtenso(postoGrad: string | null | undefined): string {
   const p = classificarPatente(postoGrad ?? null);
   return p.ordem === 99 ? (postoGrad ?? "").trim() : p.rotulo;
 }
@@ -90,6 +99,11 @@ const QUADROS: Record<string, string> = {
   QPPM: "Quadro de Praças Policiais Militares",
   QPE: "Quadro de Praças Especialistas",
 };
+
+// descrição do quadro pela sigla ("QOEM" -> "Quadro de Oficiais do Estado Maior")
+export function descricaoQuadro(sigla: string | null | undefined): string {
+  return QUADROS[(sigla ?? "").trim().toUpperCase()] ?? "";
+}
 
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
 const PARTICULAS = new Set(["DE", "DA", "DO", "DAS", "DOS", "E"]);
@@ -127,7 +141,7 @@ function trechosIdentidade(d: DadosCertidaoP1): Trecho[] {
   const out: Trecho[] = ident ? [{ t: `, ${ident}` }] : [];
   const sigla = (d.quadro ?? "").trim().toUpperCase();
   if (sigla) {
-    const desc = QUADROS[sigla];
+    const desc = (d.quadroDescricao ?? "").trim() || QUADROS[sigla];
     out.push({ t: desc ? `, pertencente ao ${desc} - (` : ", pertencente ao Quadro " });
     out.push({ t: sigla, b: true });
     if (desc) out.push({ t: ")" });
@@ -137,7 +151,8 @@ function trechosIdentidade(d: DadosCertidaoP1): Trecho[] {
 
 function montarCertidao(d: DadosCertidaoP1): Par[] {
   const vazio = (tam = 12): Par => ({ trechos: [], tam, alinhar: "centro" });
-  const regioes = ehOficial(d.postoGrad) ? "1ª, 2ª, 3ª, 4ª, 5ª e 6ª" : "1ª, 2ª, 3ª, 4ª e 5ª";
+  const seis = d.seisRegioes ?? ehCpopm(d.postoGrad);
+  const regioes = seis ? "1ª, 2ª, 3ª, 4ª, 5ª e 6ª" : "1ª, 2ª, 3ª, 4ª e 5ª";
   const corpo = { alinhar: "just" as const, recuo1: 56.7, entre: 1.5 };
 
   return [
@@ -153,7 +168,7 @@ function montarCertidao(d: DadosCertidaoP1): Par[] {
         { t: `Certifico, para os devidos fins, em cumprimento ao disposto na ${d.portaria.trim() || PORTARIA_PADRAO}, que o(a) Sr.(a) ` },
         ...trechosDoNome(d.nome, d.nomeGuerra),
         { t: ", " },
-        { t: postoPorExtenso(d.postoGrad), b: true },
+        { t: (d.postoExtenso ?? "").trim() || postoPorExtenso(d.postoGrad), b: true },
         ...trechosIdentidade(d),
         { t: ", atualmente servindo nesta Unidade Policial Militar, apresentou as certidões de “nada consta” exigidas para fins de comprovação da regularidade de sua situação jurídica e administrativa, referentes aos seguintes órgãos do Poder Judiciário:" },
       ],

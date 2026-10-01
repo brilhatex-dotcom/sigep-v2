@@ -4,11 +4,11 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { podeVerP1 } from "@/lib/encargos";
 import { periodoAtivo } from "@/lib/promocoes";
-import { ehOficial } from "@/lib/certidoes";
+import { ehCpopm } from "@/lib/certidoes";
 import { registrar } from "@/lib/auditoria";
 import {
   lerEstado, emitir, remover, configurar, proximoNumero, anoAtual, hojeISO,
-  emitidasDoPeriodo, linhasCertidaoP1,
+  emitidasDoPeriodo, linhasCertidaoP1, editar, restaurar, type CamposCertidao,
 } from "@/lib/certidaoP1Db";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +24,11 @@ export const dynamic = "force-dynamic";
    POST { acao: "remover", efetivoId }        -> tira da lista
    POST { acao: "config", portaria?, proximo? } -> portaria do texto e o
                                                  próximo número do ano
+   POST { acao: "editar", efetivoId, campos }  -> muda os dados que saem no
+                                                 documento (e o número, que só
+                                                 o P/1 troca); emite antes se
+                                                 ainda não tinha número
+   POST { acao: "restaurar", efetivoId }       -> volta aos dados da ficha
 
    Só quem responde pelo P/1 (mesma regra da Planilha Padrão).
    ========================================================================= */
@@ -52,7 +57,8 @@ async function resposta(periodo: { id: string; nome: string }, ids: string[]) {
         select: { id: true, postoGrad: true },
       })
     : [];
-  const oficiaisDoPeriodo = fichas.filter((f) => ehOficial(f.postoGrad)).map((f) => f.id);
+  // oficiais e subtenentes: os que concorrem pela CPOPM
+  const oficiaisDoPeriodo = fichas.filter((f) => ehCpopm(f.postoGrad)).map((f) => f.id);
 
   const linhas = await linhasCertidaoP1(periodo.id, [...emitidasDoPeriodo(e, periodo.id), ...ids], e);
   return {
@@ -116,6 +122,27 @@ export async function POST(req: Request) {
       if (!id) return NextResponse.json({ error: "Policial não informado." }, { status: 400 });
       await remover(periodo.id, id);
       return NextResponse.json({ ok: true });
+    }
+
+    if (acao === "editar" || acao === "restaurar") {
+      const id = String(b?.efetivoId || "").trim();
+      const f = id
+        ? await prisma.efetivo.findUnique({
+            where: { id },
+            select: { id: true, nome: true, nomeGuerra: true, postoGrad: true, matricula: true, quadro: true },
+          })
+        : null;
+      if (!f) return NextResponse.json({ error: "Policial não encontrado." }, { status: 404 });
+      if (acao === "restaurar") {
+        await restaurar(periodo.id, f.id);
+      } else {
+        const campos = (b?.campos && typeof b.campos === "object" ? b.campos : {}) as Partial<CamposCertidao>;
+        const dataNova = typeof campos.data === "string" ? campos.data : hojeISO();
+        await emitir(periodo.id, [f.id], dataNova); // sem número ainda: numera agora
+        const r = await editar(periodo.id, f, campos, { podeNumero: true, quem: quem.login });
+        if ("erro" in r) return NextResponse.json({ error: r.erro }, { status: 400 });
+      }
+      return NextResponse.json(await resposta({ id: periodo.id, nome: periodo.nome }, [f.id]));
     }
 
     if (acao === "config") {

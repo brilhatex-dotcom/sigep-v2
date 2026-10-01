@@ -50,6 +50,7 @@ export default function MinhasCertidoes({
   efetivoId,
   enviadoP1Em,
   recebidoP1Em,
+  children,
 }: {
   itens: Item[];
   total: number;
@@ -57,6 +58,8 @@ export default function MinhasCertidoes({
   efetivoId: string;
   enviadoP1Em: string | null;
   recebidoP1Em: string | null;
+  // o que mais a página quiser mostrar depois da lista (ex.: a certidão do P/1)
+  children?: React.ReactNode;
 }) {
   const router = useRouter();
   const [lista, setLista] = useState(itens);
@@ -412,6 +415,8 @@ export default function MinhasCertidoes({
           ))}
         </ul>
       </div>
+
+      {children}
 
       {/* PDF unificado */}
       <div className="ui-card p-5">
