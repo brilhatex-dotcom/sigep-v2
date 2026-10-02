@@ -6,7 +6,7 @@ import {
   BuscaMilitar, Campo, Cabecalho, BlocoAssinatura, SeletorAssinatura, BotoesDocumento,
   ESTILO_FOLHA, FOLHA_A4, dataPorExtenso, type Militar, type ModoAss,
 } from "@/components/docs/Comum";
-import { classificarPatente } from "@/lib/patentes";
+import { identificacaoMilitar as identificacao, corpoOficioJms, OFICIO_PADRAO } from "@/lib/jmsTexto";
 
 /* OFÍCIO DE APRESENTAÇÃO À JMS (aba Guia JMS e Ofício)
 
@@ -16,27 +16,16 @@ import { classificarPatente } from "@/lib/patentes";
    entao numerar automaticamente daqui criaria numero repetido com o que foi
    emitido fora do sistema. */
 
-// "Cb PM nº 369/10" — como aparece no corpo do ofício.
-function identificacao(m: { postoGrad?: string | null; numeroBarra?: string | null; quadro?: string | null }): string {
-  const p = classificarPatente(m.postoGrad ?? "");
-  const abrev = (m.postoGrad || "").trim();
-  const ehOficial = p.ordem <= 7;
-  const quadro = (m.quadro || "").trim().toUpperCase();
-  const barra = (m.numeroBarra || "").trim();
-  const base = ehOficial ? `${abrev} ${quadro || "PM"}` : `${abrev} PM`;
-  return (ehOficial || !/\d/.test(barra) ? base : `${base} nº ${barra}`).replace(/\s+/g, " ").trim();
-}
-
 export default function OficioJms() {
   const [sel, setSel] = useState<Militar | null>(null);
   // Em branco de propósito — ver comentário no topo.
   const [numero, setNumero] = useState("");
   const [ano, setAno] = useState(String(new Date().getFullYear()));
   const [dataDoc, setDataDoc] = useState(`Presidente Dutra- MA, ${dataPorExtenso()}.`);
-  const [setor, setSetor] = useState("P/1-18º BPM");
-  const [de, setDe] = useState("Ten. Cel QOPM Cmt. do 18º BPM.");
-  const [para, setPara] = useState("Ten Cel QOSPM da JMS.");
-  const [assunto, setAssunto] = useState("Apresentação de Praça PM.");
+  const [setor, setSetor] = useState(OFICIO_PADRAO.setor);
+  const [de, setDe] = useState(OFICIO_PADRAO.de);
+  const [para, setPara] = useState(OFICIO_PADRAO.para);
+  const [assunto, setAssunto] = useState(OFICIO_PADRAO.assunto);
   const [corpo, setCorpo] = useState("");
   const [comandante, setComandante] = useState("TEN CEL QOEM FLÁVIO DE CARVALHO RAMOS");
   const [modoAss, setModoAss] = useState<ModoAss>("imagem");
@@ -51,9 +40,7 @@ export default function OficioJms() {
 
   // Texto igual ao do ofício original, com a data da JMS por extenso. A
   // auxiliar ajusta na folha se o caso for outro.
-  const montarCorpo = (ident: string, nome: string, id: string, dia: string) =>
-    `Apresento a Vossa Senhoria o ${ident}- ${nome}, ID n° ${id}, do 18º BPM, ` +
-    `para ser avaliado por Junta Médica de Saúde, no dia ${dia || "___________"}.`;
+  const montarCorpo = corpoOficioJms;
 
   // "2026-05-11" -> "11 de maio de 2026"
   const diaExtenso = (iso: string) =>
@@ -81,10 +68,17 @@ export default function OficioJms() {
 
   const limpar = () => { setSel(null); setCorpo(""); setNumero(""); setDataVisita(""); setEditando(false); };
 
+  // Os campos da folha como estão agora (o que vai para o Word/PDF).
+  const dadosDoc = () => ({
+    numero, ano, dataDoc, setor, de, para, assunto, corpo,
+    comandante, cargo: "CMT DO 18º BPM", modoAss,
+  });
+
   /* O ofício não tem "Registrar" como a guia (a numeração dele é manual), mas
      o P/1 precisa poder conferir depois o que já saiu. Então ele se registra
-     sozinho na hora de EMITIR — imprimir, Word ou PDF. Reemitir no mesmo dia
-     não duplica: o servidor casa pelo militar + o dia. */
+     sozinho na hora de EMITIR — imprimir, Word ou PDF —, levando a CÓPIA da
+     folha: é ela que abre de novo na aba Emitidos. Reemitir no mesmo dia não
+     duplica: o servidor casa pelo militar + o dia. */
   const registrarEmissao = () => {
     if (!sel) return;
     fetch("/api/jms/emitidos", {
@@ -96,6 +90,7 @@ export default function OficioJms() {
         postoGrad: sel.postoGrad || "",
         matricula: sel.matricula || "",
         numero, ano, dataJms: dataVisita,
+        doc: dadosDoc(),
       }),
     }).catch(() => { /* o documento já saiu; falhar o registro não pode atrapalhar */ });
   };
@@ -126,10 +121,7 @@ export default function OficioJms() {
               <BotoesDocumento
                 tipo="oficio"
                 nomeArquivo={`oficio-jms-${(numero || "sn").replace(/\W+/g, "") || "sn"}-${ano}`}
-                dados={() => ({
-                  numero, ano, dataDoc, setor, de, para, assunto, corpo,
-                  comandante, cargo: "CMT DO 18º BPM", modoAss,
-                })}
+                dados={dadosDoc}
                 aoEmitir={registrarEmissao}
               />
               <button onClick={() => setEditando((v) => !v)}
