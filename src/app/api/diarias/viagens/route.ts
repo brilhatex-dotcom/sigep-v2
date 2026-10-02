@@ -18,7 +18,8 @@ export const dynamic = "force-dynamic";
    A ficha e o registro do ANO: cada viagem guarda o ano a que pertence, e o
    historico do policial vai se acumulando exercicio a exercicio.
 
-   GET ?idPmma=&ano= -> { viagens }   PUT { idPmma, ano, viagens } -> substitui
+   GET ?idPmma=&ano= -> { viagens }   GET ?resumo=1 -> fichas feitas (por ano)
+   PUT { idPmma, ano, viagens } -> substitui
    apenas as viagens daquele militar NAQUELE ano (admin) */
 const CHAVE = "diarias_viagens";
 
@@ -49,6 +50,36 @@ export async function GET(req: Request) {
   const q = new URL(req.url).searchParams;
   const idPmma = q.get("idPmma") || "";
   const ano = q.get("ano") || "";
+
+  /* ?resumo=1 -> as fichas já feitas: cada militar com viagem gravada, por
+     exercício, com quantas viagens e o total de diárias. É a lista "fichas
+     feitas" da aba Controle Individual. Só o P/1. */
+  if (q.get("resumo") === "1") {
+    if (!ehAdmin((session.user as any).perfil)) return NextResponse.json({ error: "Apenas o admin" }, { status: 403 });
+    const todas = ler((await prisma.config.findUnique({ where: { chave: CHAVE }, select: { valor: true } }))?.valor);
+    const grupos = new Map<string, { idPmma: string; ano: string; viagens: number; total: number }>();
+    for (const v of todas) {
+      if (!v.idPmma || !v.ano) continue;
+      const k = `${v.idPmma}|${v.ano}`;
+      const g = grupos.get(k) || { idPmma: v.idPmma, ano: v.ano, viagens: 0, total: 0 };
+      g.viagens++;
+      const n = parseFloat(String(v.qtd || "").replace(",", "."));
+      if (!isNaN(n)) g.total += n;
+      grupos.set(k, g);
+    }
+    const ids = Array.from(new Set(Array.from(grupos.values()).map((g) => g.idPmma)));
+    const fichas = ids.length
+      ? await prisma.efetivo.findMany({ where: { id: { in: ids } }, select: { id: true, postoGrad: true, nome: true, nomeGuerra: true } })
+      : [];
+    const ficha = new Map(fichas.map((f) => [f.id, f]));
+    const itens = Array.from(grupos.values()).map((g) => ({
+      ...g,
+      postoGrad: ficha.get(g.idPmma)?.postoGrad || "",
+      nome: (ficha.get(g.idPmma)?.nomeGuerra || ficha.get(g.idPmma)?.nome || g.idPmma).trim(),
+    }));
+    return NextResponse.json({ itens });
+  }
+
   if (!idPmma) return NextResponse.json({ error: "idPmma obrigatorio" }, { status: 400 });
   const lista = ler((await prisma.config.findUnique({ where: { chave: CHAVE } }))?.valor);
   const doMilitar = lista.filter((v) => v.idPmma === idPmma);

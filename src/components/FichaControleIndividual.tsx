@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Printer, Save, Loader2, Plus, Trash2, Pencil, Check, Users, ChevronDown, ChevronUp } from "lucide-react";
 import {
   BuscaMilitar, BuscaMilitarMultiplo, Campo, Cabecalho, BlocoAssinatura, SeletorAssinatura,
   ESTILO_FOLHA, FOLHA_A4, dataPorExtenso, type Militar, type ModoAss,
 } from "@/components/docs/Comum";
+import ListaFeitos, { type ItemFeito } from "@/components/docs/ListaFeitos";
 
 /* FICHA DE CONTROLE INDIVIDUAL DE DIÁRIAS (área de Diárias)
 
@@ -20,7 +21,10 @@ import {
 
    A assinatura do Comandante sai EM BRANCO por padrao, com a opcao de carimbo
    da avancada SIGEP ou de reservar o espaco para assinar no Gov.br — mesmo
-   mecanismo dos memorandos. */
+   mecanismo dos memorandos.
+
+   As fichas já feitas (militar com viagem gravada, por exercício) ficam na
+   lista logo abaixo do buscador; "Abrir" carrega a ficha daquele ano. */
 
 type Viagem = { id: string; bgNota: string; processo: string; trajeto: string; periodo: string; qtd: string };
 type Pessoais = { nome: string; matricula: string; idPm: string; cpf: string; lotacao: string };
@@ -45,6 +49,39 @@ export default function FichaControleIndividual() {
   const [carregando, setCarregando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState("");
+  // muda a cada ficha aberta: a folha remonta (os campos editáveis guardam texto)
+  const [versaoFolha, setVersaoFolha] = useState(0);
+
+  // ---- fichas já feitas (por exercício) ----
+  type Feita = { idPmma: string; ano: string; viagens: number; total: number; postoGrad: string; nome: string };
+  const [feitas, setFeitas] = useState<Feita[]>([]);
+  const [carregandoFeitas, setCarregandoFeitas] = useState(true);
+  const [erroFeitas, setErroFeitas] = useState("");
+  const [abrindo, setAbrindo] = useState<string | null>(null);
+
+  const carregarFeitas = useCallback(async () => {
+    setCarregandoFeitas(true); setErroFeitas("");
+    try {
+      const r = await fetch("/api/diarias/viagens?resumo=1");
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setErroFeitas(d?.error || "Falha ao carregar as fichas feitas."); return; }
+      setFeitas(Array.isArray(d?.itens) ? d.itens : []);
+    } catch { setErroFeitas("Falha ao carregar as fichas feitas."); }
+    finally { setCarregandoFeitas(false); }
+  }, []);
+  useEffect(() => { carregarFeitas(); }, [carregarFeitas]);
+
+  const fmtTotal = (n: number) => (Number.isInteger(n) ? String(n).padStart(2, "0") : n.toFixed(1).replace(".", ","));
+  const itensFeitos: ItemFeito[] = feitas
+    .slice()
+    .sort((a, b) => `${a.postoGrad} ${a.nome}`.localeCompare(`${b.postoGrad} ${b.nome}`))
+    .map((f) => ({
+      id: `${f.idPmma}|${f.ano}`,
+      grupo: f.ano,
+      grupoRotulo: `Exercício ${f.ano}`,
+      titulo: [f.postoGrad, f.nome].filter(Boolean).join(" ") || f.idPmma,
+      etiqueta: `${f.viagens} viage${f.viagens === 1 ? "m" : "ns"}${f.total ? ` · ${fmtTotal(f.total)} diária(s)` : ""}`,
+    }));
 
   // ---- Viagem em grupo: registra a MESMA viagem para vários militares de uma
   // vez, sem precisar redigitar trajeto/processo para cada um. ----
@@ -74,12 +111,16 @@ export default function FichaControleIndividual() {
     setViagens(lista.length ? lista : [novaViagem()]);
   };
 
-  const escolher = async (m: Militar) => {
+  /* Abre a ficha de um militar num exercício. O buscador e a lista das fichas
+     feitas passam por aqui. */
+  const abrirFicha = async (m: Militar, anoAlvo: string) => {
     setMsg(""); setCarregando(true); setEditando(false);
     try {
       const rf = await fetch(`/api/efetivo/${encodeURIComponent(m.id)}`);
       const f = rf.ok ? await rf.json() : {};
-      setSel(m);
+      setSel({ ...m, postoGrad: m.postoGrad ?? f.postoGrad, nome: m.nome ?? f.nome, nomeGuerra: m.nomeGuerra ?? f.nomeGuerra, matricula: m.matricula ?? f.matricula });
+      setAno(anoAlvo);
+      setVersaoFolha((v) => v + 1);
       setPes({
         // No documento original o nome vem SEM posto, só o nome civil.
         nome: String(f.nome || "").toUpperCase(),
@@ -90,9 +131,18 @@ export default function FichaControleIndividual() {
         cpf: f.cpf || "",
         lotacao: f.lotacao || "18º BPM",
       });
-      await carregarViagens(m.id, ano);
+      await carregarViagens(m.id, anoAlvo);
     } catch { setMsg("Falha ao carregar a ficha do militar."); }
     finally { setCarregando(false); }
+  };
+  const escolher = (m: Militar) => abrirFicha(m, ano);
+
+  const abrirFeita = async (i: ItemFeito) => {
+    const [idPmma, anoAlvo] = i.id.split("|");
+    setAbrindo(i.id);
+    try { await abrirFicha({ id: idPmma } as Militar, anoAlvo); }
+    finally { setAbrindo(null); }
+    setTimeout(() => document.getElementById("folha-controle")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
   };
 
   const trocarAno = async (novo: string) => {
@@ -131,6 +181,7 @@ export default function FichaControleIndividual() {
       });
       if (!r.ok) { const d = await r.json().catch(() => ({})); setMsg(d?.error || "Falha ao salvar as viagens."); return; }
       setAnosComRegistro((a) => (a.includes(ano) ? a : [ano, ...a].sort().reverse()));
+      carregarFeitas();
       setMsg(`✅ ${uteis.length} viagem(ns) gravadas no exercício ${ano}.`);
     } catch { setMsg("Falha ao salvar as viagens."); }
     finally { setSalvando(false); }
@@ -153,6 +204,7 @@ export default function FichaControleIndividual() {
       // Se o militar aberto na tela faz parte do grupo e do mesmo ano, recarrega
       // a ficha dele para já mostrar a viagem nova.
       if (sel && ano === grupoAno && grupoSel.some((m) => m.id === sel.id)) await carregarViagens(sel.id, ano);
+      carregarFeitas();
       setGrupoSel([]);
       setGrupoCampos({ bgNota: "", processo: "", trajeto: "", periodo: "", qtd: "" });
     } catch { setGrupoMsg("Falha ao registrar a viagem em grupo."); }
@@ -272,11 +324,24 @@ export default function FichaControleIndividual() {
         {!sel && <p className="mt-2 text-xs text-[#94A3B8]">Busque o militar. Os dados pessoais vêm do cadastro; as viagens ficam gravadas por exercício e formam o histórico do policial.</p>}
       </div>
 
+      <ListaFeitos
+        titulo="Fichas de controle feitas"
+        itens={itensFeitos}
+        carregando={carregandoFeitas}
+        erro={erroFeitas}
+        vazio="Nenhuma ficha ainda. Ela entra aqui quando você salva as viagens de um militar."
+        abertaDeInicio
+        onAbrir={abrirFeita}
+        onAtualizar={carregarFeitas}
+        abrindo={abrindo}
+      />
+
       {carregando && <p className="text-center text-sm text-[#94A3B8] print:hidden">Carregando a ficha...</p>}
 
       {sel && !carregando && (
         <div
-          key={`${sel.id}-${ano}`}
+          id="folha-controle"
+          key={`${sel.id}-${ano}-${versaoFolha}`}
           className="folha-diaria mx-auto bg-white text-black shadow-2xl print:shadow-none"
           style={{ ...FOLHA_A4, outline: editando ? "2px solid #f59e0b" : "none" }}
           contentEditable={editando}

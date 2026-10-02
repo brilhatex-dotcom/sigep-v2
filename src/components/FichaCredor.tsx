@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Printer, Save, Loader2, RotateCcw } from "lucide-react";
 import { classificarPatente } from "@/lib/patentes";
 import { BuscaMilitar, Campo, Cabecalho, ESTILO_FOLHA, FOLHA_A4, type Militar } from "@/components/docs/Comum";
+import ListaFeitos, { dataBR, mesPorExtenso, type ItemFeito } from "@/components/docs/ListaFeitos";
+import { confirmar } from "@/components/Avisos";
 
 /* FICHA DE CADASTRO DE CREDOR (área de Diárias)
 
@@ -15,8 +17,10 @@ import { BuscaMilitar, Campo, Cabecalho, ESTILO_FOLHA, FOLHA_A4, type Militar } 
    Os campos sao editaveis na folha. "Salvar no cadastro" devolve as correcoes
    para a ficha do militar, entao o dado so precisa ser acertado uma vez.
 
-   A ficha NAO e guardada: como todo dado vem do cadastro, ela pode ser gerada
-   de novo a qualquer momento, identica. */
+   Cada ficha IMPRESSA entra na lista "Fichas de credor feitas", logo abaixo
+   do buscador, com a cópia da folha como saiu (CPF e dados bancários
+   cifrados, como no cadastro). "Abrir" põe a ficha de volta na tela, pronta
+   para conferir ou reimprimir. */
 
 // Campos atomicos da ficha, que existem 1-para-1 no cadastro do efetivo e por
 // isso podem voltar para la. O NOME fica de fora de proposito: ele e montado a
@@ -63,6 +67,78 @@ export default function FichaCredor() {
   const [carregando, setCarregando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState("");
+
+  // ---- fichas já feitas ----
+  type Feita = { id: string; idPmma: string; postoGrad: string; nome: string; criadoEm: string; horario: string; criadoPor: string };
+  const [feitas, setFeitas] = useState<Feita[]>([]);
+  const [carregandoFeitas, setCarregandoFeitas] = useState(true);
+  const [erroFeitas, setErroFeitas] = useState("");
+  const [abrindo, setAbrindo] = useState<string | null>(null);
+  // muda a cada ficha aberta: a folha remonta (os campos editáveis guardam texto)
+  const [versaoFolha, setVersaoFolha] = useState(0);
+
+  const carregarFeitas = useCallback(async () => {
+    setCarregandoFeitas(true); setErroFeitas("");
+    try {
+      const r = await fetch("/api/diarias/credores");
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setErroFeitas(d?.error || "Falha ao carregar as fichas feitas."); return; }
+      setFeitas(Array.isArray(d?.itens) ? d.itens : []);
+    } catch { setErroFeitas("Falha ao carregar as fichas feitas."); }
+    finally { setCarregandoFeitas(false); }
+  }, []);
+  useEffect(() => { carregarFeitas(); }, [carregarFeitas]);
+
+  const itensFeitos: ItemFeito[] = feitas.map((f) => ({
+    id: f.id,
+    grupo: (f.criadoEm || "").slice(0, 7),
+    grupoRotulo: f.criadoEm ? mesPorExtenso(f.criadoEm.slice(0, 7)) : "sem data",
+    titulo: [f.postoGrad, f.nome].filter(Boolean).join(" ") || "—",
+    detalhe: `feita em ${dataBR(f.criadoEm)}${f.horario ? ` às ${f.horario}` : ""}${f.criadoPor ? ` por ${f.criadoPor}` : ""}`,
+  }));
+
+  // Imprimir registra a ficha (com a cópia da folha) na lista das feitas.
+  const imprimir = () => {
+    if (sel) {
+      fetch("/api/diarias/credores", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idPmma: sel.id, nome, campos }),
+      }).then(() => carregarFeitas()).catch(() => { /* a ficha já saiu; o registro não pode atrapalhar */ });
+    }
+    window.print();
+  };
+
+  // Abrir uma ficha feita: a folha volta como saiu; o "original" é o cadastro
+  // de hoje, então o que estiver diferente aparece para salvar no cadastro.
+  const abrirFeita = async (i: ItemFeito) => {
+    setAbrindo(i.id); setMsg("");
+    try {
+      const r = await fetch(`/api/diarias/credores?id=${encodeURIComponent(i.id)}`);
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsg(d?.error || "Não foi possível abrir a ficha."); return; }
+      const rf = await fetch(`/api/efetivo/${encodeURIComponent(d.idPmma)}`);
+      const f = rf.ok ? await rf.json() : {};
+      const doCadastro: Campos = {
+        matricula: f.matricula || "", cpf: f.cpf || "",
+        endereco: f.endereco || "", bairro: f.bairro || "", cidade: f.cidade || "",
+        telefone: f.telefone || "", banco: f.banco || "", agencia: f.agencia || "",
+        conta: f.conta || "",
+      };
+      setSel({ id: d.idPmma, postoGrad: f.postoGrad, numeroBarra: f.numeroBarra, nome: f.nome, nomeGuerra: f.nomeGuerra, matricula: f.matricula } as Militar);
+      setNome(d.nome || nomeCredor(f));
+      setCampos({ ...VAZIO, ...(d.campos || {}) });
+      setOriginal(doCadastro);
+      setVersaoFolha((v) => v + 1);
+      setTimeout(() => document.getElementById("folha-credor")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+    } catch { setMsg("Não foi possível abrir a ficha."); }
+    finally { setAbrindo(null); }
+  };
+
+  const apagarFeita = async (i: ItemFeito) => {
+    if (!await confirmar(`Tirar da lista a ficha de ${i.titulo}?`, { rotuloOk: "Tirar", perigo: true })) return;
+    const r = await fetch(`/api/diarias/credores?id=${encodeURIComponent(i.id)}`, { method: "DELETE" }).catch(() => null);
+    if (r?.ok) setFeitas((l) => l.filter((x) => x.id !== i.id));
+  };
 
   // Escolher o militar puxa a ficha COMPLETA (a lista do buscador nao traz
   // endereco nem dados bancarios) e preenche a folha.
@@ -117,7 +193,7 @@ export default function FichaCredor() {
 
         {sel && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110">
+            <button onClick={imprimir} className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110">
               <Printer className="h-4 w-4" /> Imprimir
             </button>
             <button onClick={salvar} disabled={salvando || !mudados.length}
@@ -137,13 +213,26 @@ export default function FichaCredor() {
         {!sel && <p className="mt-2 text-xs text-[#94A3B8]">Busque o militar e a ficha sai preenchida com os dados do cadastro. Dá para ajustar qualquer campo na folha antes de imprimir.</p>}
       </div>
 
+      <ListaFeitos
+        titulo="Fichas de credor feitas"
+        itens={itensFeitos}
+        carregando={carregandoFeitas}
+        erro={erroFeitas}
+        vazio="Nenhuma ficha feita ainda. Ela entra aqui quando você imprime."
+        abertaDeInicio
+        onAbrir={abrirFeita}
+        onApagar={apagarFeita}
+        onAtualizar={carregarFeitas}
+        abrindo={abrindo}
+      />
+
       {carregando && <p className="text-center text-sm text-[#94A3B8] print:hidden">Carregando a ficha...</p>}
 
       {/* ----- a folha ----- */}
       {sel && !carregando && (
         // key: ao trocar de militar a folha remonta, senão os campos
         // contentEditable guardariam o texto do militar anterior.
-        <div key={sel.id} className="folha-diaria mx-auto bg-white text-black shadow-2xl print:shadow-none" style={FOLHA_A4}>
+        <div id="folha-credor" key={`${sel.id}-${versaoFolha}`} className="folha-diaria mx-auto bg-white text-black shadow-2xl print:shadow-none" style={FOLHA_A4}>
           {/* moldura: o documento original é uma tabela de borda fina em volta de tudo */}
           <div style={{ border: "0.5pt solid #000", padding: "4mm 5mm" }}>
             <Cabecalho />
