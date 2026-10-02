@@ -1,71 +1,74 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { usePulso } from "@/lib/sincronia";
 
-/* Atualização "ao vivo" (global), agora econômica.
+/* Atualização AO VIVO entre PCs (global).
 
-   Antes: router.refresh() de 20 em 20 segundos em TODA tela, para mudanças
-   feitas em outro PC aparecerem sozinhas. Só que cada refresh re-renderiza a
-   página NO SERVIDOR — ou seja, refaz TODAS as consultas da tela no banco. No
-   Dashboard isso era a ficha completa de todos os militares: perto de 1 MB por
-   refresh, 180 refreshes por hora de uso. Era o maior gasto do "network
-   transfer" do Neon (cota de 5 GB/mês).
+   Antes: router.refresh() de 20 em 20 segundos em TODA tela, mudasse algo ou
+   não. Cada refresh re-renderiza a página NO SERVIDOR — refaz todas as
+   consultas da tela no banco; no Dashboard era a ficha completa de todo o
+   efetivo. Era o maior gasto do "network transfer" do Neon (5 GB/mês).
 
-   Agora a tela atualiza:
-     · quando a pessoa VOLTA para ela (trocou de aba/janela, desbloqueou o
-       celular) depois de pelo menos 3 minutos fora;
-     · e, com alguém mexendo nela, no máximo de 10 em 10 minutos.
-   O que a própria pessoa faz aparece na hora (as ações já atualizam a página);
-   o que outro PC mudou aparece ao voltar, ao navegar ou nesse ciclo. Telas que
-   precisam de tempo real de verdade (a escala) têm o próprio pulso, leve.
+   Agora: o pulso do sistema (lib/sincronia, de 3 em 3 s) traz o CARIMBO DE
+   MUDANÇA (lib/prisma), que muda sempre que alguém grava algo em qualquer PC.
+   Mudou -> a tela recarrega na hora. Não mudou -> nada acontece e o banco não
+   manda nada. Aba escondida que perdeu uma mudança recarrega ao voltar.
 
    O Next preserva o estado dos client components no refresh, então
    formulários em preenchimento NÃO são apagados. */
 
-const FORA_MIN_MS = 3 * 60 * 1000;   // ficou pelo menos isto fora da tela
-const CICLO_MS = 10 * 60 * 1000;     // com alguém na frente, no máximo isto
-const OCIOSO_MS = 15 * 60 * 1000;    // parado há mais que isto = ninguém na frente
-const EVENTOS = ["mousedown", "keydown", "scroll", "touchstart", "wheel"] as const;
+const INTERVALO_MIN_MS = 3000;   // rajada de gravações: no máximo um refresh a cada 3 s
+/* Trava de segurança: se a tela recarregar demais num minuto (gravação em
+   série, importação em lote...), passa a recarregar no máximo de 30 em 30 s
+   até a poeira baixar. */
+const RAJADA = 8;
+const INTERVALO_RAJADA_MS = 30_000;
 
 export default function LiveRefresh() {
   const router = useRouter();
+  const visto = useRef<string | null>(null);
+  const pendente = useRef(false);
+  const ultimo = useRef(0);
+  const recentes = useRef<number[]>([]);
+  const agendado = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const recarregar = useRef(() => {});
+  recarregar.current = () => {
+    if (document.hidden) { pendente.current = true; return; }   // ao voltar
+    pendente.current = false;
+    const agora = Date.now();
+    recentes.current = recentes.current.filter((t) => agora - t < 60_000);
+    const minimo = recentes.current.length >= RAJADA ? INTERVALO_RAJADA_MS : INTERVALO_MIN_MS;
+    const espera = ultimo.current + minimo - agora;
+    if (espera > 0) {
+      if (!agendado.current) {
+        agendado.current = setTimeout(() => { agendado.current = null; recarregar.current(); }, espera);
+      }
+      return;
+    }
+    ultimo.current = agora;
+    recentes.current.push(agora);
+    router.refresh();
+  };
+
+  usePulso((p) => {
+    if (!p.v) return;
+    if (visto.current === null) { visto.current = p.v; return; }   // ponto de partida
+    if (p.v === visto.current) return;
+    visto.current = p.v;
+    recarregar.current();
+  });
 
   useEffect(() => {
-    let ultimaAtividade = Date.now();
-    let ultimoRefresh = Date.now();
-    // aberta já em segundo plano (ex.: nova aba): conta como "fora" desde agora
-    let saiuEm: number | null = document.hidden ? Date.now() : null;
-
-    const refrescar = () => { ultimoRefresh = Date.now(); router.refresh(); };
-    const marcar = () => { ultimaAtividade = Date.now(); };
-
-    const aoMudar = () => {
-      if (document.hidden) {
-        if (saiuEm === null) saiuEm = Date.now();
-        return;
-      }
-      const saiu = saiuEm;
-      saiuEm = null;
-      marcar();
-      if (saiu !== null && Date.now() - saiu >= FORA_MIN_MS) refrescar();
-    };
-
-    const iv = setInterval(() => {
-      if (document.hidden) return;
-      const agora = Date.now();
-      if (agora - ultimaAtividade > OCIOSO_MS) return;   // ninguém na frente
-      if (agora - ultimoRefresh >= CICLO_MS) refrescar();
-    }, 60 * 1000);
-
-    for (const e of EVENTOS) window.addEventListener(e, marcar, { passive: true });
-    document.addEventListener("visibilitychange", aoMudar);
+    const aoVoltar = () => { if (!document.hidden && pendente.current) recarregar.current(); };
+    document.addEventListener("visibilitychange", aoVoltar);
     return () => {
-      clearInterval(iv);
-      for (const e of EVENTOS) window.removeEventListener(e, marcar);
-      document.removeEventListener("visibilitychange", aoMudar);
+      document.removeEventListener("visibilitychange", aoVoltar);
+      if (agendado.current) clearTimeout(agendado.current);
     };
-  }, [router]);
+  }, []);
 
   return null;
 }

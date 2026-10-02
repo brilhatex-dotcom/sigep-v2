@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { gerarHash } from "@/lib/senha";
 import { prisma } from "@/lib/prisma";
 import { registrar } from "@/lib/auditoria";
+import { criarLoginPolicial, SENHA_INICIAL } from "@/lib/loginPolicial";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,8 @@ export const dynamic = "force-dynamic";
      -> reseta a senha daquele policial DE VOLTA para o ID e marca
         precisaTrocar = true (ele tera que criar senha nova no proximo acesso).
         Tambem zera tentativas/bloqueio. Nunca mexe em admin.
+   POST { efetivoId, criar: true }
+     -> cria o login de quem nao tem (login = ID, senha 12345678), so dele.
    ========================================================================= */
 
 function ehAdmin(perfil: string | null | undefined): boolean {
@@ -90,6 +93,30 @@ export async function POST(req: Request) {
   try { body = await req.json(); } catch {}
   const efetivoId = String(body.efetivoId || "");
   if (!efetivoId) return NextResponse.json({ error: "Informe o militar" }, { status: 400 });
+
+  /* { efetivoId, criar: true } -> cria o login de quem está "(sem login)", só
+     dele (a padronização em massa reseta a senha de todo mundo). */
+  if (body.criar === true) {
+    try {
+      const ficha = await prisma.efetivo.findUnique({
+        where: { id: efetivoId },
+        select: { postoGrad: true, nome: true, nomeGuerra: true },
+      });
+      if (!ficha) return NextResponse.json({ error: "Militar não encontrado" }, { status: 404 });
+      const r = await criarLoginPolicial(efetivoId);
+      if (!r.ok) return NextResponse.json({ error: r.erro }, { status: 409 });
+      await registrar({
+        acao: "criar_login",
+        alvo: efetivoId,
+        alvoNome: [ficha.postoGrad || "", (ficha.nomeGuerra || ficha.nome || "")].filter(Boolean).join(" ").trim(),
+        detalhe: `Login ${r.login} ${r.religado ? "religado à ficha" : "criado"}; senha inicial ${SENHA_INICIAL}, troca obrigatória no 1º acesso`,
+      });
+      return NextResponse.json({ ok: true, criado: true, login: r.login, senhaInicial: SENHA_INICIAL });
+    } catch (err) {
+      console.error("[POST resetar-senha criar]", err);
+      return NextResponse.json({ error: "Falha ao criar o login" }, { status: 500 });
+    }
+  }
 
   try {
     const usuario = await prisma.usuario.findFirst({ where: { refEfetivo: efetivoId } });
