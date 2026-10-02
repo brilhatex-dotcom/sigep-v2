@@ -6,7 +6,7 @@ import {
   BuscaMilitar, Campo, Cabecalho, BlocoAssinatura, SeletorAssinatura, BotoesDocumento,
   ESTILO_FOLHA, FOLHA_A4, brData, type Militar, type ModoAss,
 } from "@/components/docs/Comum";
-import { classificarPatente } from "@/lib/patentes";
+import { identificacaoMilitar, GUIA_PADRAO } from "@/lib/jmsTexto";
 
 /* GUIA DE ENCAMINHAMENTO MÉDICO (aba Guia JMS e Ofício)
 
@@ -21,32 +21,23 @@ import { classificarPatente } from "@/lib/patentes";
    o numero fica gravado e a reimpressao sai sempre igual. */
 
 // "Cb. PM nº 369/10" — como aparece na linha "Graduação:" do documento.
-function graduacao(m: { postoGrad?: string | null; numeroBarra?: string | null; quadro?: string | null }): string {
-  const p = classificarPatente(m.postoGrad ?? "");
-  const abrev = (m.postoGrad || "").trim();
-  const ehOficial = p.ordem <= 7;
-  const quadro = (m.quadro || "").trim().toUpperCase();
-  const barra = (m.numeroBarra || "").trim();
-  // Oficial leva o quadro e nao tem numeracao; praca leva "PM" e o nº da barra.
-  const base = ehOficial ? `${abrev} ${quadro || "PM"}` : `${abrev} PM`;
-  return (ehOficial || !/\d/.test(barra) ? base : `${base} nº ${barra}`).replace(/\s+/g, " ").trim();
-}
+const graduacao = identificacaoMilitar;
 
 export default function GuiaEncaminhamento() {
   const anoAtual = String(new Date().getFullYear());
   const [sel, setSel] = useState<Militar | null>(null);
   const [numero, setNumero] = useState("");
   const [registrada, setRegistrada] = useState(false);
+  // id do registro da guia (para a cópia acompanhar a folha impressa depois)
+  const [guiaId, setGuiaId] = useState<string | null>(null);
   const [ano, setAno] = useState(anoAtual);
   const [nome, setNome] = useState("");
   const [grad, setGrad] = useState("");
   const [matricula, setMatricula] = useState("");
   const [idPm, setIdPm] = useState("");
   const [dataVisita, setDataVisita] = useState("");
-  const [informacao, setInformacao] = useState(
-    "O citado policial militar encontra-se com problemas de saúde, necessitando homologar atestado médico, em anexo."
-  );
-  const [cidadeParecer, setCidadeParecer] = useState("São Luis - MA, ___ / ___/ ___");
+  const [informacao, setInformacao] = useState(GUIA_PADRAO.informacao);
+  const [cidadeParecer, setCidadeParecer] = useState(GUIA_PADRAO.cidadeParecer);
   const [comandante, setComandante] = useState("TEN CEL QOPM FLÁVIO DE CARVALHO RAMOS");
   const [modoAss, setModoAss] = useState<ModoAss>("imagem");
   const [editando, setEditando] = useState(false);
@@ -97,7 +88,7 @@ export default function GuiaEncaminhamento() {
   };
 
   const escolher = async (m: Militar) => {
-    setMsg(""); setCarregando(true); setEditando(false); setRegistrada(false);
+    setMsg(""); setCarregando(true); setEditando(false); setRegistrada(false); setGuiaId(null);
     try {
       const r = await fetch(`/api/efetivo/${encodeURIComponent(m.id)}`);
       const f = r.ok ? await r.json() : {};
@@ -113,21 +104,40 @@ export default function GuiaEncaminhamento() {
 
   const limpar = () => {
     setSel(null); setNome(""); setGrad(""); setMatricula(""); setIdPm("");
-    setDataVisita(""); setRegistrada(false); setMsg(""); setEditando(false);
+    setDataVisita(""); setRegistrada(false); setGuiaId(null); setMsg(""); setEditando(false);
+  };
+
+  // Os campos da folha como estão agora (o que vai para o Word/PDF).
+  const dadosDoc = () => ({
+    numero, ano, dataVisita: brData(dataVisita),
+    nome, grad, matricula, idPm, informacao, cidadeParecer,
+    comandante, cargo: "CMT DO 18º BPM", modoAss,
+  });
+
+  /* Guia já registrada e emitida de novo (imprimir/Word/PDF), talvez depois de
+     ajustada na folha: a cópia guardada passa a ser esta, a que saiu. */
+  const atualizarCopia = () => {
+    if (!guiaId) return;
+    fetch("/api/jms/emitidos", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: guiaId, doc: dadosDoc() }),
+    }).catch(() => { /* o documento já saiu; a cópia fica a do registro */ });
   };
 
   // Consome o número: a partir daqui ele é da guia e não volta para a fila.
+  // Leva junto a cópia da folha, que abre de novo na aba Emitidos.
   const registrar = async () => {
     if (!sel || registrada) return;
     setRegistrando(true); setMsg("");
     try {
       const r = await fetch("/api/jms/guias", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idPmma: sel.id, ano, nome, dataVisita }),
+        body: JSON.stringify({ idPmma: sel.id, ano, nome, dataVisita, doc: dadosDoc() }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { setMsg(d?.error || "Falha ao registrar a guia."); return; }
       setNumero(String(d.guia.numero).padStart(3, "0"));
+      setGuiaId(String(d.guia.id || "") || null);
       setRegistrada(true);
       setMsg(`✅ Guia nº ${String(d.guia.numero).padStart(3, "0")}/${ano} registrada.`);
     } catch { setMsg("Falha ao registrar a guia."); }
@@ -191,11 +201,8 @@ export default function GuiaEncaminhamento() {
               <BotoesDocumento
                 tipo="guia"
                 nomeArquivo={`guia-jms-${(numero || "sn").replace(/\W+/g, "") || "sn"}-${ano}`}
-                dados={() => ({
-                  numero, ano, dataVisita: brData(dataVisita),
-                  nome, grad, matricula, idPm, informacao, cidadeParecer,
-                  comandante, cargo: "CMT DO 18º BPM", modoAss,
-                })}
+                dados={dadosDoc}
+                aoEmitir={atualizarCopia}
               />
               <button onClick={registrar} disabled={registrando || registrada}
                 title={registrada ? "Esta guia já consumiu o número" : "Consome o número e guarda a guia no registro do ano"}

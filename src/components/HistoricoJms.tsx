@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronRight, FileText, Stethoscope, Loader2, Trash2, RefreshCw, Inbox } from "lucide-react";
+import { ChevronRight, FileText, Stethoscope, Loader2, Trash2, RefreshCw, Inbox, Eye, FileType2 } from "lucide-react";
 import { avisar, confirmar } from "@/components/Avisos";
 
 /* Aba EMITIDOS da tela Guia JMS e Ofício: o que já foi feito, agrupado por
@@ -9,14 +9,35 @@ import { avisar, confirmar } from "@/components/Avisos";
    com o nome de cada militar — é assim que o P/1 confere "o ofício do Cb
    Moura eu fiz semana passada?".
 
-   O mês corrente já nasce aberto, que é o que quase sempre se quer ver. */
+   O mês corrente já nasce aberto, que é o que quase sempre se quer ver.
+
+   Cada linha abre o documento de novo: "Abrir" mostra o PDF numa aba nova e
+   "Word" baixa o .docx. O que foi emitido depois que o sistema passou a
+   guardar a cópia sai exatamente como foi; os mais antigos são refeitos com
+   os dados do registro e do cadastro. */
 
 type Item = {
   id: string; tipo: "oficio" | "guia";
   idPmma: string; nome: string; postoGrad: string;
   numero: string; ano: string; dataJms: string;
   criadoEm: string; criadoPor: string;
+  temCopia?: boolean;
 };
+
+const urlDocumento = (id: string, fmt: "pdf" | "docx") =>
+  `/api/jms/emitidos/documento?id=${encodeURIComponent(id)}&fmt=${fmt}${fmt === "pdf" ? "&ver=1" : ""}`;
+
+function abrir(id: string) {
+  window.open(urlDocumento(id, "pdf"), "_blank", "noopener");
+}
+function baixarWord(id: string) {
+  const a = document.createElement("a");
+  a.href = urlDocumento(id, "docx");
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
 
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 const mesPorExtenso = (chave: string) => `${MESES[Number(chave.slice(5, 7)) - 1] || "?"} de ${chave.slice(0, 4)}`;
@@ -115,6 +136,11 @@ export default function HistoricoJms() {
         </button>
       </div>
 
+      <p className="mb-3 text-[11px] text-[#7e8b99]">
+        Toque em <b className="text-[#D4AF37]">Abrir</b> para ver o documento ou em <b className="text-white">Word</b> para baixar.
+        Os emitidos a partir de agora abrem exatamente como saíram; os anteriores são refeitos com os dados do registro e do cadastro.
+      </p>
+
       {carregando ? (
         <p className="flex items-center gap-2 py-8 text-sm text-[#94A3B8]"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</p>
       ) : erro ? (
@@ -170,6 +196,20 @@ export default function HistoricoJms() {
                           <span className="ml-auto text-xs text-[#7e8b99]">
                             feito em {brData(i.criadoEm)}{i.criadoPor ? ` por ${i.criadoPor}` : ""}
                           </span>
+                          <button
+                            onClick={() => abrir(i.id)}
+                            title={i.temCopia ? "Abrir o documento (PDF) como foi emitido" : "Abrir o documento (PDF) — refeito com os dados do registro e do cadastro"}
+                            className="inline-flex items-center gap-1 rounded-md border border-[#D4AF37]/40 px-2 py-1 text-xs font-medium text-[#D4AF37] transition hover:bg-[#D4AF37]/10"
+                          >
+                            <Eye className="h-3.5 w-3.5" /> Abrir
+                          </button>
+                          <button
+                            onClick={() => baixarWord(i.id)}
+                            title="Baixar em Word (.docx)"
+                            className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs text-white transition hover:bg-white/5"
+                          >
+                            <FileType2 className="h-3.5 w-3.5" /> Word
+                          </button>
                           {i.tipo === "oficio" && (
                             <button
                               onClick={() => apagar(i)}

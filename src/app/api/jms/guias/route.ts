@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import crypto from "crypto";
+import { guardarCopia, limparDados } from "@/lib/jmsDocumento";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,8 @@ export const dynamic = "force-dynamic";
    limpo, a nao ser que o admin diga outra coisa.
 
    GET ?ano=2026 -> { guias, proximo, ultimaForaDoSistema }
-   POST          -> registra a guia e devolve o numero
+   POST          -> registra a guia e devolve o numero ({ doc } = a folha,
+                    guardada como cópia para abrir depois em Emitidos)
    PUT  { ano, ultimaForaDoSistema } -> ajusta o ponto de partida do ano */
 const CHAVE = "jms_guias";
 const CHAVE_INICIO = "jms_guias_inicio";
@@ -118,6 +120,13 @@ export async function POST(req: Request) {
     };
     lista.push(guia);
     await salvar(lista);
+    /* Cópia da folha (com o número que acabou de ser consumido), para abrir de
+       novo na aba Emitidos. Falhar aqui não desfaz o registro da guia. */
+    if (b?.doc && typeof b.doc === "object") {
+      try {
+        await guardarCopia(guia.id, "guia", { ...limparDados(b.doc), numero: String(guia.numero).padStart(3, "0"), ano });
+      } catch (e) { console.error("[guias] copia", e); }
+    }
     return NextResponse.json({ ok: true, guia, proximo: proximoNumero(lista, ano, inicios[ano] || 0) });
   } catch (err) {
     console.error("[POST /api/jms/guias]", err);

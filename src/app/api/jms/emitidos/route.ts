@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import crypto from "crypto";
+import { guardarCopia, idsComCopia, limparDados } from "@/lib/jmsDocumento";
 
 export const dynamic = "force-dynamic";
 
@@ -20,8 +21,14 @@ export const dynamic = "force-dynamic";
    Reemitir o mesmo ofício no MESMO dia não cria linha nova: a chave é o
    militar + o dia. Em outro dia é outro ofício, e entra separado.
 
-   GET ?ano=2026 -> { itens }  (mais recentes primeiro)
-   POST { idPmma, nome, ... }  -> registra/atualiza o ofício do dia
+   Cada registro guarda também uma CÓPIA dos campos da folha no momento em
+   que o documento saiu (lib/jmsDocumento) — é o que deixa abrir de novo o
+   documento em /api/jms/emitidos/documento.
+
+   GET ?ano=2026 -> { itens }  (mais recentes primeiro; temCopia por item)
+   POST { idPmma, nome, ..., doc? }  -> registra/atualiza o ofício do dia
+   PATCH { id, doc }           -> atualiza a cópia de um registro (a guia
+                                  reimpressa depois de editada)
    DELETE ?id=...              -> apaga um registro de OFÍCIO (a guia não sai
                                   por aqui: o número dela já foi protocolado) */
 
@@ -42,6 +49,7 @@ export type ItemEmitido = {
   idPmma: string; nome: string; postoGrad: string;
   numero: string; ano: string; dataJms: string;
   criadoEm: string; criadoPor: string;
+  temCopia?: boolean; // abre exatamente como saiu (senão é refeito pelo cadastro)
 };
 
 function ehAdmin(perfil?: string | null): boolean {
@@ -106,6 +114,9 @@ export async function GET(req: Request) {
     .filter((i) => !ano || (i.criadoEm || "").slice(0, 4) === ano)
     .sort((a, b) => (b.criadoEm || "").localeCompare(a.criadoEm || ""));
 
+  const comCopia = await idsComCopia(itens.map((i) => i.id));
+  for (const i of itens) i.temCopia = comCopia.has(i.id);
+
   return NextResponse.json({ itens });
 }
 
@@ -133,11 +144,16 @@ export async function POST(req: Request) {
       dataJms: String(b?.dataJms || "").trim(),
       criadoPor: String(u.name || "").trim(),
     };
-    if (jaTem) Object.assign(jaTem, dados);
-    else oficios.push({ id: crypto.randomUUID(), idPmma, criadoEm: hoje, ...dados });
+    let id: string;
+    if (jaTem) { Object.assign(jaTem, dados); id = jaTem.id; }
+    else { id = crypto.randomUUID(); oficios.push({ id, idPmma, criadoEm: hoje, ...dados }); }
 
     await salvarOficios(oficios);
-    return NextResponse.json({ ok: true });
+    // a folha como saiu (reemitir no mesmo dia troca pela mais nova)
+    if (b?.doc && typeof b.doc === "object") {
+      try { await guardarCopia(id, "oficio", limparDados(b.doc)); } catch (e) { console.error("[emitidos] copia", e); }
+    }
+    return NextResponse.json({ ok: true, id });
   } catch (err) {
     console.error("[POST /api/jms/emitidos]", err);
     return NextResponse.json({ error: "Falha ao registrar o ofício" }, { status: 500 });
@@ -160,9 +176,36 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Só um ofício pode ser apagado desta lista." }, { status: 400 });
     }
     await salvarOficios(restantes);
+    try { await prisma.config.deleteMany({ where: { chave: `jms_doc_${id}` } }); } catch { /* sem cópia */ }
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[DELETE /api/jms/emitidos]", err);
     return NextResponse.json({ error: "Falha ao apagar" }, { status: 500 });
+  }
+}
+
+/* PATCH { id, doc } — atualiza a cópia de um registro que já existe. A guia é
+   registrada (consome o número) e muitas vezes ajustada e impressa depois:
+   a cópia acompanha o que realmente saiu. */
+export async function PATCH(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
+  if (!ehAdmin((session.user as any).perfil)) return NextResponse.json({ error: "Apenas o P/1" }, { status: 403 });
+  try {
+    const b = await req.json().catch(() => ({}));
+    const id = String(b?.id || "");
+    if (!id || !b?.doc || typeof b.doc !== "object") return NextResponse.json({ error: "Dados incompletos" }, { status: 400 });
+    const [oficios, guias] = await Promise.all([ler<Oficio>(CHAVE_OFICIOS), ler<Guia>(CHAVE_GUIAS)]);
+    const guia = guias.find((g) => g.id === id);
+    const oficio = oficios.find((o) => o.id === id);
+    if (!guia && !oficio) return NextResponse.json({ error: "Registro não encontrado" }, { status: 404 });
+    const doc = limparDados(b.doc);
+    // o número da guia é o registrado — a tela não troca
+    if (guia) doc.numero = String(guia.numero).padStart(3, "0");
+    await guardarCopia(id, guia ? "guia" : "oficio", doc);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("[PATCH /api/jms/emitidos]", err);
+    return NextResponse.json({ error: "Falha ao guardar a cópia" }, { status: 500 });
   }
 }
