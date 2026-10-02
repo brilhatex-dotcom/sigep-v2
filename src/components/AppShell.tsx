@@ -6,7 +6,6 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import SinoNotificacoes from "@/components/SinoNotificacoes";
-import ChatFlutuante from "@/components/ChatFlutuante";
 import RelogioInatividade from "@/components/RelogioInatividade";
 import {
   LayoutDashboard,
@@ -260,6 +259,7 @@ export default function AppShell({
   // paginas precisem passar isso). Roda uma vez ao carregar.
   const [meuEfetivoId, setMeuEfetivoId] = useState<string | null>(null);
   const [tenhoFoto, setTenhoFoto] = useState(false);
+  const [versaoFoto, setVersaoFoto] = useState<string | null>(null);
   const [meuNome, setMeuNome] = useState<string>("");
   const [meuLugar, setMeuLugar] = useState<{ noId: string; rotulo: string } | null>(null);
   useEffect(() => {
@@ -270,6 +270,7 @@ export default function AppShell({
         if (!vivo) return;
         setMeuEfetivoId(d.efetivoId ?? null);
         setTenhoFoto(!!d.temFoto);
+        setVersaoFoto(d.fotoH ?? null);
         setMeuNome(d.nomeExibicao || "");
         setMeuLugar(d.lugar ?? null);
       })
@@ -498,6 +499,7 @@ export default function AppShell({
                 efetivoId={meuEfetivoId}
                 inicial={(admin ? "P" : (primeiroNome.charAt(0) || "P")).toUpperCase()}
                 temFoto={tenhoFoto}
+                versaoFoto={versaoFoto}
                 podeEditar={!!meuEfetivoId}
                 tamanho={46}
               />
@@ -530,8 +532,10 @@ export default function AppShell({
         <main className="flex-1 p-4 md:p-6">{children}</main>
       </div>
 
-      {/* Chat flutuante: acompanha o usuário em qualquer tela do sistema. */}
-      <ChatFlutuante />
+      {/* A bolha do chat flutuante saiu daqui: ela consultava o banco em TODA
+          tela, de todo usuário (contatos de 45 em 45 s e a procura de
+          ligação de 2,5 em 2,5 s), e pesava na cota de tráfego do Neon. O chat
+          continua na tela própria (menu Chat); mensagem nova aparece no sino. */}
     </div>
   );
 }

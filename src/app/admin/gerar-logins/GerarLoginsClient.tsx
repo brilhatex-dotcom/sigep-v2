@@ -5,7 +5,7 @@ import EncargosManager from "@/components/EncargosManager";
 import { confirmar } from "@/components/Avisos";
 
 type Preservado = { efetivoId: string; nome: string; motivo: string };
-type Previa = { totalEfetivo: number; aCorrigir: number; aCriar: number; semMatricula: number; adminsPreservados: number; preservados?: number; preservadosLista?: Preservado[] };
+type Previa = { totalEfetivo: number; aCorrigir: number; aCriar: number; jaNoPadrao?: number; semMatricula: number; adminsPreservados: number; preservados?: number; preservadosLista?: Preservado[] };
 type Resultado = { ok: boolean; corrigidos: number; criados: number; semMatricula: number; adminsPreservados: number; preservados?: number; erros?: string[] };
 type Militar = {
   efetivoId: string; postoGrad: string | null; numeroBarra: string | null;
@@ -37,6 +37,7 @@ export default function GerarLoginsClient() {
   const [buscando, setBuscando] = useState(false);
   const [resetando, setResetando] = useState<string | null>(null);
   const [msgReset, setMsgReset] = useState<string | null>(null);
+  const [resetErro, setResetErro] = useState(false);
 
   // ---- gerenciar admins ----
   const [admins, setAdmins] = useState<AdminAtual[]>([]);
@@ -137,8 +138,33 @@ export default function GerarLoginsClient() {
         body: JSON.stringify({ efetivoId: m.efetivoId }),
       });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) { setMsgReset(d.error || "Falha ao resetar."); return; }
+      if (!r.ok) { setResetErro(true); setMsgReset(d.error || "Falha ao resetar."); return; }
+      setResetErro(false);
       setMsgReset(`Senha de ${nomeMil(m)} resetada para 12345678. Avise para ele entrar com o ID ${m.idSimples} e a senha 12345678.`);
+    } finally {
+      setResetando(null);
+    }
+  };
+
+  /* Quem está "(sem login)" — normalmente militar cadastrado depois da
+     padronização. Cria o login SÓ dele (a padronização em massa não serve
+     para isso). */
+  const criarLogin = async (m: Militar) => {
+    if (!await confirmar(`Criar o login de ${nomeMil(m)}?\n\nLogin: ${m.idSimples}\nSenha inicial: 12345678 (ele cria uma senha nova e assina o termo LGPD no primeiro acesso).`)) return;
+    setResetando(m.efetivoId);
+    setMsgReset(null);
+    try {
+      const r = await fetch("/api/admin/resetar-senha", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ efetivoId: m.efetivoId, criar: true }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setResetErro(true); setMsgReset(d.error || "Falha ao criar o login."); return; }
+      setResetErro(false);
+      setLista((l) => l.map((x) => (x.efetivoId === m.efetivoId ? { ...x, temLogin: true } : x)));
+      setMsgReset(`Login de ${nomeMil(m)} criado. Avise para ele entrar com o ID ${d.login || m.idSimples} e a senha 12345678.`);
+      carregarPrevia();
     } finally {
       setResetando(null);
     }
@@ -158,8 +184,9 @@ export default function GerarLoginsClient() {
         <div style={{ fontSize: 14, fontWeight: 700, color: "#D4AF37", marginBottom: 4 }}>Padronizar logins (login = ID · senha 12345678)</div>
         <p style={{ fontSize: 12, color: "#94A3B8", margin: "0 0 12px" }}>
           Cada policial passa a logar pelo <b>ID</b> com a senha inicial <b>12345678</b> e, no primeiro acesso,
-          é obrigado a criar uma senha nova e assinar o termo LGPD. A conta do Ten Silas e as contas de
-          administrador mantêm a senha atual e não são alteradas.
+          é obrigado a criar uma senha nova e assinar o termo LGPD. Só entra quem está FORA do padrão (sem
+          login, ou com login antigo): quem já entra pelo ID mantém a senha que criou. A conta do Ten Silas e
+          as contas de administrador também não são alteradas.
         </p>
 
         {erro && <div style={box("#3a1414", "#7a1f1f", "#ffb3b3")}>{erro}</div>}
@@ -171,6 +198,7 @@ export default function GerarLoginsClient() {
             <Num v={previa.aCorrigir} l="logins a corrigir" destaque />
             <Num v={previa.aCriar} l="logins a criar" destaque />
             <Num v={previa.preservados ?? 0} l="preservados (Silas + admins)" />
+            <Num v={previa.jaNoPadrao ?? 0} l="já no padrão (mantêm a senha)" />
           </div>
         )}
 
@@ -228,6 +256,7 @@ export default function GerarLoginsClient() {
         <div style={{ fontSize: 14, fontWeight: 700, color: "#D4AF37", marginBottom: 4 }}>Resetar senha de um policial</div>
         <p style={{ fontSize: 12, color: "#94A3B8", margin: "0 0 12px" }}>
           Quando alguem esquecer a senha. A senha volta a ser 12345678 e ele cria uma nova (e assina o termo LGPD) no proximo acesso.
+          Quem aparecer <b>(sem login)</b> — militar cadastrado depois da padronização — ganha o login aqui mesmo, em <b>Criar login</b>.
         </p>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
@@ -243,7 +272,9 @@ export default function GerarLoginsClient() {
           </button>
         </div>
 
-        {msgReset && <div style={box("#10301f", "#2e6b48", "#bff0d0")}>{msgReset}</div>}
+        {msgReset && (resetErro
+          ? <div style={box("#3a1414", "#7a1f1f", "#ffb3b3")}>{msgReset}</div>
+          : <div style={box("#10301f", "#2e6b48", "#bff0d0")}>{msgReset}</div>)}
 
         {lista.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -255,13 +286,24 @@ export default function GerarLoginsClient() {
                     Mat: {soDig(m.matricula)} · ID: {m.idSimples} {m.temLogin ? "" : "· (sem login)"}
                   </div>
                 </div>
-                <button
-                  style={btn(m.temLogin ? "#D4AF37" : "#16243a", m.temLogin ? "#0a1020" : "#6f82a0", m.temLogin ? "#D4AF37" : "#2b3f63")}
-                  disabled={!m.temLogin || resetando === m.efetivoId}
-                  onClick={() => resetar(m)}
-                >
-                  {resetando === m.efetivoId ? "..." : "Resetar senha"}
-                </button>
+                {m.temLogin ? (
+                  <button
+                    style={btn("#D4AF37", "#0a1020", "#D4AF37")}
+                    disabled={resetando === m.efetivoId}
+                    onClick={() => resetar(m)}
+                  >
+                    {resetando === m.efetivoId ? "..." : "Resetar senha"}
+                  </button>
+                ) : (
+                  <button
+                    style={btn("#10301f", "#bff0d0", "#2e6b48")}
+                    disabled={resetando === m.efetivoId}
+                    onClick={() => criarLogin(m)}
+                    title="Cria o login só deste militar (login = ID, senha 12345678)"
+                  >
+                    {resetando === m.efetivoId ? "..." : "Criar login"}
+                  </button>
+                )}
               </div>
             ))}
           </div>

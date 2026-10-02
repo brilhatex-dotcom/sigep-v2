@@ -8,7 +8,8 @@ import BannerAlertas, { Alerta } from "@/components/BannerAlertas";
 import FraseRotativa from "@/components/FraseRotativa";
 import JmsTabela, { LinhaJms } from "@/components/JmsTabela";
 import { classificarPatente } from "@/lib/patentes";
-import { montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada, estaEmJmsHoje } from "@/lib/situacao";
+import { equipesEmFeriasHoje, montarIdsEmFerias, situacaoCalculada, estaEmJmsHoje } from "@/lib/situacao";
+import { licencaPremioHoje } from "@/lib/afastadosHoje";
 import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
 import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
 import { idsInativos, semInativos } from "@/lib/inativos";
@@ -35,12 +36,32 @@ export default async function DashboardPage() {
   const hoje = hojeBR();
   const mesAtual = hoje.getMonth();
 
-  const militares = semInativos(await prisma.efetivo.findMany(), await idsInativos());
+  /* Só os campos que o painel usa. Antes vinha a ficha COMPLETA de todo o
+     efetivo (51 colunas: endereço, filiação, banco...) — perto de 1 MB do
+     Neon a cada visita a esta tela, que é a primeira do admin. */
+  const militares = semInativos(
+    await prisma.efetivo.findMany({
+      select: {
+        id: true, postoGrad: true, nome: true, nomeGuerra: true, sexo: true, situacao: true,
+        dataNasc: true, jmsDataInicio: true, jmsDataRetorno: true, jmsMotivo: true,
+      },
+    }),
+    await idsInativos(),
+  );
   const total = militares.length;
 
-  // ferias de hoje (para situacao calculada) - busca antecipada
-  const equipesTodas = await prisma.equipeFerias.findMany();
-  const membrosTodos = await prisma.membroFerias.findMany();
+  /* Férias de hoje (para a situação calculada e o painel por equipe): as
+     equipes do ano e só os membros das equipes em gozo hoje — é tudo o que a
+     conta usa (antes vinha a tabela de membros de todos os anos, duas vezes). */
+  const anoStr = String(hoje.getFullYear());
+  const equipes = await prisma.equipeFerias.findMany({ where: { anoGozo: anoStr } });
+  const emGozoHoje = Array.from(equipesEmFeriasHoje(equipes, hoje));
+  const membros = emGozoHoje.length
+    ? await prisma.membroFerias.findMany({
+        where: { anoGozo: anoStr, numeroEquipe: { in: emGozoHoje } },
+        select: { idPmma: true, numeroEquipe: true, anoGozo: true },
+      })
+    : [];
   const idsAvulsaHoje = await idsFeriasAvulsasHoje(hoje); // férias em datas soltas
   const idsAdiados = await idsFeriasAdiadas(); // quem adiou não sai de férias
 
@@ -51,7 +72,7 @@ export default async function DashboardPage() {
      todos a mesma coisa. */
   const idsJmsHoje = new Set(militares.filter((m) => estaEmJmsHoje(m, hoje)).map((m) => m.id));
 
-  const idsFerias = montarIdsEmFerias(equipesTodas, membrosTodos, hoje, idsAdiados);
+  const idsFerias = montarIdsEmFerias(equipes, membros, hoje, idsAdiados);
   // As avulsas também respeitam o adiamento — antes entravam direto e podiam
   // devolver às férias quem o P/1 tinha acabado de adiar.
   for (const id of idsAvulsaHoje) if (!idsAdiados.has(id)) idsFerias.add(id);
@@ -61,9 +82,7 @@ export default async function DashboardPage() {
   for (const id of idsJmsHoje) idsFerias.delete(id);
 
   // licenca-premio de hoje (mesma logica das ferias, 1 periodo por equipe)
-  const equipesLicencaTodas = await prisma.equipeLicencaPremio.findMany();
-  const membrosLicencaTodos = await prisma.membroLicencaPremio.findMany();
-  const idsLicencaPremio = montarIdsEmLicencaPremio(equipesLicencaTodas, membrosLicencaTodos, hoje);
+  const idsLicencaPremio = await licencaPremioHoje(hoje);
 
   // ---- situacao + baldes (usando situacao CALCULADA) ----
   const porSituacao = new Map<string, number>();
@@ -179,10 +198,8 @@ export default async function DashboardPage() {
     .sort((a,b)=> a.dia-b.dia);
 
   // ---- ferias hoje: AGRUPADO POR EQUIPE (do plano do ano corrente) ----
-  const anoStr=String(hoje.getFullYear());
-  const equipes = await prisma.equipeFerias.findMany({ where:{ anoGozo:anoStr } });
-  const membros = await prisma.membroFerias.findMany({ where:{ anoGozo:anoStr } });
-  const mapaEquipe=new Map(equipes.map((e)=>[e.numeroEquipe,e]));
+  // (equipes e membros já lidos lá em cima: o painel só mostra as equipes em
+  // gozo hoje, e são exatamente os membros delas que vieram)
   const fichasMap=new Map(militares.map((m)=>[m.id,m]));
 
   // conta quantos militares cada equipe tem (do plano do ano) e monta a LISTA

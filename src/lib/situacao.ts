@@ -75,22 +75,23 @@ export function situacaoCalculada(
   return m.situacao && m.situacao.trim() ? m.situacao.trim() : "—";
 }
 
-// Monta o conjunto de IDs que estao de ferias hoje, a partir das
-// equipes e membros do ano corrente.
-export function montarIdsEmFerias(
-  equipes: {
-    numeroEquipe: string;
-    anoGozo: string;
-    periodo1Inicio: string | null;
-    periodo1Fim: string | null;
-    periodo2Inicio: string | null;
-    periodo2Fim: string | null;
-  }[],
-  membros: { idPmma: string; numeroEquipe: string; anoGozo: string }[],
-  hoje: Date,
-  // Quem ADIOU as férias do plano não fica ausente: volta ao serviço normal.
-  adiados?: Set<string>
-): Set<string> {
+type EquipeFeriasPeriodos = {
+  numeroEquipe: string;
+  anoGozo: string;
+  periodo1Inicio: string | null;
+  periodo1Fim: string | null;
+  periodo2Inicio: string | null;
+  periodo2Fim: string | null;
+};
+type EquipeLicencaPeriodo = {
+  numeroEquipe: string;
+  anoGozo: string;
+  periodoInicio: string | null;
+  periodoFim: string | null;
+};
+
+// Números das equipes de férias do ano corrente que estão em gozo hoje.
+export function equipesEmFeriasHoje(equipes: EquipeFeriasPeriodos[], hoje: Date): Set<string> {
   const ano = String(hoje.getFullYear());
   const equipeEmFerias = new Set<string>();
   equipes
@@ -103,6 +104,34 @@ export function montarIdsEmFerias(
       const ativo = periodos.some((p) => p.i && p.f && p.i <= hoje && hoje <= p.f);
       if (ativo) equipeEmFerias.add(e.numeroEquipe);
     });
+  return equipeEmFerias;
+}
+
+// Números das equipes de licença-prêmio do ano corrente em gozo hoje.
+export function equipesEmLicencaHoje(equipes: EquipeLicencaPeriodo[], hoje: Date): Set<string> {
+  const ano = String(hoje.getFullYear());
+  const equipeAtiva = new Set<string>();
+  equipes
+    .filter((e) => e.anoGozo === ano)
+    .forEach((e) => {
+      const i = parseData(e.periodoInicio);
+      const f = parseData(e.periodoFim);
+      if (i && f && i <= hoje && hoje <= f) equipeAtiva.add(e.numeroEquipe);
+    });
+  return equipeAtiva;
+}
+
+// Monta o conjunto de IDs que estao de ferias hoje, a partir das
+// equipes e membros do ano corrente.
+export function montarIdsEmFerias(
+  equipes: EquipeFeriasPeriodos[],
+  membros: { idPmma: string; numeroEquipe: string; anoGozo: string }[],
+  hoje: Date,
+  // Quem ADIOU as férias do plano não fica ausente: volta ao serviço normal.
+  adiados?: Set<string>
+): Set<string> {
+  const ano = String(hoje.getFullYear());
+  const equipeEmFerias = equipesEmFeriasHoje(equipes, hoje);
 
   const ids = new Set<string>();
   membros
@@ -115,24 +144,12 @@ export function montarIdsEmFerias(
 // Monta o conjunto de IDs que estao em Licenca-Premio hoje, a partir das
 // equipes (1 periodo cada) e membros do ano corrente.
 export function montarIdsEmLicencaPremio(
-  equipes: {
-    numeroEquipe: string;
-    anoGozo: string;
-    periodoInicio: string | null;
-    periodoFim: string | null;
-  }[],
+  equipes: EquipeLicencaPeriodo[],
   membros: { idPmma: string; numeroEquipe: string; anoGozo: string }[],
   hoje: Date
 ): Set<string> {
   const ano = String(hoje.getFullYear());
-  const equipeAtiva = new Set<string>();
-  equipes
-    .filter((e) => e.anoGozo === ano)
-    .forEach((e) => {
-      const i = parseData(e.periodoInicio);
-      const f = parseData(e.periodoFim);
-      if (i && f && i <= hoje && hoje <= f) equipeAtiva.add(e.numeroEquipe);
-    });
+  const equipeAtiva = equipesEmLicencaHoje(equipes, hoje);
 
   const ids = new Set<string>();
   membros

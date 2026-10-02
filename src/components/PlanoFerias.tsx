@@ -679,12 +679,9 @@ export default function PlanoFerias({
       (a, b) => Number(a.numeroEquipe) - Number(b.numeroEquipe)
     );
     const blocos = equipesOrdenadas.map((e) => {
+      // só o nome: a marca de férias adiadas fica na tela, não no papel
       const linhas = e.membros.map((m, i) => {
-        const ad = postergados.get(m.efetivoId);
-        const post = ad
-          ? ` <b style="color:#b45309">(ADIADO · exercício ${esc(ad.exercicio || "—")}${ad.motivo ? ": " + esc(ad.motivo) : ""})</b>`
-          : "";
-        const nomeCel = `<td>${esc(m.nome)}${post}</td>`;
+        const nomeCel = `<td>${esc(m.nome)}</td>`;
         return `<tr><td>${i + 1}</td><td>${esc(m.postoGrad)}</td><td>${esc(m.numeroBarra)}</td>${nomeCel}<td>${esc(m.nomeGuerra)}</td><td>${esc(m.matricula)}</td></tr>`;
       }).join("");
       const periodos = e.periodos.length

@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { exigirAdmin } from "@/lib/guard";
 import AppShell from "@/components/AppShell";
 import EfetivoLista from "@/components/EfetivoLista";
-import { hojeLocal, montarIdsEmFerias, montarIdsEmLicencaPremio, situacaoCalculada } from "@/lib/situacao";
+import { hojeLocal, situacaoCalculada } from "@/lib/situacao";
+import { feriasHoje, licencaPremioHoje } from "@/lib/afastadosHoje";
 import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
 import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
 import { idsInativos, semInativos } from "@/lib/inativos";
@@ -32,18 +33,15 @@ export default async function EfetivoPage({
   );
 
   // ferias de hoje
-  const equipes = await prisma.equipeFerias.findMany();
-  const membros = await prisma.membroFerias.findMany();
-  const idsFerias = montarIdsEmFerias(equipes, membros, hoje, await idsFeriasAdiadas());
+  // só as equipes do ano e os membros das que estão em gozo hoje (lib/afastadosHoje)
+  const idsFerias = await feriasHoje(hoje, await idsFeriasAdiadas());
   // As férias avulsas também respeitam o adiamento: sem isto, quem o P/1
   // acabou de adiar voltava a aparecer de férias por esta linha.
   const idsAdiadosAvulsas = await idsFeriasAdiadas();
   for (const id of await idsFeriasAvulsasHoje(hoje)) if (!idsAdiadosAvulsas.has(id)) idsFerias.add(id);
 
   // licenca-premio de hoje
-  const equipesLicenca = await prisma.equipeLicencaPremio.findMany();
-  const membrosLicenca = await prisma.membroLicencaPremio.findMany();
-  const idsLicencaPremio = montarIdsEmLicencaPremio(equipesLicenca, membrosLicenca, hoje);
+  const idsLicencaPremio = await licencaPremioHoje(hoje);
 
   // aplica situacao calculada e remove os campos extra
   const lista = militares

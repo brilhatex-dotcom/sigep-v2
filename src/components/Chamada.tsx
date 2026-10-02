@@ -62,10 +62,21 @@ export default function Chamada({
     } catch {}
   }, []);
 
+  /* Cada sondagem são duas consultas no banco. Durante uma ligação, de 2,5 em
+     2,5 s (a resposta do outro lado precisa chegar rápido); fora dela, de 5 em
+     5 s e só com a tela à vista — quem está em outra aba recebe a ligação pela
+     notificação push e cai aqui ao tocar nela. */
   useEffect(() => {
     sondar();
-    const t = setInterval(sondar, 2500);
-    return () => clearInterval(t);
+    let n = 0;
+    const t = setInterval(() => {
+      n++;
+      if (!idRef.current && (document.hidden || n % 2)) return;
+      sondar();
+    }, 2500);
+    const aoVoltar = () => { if (!document.hidden) sondar(); };
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", aoVoltar); };
   }, [sondar]);
 
   /* ---------- encerra tudo e limpa ---------- */

@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -42,6 +43,22 @@ export async function GET() {
     });
     const temFoto = !!(ficha?.fotoURL && (ficha.fotoURL.startsWith("config:") || ficha.fotoURL.startsWith("data:") || ficha.fotoURL.startsWith("fotos/")));
 
+    /* Versão da foto (md5 curto): vai no endereço do avatar, e com ela o
+       navegador guarda a imagem em vez de baixá-la do banco a cada tela. A
+       conta é feita no próprio Postgres — a foto não sai de lá para isso. */
+    let fotoH: string | null = null;
+    if (temFoto && ficha?.fotoURL) {
+      try {
+        if (ficha.fotoURL.startsWith("config:")) {
+          const r = await prisma.$queryRaw<{ h: string | null }[]>`
+            SELECT LEFT(md5(COALESCE("Valor", '')), 10) AS h FROM config WHERE "Chave" = ${ficha.fotoURL.slice("config:".length)}`;
+          fotoH = r[0]?.h ?? null;
+        } else {
+          fotoH = crypto.createHash("md5").update(ficha.fotoURL).digest("hex").slice(0, 10);
+        }
+      } catch { /* sem versão: a foto vem com o cache curto de antes */ }
+    }
+
     // monta "Posto Nome de guerra" (ex: "Major Frans"); nome de guerra capitalizado
     let nomeExibicao = "";
     if (ficha) {
@@ -61,7 +78,7 @@ export async function GET() {
       if (lu) lugar = { noId: lu.noId, rotulo: lu.no.rotulo };
     } catch {}
 
-    return NextResponse.json({ efetivoId, temFoto, nomeExibicao, lugar });
+    return NextResponse.json({ efetivoId, temFoto, fotoH, nomeExibicao, lugar });
   } catch (err) {
     console.error("[GET /api/eu]", err);
     return NextResponse.json({ efetivoId: null, temFoto: false });

@@ -91,22 +91,39 @@ export function cargoDocDe(id: string): string {
   return ENCARGOS.find((e) => e.id === id)?.cargoDoc || "";
 }
 
+/* Uma mesma tela pergunta o mapa de encargos várias vezes seguidas (o sino,
+   por exemplo, 3 a 4 vezes por atualização: P/1? Subcmt? ...). A leitura fica
+   guardada por 5 s — o bastante para juntar essas perguntas numa ida só ao
+   banco, curto demais para segurar um acesso já retirado. Gravar limpa. */
+const ENCARGOS_MS = 5000;
+let encargosLidos: { em: number; mapa: Promise<Record<string, string>> } | null = null;
+
 export async function lerEncargos(): Promise<Record<string, string>> {
-  try {
-    const row = await prisma.config.findUnique({ where: { chave: CHAVE } });
-    const o = row?.valor ? JSON.parse(row.valor) : {};
-    return o && typeof o === "object" ? o : {};
-  } catch {
-    return {};
-  }
+  // cópia: quem mexer no mapa (para gravar depois) não mexe no guardado
+  if (encargosLidos && Date.now() - encargosLidos.em < ENCARGOS_MS) return { ...(await encargosLidos.mapa) };
+  const mapa = (async (): Promise<Record<string, string>> => {
+    try {
+      const row = await prisma.config.findUnique({ where: { chave: CHAVE }, select: { valor: true } });
+      const o = row?.valor ? JSON.parse(row.valor) : {};
+      return o && typeof o === "object" ? o : {};
+    } catch {
+      encargosLidos = null; // falhou: a próxima pergunta tenta de novo
+      return {};
+    }
+  })();
+  encargosLidos = { em: Date.now(), mapa };
+  return { ...(await mapa) };
 }
 
 export async function salvarEncargos(mapa: Record<string, string>): Promise<void> {
+  encargosLidos = null;
   await prisma.config.upsert({
     where: { chave: CHAVE },
     update: { valor: JSON.stringify(mapa) },
     create: { chave: CHAVE, valor: JSON.stringify(mapa), descricao: "Encargos/funções dos logins" },
+    select: { chave: true },
   });
+  encargosLidos = null;
 }
 
 // Encargo de um militar (por refEfetivo). "" se não tiver.

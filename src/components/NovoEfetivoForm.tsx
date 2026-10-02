@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Save, Loader2 } from "lucide-react";
+import { avisar } from "@/components/Avisos";
 
 type Campo = { key: string; label: string; tipo?: "texto" | "area" };
 type Secao = { titulo: string; campos: Campo[] };
@@ -183,6 +184,8 @@ export default function NovoEfetivoForm() {
         window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
+      // o login do policial sai junto com a ficha (login = ID, senha 12345678)
+      if (j.login) avisar(`Militar cadastrado. Login criado: ${j.login} · senha inicial 12345678 (troca no 1º acesso).`);
       router.push(`/efetivo/${encodeURIComponent(j.id)}`);
       router.refresh();
     } catch {

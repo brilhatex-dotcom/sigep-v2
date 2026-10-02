@@ -29,6 +29,40 @@ export function assinaturaDoValor(valor: string | null | undefined): string {
   return md5Local(valor);
 }
 
+/* -------------------------------------------------------------------------
+   REVALIDAÇÃO PELO NAVEGADOR (ETag = a assinatura)
+
+   A escala é grande e a tela a baixava INTEIRA a cada visita, tivesse mudado
+   ou não — o maior volume que sai do banco num dia de trabalho do P/1. Com a
+   assinatura como ETag, o navegador guarda a última cópia e, na visita
+   seguinte, só pergunta "mudou?" (If-None-Match). Não mudou: resposta 304,
+   sem corpo, e o navegador usa a cópia que já tem — a conferência é o md5
+   feito dentro do Postgres, então a escala nem sai de lá.
+   ------------------------------------------------------------------------- */
+export const CACHE_REVALIDAR = "private, no-cache";
+
+// A assinatura atual, se for a mesma que o navegador já tem; senão null.
+export async function versaoQueONavegadorTem(req: Request, chave: string): Promise<string | null> {
+  const tem = req.headers.get("if-none-match") || "";
+  if (!tem) return null;
+  try {
+    const v = (await assinaturas(chave, chave))[chave];
+    // compara pelo conteúdo: a Vercel pode marcar o ETag como fraco (W/"...")
+    return v && tem.includes(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export function respostaNaoMudou(versao: string): Response {
+  return new Response(null, { status: 304, headers: { ETag: `"${versao}"`, "Cache-Control": CACHE_REVALIDAR } });
+}
+
+// Cabeçalhos da resposta completa: guardar, mas sempre conferir antes de usar.
+export function cabecalhosVersao(versao: string): Record<string, string> {
+  return { ETag: `"${versao}"`, "Cache-Control": CACHE_REVALIDAR };
+}
+
 export async function assinaturas(chaveA: string, chaveB: string): Promise<Record<string, string>> {
   const fora: Record<string, string> = {};
   try {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { criarLoginPolicial } from "@/lib/loginPolicial";
 
 // Cria um novo militar. Apenas admin. O ID (ID PMMA) e obrigatorio e unico.
 export async function POST(req: NextRequest) {
@@ -45,8 +46,18 @@ export async function POST(req: NextRequest) {
 
     const novo = await prisma.efetivo.create({
       data: { id, ...opcionais },
+      select: { id: true },
     });
-    return NextResponse.json({ ok: true, id: novo.id }, { status: 201 });
+    /* O login do policial já sai junto (login = ID, senha 12345678, troca no
+       1º acesso). Antes ele ficava "(sem login)" até alguém rodar a
+       padronização em massa. Se não der (ex.: login já usado), a ficha fica
+       criada do mesmo jeito e o login sai em Gerenciar Acessos. */
+    let login: string | null = null;
+    try {
+      const r = await criarLoginPolicial(novo.id);
+      if (r.ok) login = r.login;
+    } catch { /* segue sem login: dá para criar depois */ }
+    return NextResponse.json({ ok: true, id: novo.id, login }, { status: 201 });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ erro: "Falha ao criar o militar." }, { status: 500 });

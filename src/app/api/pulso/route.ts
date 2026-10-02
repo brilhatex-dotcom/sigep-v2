@@ -5,6 +5,7 @@ import { chaveEscopada } from "@/lib/escalaEscopo";
 import { assinaturas } from "@/lib/escalaVersao";
 import { aplicarPermutasSeVencido } from "@/lib/permutaPedidos";
 import { todasNotificacoes } from "@/lib/notificacoes";
+import { sinalDeMudanca } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +22,9 @@ export const dynamic = "force-dynamic";
 
    DOIS NÍVEIS, de propósito — porque nem tudo custa o mesmo:
 
-   - RÁPIDO (padrão, de 2 em 2s): só as assinaturas da escala. Uma consulta
-     indexada, ~70 bytes. Pode bater nesse ritmo à vontade.
+   - RÁPIDO (padrão, de 3 em 3s): o carimbo de mudança do sistema (v) — que
+     o servidor guarda 2 s na memória, então quase nunca vai ao banco — e, só
+     enquanto alguma tela de escala está aberta, as assinaturas da escala.
    - COMPLETO (?notif=1, de 60 em 60s): traz também as notificações do sino,
      que precisam varrer permutas, auditoria, chat e assinaturas. Caro, e
      ninguém precisa disso de 2 em 2 segundos.
@@ -37,12 +39,17 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const comNotif = url.searchParams.get("notif") === "1";
+  /* escala=0: nenhuma tela de escala aberta no navegador (ver lib/sincronia),
+     então a assinatura não interessa a ninguém — e nem a aplicação de
+     permutas, que mexe na escala inteira. Sem o parâmetro (aba antiga), segue
+     como antes. */
+  const querEscala = url.searchParams.get("escala") !== "0";
 
   /* Escopo da escala: admin na sede, ou o lugar do Cmt/Sargenteante. Quem não
      tem escala nenhuma (policial comum) simplesmente não recebe esta parte. */
-  const ctx = await chaveEscopada(req, "escala_dias");
+  const ctx = querEscala ? await chaveEscopada(req, "escala_dias") : null;
 
-  const [escala, notificacoes] = await Promise.all([
+  const [escala, notificacoes, v] = await Promise.all([
     (async () => {
       if (!ctx) return null;
       /* As permutas autorizadas entram na escala aqui, no máximo uma vez por
@@ -58,9 +65,11 @@ export async function GET(req: Request) {
       } catch { return null; }
     })(),
     comNotif ? todasNotificacoes(session.user as any).catch(() => []) : Promise.resolve(null),
+    // o carimbo de mudança (lib/prisma): mudou -> as telas abertas recarregam
+    sinalDeMudanca().catch(() => ""),
   ]);
 
   /* escala: null significa "não consegui/não se aplica" — nunca assinatura
      vazia, que a tela leria como "mudou" e baixaria tudo de novo. */
-  return NextResponse.json({ escala, ...(comNotif ? { notificacoes } : {}) });
+  return NextResponse.json({ escala, v, ...(comNotif ? { notificacoes } : {}) });
 }

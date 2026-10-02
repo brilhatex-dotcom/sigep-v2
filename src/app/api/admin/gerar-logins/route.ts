@@ -17,8 +17,12 @@ export const dynamic = "force-dynamic";
      - perfil = "policial"
      - precisaTrocar = true   (forca senha nova + aceite do termo LGPD no 1o acesso)
 
-   - Se o militar JA TEM usuario (via refEfetivo): ATUALIZA login+senha
-     (corrige os logins antigos que estavam com nome de guerra).
+   - Se o militar JA TEM usuario (via refEfetivo) FORA do padrao (login
+     diferente do ID — os antigos com nome de guerra): ATUALIZA login+senha.
+   - Se ja esta no padrao (login = ID): NAO MEXE — mantem a senha que a pessoa
+     criou. Antes a padronizacao "corrigia" todo mundo de novo, ou seja,
+     voltava a senha de TODOS para 12345678 a cada vez que era usada (e ela era
+     o unico jeito de criar o login de um militar novo).
    - Se NAO tem usuario: CRIA.
    - NUNCA mexe em quem tem perfil != "policial" (preserva o admin).
 
@@ -83,6 +87,7 @@ async function levantar() {
   const corrigir: { efetivoId: string; usuarioId: string; login: string; senha: string }[] = [];
   const criar: { efetivoId: string; login: string; senha: string }[] = [];
   const semMatricula: string[] = [];
+  let jaNoPadrao = 0;
   const preservadosLista: { efetivoId: string; nome: string; motivo: string }[] = [];
 
   for (const m of efetivo) {
@@ -106,13 +111,15 @@ async function levantar() {
 
     const existente = usuarioPorEfetivo.get(m.id);
     if (existente) {
+      // já no padrão: não mexe (mantém a senha que a pessoa criou)
+      if (existente.login === login) { jaNoPadrao++; continue; }
       corrigir.push({ efetivoId: m.id, usuarioId: existente.id, login, senha });
     } else {
       criar.push({ efetivoId: m.id, login, senha });
     }
   }
 
-  return { totalEfetivo: efetivo.length, corrigir, criar, semMatricula, naoPolicial, preservados: preservadosLista.length, preservadosLista };
+  return { totalEfetivo: efetivo.length, corrigir, criar, semMatricula, jaNoPadrao, naoPolicial, preservados: preservadosLista.length, preservadosLista };
 }
 
 export async function GET() {
@@ -126,6 +133,7 @@ export async function GET() {
       totalEfetivo: p.totalEfetivo,
       aCorrigir: p.corrigir.length,
       aCriar: p.criar.length,
+      jaNoPadrao: p.jaNoPadrao,
       semMatricula: p.semMatricula.length,
       adminsPreservados: p.naoPolicial,
       preservados: p.preservados,
