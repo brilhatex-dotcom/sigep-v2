@@ -14,9 +14,13 @@ export const dynamic = "force-dynamic";
    CPA/I-2 por despacho — quantas vagas e quantos reais ainda dá para gastar
    no período vigente.
 
-   GET  -> { autorizacoes: [...], saldos: [...] } — todas as autorizações já
-           cadastradas, cada uma já com o saldo calculado contra os JOEs
-           reais do sistema.
+   GET  (admin) -> { autorizacoes: [...], saldos: [...] } — todas as
+           autorizações já cadastradas, cada uma já com o saldo calculado
+           contra os JOEs reais do sistema. O saldo é só do admin.
+   GET ?so=valores (quem abre JOE) -> { autorizacoes: [{ id, periodoInicio,
+           periodoFim, valorPorVaga }] } — só o valor por vaga de cada
+           período, para sugerir o valor certo ao abrir um JOE. Sem vagas,
+           sem total, sem saldo.
    POST (admin) -> cadastra uma autorização nova (o despacho que chegou).
    DELETE (admin) ?id=... -> remove uma autorização cadastrada errada.
    ========================================================================= */
@@ -41,9 +45,26 @@ function hojeISO(): string {
   return f.format(new Date());
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
+  const perfil = String((session.user as any).perfil || "").toLowerCase();
+
+  if (new URL(req.url).searchParams.get("so") === "valores") {
+    if (perfil === "" || perfil === "policial") return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+    try {
+      const row = await prisma.config.findUnique({ where: { chave: CHAVE }, select: { valor: true } });
+      const autorizacoes = ler(row?.valor).map((a) => ({
+        id: a.id, periodoInicio: a.periodoInicio, periodoFim: a.periodoFim, valorPorVaga: a.valorPorVaga,
+      }));
+      return NextResponse.json({ autorizacoes });
+    } catch (err) {
+      console.error("[GET /api/joe/saldo?so=valores]", err);
+      return NextResponse.json({ error: "Falha ao carregar" }, { status: 500 });
+    }
+  }
+
+  if (!ehAdmin(perfil)) return NextResponse.json({ error: "Somente o administrador." }, { status: 403 });
 
   try {
     const row = await prisma.config.findUnique({ where: { chave: CHAVE } });

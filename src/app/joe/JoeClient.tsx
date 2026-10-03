@@ -156,6 +156,8 @@ export default function JoeClient({ perfil }: { perfil: string }) {
     const p = (perfil || "").toLowerCase();
     return p !== "" && p !== "policial";
   }, [perfil]);
+  // o Saldo JOE (cota do despacho e quanto ainda resta) é só do admin
+  const veSaldo = (perfil || "").toLowerCase() === "admin";
 
   const [lista, setLista] = useState<Joe[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -193,10 +195,11 @@ export default function JoeClient({ perfil }: { perfil: string }) {
   // despachos cadastrados: so pra sugerir o valor por vaga certo ao abrir um
   // JOE cuja data cai dentro do periodo de algum despacho (evita usar o valor
   // errado — ex.: 250 de um despacho antigo num JOE que devia ser 350).
-  const [autorizacoesRef, setAutorizacoesRef] = useState<AutorizacaoJoe[]>([]);
+  // Vem so o periodo e o valor por vaga — o saldo em si e do admin.
+  const [autorizacoesRef, setAutorizacoesRef] = useState<Pick<AutorizacaoJoe, "id" | "periodoInicio" | "periodoFim" | "valorPorVaga">[]>([]);
   useEffect(() => {
     if (!ehAdmin) return;
-    fetch("/api/joe/saldo")
+    fetch("/api/joe/saldo?so=valores")
       .then((r) => r.json())
       .then((d) => setAutorizacoesRef(d.autorizacoes || []))
       .catch(() => {});
@@ -363,7 +366,7 @@ export default function JoeClient({ perfil }: { perfil: string }) {
           </p>
         </div>
         <div className="joe-head-acoes">
-          <button className="btn saldo-btn" onClick={() => setModalSaldo(true)}>💰 Saldo JOE</button>
+          {veSaldo && <button className="btn saldo-btn" onClick={() => setModalSaldo(true)}>💰 Saldo JOE</button>}
           <span className={"joe-perfil " + (ehAdmin ? "adm" : "pol")}>{ehAdmin ? "P1 / Admin" : "Policial"}</span>
         </div>
       </div>
@@ -471,7 +474,7 @@ export default function JoeClient({ perfil }: { perfil: string }) {
       )}
 
       {/* MODAL: saldo da cota de JOE autorizada por despacho */}
-      {modalSaldo && <ModalSaldo ehAdmin={ehAdmin} onFechar={() => setModalSaldo(false)} />}
+      {modalSaldo && veSaldo && <ModalSaldo ehAdmin={veSaldo} onFechar={() => setModalSaldo(false)} />}
     </div>
   );
 }
