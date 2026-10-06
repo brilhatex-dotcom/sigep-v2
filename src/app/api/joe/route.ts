@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { apresentacoesJoe, gravarApresentacaoJoe } from "@/lib/joeApresentacao";
 import { registrar } from "@/lib/auditoria";
 
 export const dynamic = "force-dynamic";
@@ -63,6 +64,7 @@ export async function GET() {
       : [];
     const mapaFicha: Record<string, any> = {};
     for (const f of fichas) mapaFicha[f.id] = f;
+    const apresentacao = await apresentacoesJoe();
 
     const joe = lista.map((j) => {
       const aprovados = j.inscricoes.filter((i) => i.status === "aprovado").length;
@@ -85,6 +87,7 @@ export async function GET() {
         horario: j.horario,
         areaAtuacao: j.areaAtuacao,
         processoSei: j.processoSei,
+        apresentacao: apresentacao[j.id] || "",
         totalCandidatos: j.inscricoes.length,
         totalAprovados: aprovados,
         vagasRestantes: Math.max(0, j.vagas - aprovados),
@@ -158,6 +161,10 @@ export async function POST(req: Request) {
       },
     });
 
+    // apresentação da tropa: vai sozinha para a escala da JOE
+    let apres = "";
+    try { apres = await gravarApresentacaoJoe(criado.id, b.apresentacao); } catch (e) { console.error("[POST /api/joe] apresentacao", e); }
+
     await registrar({
       acao: "criar_joe",
       alvo: criado.id,
@@ -165,7 +172,7 @@ export async function POST(req: Request) {
       detalhe: `JOE de ${data}${horario ? ` (${horario})` : ""}, ${criado.vagas} vaga(s)`,
     });
 
-    return NextResponse.json({ ok: true, joe: criado });
+    return NextResponse.json({ ok: true, joe: { ...criado, apresentacao: apres } });
   } catch (err) {
     console.error("[POST /api/joe]", err);
     return NextResponse.json({ error: "Falha ao criar JOE" }, { status: 500 });

@@ -46,6 +46,7 @@ type Joe = {
   comandanteOp?: string | null;
   areaAtuacao?: string | null;
   processoSei?: string | null;
+  apresentacao?: string;   // apresentação da tropa — vai para a escala da JOE
   totalCandidatos: number;
   totalAprovados: number;
   vagasRestantes: number;
@@ -187,7 +188,7 @@ export default function JoeClient({ perfil }: { perfil: string }) {
 
   const vazio = {
     evento: "", local: "", data: "", horaInicio: "", horaFim: "", vagas: "1", valor: "", observacao: "",
-    comandanteOp: "", horario: "", areaAtuacao: "", processoSei: "",
+    comandanteOp: "", horario: "", areaAtuacao: "", processoSei: "", apresentacao: "",
   };
   const [form, setForm] = useState({ ...vazio });
   const [criando, setCriando] = useState(false);
@@ -324,6 +325,7 @@ export default function JoeClient({ perfil }: { perfil: string }) {
       onReabrir={() => acao(j.id, { acao: "reabrir" }, "JOE reaberto.")}
       onExcluir={() => excluir(j.id)}
       onAdicionar={() => setModalJoe(j.id)}
+      onApresentacao={(texto) => acao(j.id, { acao: "apresentacao", texto }, texto ? "Apresentação salva." : "Apresentação apagada.")}
     />
   );
 
@@ -399,6 +401,10 @@ export default function JoeClient({ perfil }: { perfil: string }) {
             </label>
             <label>Horário (RENE)
               <input value={form.horario} placeholder="ex: 20h às 02h" onChange={(e) => setForm({ ...form, horario: e.target.value })} />
+            </label>
+            <label>Apresentação da tropa
+              <input value={form.apresentacao} placeholder="ex: 22H NA SEDE DO 18º BPM" onChange={(e) => setForm({ ...form, apresentacao: e.target.value })} />
+              <span className="f-hint">vai sozinha para a APRESENTAÇÃO da escala da JOE</span>
             </label>
             <label>Área de atuação
               <input value={form.areaAtuacao} placeholder="ex: Graça Aranha-MA" onChange={(e) => setForm({ ...form, areaAtuacao: e.target.value })} />
@@ -903,7 +909,7 @@ function ModalInscrever({
 /* ============================== CARD ============================== */
 
 function JoeCardComp({
-  j, ehAdmin, ocupado, onCandidatar, onCancelar, onDecidir, onEncerrar, onReabrir, onExcluir, onAdicionar,
+  j, ehAdmin, ocupado, onCandidatar, onCancelar, onDecidir, onEncerrar, onReabrir, onExcluir, onAdicionar, onApresentacao,
 }: {
   j: Joe;
   ehAdmin: boolean;
@@ -915,8 +921,11 @@ function JoeCardComp({
   onReabrir: () => void;
   onExcluir: () => void;
   onAdicionar: () => void;
+  onApresentacao: (texto: string) => Promise<boolean>;
 }) {
   const lotado = j.vagasRestantes <= 0;
+  // edicao da apresentacao no proprio card (JOE ja aberto)
+  const [apres, setApres] = useState<string | null>(null);
   const minha = j.minhaInscricao;
   const totalAprov = (j.valor || 0) * j.totalAprovados;
 
@@ -931,7 +940,25 @@ function JoeCardComp({
         <span title="Data"><b>{brData(j.data)}</b> <i>{diaSemana(j.data)}</i></span>
         {j.horario && <span title="Horário">🕒 {j.horario}</span>}
         {j.local && <span title="Local">📍 {j.local}</span>}
+        {apres === null && j.apresentacao && <span title="Apresentação da tropa (vai para a escala)">🚩 Apresentação: {j.apresentacao}</span>}
+        {apres === null && ehAdmin && (
+          <button className="jc-apres-btn" onClick={() => setApres(j.apresentacao || "")}
+            title="A apresentação vai sozinha para a escala da JOE">
+            {j.apresentacao ? "✎" : "+ apresentação"}
+          </button>
+        )}
       </div>
+      {apres !== null && (
+        <div className="jc-apres-ed">
+          <input autoFocus value={apres} placeholder="ex: 22H NA SEDE DO 18º BPM" onChange={(e) => setApres(e.target.value)}
+            onKeyDown={async (e) => {
+              if (e.key === "Escape") setApres(null);
+              if (e.key === "Enter" && await onApresentacao(apres.trim())) setApres(null);
+            }} />
+          <button className="btn primary" disabled={ocupado} onClick={async () => { if (await onApresentacao(apres.trim())) setApres(null); }}>Salvar</button>
+          <button className="btn" onClick={() => setApres(null)}>Cancelar</button>
+        </div>
+      )}
 
       <div className="jc-numeros">
         <div className="jc-num">
@@ -1108,6 +1135,10 @@ const CSS = `
 .jc-meta{ display:flex; flex-wrap:wrap; gap:12px; font-size:13px; color:#cdd9ea; }
 .jc-meta i{ color:#6f82a0; font-style:normal; font-size:11px; }
 .jc-meta b{ color:#E8EEF6; }
+.jc-apres-btn{ background:none; border:1px dashed #2b3f63; border-radius:6px; color:#9fb0c7; font-size:11.5px; padding:1px 8px; cursor:pointer; }
+.jc-apres-btn:hover{ color:#E8EEF6; border-color:#D4AF37; }
+.jc-apres-ed{ display:flex; gap:6px; align-items:center; }
+.jc-apres-ed input{ flex:1; min-width:0; background:#0a1626; border:1px solid #2b3f63; border-radius:6px; color:#E8EEF6; padding:6px 9px; font-size:13px; }
 
 .jc-numeros{ display:flex; gap:8px; }
 .jc-num{ flex:1; background:#0a1626; border:1px solid #1d2c44; border-radius:9px; padding:8px; text-align:center; }

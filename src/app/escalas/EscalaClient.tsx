@@ -386,6 +386,7 @@ type JoeLite = {
   local: string | null;
   data: string;
   horario?: string | null;
+  apresentacao?: string;   // apresentação da tropa preenchida no JOE
   candidatos?: {
     efetivoId: string | null;
     status: string;
@@ -1102,10 +1103,11 @@ function cmtDaOperacao(r: JoeEscalaLinha | undefined, efMap: Record<string, Mili
 }
 
 /* A escala da JOE como sai no papel: funcoes vazias com a do lugar, LOCAL DE
-   EMPREGO vazio com o LOCAL DO EVENTO e CMT da operacao vazio com o 1º da
-   tabela. E esta que vai para a tela, a impressao, o Word/PDF e a
-   publicacao; a gravada continua com os campos vazios. */
-function comPadroesJoe(e: Escala, efMap: Record<string, Militar>): Escala {
+   EMPREGO vazio com o LOCAL DO EVENTO, CMT da operacao vazio com o 1º da
+   tabela e APRESENTACAO vazia com a que foi preenchida no JOE. E esta que vai
+   para a tela, a impressao, o Word/PDF e a publicacao; a gravada continua com
+   os campos vazios. */
+function comPadroesJoe(e: Escala, efMap: Record<string, Militar>, joe?: JoeLite): Escala {
   if (e.tipo !== "joe") return e;
   const rows = e.joeRows || [];
   const cmtAuto = e.extraCmtManual !== true && !semTags(e.extraCmtOperacao || "");
@@ -1117,6 +1119,7 @@ function comPadroesJoe(e: Escala, efMap: Record<string, Militar>): Escala {
       local: semTags(r.local || "") ? r.local : (e.extraLocal || ""),
     })),
     extraCmtOperacao: cmtAuto ? cmtDaOperacao(rows[0], efMap) : e.extraCmtOperacao,
+    extraApresentacao: semTags(e.extraApresentacao || "") ? e.extraApresentacao : (joe?.apresentacao || ""),
   };
 }
 
@@ -2518,7 +2521,7 @@ export default function EscalaClient() {
     ? eBase
     : { ...eBase, cpuDeDia: { ...eBase.cpuDeDia, titular: ovrCpuDia ? (ovrCpuDia.startsWith("__FOLGA") ? "Folga" : nomeDe(ovrCpuDia)) : "" } };
   // JOE: funcoes e CMT da operacao preenchidos pela posicao, quando vazios
-  const e: Escala = comPadroesJoe(eSalva, efMap);
+  const e: Escala = comPadroesJoe(eSalva, efMap, joeLista.find((j) => j.id === eSalva.joeId));
 
   const editE = (fn: (d: Escala) => void) => {
     setEscalas((prev) => {
@@ -2557,6 +2560,8 @@ export default function EscalaClient() {
       d.extraOperacao = joe.evento || "";
       d.extraLocal = joe.local || "";
       d.extraHorario = joe.horario || "";
+      // o JOE tem apresentacao? a escala passa a mostrar a dele (continua editavel)
+      if (joe.apresentacao) d.extraApresentacao = "";
       if (!d.extraUniforme) d.extraUniforme = "4ªA (ARMADO E EQUIPADO)";
     });
   };

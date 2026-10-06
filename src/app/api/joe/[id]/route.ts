@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { registrar } from "@/lib/auditoria";
+import { gravarApresentacaoJoe } from "@/lib/joeApresentacao";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
           body { acao: "decidir", inscricaoId, decisao: "aprovado"|"recusado" }  (admin)
           body { acao: "inscrever_manual", ... }       (admin/P1 inscreve, ja aprovado)
           body { acao: "encerrar" | "reabrir" }        (admin)
+          body { acao: "apresentacao", texto }         (admin, vai para a escala)
    DELETE -> exclui o JOE inteiro                       (admin)
 
    inscrever_manual aceita:
@@ -199,6 +201,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ ok: true });
     }
 
+    /* ---------- ADMIN: apresentação da tropa (vai para a escala da JOE) ---------- */
+    if (acao === "apresentacao") {
+      if (!admin) return NextResponse.json({ error: "Apenas o P1" }, { status: 403 });
+      const texto = await gravarApresentacaoJoe(joeId, body.texto);
+      return NextResponse.json({ ok: true, apresentacao: texto });
+    }
+
     /* ---------- ADMIN: encerrar / reabrir ---------- */
     if (acao === "encerrar" || acao === "reabrir") {
       if (!admin) return NextResponse.json({ error: "Apenas o P1" }, { status: 403 });
@@ -224,6 +233,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   }
   try {
     await prisma.joe.delete({ where: { id: params.id } });
+    try { await gravarApresentacaoJoe(params.id, null); } catch { /* sem apresentação */ }
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[DELETE /api/joe/[id]]", err);
