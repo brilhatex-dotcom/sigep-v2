@@ -7,6 +7,7 @@ import { registrar } from "@/lib/auditoria";
 import { criarAssinaturas, origemDaRequisicao, apagarAssinatura } from "@/lib/assinaturaSigep";
 import {
   TIPO_ASSINATURA, lerPecunia, conteudoAssinavel, resumoAssinatura, refAssinatura, marcarGov,
+  faltaBanco, puxarBancoDaFicha,
 } from "@/lib/requerimentoPecunia";
 
 export const dynamic = "force-dynamic";
@@ -66,7 +67,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Modo de assinatura inválido." }, { status: 400 });
     }
 
-    const r = await lerPecunia(reqId);
+    let r = await lerPecunia(reqId);
     if (!r) return NextResponse.json({ error: "Requerimento não encontrado." }, { status: 404 });
 
     /* Quem monta o documento pode marcar o Gov.br pelos colegas — é só deixar
@@ -98,7 +99,23 @@ export async function POST(req: Request) {
     if (alvoId !== meuId) {
       return NextResponse.json({ error: "Cada policial assina a sua própria linha." }, { status: 403 });
     }
-    const minha = linha;
+
+    /* NINGUÉM ASSINA ENQUANTO FALTAR CONTA. A conta de cada um faz parte do
+       que é assinado: quem assinasse antes obrigaria a reabrir o requerimento
+       quando o último preenchesse a dele — e reabrir derruba a assinatura de
+       todo mundo. Antes de barrar, a conta que já está na ficha entra (a do
+       próprio, ou a de todos quando é o P/1). */
+    r = await puxarBancoDaFicha(r, admin ? r.dados.linhas.map((l) => l.efetivoId) : [meuId]);
+    const faltam = r.dados.linhas.filter(faltaBanco);
+    if (faltam.length) {
+      const nomes = faltam.map((l) => l.nome || l.idPmma || "—");
+      return NextResponse.json({
+        error: `Ainda não dá para assinar: falta a conta de ${nomes.join(", ")}. `
+          + "Ninguém assina no SIGEP antes de todos os policiais do requerimento preencherem os dados bancários.",
+        faltam: nomes,
+      }, { status: 409 });
+    }
+    const minha = r.dados.linhas.find((l) => l.efetivoId === meuId) || linha;
 
     if (!(await senhaConfere(session, senha))) {
       return NextResponse.json({ error: "Senha incorreta — confirme sua senha para assinar." }, { status: 401 });

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { cifrar, decifrar } from "@/lib/cripto";
-import { linhaBanco } from "@/lib/pecuniaComum";
+import { linhaBanco, faltaBanco, tipoContaDaFicha } from "@/lib/pecuniaComum";
+import { assinaturasDoConjunto } from "@/lib/assinaturaSigep";
 
 /* =========================================================================
    REQUERIMENTO DE PREMIAÇÃO PECUNIÁRIA — GUARDADO NO BANCO
@@ -326,6 +327,75 @@ export async function responderBanco(
     `UPDATE requerimento_pecunia SET dados=$2, atualizado_em=$3 WHERE id=$1`,
     id, JSON.stringify(comBancoCifrado(dados)), new Date().toISOString());
   return { ...atual, dados };
+}
+
+/* ---------------------------------------------------------------------------
+   A CONTA DA FICHA VAI SOZINHA PARA O REQUERIMENTO.
+
+   O policial que põe os dados bancários na Ficha Individual não precisa
+   digitar tudo de novo em cada requerimento em que está: a linha dele é
+   preenchida com o que a ficha tem.
+
+   Só em requerimento SEM assinatura: a conta faz parte do que é assinado, e
+   mexer depois quebraria o lacre de quem já assinou.
+
+   E só por iniciativa do PRÓPRIO policial (ou do P/1): quem monta o
+   requerimento não pode, ao incluir um colega, puxar a conta dele da ficha —
+   continua valendo o que a rota /ficha diz. Quem decide quais ids entram aqui
+   é quem chama.
+
+   trocar=false -> só preenche linha SEM conta (abrir/assinar o requerimento);
+   trocar=true  -> a ficha acabou de ser salva: o que ela diz agora vale, mesmo
+                   que a linha já tivesse outra conta.
+   --------------------------------------------------------------------------- */
+export async function puxarBancoDaFicha(
+  r: RequerimentoPecunia, ids: string[], trocar = false,
+): Promise<RequerimentoPecunia> {
+  const alvo = new Set(ids.map((x) => String(x || "").trim()).filter(Boolean));
+  const linhasAlvo = r.dados.linhas.filter((l) => l.efetivoId && alvo.has(l.efetivoId) && (trocar || faltaBanco(l)));
+  if (!linhasAlvo.length) return r;
+  if ((await assinaturasDoConjunto(TIPO_ASSINATURA, r.id)).length) return r;
+
+  const fichas = await prisma.efetivo.findMany({
+    where: { id: { in: linhasAlvo.map((l) => l.efetivoId) } },
+    select: { id: true, banco: true, agencia: true, conta: true, tipoConta: true },
+  });
+  // ficha sem conta não tem o que dar — a linha fica como está
+  const daFicha = new Map(fichas.filter((f) => (f.conta || "").trim()).map((f) => [f.id, f]));
+
+  let mudou = false;
+  const linhas = r.dados.linhas.map((l) => {
+    const f = linhasAlvo.includes(l) ? daFicha.get(l.efetivoId) : undefined;
+    if (!f) return l;
+    const nova = {
+      bancoNome: (f.banco || "").trim(),
+      agencia: (f.agencia || "").trim(),
+      conta: (f.conta || "").trim(),
+      tipoConta: tipoContaDaFicha(f.tipoConta),
+    };
+    if (l.bancoNome === nova.bancoNome && l.agencia === nova.agencia && l.conta === nova.conta && l.tipoConta === nova.tipoConta) return l;
+    mudou = true;
+    return { ...l, ...nova, banco: "" };
+  });
+  if (!mudou) return r;
+
+  const dados = limpar({ ...r.dados, linhas });
+  await prisma.$executeRawUnsafe(
+    `UPDATE requerimento_pecunia SET dados=$2, atualizado_em=$3 WHERE id=$1`,
+    r.id, JSON.stringify(comBancoCifrado(dados)), new Date().toISOString());
+  return { ...r, dados };
+}
+
+/* A ficha deste policial acabou de ganhar (ou trocar) a conta: leva para
+   todos os requerimentos SEM assinatura em que ele está. Devolve quantos
+   foram atualizados. */
+export async function levarBancoParaRequerimentos(efetivoId: string): Promise<number> {
+  let n = 0;
+  for (const it of await envolvemEfetivo(efetivoId)) {
+    const r = await lerPecunia(it.id);
+    if (r && (await puxarBancoDaFicha(r, [efetivoId], true)) !== r) n++;
+  }
+  return n;
 }
 
 /* Os requerimentos em que ESTE policial está — sem abrir o JSON de nenhum.
