@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { registrar } from "@/lib/auditoria";
 import { assinaturasDoConjunto } from "@/lib/assinaturaSigep";
-import { TIPO_ASSINATURA, lerPecunia, responderBanco } from "@/lib/requerimentoPecunia";
+import { TIPO_ASSINATURA, lerPecunia, responderBanco, levarBancoParaRequerimentos } from "@/lib/requerimentoPecunia";
 
 export const dynamic = "force-dynamic";
 
@@ -103,6 +103,8 @@ export async function POST(req: Request) {
           },
         });
         naFicha = true;
+        // a ficha mudou: os outros requerimentos dele sem assinatura também recebem
+        try { await levarBancoParaRequerimentos(alvo); } catch (e) { console.error("[premiacao/banco] levar", e); }
         await registrar({
           acao: "editar_ficha", alvo,
           detalhe: `Atualizou os dados bancários da ficha ao responder o requerimento ${id}.`,

@@ -35,6 +35,13 @@ export function linhaBanco(f: RespostaBanco & { banco?: string }): string {
   return partes.join(" ");
 }
 
+/* O tipo de conta da FICHA é texto livre ("Corrente", "Poupança", "CP"...).
+   No requerimento ele é só CC ou CP — sem esta conta, "Poupança" virava CC. */
+export function tipoContaDaFicha(v?: string | null): "CC" | "CP" {
+  const t = String(v || "").trim().toLowerCase();
+  return t === "cp" || t.includes("poup") ? "CP" : "CC";
+}
+
 /* Policial do efetivo que ainda não tem a conta no documento — é quem o
    questionário está esperando. Linha avulsa (civil, ou de fora do efetivo)
    não conta: ninguém vai responder por ela no sistema. */

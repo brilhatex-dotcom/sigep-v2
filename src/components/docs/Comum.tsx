@@ -435,7 +435,7 @@ export const ESTILO_FOLHA = `
   .campo-ed:hover, .campo-ed:focus { background: #fdf6da; outline: none; }
   @media print {
     .campo-ed { background: transparent !important; border-bottom-color: transparent !important; }
-    .folha-diaria { margin: 0 !important; width: 100% !important; min-height: 0 !important; padding: 8mm 10mm !important; box-shadow: none !important; box-decoration-break: clone; }
+    .folha-diaria { box-sizing: border-box !important; margin: 0 !important; width: 100% !important; min-height: 0 !important; padding: 8mm 10mm !important; box-shadow: none !important; box-decoration-break: clone; }
     /* Nada de janela flutuante no papel: o balão do chat estava saindo
        impresso em cima do documento. */
     .nao-imprimir, #chat-flutuante { display: none !important; }

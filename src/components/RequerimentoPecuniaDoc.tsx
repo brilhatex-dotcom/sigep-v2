@@ -5,7 +5,7 @@ import { Printer, Plus, Trash2, Info, Save, Lock, Unlock, FolderOpen, ShieldChec
 import { imprimirElemento } from "@/lib/imprimir";
 import { avisar, confirmar } from "@/components/Avisos";
 import CarimboSigep from "@/components/CarimboSigep";
-import { linhaBanco, faltaBanco } from "@/lib/pecuniaComum";
+import { linhaBanco, faltaBanco, tipoContaDaFicha } from "@/lib/pecuniaComum";
 import {
   Cabecalho, Campo, ESTILO_FOLHA, FOLHA_A4, nomeBusca, type Militar,
 } from "@/components/docs/Comum";
@@ -227,8 +227,8 @@ export default function RequerimentoPecuniaDoc({
         bancoNome: f.banco || x.bancoNome || "",
         agencia: f.agencia || x.agencia || "",
         conta: f.conta || x.conta || "",
-        tipoConta: f.tipoConta || x.tipoConta || "CC",
-        banco: linhaBanco({ bancoNome: f.banco, agencia: f.agencia, conta: f.conta, tipoConta: f.tipoConta }) || x.banco,
+        tipoConta: f.tipoConta ? tipoContaDaFicha(f.tipoConta) : (x.tipoConta || "CC"),
+        banco: linhaBanco({ bancoNome: f.banco, agencia: f.agencia, conta: f.conta, tipoConta: tipoContaDaFicha(f.tipoConta) }) || x.banco,
       } : x)));
       if (f.bancoOculto) setAvisoBanco(true);
     } catch { /* sem a ficha, a linha fica para preencher a mão */ }
@@ -501,15 +501,37 @@ export default function RequerimentoPecuniaDoc({
               <FileSignature className="h-3.5 w-3.5" /> Dados bancários e assinaturas
             </div>
 
-            {/* A conta entra no conteúdo assinado. Quem assina antes de todo
-                mundo responder obriga a reabrir depois — e reabrir cancela
-                assinatura de gente que não errou nada. Melhor avisar antes. */}
+            {/* A conta entra no conteúdo assinado. Quem assinasse antes de todo
+                mundo responder obrigaria a reabrir depois — e reabrir cancela
+                assinatura de gente que não errou nada. Por isso a assinatura
+                no SIGEP só libera com TODAS as contas (o servidor também barra). */}
             {!travado && faltamBanco.length > 0 && (
-              <p className="mb-2 rounded-lg border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200">
-                Ainda falta a conta de <b>{faltamBanco.map((l) => l.nome || "—").join(", ")}</b>.
-                A conta faz parte do que é assinado: se alguém assinar agora, o requerimento terá
-                de ser reaberto para o resto preencher, e as assinaturas caem.
-              </p>
+              <div className="mb-2 flex gap-2 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2.5 text-xs leading-relaxed text-amber-200">
+                <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                <p>
+                  <b>Ninguém consegue assinar no SIGEP enquanto faltar a conta de algum policial.</b>{" "}
+                  Falta: <b>{faltamBanco.map((l) => l.nome || "—").join(", ")}</b>.
+                  <br />
+                  Cada um preenche a própria conta aqui ou na <b>Ficha Individual</b> (dados bancários):
+                  o que for salvo na ficha vem sozinho para este requerimento. Quem montou o
+                  requerimento e o P/1 também podem preencher pelos outros. Quando a última conta
+                  entrar, o botão <b>Assinar no SIGEP</b> libera para todos.
+                </p>
+              </div>
+            )}
+            {/* Assinado antes desta regra existir, com conta faltando: só
+                reabrindo — e é bom dizer isso em vez de deixar a pessoa presa. */}
+            {travado && faltamBanco.length > 0 && (
+              <div className="mb-2 flex gap-2 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2.5 text-xs leading-relaxed text-amber-200">
+                <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                <p>
+                  Este requerimento foi assinado antes de a conta de{" "}
+                  <b>{faltamBanco.map((l) => l.nome || "—").join(", ")}</b> ser preenchida, e o texto
+                  travou. Para completar, quem montou o requerimento ou o P/1 precisa clicar em{" "}
+                  <b>Reabrir para editar</b>: as assinaturas atuais caem, a conta é preenchida e todos
+                  assinam de novo.
+                </p>
+              </div>
             )}
 
             {linhas.filter((l) => l.efetivoId).map((l) => {
@@ -531,11 +553,16 @@ export default function RequerimentoPecuniaDoc({
                     )}
 
                     <span className="ml-auto flex flex-wrap gap-1.5">
-                      {sou && !a && !sem && (
+                      {sou && !a && (faltamBanco.length > 0 ? (
+                        <button disabled className={btn}
+                          title={sem ? "Preencha a sua conta primeiro" : "Libera quando todos os policiais tiverem a conta preenchida"}>
+                          <Lock className="h-3.5 w-3.5" /> Assinar no SIGEP
+                        </button>
+                      ) : (
                         <button onClick={() => { setErroAss(""); setSenha(""); setPedindoSenha(true); }} className={btn}>
                           <ShieldCheck className="h-3.5 w-3.5" /> Assinar no SIGEP
                         </button>
-                      )}
+                      ))}
                       {(sou || souDono) && !l.assinarGov && (
                         <button onClick={() => escolherModo(l.efetivoId, "gov")} className={btn}>Assinar pelo Gov.br</button>
                       )}

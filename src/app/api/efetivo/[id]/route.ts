@@ -20,6 +20,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { registrar, diferenca } from "@/lib/auditoria";
+import { levarBancoParaRequerimentos } from "@/lib/requerimentoPecunia";
 
 const CAMPOS_PESSOAIS = [
   "cpf", "rg", "dataNasc", "sexo", "estadoCivil", "naturalidade",
@@ -111,6 +112,14 @@ export async function PUT(
     data.ultimaAtualizacao = new Date().toISOString();
 
     const atualizado = await prisma.efetivo.update({ where: { id }, data });
+
+    /* Mudou a conta na ficha? Ela vai sozinha para os requerimentos de
+       premiação SEM assinatura em que o policial está — ninguém precisa
+       digitar de novo lá. Falhar aqui não pode desfazer a ficha salva. */
+    const BANCO = ["banco", "agencia", "conta", "tipoConta"] as const;
+    if (BANCO.some((c) => ((antes as any)[c] ?? "") !== ((atualizado as any)[c] ?? ""))) {
+      try { await levarBancoParaRequerimentos(id); } catch (e) { console.error("[efetivo PUT] conta nos requerimentos", e); }
+    }
 
     // ---- auditoria: registra so os campos que realmente mudaram ----
     try {

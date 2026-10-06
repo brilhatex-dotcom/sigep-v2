@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { registrar } from "@/lib/auditoria";
 import {
   TIPO_ASSINATURA, criarPecunia, salvarPecunia, lerPecunia, listarPecunia,
-  apagarPecunia, podeVer, refAssinatura, faltaBanco, type RequerimentoPecunia,
+  apagarPecunia, podeVer, refAssinatura, faltaBanco, puxarBancoDaFicha, type RequerimentoPecunia,
 } from "@/lib/requerimentoPecunia";
 import { assinaturasDoConjunto, apagarAssinaturasDoConjunto, refsAssinadas } from "@/lib/assinaturaSigep";
 import { prisma } from "@/lib/prisma";
@@ -100,11 +100,17 @@ export async function GET(req: Request) {
 
   try {
     if (id) {
-      const r = await lerPecunia(id);
+      let r = await lerPecunia(id);
       if (!r) return NextResponse.json({ error: "Requerimento não encontrado." }, { status: 404 });
       if (!podeVer(r, q.login, q.efetivoId, q.admin)) {
         return NextResponse.json({ error: "Este requerimento não é seu." }, { status: 403 });
       }
+      /* Conta que falta e já está na ficha entra sozinha: a do próprio
+         policial que abriu, ou a de todos quando é o P/1 (que já vê a conta de
+         qualquer um). Nunca a do colega por quem só montou o requerimento. */
+      try {
+        r = await puxarBancoDaFicha(r, q.admin ? r.dados.linhas.map((l) => l.efetivoId) : [q.efetivoId || ""]);
+      } catch (e) { console.error("[premiacao] conta da ficha", e); }
       const assinaturas = await assinaturasDe(id);
       return NextResponse.json({
         requerimento: r,

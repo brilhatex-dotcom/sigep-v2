@@ -23,6 +23,11 @@ export function imprimirElemento(
     `<title>${opts?.titulo || "Documento"}</title>` +
     `<style>@page{size:${size};margin:0;} html,body{margin:0;padding:0;background:#fff;} ` +
     `*{-webkit-print-color-adjust:exact;print-color-adjust:exact;}` +
+    /* Na tela o Tailwind mede tudo com a margem interna DENTRO da largura
+       (border-box); aqui não tem Tailwind. Sem esta linha, a folha de 210mm
+       ganhava os 2cm das margens por fora, passava da página e o papel saía
+       cortado à direita (brasão, coluna DADOS BANCÁRIOS, fim das linhas). */
+    `*,*::before,*::after{box-sizing:border-box;}` +
     /* O iframe é limpo: NADA do CSS da página chega aqui. Botão marcado com
        "não imprimir" é controle de tela — num iframe que só existe para
        imprimir, ele nunca deve aparecer. Sem esta linha, a lixeira de apagar
