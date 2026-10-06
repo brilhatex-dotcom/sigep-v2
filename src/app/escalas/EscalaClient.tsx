@@ -81,6 +81,10 @@ type Escala = {
   // ---- Escala Extraordinaria (tipo "extraordinaria", print 3) ----
   extraOperacao?: string;
   extraCmtOperacao?: string;
+  /* Na escala da JOE o CMT DA OPERACAO sai sozinho: e o 1º policial da tabela.
+     true = alguem escreveu no campo (mesmo apagando tudo), e ai vale o que
+     esta escrito. Escalas antigas sem a marca: o que ja estava digitado vale. */
+  extraCmtManual?: boolean;
   /* LOCAL e HORARIO sao do EVENTO; APRESENTACAO e onde e a que horas a tropa
      se apresenta, que costuma ser antes e noutro lugar (o quartel). Eram uma
      coisa so, e o escalante tinha de espremer as duas informacoes na mesma
@@ -1074,8 +1078,46 @@ function ReforcoTabela({
    sai "patrulheiro", "Patrulheiro " e "PATRULHEIRO" no mesmo documento. */
 const FUNCOES_JOE = ["CMT", "Aux. do CMT", "Patrulheiro", "Motorista"] as const;
 
-function FuncaoJoe({ valor, onChange }: { valor: string; onChange: (v: string) => void }) {
-  const limpo = semTags(valor || "").trim();
+/* Funcao de cada linha enquanto ninguem escolheu outra: o 1º e o CMT, o 2º o
+   Aux. do CMT, o ultimo o Motorista e os do meio Patrulheiros. Fica VAZIA na
+   gravacao e e calculada na hora — assim, ao incluir ou tirar alguem, o
+   ultimo continua sendo o motorista. O que foi escolhido a mao fica fixo. */
+function funcaoPadraoJoe(i: number, n: number): string {
+  if (i === 0) return "CMT";
+  if (i === 1) return "Aux. do CMT";
+  if (i === n - 1) return "Motorista";
+  return "Patrulheiro";
+}
+
+/* CMT DA OPERACAO tirado do 1º policial da tabela: "1º TEN QOEM SILAS",
+   "3º SGT PM CARLOS". Sem ficha no efetivo (externo), vai o nome da linha. */
+function cmtDaOperacao(r: JoeEscalaLinha | undefined, efMap: Record<string, Militar>): string {
+  if (!r) return "";
+  const m = efMap[semTags(r.id || "")];
+  if (!m) return semTags(r.nome || "").toUpperCase();
+  let posto = abreviaPosto(m.postoGrad || "");
+  const quadro = (m.quadro || "").trim().toUpperCase();
+  if (quadro && ehOficialAbbr(posto)) posto = posto.replace(/\bPM\b/, quadro);
+  return [posto, (m.nomeGuerra || m.nome || "").trim()].filter(Boolean).join(" ").toUpperCase();
+}
+
+/* A escala da JOE como sai no papel: funcoes vazias com a do lugar e CMT da
+   operacao vazio com o 1º da tabela. E esta que vai para a tela, a impressao,
+   o Word/PDF e a publicacao; a gravada continua com os campos vazios. */
+function comPadroesJoe(e: Escala, efMap: Record<string, Militar>): Escala {
+  if (e.tipo !== "joe") return e;
+  const rows = e.joeRows || [];
+  const cmtAuto = e.extraCmtManual !== true && !semTags(e.extraCmtOperacao || "");
+  return {
+    ...e,
+    joeRows: rows.map((r, i) => (semTags(r.funcao || "") ? r : { ...r, funcao: funcaoPadraoJoe(i, rows.length) })),
+    extraCmtOperacao: cmtAuto ? cmtDaOperacao(rows[0], efMap) : e.extraCmtOperacao,
+  };
+}
+
+function FuncaoJoe({ valor, padrao, onChange }: { valor: string; padrao: string; onChange: (v: string) => void }) {
+  // vazio = a funcao do lugar (padrao); o seletor ja mostra ela escolhida
+  const limpo = semTags(valor || "") || padrao;
   const daLista = (FUNCOES_JOE as readonly string[]).includes(limpo);
   /* Valor que nao esta na lista (escrito antes, ou uma funcao fora do comum)
      NAO pode se perder: vira uma opcao propria dentro do seletor. */
@@ -1099,7 +1141,7 @@ function FuncaoJoe({ valor, onChange }: { valor: string; onChange: (v: string) =
         onChange(e.target.value);
       }}
     >
-      <option value="">função…</option>
+      {!limpo && <option value="">função…</option>}
       {FUNCOES_JOE.map((f) => <option key={f} value={f}>{f}</option>)}
       {!daLista && limpo && <option value="__ATUAL__">{limpo}</option>}
       <option value="__DIGITAR__">outra (digitar)…</option>
@@ -1113,17 +1155,17 @@ function JoeEscalaTabela({ rows, onChange }: { rows: JoeEscalaLinha[]; onChange:
   const upd = (i: number, patch: Partial<JoeEscalaLinha>) =>
     onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const rm = (i: number) => onChange(rows.filter((_, j) => j !== i));
-  /* A linha nova nasce com LOCAL, HORARIO e FUNCAO da linha de cima. Numa
-     operacao, essas tres se repetem quase sempre (mesmo local, mesma jornada,
-     e varios patrulheiros seguidos) — o que muda de verdade e nome, ID e CPF.
-     Herdando, cada policial a mais custa tres campos em vez de seis. */
+  /* A linha nova nasce com LOCAL e HORARIO da linha de cima. Numa operacao
+     eles se repetem quase sempre (mesmo local, mesma jornada) — o que muda de
+     verdade e nome, ID e CPF. A FUNCAO nasce vazia: vira o Motorista (ultimo
+     da tabela), e quem era o ultimo passa a Patrulheiro. */
   const add = () => {
     const ultima = rows[rows.length - 1];
     onChange([...rows, {
       nome: "", id: "", cpf: "",
       local: ultima?.local || "",
       horario: ultima?.horario || "",
-      funcao: ultima?.funcao || "",
+      funcao: "",
     }]);
   };
   return (
@@ -1147,7 +1189,7 @@ function JoeEscalaTabela({ rows, onChange }: { rows: JoeEscalaLinha[]; onChange:
             <td className="val-c"><Editable value={r.local} placeholder="local" onChange={(v) => upd(i, { local: v })} /></td>
             <td className="val-c"><Editable value={r.horario} placeholder="horário" onChange={(v) => upd(i, { horario: v })} /></td>
             <td className="val-c joe-func-cell">
-              <FuncaoJoe valor={r.funcao} onChange={(v) => upd(i, { funcao: v })} />
+              <FuncaoJoe valor={r.funcao} padrao={funcaoPadraoJoe(i, rows.length)} onChange={(v) => upd(i, { funcao: v })} />
               {rows.length > 0 && <button className="no-print mini" title="remover" onClick={() => rm(i)}>×</button>}
             </td>
           </tr>
@@ -2466,9 +2508,11 @@ export default function EscalaClient() {
   // Excecao do CPU editada na linha do Mapa vale tambem para dias ja salvos,
   // mantendo Mapa e escala diaria consistentes.
   const ovrCpuDia = cad.cpuOverrides?.[data];
-  const e: Escala = ovrCpuDia === undefined
+  const eSalva: Escala = ovrCpuDia === undefined
     ? eBase
     : { ...eBase, cpuDeDia: { ...eBase.cpuDeDia, titular: ovrCpuDia ? (ovrCpuDia.startsWith("__FOLGA") ? "Folga" : nomeDe(ovrCpuDia)) : "" } };
+  // JOE: funcoes e CMT da operacao preenchidos pela posicao, quando vazios
+  const e: Escala = comPadroesJoe(eSalva, efMap);
 
   const editE = (fn: (d: Escala) => void) => {
     setEscalas((prev) => {
@@ -2501,6 +2545,9 @@ export default function EscalaClient() {
     editE((d) => {
       d.joeId = joeId;
       d.joeRows = rows;
+      // remontar volta o CMT da operacao para o automatico (1º da tabela)
+      d.extraCmtOperacao = "";
+      d.extraCmtManual = false;
       d.extraOperacao = joe.evento || "";
       d.extraLocal = joe.local || "";
       d.extraHorario = joe.horario || "";
@@ -2936,7 +2983,7 @@ export default function EscalaClient() {
 
                   <div className="extra-campos">
                     <div className="extra-linha"><span className="extra-lbl">OPERAÇÃO:</span> <Editable value={e.extraOperacao || ""} placeholder="ex: ANIVERSÁRIO DA CIDADE..." onChange={(v) => editE((d) => { d.extraOperacao = v; })} /></div>
-                    <div className="extra-linha"><span className="extra-lbl">CMT DA OPERAÇÃO:</span> <Editable value={e.extraCmtOperacao || ""} placeholder="ex: 1º TEN QOEM SILAS" onChange={(v) => editE((d) => { d.extraCmtOperacao = v; })} /></div>
+                    <div className="extra-linha"><span className="extra-lbl">CMT DA OPERAÇÃO:</span> <Editable value={e.extraCmtOperacao || ""} placeholder="ex: 1º TEN QOEM SILAS" onChange={(v) => editE((d) => { d.extraCmtOperacao = v; d.extraCmtManual = true; })} /></div>
                     <div className="extra-linha"><span className="extra-lbl">LOCAL DO EVENTO:</span> <Editable value={e.extraLocal || ""} placeholder="ex: PRESIDENTE DUTRA-MA" onChange={(v) => editE((d) => { d.extraLocal = v; })} /></div>
                     <div className="extra-linha"><span className="extra-lbl">HORÁRIO DO EVENTO:</span> <Editable value={e.extraHorario || ""} placeholder="ex: 23H AO TÉRMINO DO EVENTO" onChange={(v) => editE((d) => { d.extraHorario = v; })} /></div>
                     <div className="extra-linha"><span className="extra-lbl">APRESENTAÇÃO:</span> <Editable value={e.extraApresentacao || ""} placeholder="ex: 22H NA SEDE DO 18º BPM" onChange={(v) => editE((d) => { d.extraApresentacao = v; })} /></div>
@@ -2947,7 +2994,7 @@ export default function EscalaClient() {
                     <ReforcoTabela linhas={e.extraReforco || []} onChange={(rows) => editE((d) => { d.extraReforco = rows; })} efetivo={efetivo} />
                   )}
                   {ehJoe && (
-                    <JoeEscalaTabela rows={e.joeRows || []} onChange={(rows) => editE((d) => { d.joeRows = rows; })} />
+                    <JoeEscalaTabela rows={eSalva.joeRows || []} onChange={(rows) => editE((d) => { d.joeRows = rows; })} />
                   )}
                 </div>
               )}
