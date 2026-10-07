@@ -5,7 +5,7 @@ import {
   FileSpreadsheet, FileText, Printer, FileType2, Search, X, Check,
   ChevronDown, Loader2, Users, RotateCcw,
 } from "lucide-react";
-import { classificarPatente } from "@/lib/patentes";
+import { compararAntiguidade } from "@/lib/antiguidade";
 import {
   CAMPOS, GRUPOS, MODELOS, campoPorChave, valorDoCampo,
   type MilitarRelatorio, type Modelo,
@@ -26,7 +26,7 @@ export default function RelatoriosClient({
 }) {
   // ---- o que sai no papel ----
   const [colunas, setColunas] = useState<string[]>(MODELOS[0].campos);
-  const [ordem, setOrdem] = useState<"antiguidade" | "alfabetica" | "lotacao">("antiguidade");
+  const [ordem, setOrdem] = useState<"antiguidade" | "lotacao">("antiguidade");
   const [titulo, setTitulo] = useState("Lista telefônica");
   const [modeloAtivo, setModeloAtivo] = useState<string>(MODELOS[0].id);
 
@@ -94,13 +94,14 @@ export default function RelatoriosClient({
 
   const ordenados = useMemo(() => {
     const lista = [...filtrados];
-    const porNome = (a: MilitarRelatorio, b: MilitarRelatorio) =>
-      (a.nomeGuerra || a.nome || "").localeCompare(b.nomeGuerra || b.nome || "", "pt-BR");
-    if (ordem === "alfabetica") return lista.sort(porNome);
-    const porPatente = (a: MilitarRelatorio, b: MilitarRelatorio) => {
-      const d = classificarPatente(a.postoGrad || "").ordem - classificarPatente(b.postoGrad || "").ordem;
-      return d !== 0 ? d : porNome(a, b);
-    };
+    /* TODO relatório sai em ordem de HIERARQUIA, a mesma da tela "Efetivo por
+       Antiguidade": posto/graduação, depois data da última promoção (mais
+       antigo primeiro), depois nº de barra, e só então o nome. Antes o
+       desempate dentro do posto era o nome — dois sargentos saíam em ordem
+       alfabética, não de antiguidade — e havia a opção "ordem alfabética",
+       que quebrava o padrão. O agrupamento por unidade continua, mas a
+       hierarquia vale DENTRO de cada unidade e pelotão. */
+    const porPatente = (a: MilitarRelatorio, b: MilitarRelatorio) => compararAntiguidade(a, b);
     if (ordem === "lotacao") {
       return lista.sort((a, b) => {
         const u = (a.unidade || "zzz").localeCompare(b.unidade || "zzz", "pt-BR");
@@ -304,9 +305,8 @@ export default function RelatoriosClient({
             </Campo>
             <Campo rotulo="Ordenar por">
               <select value={ordem} onChange={(e) => setOrdem(e.target.value as any)} className={estiloSelect}>
-                <option value="antiguidade">Antiguidade (posto)</option>
-                <option value="alfabetica">Ordem alfabética</option>
-                <option value="lotacao">Unidade e pelotão</option>
+                <option value="antiguidade">Hierarquia (antiguidade)</option>
+                <option value="lotacao">Unidade e pelotão (hierarquia em cada um)</option>
               </select>
             </Campo>
           </div>
