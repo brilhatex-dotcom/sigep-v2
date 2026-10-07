@@ -162,7 +162,7 @@ export type Modelo = {
   nome: string;
   descricao: string;
   campos: string[];
-  ordem?: "antiguidade" | "alfabetica" | "lotacao";
+  ordem?: "antiguidade" | "lotacao";
   // filtros que o modelo já deixa marcados
   filtros?: { somenteComTelefone?: boolean; somenteComEmail?: boolean; situacoes?: string[] };
 };
@@ -209,7 +209,7 @@ export const MODELOS: Modelo[] = [
     nome: "Aniversariantes",
     descricao: "Data de nascimento e idade — filtre o mês ao lado.",
     campos: ["postoNome", "dataNasc", "idade", "telefone", "unidade"],
-    ordem: "alfabetica",
+    ordem: "antiguidade",
   },
   {
     id: "motoristas",

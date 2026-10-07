@@ -29,6 +29,7 @@ type Memo = {
   periodos: Periodo[];
   inicioBR: string; fimBR: string; apresentacaoBR: string;
   inicioExtenso: string; apresExtenso: string; dias: number;
+  sustacao?: { motivo: string; apres1BR: string; inicio2BR: string; apres2BR: string };
   postoGrad: string; numeroBarra: string; nome: string; nomeGuerra: string;
   quadro: string; ehOficial: boolean;
   estado: "pendente" | "assinado_militar" | "concluido";
@@ -57,8 +58,10 @@ function dadosDo(m: Memo): DadosMemorando {
     quadro: m.quadro,
     ehOficial: m.ehOficial,
     inicioBR: m.inicioBR,
-    apresentacaoBR: m.apresentacaoBR,
+    // férias sustadas: a 1ª apresentação é a volta por necessidade do serviço
+    apresentacaoBR: m.sustacao ? m.sustacao.apres1BR : m.apresentacaoBR,
     diasFerias: m.dias,
+    sustacao: m.sustacao ? { motivo: m.sustacao.motivo, inicio2BR: m.sustacao.inicio2BR, apres2BR: m.sustacao.apres2BR } : undefined,
     nomeGuerra: m.nomeGuerra || undefined,
     prazoTexto: PRAZO_LP,
   };

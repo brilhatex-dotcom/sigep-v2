@@ -35,6 +35,10 @@ export async function POST(req: Request) {
       cargoCmt: String(body.cargoCmt ?? ""),
       variante: body.variante === "licenca" ? "licenca" : "ferias",
       prazo: String(body.prazo ?? ""),
+      sustacao: body.sustacao === true,
+      motivo: String(body.motivo ?? ""),
+      inicio2Extenso: String(body.inicio2Extenso ?? ""),
+      apres2Extenso: String(body.apres2Extenso ?? ""),
       assinaturaChefe: String(body.assinaturaChefe ?? ""),
     };
 

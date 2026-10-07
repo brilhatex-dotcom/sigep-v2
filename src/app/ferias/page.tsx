@@ -15,6 +15,7 @@ import {
   CORES_STATUS,
   type Periodo,
 } from "@/lib/ferias";
+import { motivosSustacao, motivoDe } from "@/lib/feriasSustacao";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +69,7 @@ export default async function FeriasPage({
 
   const hoje = hojeBR();
   const mesAtual = hoje.getMonth();
+  const motivos = await motivosSustacao();
 
   const equipesView = equipesAno.map((e) => {
     const p1: Periodo = {
@@ -126,6 +128,7 @@ export default async function FeriasPage({
         fimBR: dataBR(i === 0 ? e.periodo1Fim : e.periodo2Fim),
         apres: dataBR(i === 0 ? e.periodo1Apres : e.periodo2Apres),
       })),
+      motivoSustacao: motivoDe(motivos, e.anoGozo, e.numeroEquipe),
       status: { ...st, cor: CORES_STATUS[st.chave] },
       emFeriasHoje,
       noMes,

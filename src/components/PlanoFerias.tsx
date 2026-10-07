@@ -47,6 +47,8 @@ export type EquipeView = {
     fimBR: string;
     apres: string | null;
   }[];
+  // com 2º período (sustação): o porquê, que sai no memorando
+  motivoSustacao?: string;
   status: { chave: string; rotulo: string; detalhe: string; cor: string };
   emFeriasHoje: boolean;
   noMes: boolean;
@@ -106,6 +108,7 @@ type FormDatas = {
   p1Inicio: string; p1Fim: string; p1Apres: string;
   p2Inicio: string; p2Fim: string; p2Apres: string;
   usarP2: boolean;
+  motivo: string;   // motivo da sustação (sai no memorando)
 };
 
 export default function PlanoFerias({
@@ -379,6 +382,7 @@ export default function PlanoFerias({
     p1Inicio: "", p1Fim: "", p1Apres: "",
     p2Inicio: "", p2Fim: "", p2Apres: "",
     usarP2: false,
+    motivo: "",
   });
   const [salvandoDatas, setSalvandoDatas] = useState(false);
   const [erroDatas, setErroDatas] = useState<string | null>(null);
@@ -432,6 +436,7 @@ export default function PlanoFerias({
       p2Fim:    brParaISO(p2?.fimBR ?? ""),
       p2Apres:  brParaISO(p2?.apres ?? ""),
       usarP2:   !!p2,
+      motivo:   e.motivoSustacao || "",
     });
     setErroDatas(null);
     setEditando(e);
@@ -467,6 +472,7 @@ export default function PlanoFerias({
         body.p2Inicio = form.p2Inicio;
         body.p2Fim = form.p2Fim;
         body.p2Apres = form.p2Apres;
+        body.motivoSustacao = form.motivo;
       }
       const res = await fetch("/api/ferias/editar", {
         method: "POST",
@@ -523,6 +529,18 @@ export default function PlanoFerias({
       inicioBR: p?.inicioBR ?? "",
       apresentacaoBR: p?.apres ?? p?.fimBR ?? "",
       diasFerias: 35,
+      /* Férias sustadas (equipe com 2º período): o memorando sai no modelo da
+         sustação — volta por necessidade do serviço e dias restantes depois. */
+      sustacao: e.periodos[1]
+        ? {
+            motivo: e.motivoSustacao || "",
+            inicio2BR: e.periodos[1].inicioBR,
+            // sem apresentação gravada: o dia seguinte ao fim
+            apres2BR: e.periodos[1].apres && e.periodos[1].apres !== "—"
+              ? e.periodos[1].apres
+              : calcApres(brParaISO(e.periodos[1].fimBR)).split("-").reverse().join("/"),
+          }
+        : undefined,
     });
   }
 
@@ -1124,6 +1142,23 @@ export default function PlanoFerias({
                     <InputData label="Fim" value={form.p2Fim} onChange={(v) => setF("p2Fim", v)} />
                     <InputData label="Apresentação" value={form.p2Apres} onChange={(v) => setF("p2Apres", v)} />
                   </div>
+                  {/* O 1º período é o que foi gozado até a sustação; a
+                      apresentação dele é a volta "por necessidade do serviço".
+                      O motivo entra no memorando de cada militar da equipe. */}
+                  <label className="mt-3 block text-xs text-[#94A3B8]">
+                    Motivo da sustação (sai no memorando)
+                    <input
+                      value={form.motivo}
+                      onChange={(e) => setF("motivo", e.target.value)}
+                      placeholder="ex: em decorrência do período eleitoral"
+                      className="mt-1 w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50"
+                    />
+                  </label>
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-[#6f82a0]">
+                    O memorando sai: “…devendo apresentar-se por necessidade do serviço policial militar,{" "}
+                    {form.motivo.trim() ? form.motivo.trim() + ", " : ""}no dia [apresentação do 1º período]… Outrossim, informo
+                    ainda que os dias restantes serão gozados a partir do dia [início do 2º período]…”
+                  </p>
                 </div>
               )}
 

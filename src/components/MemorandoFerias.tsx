@@ -20,6 +20,10 @@ export type DadosMemorando = {
   horaApresentacao?: string; // opcional: ex. "07h30min" -> sai ", às 07h30min" (default "07h30min"); passe "" para sem hora
   observacao?: string;       // opcional: texto da OBS. undefined = OBS padrão; "" = sem OBS
   prazoTexto?: string;       // Licença-Prêmio: texto do prazo (ex.: "3 (três) meses"); default "3 (três) meses"
+  /* Férias SUSTADAS (equipe com 2º período — eleição, São João...): o militar
+     volta em apresentacaoBR "por necessidade do serviço" e goza os dias
+     restantes a partir de inicio2BR, apresentando-se em apres2BR. */
+  sustacao?: { motivo?: string; inicio2BR: string; apres2BR: string };
 };
 
 export const OBS_PADRAO =
@@ -40,6 +44,11 @@ export function dataExtenso(br: string): string {
   const m = br.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (!m) return br;
   return `${pad2(parseInt(m[1]))} de ${meses[parseInt(m[2]) - 1]} de ${m[3]}`;
+}
+
+// "06/10/2026" -> "06 DE OUTUBRO DE 2026" (modelo da sustação)
+export function dataExtensoCaixaAlta(br: string): string {
+  return dataExtenso(br).toUpperCase();
 }
 
 // Abrevia o posto/graduação no padrão dos memorandos.
@@ -258,7 +267,12 @@ function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe, tipoAs
   const assinaturaHtml = linhaAssinaturaDestino(dados);
 
   const hora = dados.horaApresentacao === undefined ? "07h30min" : dados.horaApresentacao.trim();
-  const apresTexto = `${dataExtenso(dados.apresentacaoBR)}${hora ? `, às ${hora}` : ""}`;
+  const sust = !ehLicenca && dados.sustacao ? dados.sustacao : null;
+  // no modelo da sustação as datas saem em caixa alta, como no modelo do P/1
+  const ext = sust ? dataExtensoCaixaAlta : dataExtenso;
+  const apresTexto = `${ext(dados.apresentacaoBR)}${hora ? `, às ${hora}` : ""}`;
+  const apres2Texto = sust ? `${ext(sust.apres2BR)}${hora ? `, às ${hora}` : ""}` : "";
+  const temMotivo = !!sust && !!(sust.motivo || "").trim();
 
   const obsInicial = dados.observacao === undefined ? OBS_PADRAO : dados.observacao;
   const temObs = obsInicial.trim() !== "";
@@ -269,8 +283,12 @@ function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe, tipoAs
     de:            useRef(`1º Ten QOEM Chefe da 1ª Seção do 18º BPM.`),
     ao:            useRef(`${aoHtml}.`),
     assunto:       useRef(ehLicenca ? `Concessão de Licença-Prêmio (${prazoLic}).` : `Concessão de Férias (${dados.diasFerias} dias).`),
-    inicioExtenso: useRef(`<strong><u>${dataExtenso(dados.inicioBR)}</u></strong>`),
+    inicioExtenso: useRef(`<strong><u>${ext(dados.inicioBR)}</u></strong>`),
     apresExtenso:  useRef(`<strong><u>${apresTexto}</u></strong>`),
+    // sustação: motivo e o 2º período
+    motivo:        useRef((sust?.motivo || "").trim()),
+    inicio2Extenso: useRef(sust ? `<strong><u>${ext(sust.inicio2BR)}</u></strong>` : ""),
+    apres2Extenso: useRef(`<strong><u>${apres2Texto}</u></strong>`),
     dias:          useRef(`${dados.diasFerias}`),
     prazo:         useRef(prazoLic),
     exercicio:     useRef(`${Number(ano) - 1}`),
@@ -302,6 +320,10 @@ function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe, tipoAs
         exercicio: campos.exercicio.current,
         apresExtenso: campos.apresExtenso.current,
         variante,
+        sustacao: !!sust,
+        motivo: temMotivo ? campos.motivo.current : "",
+        inicio2Extenso: campos.inicio2Extenso.current,
+        apres2Extenso: campos.apres2Extenso.current,
         observacao: campos.observacao.current,
         assinaturaAo: campos.assinaturaAo.current,
         nomeCmt: campos.nomeCmt.current,
@@ -517,6 +539,25 @@ function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe, tipoAs
             {", "}encontra-se de Licença-Prêmio (<C campo="prazo" />), devendo apresentar-se pronto para o serviço Policial Militar, no dia{" "}
             <C campo="apresExtenso" />.
           </p>
+        ) : sust ? (
+          /* Férias sustadas: modelo do P/1 para quem volta antes por
+             necessidade do serviço e goza o restante depois. */
+          <>
+            <p style={{ textAlign: "justify", textIndent: "15mm", marginBottom: "3mm" }}>
+              Informo a Vossa Senhoria, para conhecimento que a partir do dia{" "}
+              <C campo="inicioExtenso" />
+              {", "}encontra-se de férias regulamentares, relativa ao exercício de{" "}
+              <C campo="exercicio" />, devendo apresentar-se por necessidade do serviço policial militar,{" "}
+              {temMotivo && <><C campo="motivo" />{", "}</>}
+              no dia <C campo="apresExtenso" />.
+            </p>
+            <p style={{ textAlign: "justify", textIndent: "15mm", marginBottom: temObs ? "4mm" : "22mm" }}>
+              Outrossim, informo ainda que os dias restantes serão gozados a partir do dia{" "}
+              <C campo="inicio2Extenso" />
+              {", "}devendo apresentar-se pronto para o serviço policial militar no dia{" "}
+              <C campo="apres2Extenso" />.
+            </p>
+          </>
         ) : (
           <p style={{ textAlign: "justify", textIndent: "15mm", marginBottom: temObs ? "4mm" : "22mm" }}>
             Informo a Vossa Senhoria, para conhecimento que a partir do dia{" "}
