@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { exigirAdmin } from "@/lib/guard";
 import AppShell from "@/components/AppShell";
 import EfetivoLista from "@/components/EfetivoLista";
+import LimparFuncoes from "@/components/LimparFuncoes";
 import { hojeLocal, situacaoCalculada } from "@/lib/situacao";
 import { feriasHoje, licencaPremioHoje } from "@/lib/afastadosHoje";
 import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
@@ -31,6 +32,11 @@ export default async function EfetivoPage({
     }),
     await idsInativos(),
   );
+
+  // fichas com FUNÇÃO preenchida (o P/1 pediu o campo em branco em todas)
+  const comFuncao = await prisma.efetivo.count({
+    where: { AND: [{ funcao: { not: null } }, { NOT: { funcao: "" } }] },
+  });
 
   // ferias de hoje
   // só as equipes do ano e os membros das que estão em gozo hoje (lib/afastadosHoje)
@@ -62,6 +68,7 @@ export default async function EfetivoPage({
       <div className="mx-auto max-w-6xl">
         <h1 className="mb-1 text-2xl font-bold text-white">Cadastro de Efetivo</h1>
         <p className="mb-5 text-sm text-[#94A3B8]">{lista.length} militares cadastrados.</p>
+        <LimparFuncoes total={comFuncao} />
         <EfetivoLista militares={lista} buscaInicial={searchParams.q ?? ""} situacaoInicial={searchParams.situacao ?? ""} />
       </div>
     </AppShell>
