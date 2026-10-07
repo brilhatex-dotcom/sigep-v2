@@ -185,7 +185,13 @@ export default function NovoEfetivoForm() {
         return;
       }
       // o login do policial sai junto com a ficha (login = ID, senha 12345678)
-      if (j.login) avisar(`Militar cadastrado. Login criado: ${j.login} · senha inicial 12345678 (troca no 1º acesso).`);
+      if (j.login || j.planoFerias) {
+        avisar(
+          "Militar cadastrado." +
+          (j.login ? ` Login criado: ${j.login} · senha inicial 12345678 (troca no 1º acesso).` : "") +
+          (j.planoFerias ? ` Incluído no Plano de Férias ${j.planoFerias.ano}, equipe ${j.planoFerias.equipe}.` : ""),
+        );
+      }
       router.push(`/efetivo/${encodeURIComponent(j.id)}`);
       router.refresh();
     } catch {

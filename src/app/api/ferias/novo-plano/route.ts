@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { classificarPatente } from "@/lib/patentes";
 import { rotacionarComEquilibrio, mapaRodizio, type MilitarParaDistribuir } from "@/lib/distribuirEquipes";
+import { incluirNoPlano } from "@/lib/feriasForaDoPlano";
 
 /* POST /api/ferias/novo-plano
    Cria o plano de ferias de um NOVO ano de gozo, com as datas em branco para o
@@ -113,13 +114,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    /* Quem chegou à unidade e não estava em equipe nenhuma do plano de origem
+       entra AGORA, na equipe com menos gente da unidade dele (fora a 1).
+       Só quando o plano nasce de outro: plano em branco é montado à mão. */
+    let novosIncluidos = 0;
+    if (orig) {
+      try { novosIncluidos = (await incluirNoPlano(dest)).length; }
+      catch (e) { console.error("[novo-plano] incluir fora do plano", e); }
+    }
+
     // resumo do rodizio para mostrar na tela ("2→9, 3→2, ...")
     const mapa = mapaRodizio(numeros);
     const resumo = modo === "rodizio" ? numeros.slice(1).map((e) => `${e}→${mapa.get(e)}`).join(", ") : "";
 
     return NextResponse.json({
       ok: true, ano: dest, equipes: numeros.length, membros: membrosCopiados,
-      modo, movidosPorEquilibrio: movidos, resumo,
+      modo, movidosPorEquilibrio: movidos, resumo, novosIncluidos,
     });
   } catch (e) {
     console.error("[POST /api/ferias/novo-plano]", e);

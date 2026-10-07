@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { criarLoginPolicial } from "@/lib/loginPolicial";
+import { anoDoProximoPlano, incluirNoPlano } from "@/lib/feriasForaDoPlano";
 
 // Cria um novo militar. Apenas admin. O ID (ID PMMA) e obrigatorio e unico.
 export async function POST(req: NextRequest) {
@@ -57,7 +58,29 @@ export async function POST(req: NextRequest) {
       const r = await criarLoginPolicial(novo.id);
       if (r.ok) login = r.login;
     } catch { /* segue sem login: dá para criar depois */ }
-    return NextResponse.json({ ok: true, id: novo.id, login }, { status: 201 });
+    /* Plano de férias do PRÓXIMO exercício já aberto? O militar entra nele
+       sozinho: na equipe informada no cadastro, se ela existir no plano, ou
+       na equipe com menos gente da unidade dele (fora a 1). Se o plano ainda
+       não existe, ele entra quando o plano for criado (novo-plano). */
+    let planoFerias: { ano: string; equipe: string } | null = null;
+    try {
+      const ano = await anoDoProximoPlano();
+      if (ano) {
+        const pedida = String(opcionais.equipeFerias || "").trim();
+        const existe = pedida
+          ? await prisma.equipeFerias.findUnique({ where: { numeroEquipe_anoGozo: { numeroEquipe: pedida, anoGozo: ano } }, select: { numeroEquipe: true } })
+          : null;
+        if (existe) {
+          await prisma.membroFerias.create({ data: { idPmma: novo.id, numeroEquipe: pedida, anoGozo: ano, dataCadastro: new Date().toISOString() } });
+          planoFerias = { ano, equipe: pedida };
+        } else {
+          const [e] = await incluirNoPlano(ano, [novo.id]);
+          if (e) planoFerias = { ano, equipe: e.numeroEquipe };
+        }
+      }
+    } catch (e) { console.error("[efetivo/criar] plano de ferias", e); }
+
+    return NextResponse.json({ ok: true, id: novo.id, login, planoFerias }, { status: 201 });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ erro: "Falha ao criar o militar." }, { status: 500 });
