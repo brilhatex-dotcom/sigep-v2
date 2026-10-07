@@ -4,8 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { classificarPatente } from "@/lib/patentes";
 import { rotacionarComEquilibrio, mapaRodizio, type MilitarParaDistribuir } from "@/lib/distribuirEquipes";
-import { incluirNoPlano } from "@/lib/feriasForaDoPlano";
-import { idsInativos } from "@/lib/inativos";
+import { incluirNoPlano, saidosAntesDaPublicacao } from "@/lib/feriasForaDoPlano";
 
 export const dynamic = "force-dynamic";
 
@@ -60,8 +59,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: `Não existe plano para ${anoDestino}. Crie o plano primeiro.` }, { status: 404 });
     }
 
-    // quem já saiu da unidade (transferência/reforma) não vai para o plano novo
-    const saidos = await idsInativos();
+    // quem saiu da unidade ANTES da publicação do plano (outubro do ano
+    // anterior) não vai para ele; quem sai depois, continua
+    const saidos = await saidosAntesDaPublicacao(anoDestino);
     const membrosOrigem = (await prisma.membroFerias.findMany({ where: { anoGozo: anoOrigem } }))
       .filter((m) => !saidos.has(m.idPmma));
     if (!membrosOrigem.length) {

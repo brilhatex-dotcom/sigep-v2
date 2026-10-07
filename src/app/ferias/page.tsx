@@ -16,7 +16,7 @@ import {
   type Periodo,
 } from "@/lib/ferias";
 import { motivosSustacao, motivoDe } from "@/lib/feriasSustacao";
-import { foraDoPlano, problemasDoPlano, type ForaDoPlano as ItemFora, type ProblemaPlano } from "@/lib/feriasForaDoPlano";
+import { foraDoPlano, problemasDoPlano, type ForaDoPlano as ItemFora, type ProblemaPlano, type FeriasAtrasadas } from "@/lib/feriasForaDoPlano";
 import ProblemasDoPlano from "@/components/ProblemasDoPlano";
 import ForaDoPlano from "@/components/ForaDoPlano";
 
@@ -155,7 +155,7 @@ export default async function FeriasPage({
   let fora: ItemFora[] = [];
   if (isAdmin && planoFuturo) { try { fora = await foraDoPlano(anoSelecionado); } catch { /* sem aviso */ } }
   // e o contrário: quem está no plano e já saiu da unidade, ou está repetido
-  let problemas: { saidos: ProblemaPlano[]; repetidos: ProblemaPlano[] } = { saidos: [], repetidos: [] };
+  let problemas: { saidos: ProblemaPlano[]; repetidos: ProblemaPlano[]; atrasadas: FeriasAtrasadas[] } = { saidos: [], repetidos: [], atrasadas: [] };
   if (isAdmin && planoFuturo) { try { problemas = await problemasDoPlano(anoSelecionado); } catch { /* sem aviso */ } }
 
   // houve reequilíbrio com cópia guardada? (botão "Desfazer reequilíbrio")
@@ -197,7 +197,7 @@ export default async function FeriasPage({
         ) : (
           <>
           {isAdmin && (
-            <ProblemasDoPlano ano={anoSelecionado} saidos={problemas.saidos} repetidos={problemas.repetidos} />
+            <ProblemasDoPlano ano={anoSelecionado} saidos={problemas.saidos} repetidos={problemas.repetidos} atrasadas={problemas.atrasadas} />
           )}
           {isAdmin && (
             <ForaDoPlano ano={anoSelecionado} itens={fora} equipes={equipesAno.map((e) => e.numeroEquipe)} />

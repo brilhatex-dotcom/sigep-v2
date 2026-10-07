@@ -48,6 +48,27 @@ export async function idsInativos(): Promise<Set<string>> {
   return set;
 }
 
+/* Quem saiu da unidade, com a DATA da saída (a da última movimentação, que é
+   uma saída). Usado pelo plano de férias: quem sai DEPOIS que o plano foi
+   publicado continua nele. */
+export async function saidasComData(): Promise<Map<string, string>> {
+  const mapa = new Map<string, string>();
+  try {
+    await garantirColunaTipo();
+    const rows: { efetivo_id: string; data: string }[] = await prisma.$queryRawUnsafe(
+      `SELECT efetivo_id, data FROM (
+         SELECT DISTINCT ON (efetivo_id) efetivo_id, tipo, data
+           FROM cc_acesso
+          WHERE efetivo_id <> ''
+          ORDER BY efetivo_id, data DESC, criado_em DESC
+       ) ultima
+       WHERE tipo = 'saida'`
+    );
+    for (const r of rows) mapa.set(r.efetivo_id, String(r.data || ""));
+  } catch { /* sem a tabela: ninguém saiu */ }
+  return mapa;
+}
+
 export async function estaInativo(id: string): Promise<boolean> {
   if (!id) return false;
   return (await idsInativos()).has(id);
