@@ -25,6 +25,14 @@ import { paraData } from "@/lib/ferias";
    A EQUIPE 1 não recebe ninguém (é a equipe que o rodízio preserva), e
    equipe cujas férias já começaram também não, enquanto houver outra — não
    faz sentido incluir alguém numa férias que já passou.
+
+   ADIDOS (lotação com "adido") aparecem na lista, marcados, mas NUNCA entram
+   sozinhos: as férias deles são da unidade de origem. Só entram se o P/1
+   incluir um a um.
+
+   Cada militar vem com a equipe dele no plano do ANO ANTERIOR (ou a marca de
+   que não estava nele): é o que explica por que alguém "antigo" ficou de
+   fora — o plano novo só herda quem estava no plano do ano anterior.
    ========================================================================= */
 
 export type ForaDoPlano = {
@@ -35,7 +43,12 @@ export type ForaDoPlano = {
   lotacao: string;
   unidade: string;          // rótulo legível do grupo (organograma)
   equipeSugerida: string;
+  adido: boolean;           // lotação de adido: não entra automaticamente
+  equipeAnoAnterior: string | null;  // equipe no plano de (ano - 1); null = não estava
 };
+
+const ehAdido = (lotacao: string | null) =>
+  (lotacao || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().includes("adido");
 
 type Equipe = { numeroEquipe: string; periodo1Inicio: string | null };
 
@@ -97,12 +110,14 @@ export async function foraDoPlano(ano: string): Promise<ForaDoPlano[]> {
   });
   if (!equipes.length) return [];
 
-  const [membros, inativos, fichas] = await Promise.all([
+  const [membros, anterior, inativos, fichas] = await Promise.all([
     prisma.membroFerias.findMany({ where: { anoGozo: ano }, select: { idPmma: true, numeroEquipe: true } }),
+    prisma.membroFerias.findMany({ where: { anoGozo: String(Number(ano) - 1) }, select: { idPmma: true, numeroEquipe: true } }),
     idsInativos(),
     prisma.efetivo.findMany({ select: { id: true, postoGrad: true, nome: true, nomeGuerra: true, lotacao: true } }),
   ]);
   const noPlano = new Set(membros.map((m) => m.idPmma));
+  const equipeAntes = new Map(anterior.map((m) => [m.idPmma, m.numeroEquipe]));
   const lotacaoDe = new Map(fichas.map((f) => [f.id, f.lotacao]));
   // ficha sem nome nem posto é registro incompleto/teste — não é militar a escalar
   const fora = fichas.filter((f) => !noPlano.has(f.id) && !inativos.has(f.id) && (f.nome || f.postoGrad));
@@ -123,15 +138,20 @@ export async function foraDoPlano(ano: string): Promise<ForaDoPlano[]> {
       lotacao: f.lotacao || "",
       unidade: rotuloDoGrupo(grupoDoMilitar(f.lotacao)),
       equipeSugerida: sugestao.get(f.id) || "",
+      adido: ehAdido(f.lotacao),
+      equipeAnoAnterior: equipeAntes.get(f.id) ?? null,
     }))
-    .sort((a, b) => classificarPatente(a.postoGrad).ordem - classificarPatente(b.postoGrad).ordem || a.nome.localeCompare(b.nome, "pt-BR"));
+    // adidos por último; dentro de cada parte, hierarquia
+    .sort((a, b) => Number(a.adido) - Number(b.adido)
+      || classificarPatente(a.postoGrad).ordem - classificarPatente(b.postoGrad).ordem
+      || a.nome.localeCompare(b.nome, "pt-BR"));
 }
 
-/* Inclui no plano do ano os militares fora dele (todos, ou só `ids`), cada um
-   na equipe sugerida. Devolve quem entrou e onde. */
+/* Inclui no plano do ano os militares fora dele (todos — menos os adidos —,
+   ou só `ids`), cada um na equipe sugerida. Devolve quem entrou e onde. */
 export async function incluirNoPlano(ano: string, ids?: string[]): Promise<{ idPmma: string; numeroEquipe: string }[]> {
   const fora = await foraDoPlano(ano);
-  const alvo = ids && ids.length ? fora.filter((f) => ids.includes(f.id)) : fora;
+  const alvo = ids && ids.length ? fora.filter((f) => ids.includes(f.id)) : fora.filter((f) => !f.adido);
   const entram = alvo.filter((f) => f.equipeSugerida).map((f) => ({ idPmma: f.id, numeroEquipe: f.equipeSugerida }));
   if (!entram.length) return [];
   await prisma.membroFerias.createMany({
