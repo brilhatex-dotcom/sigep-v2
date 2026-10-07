@@ -666,6 +666,38 @@ export default function PlanoFerias({
 
   // Recolhido por padrão: a lista só abre quando o usuário pede.
   const [vencidasAberto, setVencidasAberto] = useState(false);
+
+  /* Pôr quem tem férias a gozar numa equipe DESTE plano, direto do painel.
+     Uma férias por ano: se o militar já está numa equipe deste plano, ele é
+     MOVIDO (a rota de membros troca de equipe, não duplica). */
+  const equipeNoPlano = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const eq of equipes) for (const mb of eq.membros) m.set(mb.efetivoId, eq.numeroEquipe);
+    return m;
+  }, [equipes]);
+  const [equipeVencida, setEquipeVencida] = useState<Record<string, string>>({});
+  const [colocando, setColocando] = useState<string | null>(null);
+  async function colocarNaEquipe(id: string, nome: string) {
+    const destino = equipeVencida[id];
+    if (!destino) { avisar("Escolha a equipe."); return; }
+    const atual = equipeNoPlano.get(id);
+    if (atual === destino) { avisar(`${nome} já está na equipe ${destino}.`); return; }
+    setColocando(id);
+    try {
+      const r = await fetch("/api/ferias/membros", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idPmma: id, numeroEquipe: destino, anoGozo: anoSelecionado }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { avisar(d?.erro || "Não foi possível pôr na equipe."); return; }
+      avisar(atual
+        ? `${nome} passou da equipe ${atual} para a equipe ${destino} no plano de ${anoSelecionado}.`
+        : `${nome} entrou na equipe ${destino} no plano de ${anoSelecionado}.`);
+      setEquipeVencida((s) => { const n = { ...s }; delete n[id]; return n; });
+      router.refresh();
+    } catch { avisar("Falha de conexão."); }
+    finally { setColocando(null); }
+  }
   const [exercicioSel, setExercicioSel] = useState<string>("todos");
 
   const vencidasFiltradas = useMemo(() => {
@@ -1058,6 +1090,7 @@ export default function PlanoFerias({
                       <th className="px-2 py-2 font-semibold">Exercício</th>
                       <th className="px-2 py-2 font-semibold">Situação</th>
                       <th className="px-2 py-2 font-semibold">Observação</th>
+                      <th className="px-2 py-2 font-semibold">Equipe em {anoSelecionado}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
@@ -1078,6 +1111,35 @@ export default function PlanoFerias({
                           </span>
                         </td>
                         <td className="px-2 py-2 text-[#94A3B8]">{l.motivo || "—"}</td>
+                        <td className="whitespace-nowrap px-2 py-2">
+                          <span className="mr-2 text-xs text-[#94A3B8]">
+                            {equipeNoPlano.get(l.id) ? `equipe ${equipeNoPlano.get(l.id)}` : "fora do plano"}
+                          </span>
+                          {isAdmin && (
+                            <>
+                              <select
+                                value={equipeVencida[l.id] || ""}
+                                onChange={(ev) => setEquipeVencida((s) => ({ ...s, [l.id]: ev.target.value }))}
+                                className="rounded-md border border-white/10 bg-[#0b1626] px-1.5 py-1 text-xs text-white"
+                              >
+                                <option value="">equipe…</option>
+                                {equipes.map((eq) => (
+                                  <option key={eq.numeroEquipe} value={eq.numeroEquipe}>Equipe {eq.numeroEquipe}</option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => colocarNaEquipe(l.id, `${l.postoGrad ?? ""} ${l.nome ?? ""}`.trim())}
+                                disabled={colocando === l.id || !equipeVencida[l.id]}
+                                title={equipeNoPlano.get(l.id)
+                                  ? "Uma férias por ano: ele sai da equipe atual e vai para a escolhida"
+                                  : "Põe o militar na equipe escolhida deste plano"}
+                                className="ml-1.5 rounded-md border border-[#D4AF37]/40 px-2 py-1 text-xs font-medium text-[#D4AF37] hover:bg-[#D4AF37]/10 disabled:opacity-40"
+                              >
+                                {colocando === l.id ? "…" : equipeNoPlano.get(l.id) ? "Mover" : "Adicionar"}
+                              </button>
+                            </>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
