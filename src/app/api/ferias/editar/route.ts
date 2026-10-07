@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { gravarMotivoSustacao } from "@/lib/feriasSustacao";
 
 // POST /api/ferias/editar
-// body: { numeroEquipe, anoGozo, p1Inicio, p1Fim, p1Apres, p2Inicio?, p2Fim?, p2Apres? }
+// body: { numeroEquipe, anoGozo, p1Inicio, p1Fim, p1Apres, p2Inicio?, p2Fim?, p2Apres?, motivoSustacao? }
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ erro: "Nao autorizado" }, { status: 401 });
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
     const {
       numeroEquipe, anoGozo,
       p1Inicio, p1Fim, p1Apres,
-      p2Inicio, p2Fim, p2Apres,
+      p2Inicio, p2Fim, p2Apres, motivoSustacao,
     } = await req.json();
 
     if (!numeroEquipe || !anoGozo || !p1Inicio || !p1Fim || !p1Apres) {
@@ -47,6 +48,9 @@ export async function POST(req: NextRequest) {
         periodo2Apres: p2Apres || null,
       },
     });
+
+    // motivo da sustação: só faz sentido com 2º período (sem ele, apaga)
+    await gravarMotivoSustacao(String(anoGozo), String(numeroEquipe), p2Inicio ? motivoSustacao : "");
 
     return NextResponse.json({ ok: true });
   } catch (e) {

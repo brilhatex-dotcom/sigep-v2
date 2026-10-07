@@ -35,6 +35,12 @@ export type MemorandoDocxInput = {
   variante?: "ferias" | "licenca";
   // texto do prazo da Licenca-Premio (ex.: "3 (tres) meses").
   prazo?: string;
+  // Ferias SUSTADAS (equipe com 2º periodo): volta por necessidade do servico
+  // e goza os dias restantes depois — dois paragrafos no corpo.
+  sustacao?: boolean;
+  motivo?: string;
+  inicio2Extenso?: string;
+  apres2Extenso?: string;
   // assinatura do Chefe do P/1 (data URL ou caminho em public/); "" = sem
   // imagem (assina pelo Gov.br ou em branco). Vem do campo da escala.
   assinaturaChefe?: string;
@@ -284,14 +290,49 @@ export async function gerarMemorandoDocx(d: MemorandoDocxInput): Promise<Buffer>
         new TextRun("."),
       ];
 
-  const paragrafoCorpo = new Paragraph({
-    alignment: AlignmentType.JUSTIFIED,
-    indent: { firstLine: mmToTwip(15) },
-    spacing: { after: temObs ? mmToTwip(4) : mmToTwip(22) },
-    children: runsCorpo,
-  });
+  const sust = d.variante !== "licenca" && !!d.sustacao;
+  const temMotivo = textoSemTags(d.motivo || "") !== "";
+  const paragrafoCorpo = sust
+    ? new Paragraph({
+        alignment: AlignmentType.JUSTIFIED,
+        indent: { firstLine: mmToTwip(15) },
+        spacing: { after: mmToTwip(3) },
+        children: [
+          new TextRun("Informo a Vossa Senhoria, para conhecimento que a partir do dia "),
+          ...htmlParaRuns(d.inicioExtenso),
+          new TextRun(", encontra-se de férias regulamentares, relativa ao exercício de "),
+          ...htmlParaRuns(d.exercicio),
+          new TextRun(", devendo apresentar-se por necessidade do serviço policial militar, "),
+          ...(temMotivo ? [...htmlParaRuns(d.motivo || ""), new TextRun(", ")] : []),
+          new TextRun("no dia "),
+          ...htmlParaRuns(d.apresExtenso),
+          new TextRun("."),
+        ],
+      })
+    : new Paragraph({
+        alignment: AlignmentType.JUSTIFIED,
+        indent: { firstLine: mmToTwip(15) },
+        spacing: { after: temObs ? mmToTwip(4) : mmToTwip(22) },
+        children: runsCorpo,
+      });
 
   const blocosDepoisDoCorpo: Paragraph[] = [];
+  if (sust) {
+    blocosDepoisDoCorpo.push(
+      new Paragraph({
+        alignment: AlignmentType.JUSTIFIED,
+        indent: { firstLine: mmToTwip(15) },
+        spacing: { after: temObs ? mmToTwip(4) : mmToTwip(22) },
+        children: [
+          new TextRun("Outrossim, informo ainda que os dias restantes serão gozados a partir do dia "),
+          ...htmlParaRuns(d.inicio2Extenso || ""),
+          new TextRun(", devendo apresentar-se pronto para o serviço policial militar no dia "),
+          ...htmlParaRuns(d.apres2Extenso || ""),
+          new TextRun("."),
+        ],
+      })
+    );
+  }
 
   if (temObs) {
     blocosDepoisDoCorpo.push(

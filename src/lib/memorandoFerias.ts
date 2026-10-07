@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { paraData, dataBR } from "@/lib/datas";
 import { assinaturasDoDoc } from "@/lib/assinaturaSigep";
 import { classificarPatente } from "@/lib/patentes";
+import { motivosSustacao, motivoDe } from "@/lib/feriasSustacao";
 
 /* =========================================================================
    Memorando de férias / licença-prêmio do MILITAR.
@@ -32,6 +33,9 @@ export type MemorandoMilitar = {
   inicioExtenso: string;
   apresExtenso: string;
   dias: number;
+  /* Férias sustadas (2º período): volta em apres1BR por necessidade do
+     serviço e goza o restante a partir de inicio2BR. */
+  sustacao?: { motivo: string; apres1BR: string; inicio2BR: string; apres2BR: string };
   // do militar
   efetivoId: string;
   postoGrad: string;
@@ -89,6 +93,7 @@ export async function memorandosDoMilitar(efetivoId: string): Promise<MemorandoM
 
   /* ---------- férias do plano ---------- */
   const membros = await prisma.membroFerias.findMany({ where: { idPmma: efetivoId } });
+  const motivos = membros.length ? await motivosSustacao() : {};
   for (const m of membros) {
     const eq = await prisma.equipeFerias.findFirst({
       where: { numeroEquipe: m.numeroEquipe, anoGozo: m.anoGozo },
@@ -131,6 +136,9 @@ export async function memorandosDoMilitar(efetivoId: string): Promise<MemorandoM
       inicioBR: primeiro.inicioBR, fimBR: ultimo.fimBR, apresentacaoBR: ultimo.apresBR,
       inicioExtenso: extenso(primeiro.inicioBR), apresExtenso: extenso(ultimo.apresBR),
       dias: dias || 35,
+      sustacao: periodos.length > 1
+        ? { motivo: motivoDe(motivos, m.anoGozo, m.numeroEquipe), apres1BR: primeiro.apresBR, inicio2BR: ultimo.inicioBR, apres2BR: ultimo.apresBR }
+        : undefined,
       ...base,
       estado: doChefe ? "concluido" : doMilitar ? "assinado_militar" : "pendente",
       assinaturaMilitar: doMilitar ? { nome: doMilitar.nome, em: doMilitar.em, id: doMilitar.id } : null,
