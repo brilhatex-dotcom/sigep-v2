@@ -122,6 +122,7 @@ export default function PlanoFerias({
   numerosMemorando,
   onTrocarAno,
   postergadosIniciais = [],
+  reequilibrioEm = null,
 }: {
   anos: string[];
   anoSelecionado: string;
@@ -133,6 +134,8 @@ export default function PlanoFerias({
   numerosMemorando: Record<string, number>;
   onTrocarAno: (ano: string) => void;
   postergadosIniciais?: { idPmma: string; nome: string; motivo: string; data: string; exercicio?: string }[];
+  // quando houve o último reequilíbrio deste plano (há cópia para desfazer)
+  reequilibrioEm?: string | null;
 }) {
   const router = useRouter();
   // Militares que ADIARAM as férias do plano: NÃO saem de férias e seguem no
@@ -286,7 +289,36 @@ export default function PlanoFerias({
   /* Refaz a distribuição de um plano JÁ EXISTENTE — para os planos criados
      antes do equilíbrio automático, ou quando o efetivo mudou muito. Não apaga
      nada: equipes e datas ficam, e a equipe 1 é preservada. */
+  // Reequilibrar SÓ no plano do próximo exercício: o do ano corrente está em
+  // andamento (o servidor também recusa).
+  const anoHoje = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric" }).format(new Date()));
+  const podeReequilibrar = Number(anoSelecionado) > anoHoje;
+
+  async function desfazerReequilibrio() {
+    const ok = await confirmar(
+      `Desfazer o último reequilíbrio do plano de ${anoSelecionado}? As equipes voltam exatamente como estavam antes dele.`,
+      { rotuloOk: "Desfazer", perigo: true },
+    );
+    if (!ok) return;
+    setReequilibrando(true);
+    try {
+      const r = await fetch("/api/ferias/reequilibrar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ anoGozo: anoSelecionado, desfazer: true }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { avisar(d?.erro || "Não foi possível desfazer."); return; }
+      avisar(`Reequilíbrio desfeito: o plano de ${anoSelecionado} voltou como estava (${d.total} militares).`);
+      router.refresh();
+    } catch { avisar("Falha ao desfazer."); }
+    finally { setReequilibrando(false); }
+  }
+
   async function reequilibrar() {
+    if (!podeReequilibrar) {
+      avisar(`O Reequilibrar só vale para o plano do próximo exercício. O plano de ${anoSelecionado} está em andamento e não pode ser reembaralhado.`);
+      return;
+    }
     const ok = window.confirm(
       `Reequilibrar o plano de ${anoSelecionado}?\n\n` +
       `A EQUIPE 1 continua com os mesmos militares e as DATAS já lançadas não mudam.\n` +
@@ -418,8 +450,13 @@ export default function PlanoFerias({
             (d.movidosPorEquilibrio > 0
               ? `\n${d.movidosPorEquilibrio} militar(es) saíram do rodízio para equilibrar unidades que estavam concentradas numa equipe só.`
               : `\nNenhum ajuste foi preciso — o plano de ${anoSelecionado} já estava equilibrado.`) +
+            (d.novosIncluidos > 0
+              ? `\n\n${d.novosIncluidos} militar(es) que não estavam no plano de ${anoSelecionado} (chegaram à unidade) foram incluídos automaticamente.`
+              : "") +
             `\n\nAgora é só ajustar as datas de cada equipe.`
-          : `Plano de ${dest} criado! ${d.membros || 0} militares copiados do ano ${anoSelecionado}. Agora é só ajustar as datas de cada equipe.`
+          : `Plano de ${dest} criado! ${d.membros || 0} militares copiados do ano ${anoSelecionado}.` +
+            (d.novosIncluidos > 0 ? ` ${d.novosIncluidos} que estavam fora do plano foram incluídos automaticamente.` : "") +
+            ` Agora é só ajustar as datas de cada equipe.`
       );
       onTrocarAno(dest);
     } catch { avisar("Falha ao criar o plano."); }
@@ -793,12 +830,24 @@ export default function PlanoFerias({
         {isAdmin && totalMilitares > 0 && (
           <button
             onClick={reequilibrar}
-            disabled={reequilibrando}
-            title={`Redistribui os militares de ${anoSelecionado} equilibrando por unidade. As datas já lançadas e a equipe 1 não mudam.`}
+            disabled={reequilibrando || !podeReequilibrar}
+            title={podeReequilibrar
+              ? `Redistribui os militares de ${anoSelecionado} equilibrando por unidade. As datas já lançadas e a equipe 1 não mudam.`
+              : `Só para o plano do próximo exercício — o de ${anoSelecionado} está em andamento e não é reembaralhado.`}
             className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/40 px-3 py-1.5 text-sm font-medium text-emerald-300 transition hover:bg-emerald-400/10 disabled:opacity-50"
           >
             {reequilibrando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
             Reequilibrar
+          </button>
+        )}
+        {isAdmin && reequilibrioEm && (
+          <button
+            onClick={desfazerReequilibrio}
+            disabled={reequilibrando}
+            title={`Volta as equipes de ${anoSelecionado} como estavam antes do reequilíbrio de ${new Date(reequilibrioEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-red-400/40 px-3 py-1.5 text-sm font-medium text-red-300 transition hover:bg-red-400/10 disabled:opacity-50"
+          >
+            Desfazer reequilíbrio
           </button>
         )}
         <button

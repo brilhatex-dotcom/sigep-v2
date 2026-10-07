@@ -18,7 +18,21 @@ export const dynamic = "force-dynamic";
    NAO apaga o plano: as equipes e as DATAS ja preenchidas ficam como estao,
    e a EQUIPE 1 e preservada com os mesmos militares. So a composicao das
    demais equipes e refeita. Assim ninguem perde o trabalho de datas ja
-   lancadas por causa de um reequilibrio. */
+   lancadas por causa de um reequilibrio.
+
+   SO NO PLANO DO PROXIMO EXERCICIO. O plano do ano corrente (e os
+   passados) ja esta em andamento — gente de ferias, memorandos assinados —
+   e reembaralhar as equipes dele desfaz o que foi combinado com a tropa.
+   O servidor recusa qualquer ano de gozo que nao seja futuro.
+
+   ANTES de trocar, guarda a composicao anterior em Config
+   ("ferias_reequilibrio_backup_<ano>"); { anoGozo, desfazer: true } volta o
+   plano exatamente como estava antes do ultimo reequilibrio. */
+
+const chaveBackup = (ano: string) => `ferias_reequilibrio_backup_${ano}`;
+function anoCorrente(): number {
+  return Number(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric" }).format(new Date()));
+}
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -31,6 +45,29 @@ export async function POST(req: Request) {
     const b = await req.json();
     const anoGozo = String(b?.anoGozo || "").trim();
     if (!/^\d{4}$/.test(anoGozo)) return NextResponse.json({ erro: "Ano inválido." }, { status: 400 });
+
+    /* ---- desfazer o último reequilíbrio: volta a composição guardada ---- */
+    if (b?.desfazer === true) {
+      const row = await prisma.config.findUnique({ where: { chave: chaveBackup(anoGozo) }, select: { valor: true } });
+      const bk = row?.valor ? JSON.parse(row.valor) : null;
+      const lista: { idPmma: string; numeroEquipe: string; dataCadastro?: string | null }[] = Array.isArray(bk?.membros) ? bk.membros : [];
+      if (!lista.length) return NextResponse.json({ erro: "Não há reequilíbrio para desfazer neste plano." }, { status: 404 });
+      await prisma.$transaction([
+        prisma.membroFerias.deleteMany({ where: { anoGozo } }),
+        prisma.membroFerias.createMany({
+          data: lista.map((m) => ({ idPmma: m.idPmma, numeroEquipe: m.numeroEquipe, anoGozo, dataCadastro: m.dataCadastro ?? null })),
+          skipDuplicates: true,
+        }),
+        prisma.config.delete({ where: { chave: chaveBackup(anoGozo) } }),
+      ]);
+      return NextResponse.json({ ok: true, desfeito: true, total: lista.length });
+    }
+
+    if (Number(anoGozo) <= anoCorrente()) {
+      return NextResponse.json({
+        erro: `O Reequilibrar só vale para o plano do PRÓXIMO exercício. O plano de ${anoGozo} está em andamento e não pode ser reembaralhado.`,
+      }, { status: 403 });
+    }
 
     const equipes = await prisma.equipeFerias.findMany({ where: { anoGozo } });
     if (!equipes.length) return NextResponse.json({ erro: `Não existe plano para ${anoGozo}.` }, { status: 404 });
@@ -69,9 +106,22 @@ export async function POST(req: Request) {
     const antes = new Map(membros.map((m) => [m.idPmma, m.numeroEquipe]));
     const mudaram = atribuicoes.filter((a) => antes.get(a.idPmma) !== a.numeroEquipe).length;
 
+    // copia de seguranca da composicao atual (para o "Desfazer")
+    const backup = JSON.stringify({
+      em: new Date().toISOString(),
+      por: String((session.user as any).login || session.user.name || ""),
+      membros: membros.map((m) => ({ idPmma: m.idPmma, numeroEquipe: m.numeroEquipe, dataCadastro: m.dataCadastro ?? null })),
+    });
+
     // Troca a composicao numa transacao: apaga so os MEMBROS do ano e recria.
     // As equipes (com as datas) nunca sao tocadas.
     await prisma.$transaction([
+      prisma.config.upsert({
+        where: { chave: chaveBackup(anoGozo) },
+        update: { valor: backup },
+        create: { chave: chaveBackup(anoGozo), valor: backup, descricao: "Composição do plano de férias antes do último reequilíbrio" },
+        select: { chave: true },
+      }),
       prisma.membroFerias.deleteMany({ where: { anoGozo } }),
       prisma.membroFerias.createMany({
         data: atribuicoes.map((a) => ({ idPmma: a.idPmma, numeroEquipe: a.numeroEquipe, anoGozo })),

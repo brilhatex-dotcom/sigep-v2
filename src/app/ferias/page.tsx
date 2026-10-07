@@ -16,6 +16,8 @@ import {
   type Periodo,
 } from "@/lib/ferias";
 import { motivosSustacao, motivoDe } from "@/lib/feriasSustacao";
+import { foraDoPlano, type ForaDoPlano as ItemFora } from "@/lib/feriasForaDoPlano";
+import ForaDoPlano from "@/components/ForaDoPlano";
 
 export const dynamic = "force-dynamic";
 
@@ -144,6 +146,23 @@ export default async function FeriasPage({
 
   const isAdmin = (session.user.perfil ?? "").toLowerCase() === "admin";
 
+  /* Militares ativos fora de qualquer equipe — só no plano do PRÓXIMO
+     exercício: o do ano corrente está em andamento e não recebe inclusão
+     automática (quem chegar no meio do ano entra à mão, em "Adicionar"). */
+  const anoCorrente = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric" }).format(new Date()));
+  const planoFuturo = Number(anoSelecionado) > anoCorrente;
+  let fora: ItemFora[] = [];
+  if (isAdmin && planoFuturo) { try { fora = await foraDoPlano(anoSelecionado); } catch { /* sem aviso */ } }
+
+  // houve reequilíbrio com cópia guardada? (botão "Desfazer reequilíbrio")
+  let reequilibrioEm: string | null = null;
+  if (isAdmin) {
+    try {
+      const row = await prisma.config.findUnique({ where: { chave: `ferias_reequilibrio_backup_${anoSelecionado}` }, select: { valor: true } });
+      reequilibrioEm = row?.valor ? (JSON.parse(row.valor)?.em ?? null) : null;
+    } catch { /* sem cópia */ }
+  }
+
   // Numeração contínua dos memorandos do ano (plano + férias avulsas
   // intercaladas). A LP continua a partir do último número.
   const numeracao = await numeracaoDoAno(anoSelecionado);
@@ -172,6 +191,10 @@ export default async function FeriasPage({
             Nenhum plano de férias cadastrado ainda.
           </div>
         ) : (
+          <>
+          {isAdmin && (
+            <ForaDoPlano ano={anoSelecionado} itens={fora} equipes={equipesAno.map((e) => e.numeroEquipe)} />
+          )}
           <PlanoFeriasClient
             anos={anos}
             anoSelecionado={anoSelecionado}
@@ -182,7 +205,9 @@ export default async function FeriasPage({
             isAdmin={isAdmin}
             numerosMemorando={numeracao.militares}
             postergadosIniciais={postergadosIniciais}
+            reequilibrioEm={reequilibrioEm}
           />
+          </>
         )}
 
         <FeriasAvulsas ano={anoSelecionado} isAdmin={isAdmin} />
