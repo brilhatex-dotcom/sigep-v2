@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { classificarPatente } from "@/lib/patentes";
 import { rotacionarComEquilibrio, mapaRodizio, type MilitarParaDistribuir } from "@/lib/distribuirEquipes";
 import { incluirNoPlano } from "@/lib/feriasForaDoPlano";
+import { idsInativos } from "@/lib/inativos";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +60,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: `Não existe plano para ${anoDestino}. Crie o plano primeiro.` }, { status: 404 });
     }
 
-    const membrosOrigem = await prisma.membroFerias.findMany({ where: { anoGozo: anoOrigem } });
+    // quem já saiu da unidade (transferência/reforma) não vai para o plano novo
+    const saidos = await idsInativos();
+    const membrosOrigem = (await prisma.membroFerias.findMany({ where: { anoGozo: anoOrigem } }))
+      .filter((m) => !saidos.has(m.idPmma));
     if (!membrosOrigem.length) {
       return NextResponse.json({ erro: `O plano de ${anoOrigem} não tem militares.` }, { status: 400 });
     }

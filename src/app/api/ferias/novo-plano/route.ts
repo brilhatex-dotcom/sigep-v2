@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { classificarPatente } from "@/lib/patentes";
 import { rotacionarComEquilibrio, mapaRodizio, type MilitarParaDistribuir } from "@/lib/distribuirEquipes";
 import { incluirNoPlano } from "@/lib/feriasForaDoPlano";
+import { idsInativos } from "@/lib/inativos";
 
 /* POST /api/ferias/novo-plano
    Cria o plano de ferias de um NOVO ano de gozo, com as datas em branco para o
@@ -65,7 +66,10 @@ export async function POST(req: NextRequest) {
     let movidos = 0;
 
     if (orig) {
-      const membros = await prisma.membroFerias.findMany({ where: { anoGozo: orig } });
+      // quem já saiu da unidade (transferência/reforma) não vai para o plano novo
+      const saidos = await idsInativos();
+      const membros = (await prisma.membroFerias.findMany({ where: { anoGozo: orig } }))
+        .filter((m) => !saidos.has(m.idPmma));
 
       if (membros.length) {
         const querEquilibrar = equilibrar !== false;

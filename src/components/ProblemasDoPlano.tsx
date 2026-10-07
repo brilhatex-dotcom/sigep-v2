@@ -1,0 +1,91 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { UserMinus, Loader2, Copy } from "lucide-react";
+import { avisar, confirmar } from "@/components/Avisos";
+import type { ProblemaPlano } from "@/lib/feriasForaDoPlano";
+
+/* Quem está NO plano e não deveria contar: militares que já saíram da
+   unidade (vieram do plano anterior pelo rodízio) e militares repetidos em
+   duas equipes. É o que faz o plano ter mais gente que o efetivo total. */
+export default function ProblemasDoPlano({ ano, saidos, repetidos }: { ano: string; saidos: ProblemaPlano[]; repetidos: ProblemaPlano[] }) {
+  const router = useRouter();
+  const [ocupado, setOcupado] = useState<string | null>(null);
+  if (!saidos.length && !repetidos.length) return null;
+
+  async function limpar(tipo: "saidos" | "repetidos", ids: string[] | undefined, chave: string, pergunta: string) {
+    if (!(await confirmar(pergunta, { rotuloOk: "Corrigir", perigo: true }))) return;
+    setOcupado(chave);
+    try {
+      const r = await fetch("/api/ferias/fora-do-plano", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ anoGozo: ano, acao: "limpar", tipo, ids }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { avisar(d?.erro || "Não foi possível corrigir.", "erro"); return; }
+      avisar(`Plano de ${ano} corrigido.`, "sucesso");
+      router.refresh();
+    } catch { avisar("Sem conexão com o servidor.", "erro"); }
+    finally { setOcupado(null); }
+  }
+
+  const nome = (p: ProblemaPlano) => `${p.postoGrad} ${p.nome}`.trim();
+
+  return (
+    <div className="mb-4 space-y-3">
+      {saidos.length > 0 && (
+        <div className="rounded-xl border border-red-400/30 bg-red-500/10">
+          <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+            <UserMinus className="h-5 w-5 shrink-0 text-red-300" />
+            <p className="text-sm text-red-100">
+              <b>{saidos.length} militar(es) no Plano de Férias {ano} que já saíram da unidade</b>
+              <span className="text-red-200/80"> (transferência/reforma) — vieram do plano anterior e contam no plano, mas não estão mais no efetivo.</span>
+            </p>
+            <button onClick={() => limpar("saidos", undefined, "saidos", `Tirar ${saidos.length} militar(es) que já saíram da unidade do Plano de Férias ${ano}?`)}
+              disabled={!!ocupado}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-red-400/40 px-3 py-1.5 text-xs font-semibold text-red-200 hover:bg-red-500/10 disabled:opacity-50">
+              {ocupado === "saidos" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserMinus className="h-3.5 w-3.5" />} Tirar todos do plano
+            </button>
+          </div>
+          <ul className="divide-y divide-red-400/10 border-t border-red-400/20">
+            {saidos.map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm">
+                <span className="text-white">{nome(p)}</span>
+                <span className="text-xs text-[#94A3B8]">· equipe {p.equipes.join(" e ")}</span>
+                <button onClick={() => limpar("saidos", [p.id], p.id, `Tirar ${nome(p)} do Plano de Férias ${ano}?`)} disabled={!!ocupado}
+                  className="ml-auto inline-flex items-center gap-1 rounded-md border border-red-400/30 px-2 py-1 text-xs text-red-200 hover:bg-red-500/10 disabled:opacity-50">
+                  {ocupado === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserMinus className="h-3.5 w-3.5" />} Tirar
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {repetidos.length > 0 && (
+        <div className="rounded-xl border border-amber-400/30 bg-amber-500/10">
+          <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+            <Copy className="h-5 w-5 shrink-0 text-amber-300" />
+            <p className="text-sm text-amber-100">
+              <b>{repetidos.length} militar(es) em mais de uma equipe do Plano de Férias {ano}</b>
+              <span className="text-amber-200/80"> — contam duas vezes. Corrigir deixa cada um só na equipe em que entrou primeiro.</span>
+            </p>
+            <button onClick={() => limpar("repetidos", repetidos.map((r) => r.id), "repetidos", `Deixar cada militar repetido só na equipe em que entrou primeiro?`)}
+              disabled={!!ocupado}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-amber-400/40 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-500/10 disabled:opacity-50">
+              {ocupado === "repetidos" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />} Corrigir
+            </button>
+          </div>
+          <ul className="divide-y divide-amber-400/10 border-t border-amber-400/20">
+            {repetidos.map((p) => (
+              <li key={p.id} className="px-4 py-2 text-sm">
+                <span className="text-white">{nome(p)}</span>
+                <span className="text-xs text-[#94A3B8]"> · aparece nas equipes {p.equipes.join(", ")}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}

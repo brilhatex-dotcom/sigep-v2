@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { foraDoPlano, incluirNoPlano } from "@/lib/feriasForaDoPlano";
+import { foraDoPlano, incluirNoPlano, limparPlano } from "@/lib/feriasForaDoPlano";
 import { registrar } from "@/lib/auditoria";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,10 @@ export const dynamic = "force-dynamic";
                                      cada um com a equipe sugerida
    POST { anoGozo, ids? }         -> inclui (todos, ou só os ids) nas equipes
                                      sugeridas. Para escolher OUTRA equipe, a
-                                     tela usa /api/ferias/membros. */
+                                     tela usa /api/ferias/membros.
+   POST { anoGozo, acao: "limpar", tipo: "saidos"|"repetidos", ids? }
+                                  -> tira do plano quem já saiu da unidade, ou
+                                     desfaz militar repetido em duas equipes. */
 
 async function admin() {
   const session = await getServerSession(authOptions);
@@ -48,6 +51,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: `O plano de ${ano} está em andamento: inclua à mão, em "Adicionar" na equipe.` }, { status: 403 });
     }
     const ids = Array.isArray(b?.ids) ? b.ids.map((x: any) => String(x)) : undefined;
+    if (b?.acao === "limpar") {
+      const tipo = b?.tipo === "repetidos" ? "repetidos" : "saidos";
+      const r = await limparPlano(ano, tipo, ids);
+      if (r.removidos || r.repetidosCorrigidos) {
+        await registrar({
+          acao: "ferias_limpar_plano", alvo: ano,
+          detalhe: `Plano de ${ano}: tirou ${r.removidos} registro(s) de quem saiu da unidade e corrigiu ${r.repetidosCorrigidos} militar(es) repetido(s).`,
+        });
+      }
+      return NextResponse.json({ ok: true, ...r });
+    }
     const entraram = await incluirNoPlano(ano, ids);
     if (entraram.length) {
       await registrar({

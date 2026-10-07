@@ -173,3 +173,73 @@ export async function anoDoProximoPlano(): Promise<string | null> {
   const futuros = linhas.map((l) => l.anoGozo).filter((a) => /^\d{4}$/.test(a) && Number(a) > anoAtual).sort();
   return futuros[0] ?? null;
 }
+
+/* =========================================================================
+   O CONTRÁRIO: quem está NO plano e não deveria contar.
+
+   - SAÍDOS: militares que já saíram da unidade (transferência/reforma — a
+     última movimentação no Controle é uma saída). O plano novo nasce do
+     plano anterior pelo rodízio, e o rodízio copiava todo mundo, inclusive
+     quem já tinha ido embora. Por isso o plano chegava a ter mais gente que
+     o "Efetivo total" do painel, que desconta os saídos.
+   - REPETIDOS: o mesmo militar em mais de uma equipe do mesmo ano (conta
+     duas vezes e sairia de férias duas vezes).
+   ========================================================================= */
+export type ProblemaPlano = {
+  id: string; postoGrad: string; nome: string; nomeGuerra: string;
+  equipes: string[];          // equipes em que aparece neste ano
+};
+
+export async function problemasDoPlano(ano: string): Promise<{ saidos: ProblemaPlano[]; repetidos: ProblemaPlano[] }> {
+  const [membros, inativos] = await Promise.all([
+    prisma.membroFerias.findMany({ where: { anoGozo: ano }, select: { idPmma: true, numeroEquipe: true } }),
+    idsInativos(),
+  ]);
+  const porMilitar = new Map<string, string[]>();
+  for (const m of membros) porMilitar.set(m.idPmma, [...(porMilitar.get(m.idPmma) || []), m.numeroEquipe]);
+  const ids = Array.from(porMilitar.keys()).filter((id) => inativos.has(id) || (porMilitar.get(id)!.length > 1));
+  if (!ids.length) return { saidos: [], repetidos: [] };
+  const fichas = await prisma.efetivo.findMany({
+    where: { id: { in: ids } }, select: { id: true, postoGrad: true, nome: true, nomeGuerra: true },
+  });
+  const ficha = new Map(fichas.map((f) => [f.id, f]));
+  const item = (id: string): ProblemaPlano => ({
+    id,
+    postoGrad: ficha.get(id)?.postoGrad || "",
+    nome: ficha.get(id)?.nome || id,
+    nomeGuerra: ficha.get(id)?.nomeGuerra || "",
+    equipes: [...porMilitar.get(id)!].sort((a, b) => Number(a) - Number(b)),
+  });
+  const ordem = (a: ProblemaPlano, b: ProblemaPlano) =>
+    classificarPatente(a.postoGrad).ordem - classificarPatente(b.postoGrad).ordem || a.nome.localeCompare(b.nome, "pt-BR");
+  return {
+    saidos: ids.filter((id) => inativos.has(id)).map(item).sort(ordem),
+    repetidos: ids.filter((id) => !inativos.has(id) && porMilitar.get(id)!.length > 1).map(item).sort(ordem),
+  };
+}
+
+/* Corrige o plano do ano. tipo "saidos": tira quem já saiu da unidade;
+   tipo "repetidos": deixa cada militar repetido só na primeira inclusão (a
+   mais antiga). `ids` limita a quem foi indicado; sem ids, vale para todos
+   daquele tipo. */
+export async function limparPlano(
+  ano: string, tipo: "saidos" | "repetidos", ids?: string[],
+): Promise<{ removidos: number; repetidosCorrigidos: number }> {
+  const { saidos, repetidos } = await problemasDoPlano(ano);
+  const tirar = tipo !== "saidos" ? [] : saidos.map((s) => s.id).filter((id) => !ids?.length || ids.includes(id));
+  let removidos = 0;
+  if (tirar.length) {
+    removidos = (await prisma.membroFerias.deleteMany({ where: { anoGozo: ano, idPmma: { in: tirar } } })).count;
+  }
+  let repetidosCorrigidos = 0;
+  for (const r of tipo === "repetidos" ? repetidos : []) {
+    if (ids?.length && !ids.includes(r.id)) continue;
+    const linhas = await prisma.membroFerias.findMany({ where: { anoGozo: ano, idPmma: r.id }, orderBy: { id: "asc" }, select: { id: true } });
+    const sobram = linhas.slice(1).map((l) => l.id);
+    if (sobram.length) {
+      await prisma.membroFerias.deleteMany({ where: { id: { in: sobram } } });
+      repetidosCorrigidos++;
+    }
+  }
+  return { removidos, repetidosCorrigidos };
+}

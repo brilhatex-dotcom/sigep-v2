@@ -16,7 +16,8 @@ import {
   type Periodo,
 } from "@/lib/ferias";
 import { motivosSustacao, motivoDe } from "@/lib/feriasSustacao";
-import { foraDoPlano, type ForaDoPlano as ItemFora } from "@/lib/feriasForaDoPlano";
+import { foraDoPlano, problemasDoPlano, type ForaDoPlano as ItemFora, type ProblemaPlano } from "@/lib/feriasForaDoPlano";
+import ProblemasDoPlano from "@/components/ProblemasDoPlano";
 import ForaDoPlano from "@/components/ForaDoPlano";
 
 export const dynamic = "force-dynamic";
@@ -153,6 +154,9 @@ export default async function FeriasPage({
   const planoFuturo = Number(anoSelecionado) > anoCorrente;
   let fora: ItemFora[] = [];
   if (isAdmin && planoFuturo) { try { fora = await foraDoPlano(anoSelecionado); } catch { /* sem aviso */ } }
+  // e o contrário: quem está no plano e já saiu da unidade, ou está repetido
+  let problemas: { saidos: ProblemaPlano[]; repetidos: ProblemaPlano[] } = { saidos: [], repetidos: [] };
+  if (isAdmin && planoFuturo) { try { problemas = await problemasDoPlano(anoSelecionado); } catch { /* sem aviso */ } }
 
   // houve reequilíbrio com cópia guardada? (botão "Desfazer reequilíbrio")
   let reequilibrioEm: string | null = null;
@@ -192,6 +196,9 @@ export default async function FeriasPage({
           </div>
         ) : (
           <>
+          {isAdmin && (
+            <ProblemasDoPlano ano={anoSelecionado} saidos={problemas.saidos} repetidos={problemas.repetidos} />
+          )}
           {isAdmin && (
             <ForaDoPlano ano={anoSelecionado} itens={fora} equipes={equipesAno.map((e) => e.numeroEquipe)} />
           )}
