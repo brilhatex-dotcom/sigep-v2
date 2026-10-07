@@ -2,22 +2,22 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { UserMinus, Loader2, Copy, Clock } from "lucide-react";
+import { UserMinus, Loader2, Copy } from "lucide-react";
 import { avisar, confirmar } from "@/components/Avisos";
-import type { ProblemaPlano, FeriasAtrasadas } from "@/lib/feriasForaDoPlano";
+import type { ProblemaPlano } from "@/lib/feriasForaDoPlano";
 
 /* Avisos do plano do próximo exercício:
    - quem saiu da unidade ANTES da publicação (outubro do ano anterior) e
      ainda está no plano — quem sai depois da publicação continua nele;
    - quem teria DUAS férias no ano (duas equipes, ou equipe + férias avulsa);
-   - quem tem férias ATRASADAS de outros exercícios (só aviso: não entram de
-     novo no plano automaticamente — uma férias por ano). */
-export default function ProblemasDoPlano({ ano, saidos, repetidos, atrasadas }: {
-  ano: string; saidos: ProblemaPlano[]; repetidos: ProblemaPlano[]; atrasadas: FeriasAtrasadas[];
+   As férias ATRASADAS de outros exercícios ficam no painel "Férias vencidas /
+   a gozar", que já lista quem adiou — lá dá para pôr o militar numa equipe. */
+export default function ProblemasDoPlano({ ano, saidos, repetidos }: {
+  ano: string; saidos: ProblemaPlano[]; repetidos: ProblemaPlano[];
 }) {
   const router = useRouter();
   const [ocupado, setOcupado] = useState<string | null>(null);
-  if (!saidos.length && !repetidos.length && !atrasadas.length) return null;
+  if (!saidos.length && !repetidos.length) return null;
   const anoPub = Number(ano) - 1;
   const dataBR = (d?: string) => {
     const t = (d || "").trim();
@@ -101,27 +101,6 @@ export default function ProblemasDoPlano({ ano, saidos, repetidos, atrasadas }: 
                     : ` · equipe ${p.equipes.join("")}`}
                   {p.avulsas?.length ? ` · e férias avulsas ${p.avulsas.join("; ")}` : ""}
                 </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {atrasadas.length > 0 && (
-        <div className="rounded-xl border border-sky-400/30 bg-sky-500/10">
-          <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-            <Clock className="h-5 w-5 shrink-0 text-sky-300" />
-            <p className="text-sm text-sky-100">
-              <b>{atrasadas.length} militar(es) com férias atrasadas de outros exercícios</b>
-              <span className="text-sky-200/80"> — no plano de {ano} cada um goza só UMA férias; as atrasadas não entram automaticamente (marque à parte, se for o caso).</span>
-            </p>
-          </div>
-          <ul className="divide-y divide-sky-400/10 border-t border-sky-400/20">
-            {atrasadas.map((a) => (
-              <li key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm">
-                <span className="text-white">{a.nome}</span>
-                <span className="text-xs text-sky-200">{a.exercicio ? `férias de ${a.exercicio} adiadas` : "férias adiadas"}</span>
-                {a.motivo && <span className="text-xs text-[#94A3B8]">· {a.motivo}</span>}
-                <span className="ml-auto text-xs text-[#94A3B8]">{a.equipe ? `equipe ${a.equipe} em ${ano}` : `fora do plano de ${ano}`}</span>
               </li>
             ))}
           </ul>

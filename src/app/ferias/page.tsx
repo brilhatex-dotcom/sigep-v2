@@ -197,7 +197,7 @@ export default async function FeriasPage({
         ) : (
           <>
           {isAdmin && (
-            <ProblemasDoPlano ano={anoSelecionado} saidos={problemas.saidos} repetidos={problemas.repetidos} atrasadas={problemas.atrasadas} />
+            <ProblemasDoPlano ano={anoSelecionado} saidos={problemas.saidos} repetidos={problemas.repetidos} />
           )}
           {isAdmin && (
             <ForaDoPlano ano={anoSelecionado} itens={fora} equipes={equipesAno.map((e) => e.numeroEquipe)} />
