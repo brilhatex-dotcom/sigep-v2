@@ -236,7 +236,10 @@ export default function PlanoFerias({
         `${d.total} militares · ${d.equipe1} mantidos na equipe 1.\n` +
         (d.movidosPorEquilibrio > 0
           ? `${d.movidosPorEquilibrio} saíram do rodízio para equilibrar unidades concentradas.`
-          : `Nenhum ajuste extra foi preciso — ${anoAnterior} já estava equilibrado.`)
+          : `Nenhum ajuste extra foi preciso — ${anoAnterior} já estava equilibrado.`) +
+        (d.novosIncluidos > 0
+          ? `\n\n${d.novosIncluidos} militar(es) que não estavam no plano de ${anoAnterior} foram incluídos automaticamente.`
+          : "")
       );
       router.refresh();
     } catch { avisar("Falha ao aplicar o rodízio."); }
@@ -819,8 +822,10 @@ export default function PlanoFerias({
         {isAdmin && totalMilitares > 0 && anoAnterior && (
           <button
             onClick={aplicarRodizio}
-            disabled={rodiziando}
-            title={`Aplica em ${anoSelecionado} o rodízio do plano de ${anoAnterior}: cada equipe desce um número e a 2 vira 9. A equipe 1 e as datas não mudam.`}
+            disabled={rodiziando || !podeReequilibrar}
+            title={podeReequilibrar
+              ? `Aplica em ${anoSelecionado} o rodízio do plano de ${anoAnterior}: cada equipe desce um número e a 2 vira 9. A equipe 1 e as datas não mudam.`
+              : `Só para o plano do próximo exercício — o de ${anoSelecionado} está em andamento e não é refeito.`}
             className="inline-flex items-center gap-1.5 rounded-lg border border-sky-400/40 px-3 py-1.5 text-sm font-medium text-sky-300 transition hover:bg-sky-400/10 disabled:opacity-50"
           >
             {rodiziando ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
@@ -847,7 +852,7 @@ export default function PlanoFerias({
             title={`Volta as equipes de ${anoSelecionado} como estavam antes do reequilíbrio de ${new Date(reequilibrioEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`}
             className="inline-flex items-center gap-1.5 rounded-lg border border-red-400/40 px-3 py-1.5 text-sm font-medium text-red-300 transition hover:bg-red-400/10 disabled:opacity-50"
           >
-            Desfazer reequilíbrio
+            Desfazer reequilíbrio/rodízio
           </button>
         )}
         <button

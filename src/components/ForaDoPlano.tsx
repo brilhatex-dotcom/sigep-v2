@@ -15,6 +15,9 @@ export default function ForaDoPlano({ ano, itens, equipes }: { ano: string; iten
   const [escolha, setEscolha] = useState<Record<string, string>>({});
   const [ocupado, setOcupado] = useState<string | null>(null);
   if (!itens.length) return null;
+  const naoAdidos = itens.filter((i) => !i.adido);
+  const adidos = itens.length - naoAdidos.length;
+  const anoAnterior = String(Number(ano) - 1);
 
   const equipeDe = (i: Item) => escolha[i.id] || i.equipeSugerida;
 
@@ -34,9 +37,11 @@ export default function ForaDoPlano({ ano, itens, equipes }: { ano: string; iten
   }
 
   async function incluirTodos() {
-    const trocados = itens.filter((i) => escolha[i.id] && escolha[i.id] !== i.equipeSugerida);
+    // adidos nunca entram em lote: as férias deles são da unidade de origem
+    const trocados = naoAdidos.filter((i) => escolha[i.id] && escolha[i.id] !== i.equipeSugerida);
     const ok = await confirmar(
-      `Incluir ${itens.length} militar(es) no Plano de Férias ${ano}, cada um na equipe indicada na lista?`,
+      `Incluir ${naoAdidos.length} militar(es) no Plano de Férias ${ano}, cada um na equipe indicada na lista?` +
+      (adidos ? ` Os ${adidos} adido(s) ficam de fora (inclua um a um, se for o caso).` : ""),
       { rotuloOk: "Incluir todos" },
     );
     if (!ok) return;
@@ -66,18 +71,30 @@ export default function ForaDoPlano({ ano, itens, equipes }: { ano: string; iten
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
         <AlertTriangle className="h-5 w-5 shrink-0 text-amber-300" />
         <p className="text-sm text-amber-100">
-          <b>{itens.length} militar(es) do efetivo fora do Plano de Férias {ano}</b>
-          <span className="text-amber-200/80"> — não estão em nenhuma equipe (normalmente quem chegou à unidade).</span>
+          {naoAdidos.length ? (
+            <>
+              <b>{naoAdidos.length} militar(es) do efetivo fora do Plano de Férias {ano}</b>
+              <span className="text-amber-200/80">
+                {" "}— não estão em nenhuma equipe. O plano novo só herda quem estava no plano de {anoAnterior}.
+                {adidos > 0 && <> {adidos} adido(s) também aparecem na lista, mas não entram em “Incluir todos”.</>}
+              </span>
+            </>
+          ) : (
+            <>
+              <b>Todo o efetivo está no Plano de Férias {ano}.</b>
+              <span className="text-amber-200/80"> Só {adidos} adido(s) fora — as férias deles são da unidade de origem; inclua um a um, se for o caso.</span>
+            </>
+          )}
         </p>
         <div className="ml-auto flex gap-2">
           <button onClick={() => setAberto((v) => !v)}
             className="inline-flex items-center gap-1 rounded-lg border border-amber-400/30 px-3 py-1.5 text-xs text-amber-100 hover:bg-amber-500/10">
             {aberto ? "Esconder" : "Ver lista"} <ChevronDown className={`h-3.5 w-3.5 transition-transform ${aberto ? "rotate-180" : ""}`} />
           </button>
-          <button onClick={incluirTodos} disabled={!!ocupado}
+          {naoAdidos.length > 0 && <button onClick={incluirTodos} disabled={!!ocupado}
             className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-xs font-semibold text-[#1a1205] hover:brightness-110 disabled:opacity-60">
             {ocupado === "todos" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />} Incluir todos
-          </button>
+          </button>}
         </div>
       </div>
       {aberto && (
@@ -87,6 +104,13 @@ export default function ForaDoPlano({ ano, itens, equipes }: { ano: string; iten
               <span className="font-medium text-white">{i.postoGrad} {i.nome}</span>
               {i.nomeGuerra && <span className="text-xs text-[#94A3B8]">({i.nomeGuerra})</span>}
               <span className="text-xs text-[#94A3B8]">· {i.unidade}</span>
+              {i.adido ? (
+                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-[#cbd5e1]">adido</span>
+              ) : i.equipeAnoAnterior ? (
+                <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-[11px] text-sky-300">estava na equipe {i.equipeAnoAnterior} em {anoAnterior}</span>
+              ) : (
+                <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-300">não estava no plano de {anoAnterior}</span>
+              )}
               <label className="ml-auto flex items-center gap-1.5 text-xs text-[#94A3B8]">
                 Equipe
                 <select value={equipeDe(i)} onChange={(e) => setEscolha((s) => ({ ...s, [i.id]: e.target.value }))}

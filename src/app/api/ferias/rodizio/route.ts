@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { classificarPatente } from "@/lib/patentes";
 import { rotacionarComEquilibrio, mapaRodizio, type MilitarParaDistribuir } from "@/lib/distribuirEquipes";
+import { incluirNoPlano } from "@/lib/feriasForaDoPlano";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,14 @@ export const dynamic = "force-dynamic";
    equilibrada, ninguém é movido e o rodízio sai limpo.
 
    NÃO cria nem apaga equipes, e NÃO toca nas datas do ano de destino —
-   só troca quem está em cada equipe. */
+   só troca quem está em cada equipe.
+
+   SÓ NO PLANO DO PRÓXIMO EXERCÍCIO, como o Reequilibrar: refazer as equipes
+   do ano em andamento desfaz o que já foi combinado com a tropa. Antes de
+   trocar, guarda a composição (a mesma cópia do Reequilibrar — o botão
+   "Desfazer reequilíbrio" volta como estava). Depois, quem está no efetivo e
+   não veio do plano de origem (não estava em equipe nenhuma) entra na equipe
+   sugerida — menos os adidos. */
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -39,6 +47,12 @@ export async function POST(req: Request) {
     if (!/^\d{4}$/.test(anoDestino)) return NextResponse.json({ erro: "Ano de destino inválido." }, { status: 400 });
     if (!/^\d{4}$/.test(anoOrigem)) return NextResponse.json({ erro: "Ano de origem inválido." }, { status: 400 });
     if (anoDestino === anoOrigem) return NextResponse.json({ erro: "O ano de origem e o de destino são o mesmo." }, { status: 400 });
+    const anoCorrente = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric" }).format(new Date()));
+    if (Number(anoDestino) <= anoCorrente) {
+      return NextResponse.json({
+        erro: `O rodízio só vale para o plano do PRÓXIMO exercício. O plano de ${anoDestino} está em andamento e não pode ser refeito.`,
+      }, { status: 403 });
+    }
 
     const equipesDestino = await prisma.equipeFerias.findMany({ where: { anoGozo: anoDestino } });
     if (!equipesDestino.length) {
@@ -81,13 +95,31 @@ export async function POST(req: Request) {
     const atribuicoesOrigem = origemUtil.map((m) => ({ idPmma: m.idPmma, numeroEquipe: m.numeroEquipe }));
     const { atribuicoes, movidosPorEquilibrio } = rotacionarComEquilibrio(militares, numeros, atribuicoesOrigem);
 
+    const atuais = await prisma.membroFerias.findMany({ where: { anoGozo: anoDestino } });
+    const backup = JSON.stringify({
+      em: new Date().toISOString(),
+      por: String((session.user as any).login || session.user.name || ""),
+      membros: atuais.map((m) => ({ idPmma: m.idPmma, numeroEquipe: m.numeroEquipe, dataCadastro: m.dataCadastro ?? null })),
+    });
     await prisma.$transaction([
+      // cópia da composição atual — "Desfazer reequilíbrio" volta para ela
+      prisma.config.upsert({
+        where: { chave: `ferias_reequilibrio_backup_${anoDestino}` },
+        update: { valor: backup },
+        create: { chave: `ferias_reequilibrio_backup_${anoDestino}`, valor: backup, descricao: "Composição do plano de férias antes do último reequilíbrio/rodízio" },
+        select: { chave: true },
+      }),
       prisma.membroFerias.deleteMany({ where: { anoGozo: anoDestino } }),
       prisma.membroFerias.createMany({
         data: atribuicoes.map((a) => ({ idPmma: a.idPmma, numeroEquipe: a.numeroEquipe, anoGozo: anoDestino })),
         skipDuplicates: true,
       }),
     ]);
+
+    // quem não veio do plano de origem (e não é adido) entra agora
+    let novosIncluidos = 0;
+    try { novosIncluidos = (await incluirNoPlano(anoDestino)).length; }
+    catch (e) { console.error("[rodizio] incluir fora do plano", e); }
 
     // resumo do rodízio para mostrar na tela ("2 → 9, 3 → 2, ...")
     const mapa = mapaRodizio(numeros);
@@ -100,6 +132,7 @@ export async function POST(req: Request) {
       movidosPorEquilibrio,
       equipe1: atribuicoes.filter((a) => a.numeroEquipe === numeros[0]).length,
       resumo,
+      novosIncluidos,
     });
   } catch (e) {
     console.error("[POST /api/ferias/rodizio]", e);

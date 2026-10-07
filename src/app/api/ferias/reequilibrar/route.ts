@@ -50,14 +50,15 @@ export async function POST(req: Request) {
     if (b?.desfazer === true) {
       const row = await prisma.config.findUnique({ where: { chave: chaveBackup(anoGozo) }, select: { valor: true } });
       const bk = row?.valor ? JSON.parse(row.valor) : null;
-      const lista: { idPmma: string; numeroEquipe: string; dataCadastro?: string | null }[] = Array.isArray(bk?.membros) ? bk.membros : [];
-      if (!lista.length) return NextResponse.json({ erro: "Não há reequilíbrio para desfazer neste plano." }, { status: 404 });
+      if (!bk || !Array.isArray(bk.membros)) return NextResponse.json({ erro: "Não há reequilíbrio para desfazer neste plano." }, { status: 404 });
+      const lista: { idPmma: string; numeroEquipe: string; dataCadastro?: string | null }[] = bk.membros;
+      // a cópia pode ser de um plano ainda vazio: aí desfazer é esvaziar de novo
       await prisma.$transaction([
         prisma.membroFerias.deleteMany({ where: { anoGozo } }),
-        prisma.membroFerias.createMany({
+        ...(lista.length ? [prisma.membroFerias.createMany({
           data: lista.map((m) => ({ idPmma: m.idPmma, numeroEquipe: m.numeroEquipe, anoGozo, dataCadastro: m.dataCadastro ?? null })),
           skipDuplicates: true,
-        }),
+        })] : []),
         prisma.config.delete({ where: { chave: chaveBackup(anoGozo) } }),
       ]);
       return NextResponse.json({ ok: true, desfeito: true, total: lista.length });
