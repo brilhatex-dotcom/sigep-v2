@@ -13,6 +13,7 @@ export default function PlanoFeriasClient(props: {
   isAdmin: boolean;
   numerosMemorando: Record<string, number>;
   postergadosIniciais?: { idPmma: string; nome: string; motivo: string; data: string; exercicio?: string }[];
+  reequilibrioEm?: string | null;
 }) {
   const router = useRouter();
   return (
