@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { idsInativos } from "@/lib/inativos";
+import { idsInativos, saidasComData } from "@/lib/inativos";
 import { grupoDoMilitar, rotuloDoGrupo } from "@/lib/distribuirEquipes";
 import { classificarPatente } from "@/lib/patentes";
 import { paraData } from "@/lib/ferias";
@@ -172,4 +172,145 @@ export async function anoDoProximoPlano(): Promise<string | null> {
   const linhas = await prisma.equipeFerias.findMany({ select: { anoGozo: true }, distinct: ["anoGozo"] });
   const futuros = linhas.map((l) => l.anoGozo).filter((a) => /^\d{4}$/.test(a) && Number(a) > anoAtual).sort();
   return futuros[0] ?? null;
+}
+
+/* =========================================================================
+   O CONTRÁRIO: quem está NO plano e não deveria contar — e quem precisa de
+   atenção.
+
+   O PLANO É PUBLICADO EM OUTUBRO do ano anterior (o de 2027 sai em outubro
+   de 2026). Daí em diante ele vale como publicado: quem sair da unidade a
+   partir de 1º de outubro CONTINUA no plano. Só conta como "saiu" — e não
+   deveria estar no plano — quem saiu ANTES da publicação.
+
+   - SAÍDOS: saíram da unidade antes de outubro do ano anterior e mesmo assim
+     estão no plano (o rodízio copiava todo mundo do plano anterior).
+   - DUAS FÉRIAS NO ANO: o mesmo militar em mais de uma equipe, ou numa equipe
+     e também com férias avulsas no mesmo ano. Cada militar goza UMA férias
+     por plano.
+   - FÉRIAS ATRASADAS: quem adiou férias de exercícios anteriores. Só aviso:
+     não entram de novo no plano automaticamente (seguem com uma férias no
+     ano; as atrasadas o P/1 marca à parte).
+   ========================================================================= */
+export type ProblemaPlano = {
+  id: string; postoGrad: string; nome: string; nomeGuerra: string;
+  equipes: string[];          // equipes em que aparece neste ano
+  avulsas?: string[];         // férias avulsas no mesmo ano ("dd/mm a dd/mm")
+  dataSaida?: string;         // saídos: quando saiu
+};
+export type FeriasAtrasadas = { id: string; nome: string; exercicio: string; motivo: string; equipe: string | null };
+
+// 1º de outubro do ano anterior: a publicação do plano
+export const publicacaoDoPlano = (ano: string) => `${Number(ano) - 1}-10-01`;
+
+/* Data da saída em "aaaa-mm-dd" (aceita também dd/mm/aaaa). Sem data: conta
+   como antiga (antes da publicação). */
+function isoSaida(d: string): string {
+  const t = (d || "").trim();
+  const br = t.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  return t.slice(0, 10) || "0000-00-00";
+}
+
+/* Quem saiu da unidade ANTES da publicação do plano do ano — é quem não
+   deve ir (nem ficar) no plano. */
+export async function saidosAntesDaPublicacao(ano: string): Promise<Map<string, string>> {
+  const corte = publicacaoDoPlano(ano);
+  const todas = await saidasComData();
+  return new Map(Array.from(todas.entries()).filter(([, d]) => isoSaida(d) < corte));
+}
+
+const dm = (iso: string) => (iso || "").length >= 10 ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : iso;
+
+export async function problemasDoPlano(ano: string): Promise<{ saidos: ProblemaPlano[]; repetidos: ProblemaPlano[]; atrasadas: FeriasAtrasadas[] }> {
+  const [membros, saidos, inativos, cfg] = await Promise.all([
+    prisma.membroFerias.findMany({ where: { anoGozo: ano }, select: { idPmma: true, numeroEquipe: true } }),
+    saidosAntesDaPublicacao(ano),
+    idsInativos(),
+    prisma.config.findMany({ where: { chave: { in: ["ferias_avulsas", "ferias_postergados"] } }, select: { chave: true, valor: true } }),
+  ]);
+  const json = (chave: string) => { try { const v = JSON.parse(cfg.find((c) => c.chave === chave)?.valor || "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
+
+  const porMilitar = new Map<string, string[]>();
+  for (const m of membros) porMilitar.set(m.idPmma, [...(porMilitar.get(m.idPmma) || []), m.numeroEquipe]);
+
+  // férias avulsas que começam neste ano, de quem também está numa equipe
+  const avulsasDe = new Map<string, string[]>();
+  for (const a of json("ferias_avulsas")) {
+    const id = String(a?.idPmma || "");
+    if (!id || !porMilitar.has(id) || String(a?.inicio || "").slice(0, 4) !== ano) continue;
+    avulsasDe.set(id, [...(avulsasDe.get(id) || []), `${dm(a.inicio)} a ${dm(a.fim)}`]);
+  }
+
+  const idsSaidos = Array.from(porMilitar.keys()).filter((id) => saidos.has(id));
+  const idsDuas = Array.from(porMilitar.keys()).filter((id) => !saidos.has(id) && (porMilitar.get(id)!.length > 1 || avulsasDe.has(id)));
+
+  // adiaram férias de exercícios anteriores e seguem na unidade
+  const atrasadasBrutas = json("ferias_postergados")
+    .filter((p: any) => p?.idPmma && !inativos.has(String(p.idPmma)) && (!p.exercicio || String(p.exercicio) < ano));
+
+  const ids = Array.from(new Set([...idsSaidos, ...idsDuas, ...atrasadasBrutas.map((p: any) => String(p.idPmma))]));
+  if (!ids.length) return { saidos: [], repetidos: [], atrasadas: [] };
+  const fichas = await prisma.efetivo.findMany({
+    where: { id: { in: ids } }, select: { id: true, postoGrad: true, nome: true, nomeGuerra: true },
+  });
+  const ficha = new Map(fichas.map((f) => [f.id, f]));
+  const item = (id: string): ProblemaPlano => ({
+    id,
+    postoGrad: ficha.get(id)?.postoGrad || "",
+    nome: ficha.get(id)?.nome || id,
+    nomeGuerra: ficha.get(id)?.nomeGuerra || "",
+    equipes: [...(porMilitar.get(id) || [])].sort((a, b) => Number(a) - Number(b)),
+    avulsas: avulsasDe.get(id),
+    dataSaida: saidos.get(id),
+  });
+  const ordem = (a: { postoGrad?: string; nome: string }, b: { postoGrad?: string; nome: string }) =>
+    classificarPatente(a.postoGrad || "").ordem - classificarPatente(b.postoGrad || "").ordem || a.nome.localeCompare(b.nome, "pt-BR");
+
+  const atrasadas: FeriasAtrasadas[] = atrasadasBrutas
+    .map((p: any) => {
+      const f = ficha.get(String(p.idPmma));
+      return {
+        id: String(p.idPmma),
+        nome: `${f?.postoGrad || ""} ${f?.nome || p.nome || p.idPmma}`.trim(),
+        exercicio: String(p.exercicio || ""),
+        motivo: String(p.motivo || ""),
+        equipe: porMilitar.get(String(p.idPmma))?.[0] ?? null,
+        postoGrad: f?.postoGrad || "",
+      };
+    })
+    .sort(ordem)
+    .map(({ postoGrad: _p, ...resto }: any) => resto);
+
+  return {
+    saidos: idsSaidos.map(item).sort(ordem),
+    repetidos: idsDuas.map(item).sort(ordem),
+    atrasadas,
+  };
+}
+
+/* Corrige o plano do ano. tipo "saidos": tira quem saiu da unidade antes da
+   publicação; tipo "repetidos": deixa cada militar em UMA equipe só (a da
+   primeira inclusão, a mais antiga). `ids` limita a quem foi indicado; sem
+   ids, vale para todos daquele tipo. Férias avulsas não são apagadas aqui. */
+export async function limparPlano(
+  ano: string, tipo: "saidos" | "repetidos", ids?: string[],
+): Promise<{ removidos: number; repetidosCorrigidos: number }> {
+  const { saidos, repetidos } = await problemasDoPlano(ano);
+  const tirar = tipo !== "saidos" ? [] : saidos.map((s) => s.id).filter((id) => !ids?.length || ids.includes(id));
+  let removidos = 0;
+  if (tirar.length) {
+    removidos = (await prisma.membroFerias.deleteMany({ where: { anoGozo: ano, idPmma: { in: tirar } } })).count;
+  }
+  let repetidosCorrigidos = 0;
+  for (const r of tipo === "repetidos" ? repetidos.filter((x) => x.equipes.length > 1) : []) {
+    if (ids?.length && !ids.includes(r.id)) continue;
+    const linhas = await prisma.membroFerias.findMany({ where: { anoGozo: ano, idPmma: r.id }, orderBy: { id: "asc" }, select: { id: true } });
+    const sobram = linhas.slice(1).map((l) => l.id);
+    if (sobram.length) {
+      await prisma.membroFerias.deleteMany({ where: { id: { in: sobram } } });
+      repetidosCorrigidos++;
+    }
+  }
+  return { removidos, repetidosCorrigidos };
 }
