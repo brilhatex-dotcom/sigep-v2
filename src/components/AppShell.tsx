@@ -67,6 +67,7 @@ import BuscaGlobal from "@/components/BuscaGlobal";
 import AcoesRapidas from "@/components/AcoesRapidas";
 import AvatarPerfil from "@/components/AvatarPerfil";
 import "@/components/ui-theme.css";
+import { euGuardado, guardarEu, type DadosEu } from "@/lib/euCache";
 
 type Item = {
   rotulo: string;
@@ -264,19 +265,29 @@ export default function AppShell({
   const [meuLugar, setMeuLugar] = useState<{ noId: string; rotulo: string } | null>(null);
   useEffect(() => {
     let vivo = true;
-    fetch("/api/eu")
-      .then((r) => r.json())
-      .then((d) => {
-        if (!vivo) return;
-        setMeuEfetivoId(d.efetivoId ?? null);
-        setTenhoFoto(!!d.temFoto);
-        setVersaoFoto(d.fotoH ?? null);
-        setMeuNome(d.nomeExibicao || "");
-        setMeuLugar(d.lugar ?? null);
-      })
-      .catch(() => {});
+    const aplicar = (d: DadosEu) => {
+      if (!vivo) return;
+      setMeuEfetivoId(d.efetivoId ?? null);
+      setTenhoFoto(!!d.temFoto);
+      setVersaoFoto(d.fotoH ?? null);
+      setMeuNome(d.nomeExibicao || "");
+      setMeuLugar(d.lugar ?? null);
+    };
+    // Já buscado nesta aba (lib/euCache): mostra na hora, sem ir ao servidor
+    // a cada tela; só busca de novo quando a cópia vence.
+    const guardado = euGuardado(userName);
+    if (guardado) aplicar(guardado.dados);
+    if (!guardado || guardado.vencido) {
+      fetch("/api/eu")
+        .then((r) => r.json())
+        .then((d: DadosEu) => {
+          guardarEu(userName, d);
+          aplicar(d);
+        })
+        .catch(() => {});
+    }
     return () => { vivo = false; };
-  }, []);
+  }, [userName]);
   // Cmt/Sargenteante de lugar: não-admin que tem uma unidade vinculada.
   const souLugar = !admin && !!meuLugar;
 
@@ -445,9 +456,8 @@ export default function AppShell({
 
   return (
     <div className="flex min-h-screen bg-[#08111F] text-white">
-      {/* Barra de progresso: aparece no instante do clique e some quando a
-          tela nova entra. É o que diz "seu clique pegou, estou buscando". */}
-      {indoPara && <div className="nav-progresso" role="progressbar" aria-label="Carregando a tela" />}
+      {/* A barra de progresso no topo é global agora (components/NavProgress,
+          no layout): acende em qualquer link interno, não só no menu. */}
 
       <aside className="sticky top-0 hidden h-screen md:block">{sidebar}</aside>
 

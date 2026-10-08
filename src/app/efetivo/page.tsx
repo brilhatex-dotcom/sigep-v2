@@ -22,32 +22,28 @@ export default async function EfetivoPage({
 
   const hoje = hojeLocal();
 
-  const militares = semInativos(
-    await prisma.efetivo.findMany({
+  // RAPIDEZ: consultas independentes vão ao banco juntas, não em fila
+  const [fichasBrutas, inativos, comFuncao, idsAdiados, idsAvulsas, idsLicencaPremio] = await Promise.all([
+    prisma.efetivo.findMany({
       select: {
         id: true, postoGrad: true, nome: true, nomeGuerra: true,
         matricula: true, situacao: true, lotacao: true, telefone: true,
         jmsDataInicio: true, jmsDataRetorno: true,
       },
     }),
-    await idsInativos(),
-  );
+    idsInativos(),
+    // fichas com FUNÇÃO preenchida (o P/1 pediu o campo em branco em todas)
+    prisma.efetivo.count({ where: { AND: [{ funcao: { not: null } }, { NOT: { funcao: "" } }] } }),
+    idsFeriasAdiadas(),
+    idsFeriasAvulsasHoje(hoje),
+    licencaPremioHoje(hoje),
+  ]);
+  const militares = semInativos(fichasBrutas, inativos);
 
-  // fichas com FUNÇÃO preenchida (o P/1 pediu o campo em branco em todas)
-  const comFuncao = await prisma.efetivo.count({
-    where: { AND: [{ funcao: { not: null } }, { NOT: { funcao: "" } }] },
-  });
-
-  // ferias de hoje
-  // só as equipes do ano e os membros das que estão em gozo hoje (lib/afastadosHoje)
-  const idsFerias = await feriasHoje(hoje, await idsFeriasAdiadas());
-  // As férias avulsas também respeitam o adiamento: sem isto, quem o P/1
-  // acabou de adiar voltava a aparecer de férias por esta linha.
-  const idsAdiadosAvulsas = await idsFeriasAdiadas();
-  for (const id of await idsFeriasAvulsasHoje(hoje)) if (!idsAdiadosAvulsas.has(id)) idsFerias.add(id);
-
-  // licenca-premio de hoje
-  const idsLicencaPremio = await licencaPremioHoje(hoje);
+  // ferias de hoje (equipes em gozo + avulsas), respeitando o adiamento:
+  // sem isto, quem o P/1 acabou de adiar voltava a aparecer de férias.
+  const idsFerias = await feriasHoje(hoje, idsAdiados);
+  for (const id of idsAvulsas) if (!idsAdiados.has(id)) idsFerias.add(id);
 
   // aplica situacao calculada e remove os campos extra
   const lista = militares

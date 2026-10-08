@@ -34,7 +34,12 @@ export default async function FeriasPage({
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  const todasEquipes = await prisma.equipeFerias.findMany();
+  // RAPIDEZ: o que não depende do ano escolhido vai ao banco junto
+  const [todasEquipes, motivos, rowPostergados] = await Promise.all([
+    prisma.equipeFerias.findMany(),
+    motivosSustacao(),
+    prisma.config.findUnique({ where: { chave: "ferias_postergados" } }).catch(() => null),
+  ]);
   const anos = Array.from(new Set(todasEquipes.map((e) => e.anoGozo)))
     .filter(Boolean)
     .sort()
@@ -49,9 +54,31 @@ export default async function FeriasPage({
     .filter((e) => e.anoGozo === anoSelecionado)
     .sort((a, b) => Number(a.numeroEquipe) - Number(b.numeroEquipe));
 
-  const membros = await prisma.membroFerias.findMany({
-    where: { anoGozo: anoSelecionado },
-  });
+  const isAdmin = (session.user.perfil ?? "").toLowerCase() === "admin";
+  /* Militares ativos fora de qualquer equipe — só no plano do PRÓXIMO
+     exercício: o do ano corrente está em andamento e não recebe inclusão
+     automática (quem chegar no meio do ano entra à mão, em "Adicionar"). */
+  const anoCorrente = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric" }).format(new Date()));
+  const planoFuturo = Number(anoSelecionado) > anoCorrente;
+
+  // RAPIDEZ: membros, avisos do plano, cópia de reequilíbrio e numeração juntos
+  const [membros, fora, problemas, rowReequilibrio, numeracao] = await Promise.all([
+    prisma.membroFerias.findMany({ where: { anoGozo: anoSelecionado } }),
+    isAdmin && planoFuturo
+      ? foraDoPlano(anoSelecionado).catch((): ItemFora[] => [])
+      : Promise.resolve([] as ItemFora[]),
+    // e o contrário: quem está no plano e já saiu da unidade, ou está repetido
+    isAdmin && planoFuturo
+      ? problemasDoPlano(anoSelecionado).catch(() => ({ saidos: [], repetidos: [], atrasadas: [] }))
+      : Promise.resolve({ saidos: [] as ProblemaPlano[], repetidos: [] as ProblemaPlano[], atrasadas: [] as FeriasAtrasadas[] }),
+    // houve reequilíbrio com cópia guardada? (botão "Desfazer reequilíbrio")
+    isAdmin
+      ? prisma.config.findUnique({ where: { chave: `ferias_reequilibrio_backup_${anoSelecionado}` }, select: { valor: true } }).catch(() => null)
+      : Promise.resolve(null),
+    // Numeração contínua dos memorandos do ano (plano + férias avulsas
+    // intercaladas). A LP continua a partir do último número.
+    numeracaoDoAno(anoSelecionado),
+  ]);
   const ids = Array.from(new Set(membros.map((m) => m.idPmma)));
   const fichas = await prisma.efetivo.findMany({
     where: { id: { in: ids } },
@@ -72,7 +99,6 @@ export default async function FeriasPage({
 
   const hoje = hojeBR();
   const mesAtual = hoje.getMonth();
-  const motivos = await motivosSustacao();
 
   const equipesView = equipesAno.map((e) => {
     const p1: Periodo = {
@@ -145,38 +171,16 @@ export default async function FeriasPage({
   ).length;
   const totalPracas = totalMilitares - totalOficiais;
 
-  const isAdmin = (session.user.perfil ?? "").toLowerCase() === "admin";
-
-  /* Militares ativos fora de qualquer equipe — só no plano do PRÓXIMO
-     exercício: o do ano corrente está em andamento e não recebe inclusão
-     automática (quem chegar no meio do ano entra à mão, em "Adicionar"). */
-  const anoCorrente = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric" }).format(new Date()));
-  const planoFuturo = Number(anoSelecionado) > anoCorrente;
-  let fora: ItemFora[] = [];
-  if (isAdmin && planoFuturo) { try { fora = await foraDoPlano(anoSelecionado); } catch { /* sem aviso */ } }
-  // e o contrário: quem está no plano e já saiu da unidade, ou está repetido
-  let problemas: { saidos: ProblemaPlano[]; repetidos: ProblemaPlano[]; atrasadas: FeriasAtrasadas[] } = { saidos: [], repetidos: [], atrasadas: [] };
-  if (isAdmin && planoFuturo) { try { problemas = await problemasDoPlano(anoSelecionado); } catch { /* sem aviso */ } }
-
-  // houve reequilíbrio com cópia guardada? (botão "Desfazer reequilíbrio")
   let reequilibrioEm: string | null = null;
-  if (isAdmin) {
-    try {
-      const row = await prisma.config.findUnique({ where: { chave: `ferias_reequilibrio_backup_${anoSelecionado}` }, select: { valor: true } });
-      reequilibrioEm = row?.valor ? (JSON.parse(row.valor)?.em ?? null) : null;
-    } catch { /* sem cópia */ }
-  }
-
-  // Numeração contínua dos memorandos do ano (plano + férias avulsas
-  // intercaladas). A LP continua a partir do último número.
-  const numeracao = await numeracaoDoAno(anoSelecionado);
+  try {
+    reequilibrioEm = rowReequilibrio?.valor ? (JSON.parse(rowReequilibrio.valor)?.em ?? null) : null;
+  } catch { /* sem cópia */ }
 
   // Militares que ADIARAM as férias (não saem de férias; alimentam o relatório
   // de férias vencidas). Guardado em Config "ferias_postergados".
   let postergadosIniciais: { idPmma: string; nome: string; motivo: string; data: string; exercicio?: string }[] = [];
   try {
-    const row = await prisma.config.findUnique({ where: { chave: "ferias_postergados" } });
-    const lista = row?.valor ? JSON.parse(row.valor) : [];
+    const lista = rowPostergados?.valor ? JSON.parse(rowPostergados.valor) : [];
     if (Array.isArray(lista)) postergadosIniciais = lista;
   } catch {}
 
