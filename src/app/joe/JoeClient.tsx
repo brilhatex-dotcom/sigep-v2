@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { joeNoPeriodo, conferirPeriodo, periodoOk, type AutorizacaoJoe, type SaldoJoe } from "@/lib/joeSaldo";
 import { confirmar } from "@/components/Avisos";
 
@@ -173,6 +173,8 @@ export default function JoeClient({ perfil }: { perfil: string }) {
   const [modalJoe, setModalJoe] = useState<string | null>(null);
   // modal do saldo de JOE (cota autorizada por despacho do CPA/I-2)
   const [modalSaldo, setModalSaldo] = useState(false);
+  // consulta: quem tirou JOE, quantos e quanto recebeu (só admin)
+  const [modalConsulta, setModalConsulta] = useState(false);
 
   // acordeao por mes/ano: guarda as chaves expandidas. Comeca com o mes atual aberto.
   const [expandido, setExpandido] = useState<Set<string>>(() => {
@@ -368,6 +370,7 @@ export default function JoeClient({ perfil }: { perfil: string }) {
           </p>
         </div>
         <div className="joe-head-acoes">
+          {veSaldo && <button className="btn saldo-btn" onClick={() => setModalConsulta(true)}>📊 Consultar JOE</button>}
           {veSaldo && <button className="btn saldo-btn" onClick={() => setModalSaldo(true)}>💰 Saldo JOE</button>}
           <span className={"joe-perfil " + (ehAdmin ? "adm" : "pol")}>{ehAdmin ? "P1 / Admin" : "Policial"}</span>
         </div>
@@ -481,6 +484,7 @@ export default function JoeClient({ perfil }: { perfil: string }) {
 
       {/* MODAL: saldo da cota de JOE autorizada por despacho */}
       {modalSaldo && veSaldo && <ModalSaldo ehAdmin={veSaldo} onFechar={() => setModalSaldo(false)} />}
+      {modalConsulta && veSaldo && <ModalConsulta lista={lista} onFechar={() => setModalConsulta(false)} />}
     </div>
   );
 }
@@ -1216,6 +1220,24 @@ const CSS = `
 
 /* SALDO JOE */
 .saldo-modal{ max-width:560px; }
+.consulta-modal{ max-width:860px; }
+.cj-filtros{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+.cj-filtros select, .cj-filtros input{ background:#0a1626; border:1px solid #2b3f63; border-radius:8px; color:#E8EEF6; padding:7px 10px; font-size:13px; }
+.cj-filtros input{ flex:1; min-width:180px; }
+.cj-cards{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-bottom:12px; }
+@media (max-width:640px){ .cj-cards{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.cj-card{ background:#0a1626; border:1px solid #1d2c44; border-radius:10px; padding:10px; }
+.cj-card b{ display:block; font-size:18px; color:#E8EEF6; }
+.cj-card span{ font-size:11px; color:#94A3B8; }
+.cj-tab{ width:100%; border-collapse:collapse; font-size:13px; }
+.cj-tab th{ text-align:left; font-size:11px; text-transform:uppercase; color:#94A3B8; padding:6px 8px; border-bottom:1px solid #1d2c44; }
+.cj-tab td{ padding:7px 8px; border-bottom:1px solid #13213a; color:#cdd9ea; vertical-align:top; }
+.cj-tab tr.cj-linha{ cursor:pointer; }
+.cj-tab tr.cj-linha:hover td{ background:#13213a; }
+.cj-tab .cj-num{ text-align:right; white-space:nowrap; }
+.cj-det{ background:#0a1626; }
+.cj-det ul{ margin:0; padding:4px 0 4px 14px; }
+.cj-det li{ font-size:12.5px; color:#9fb0c7; padding:2px 0; }
 .saldo-despacho{ background:#0a1626; border:1px solid #1d2c44; border-radius:9px; padding:9px 12px; font-size:13px; color:#cdd9ea; }
 .saldo-periodo{ font-size:12px; color:#9fb0c7; margin-top:2px; }
 .saldo-cards{ display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
@@ -1246,3 +1268,137 @@ const CSS = `
 .campo-reais:focus-within{ border-color:#D4AF37; }
 .mini-btn.editar:hover:not(:disabled){ border-color:#D4AF37; color:#f3df9d; }
 `;
+
+
+/* ===================== CONSULTA: QUEM TIROU JOE E QUANTO RECEBEU ===================== */
+
+/* Só conta quem foi APROVADO (é quem trabalhou e recebe). O valor de cada
+   participação é o valor por militar do JOE. Filtra por ano, mês e nome;
+   clicar no militar mostra cada JOE dele. Exporta para Excel (CSV). */
+function ModalConsulta({ lista, onFechar }: { lista: Joe[]; onFechar: () => void }) {
+  const [ano, setAno] = useState("");
+  const [mes, setMes] = useState("");
+  const [busca, setBusca] = useState("");
+  const [aberto, setAberto] = useState<string | null>(null);
+  const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+
+  const anos = useMemo(() => Array.from(new Set(lista.map((j) => (j.data || "").slice(0, 4)).filter(Boolean))).sort().reverse(), [lista]);
+  const norm = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+  const joesFiltrados = useMemo(() => lista.filter((j) =>
+    (!ano || (j.data || "").slice(0, 4) === ano) && (!mes || (j.data || "").slice(5, 7) === mes)
+  ), [lista, ano, mes]);
+
+  type Part = { joe: Joe; valor: number };
+  type Linha = { chave: string; nome: string; joes: Part[]; total: number; ultimo: string };
+  const linhas = useMemo(() => {
+    const m = new Map<string, Linha>();
+    for (const j of joesFiltrados) {
+      for (const c of j.candidatos || []) {
+        if (c.status !== "aprovado") continue;
+        const chave = c.efetivoId || `ext:${(c.extMatricula || c.extNome || c.id).trim()}`;
+        const l = m.get(chave) || { chave, nome: nomeCandidato(c), joes: [], total: 0, ultimo: "" };
+        l.joes.push({ joe: j, valor: j.valor || 0 });
+        l.total += j.valor || 0;
+        if ((j.data || "") > l.ultimo) l.ultimo = j.data || "";
+        m.set(chave, l);
+      }
+    }
+    const t = norm(busca.trim());
+    return Array.from(m.values())
+      .filter((l) => !t || norm(l.nome).includes(t))
+      .map((l) => ({ ...l, joes: l.joes.sort((a, b) => (b.joe.data || "").localeCompare(a.joe.data || "")) }))
+      .sort((a, b) => b.total - a.total || b.joes.length - a.joes.length || a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [joesFiltrados, busca]);
+
+  const totalPago = linhas.reduce((s, l) => s + l.total, 0);
+  const participacoes = linhas.reduce((s, l) => s + l.joes.length, 0);
+  const joesComAprovado = new Set(linhas.flatMap((l) => l.joes.map((p) => p.joe.id))).size;
+
+  function exportar() {
+    const esc = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
+    const linhasCsv = [["Militar", "Data", "Evento", "Local", "Horário", "Valor (R$)"].map(esc).join(";")];
+    for (const l of linhas) for (const p of l.joes) {
+      linhasCsv.push([l.nome, brData(p.joe.data), p.joe.evento, p.joe.local || "", p.joe.horario || "", p.valor.toFixed(2).replace(".", ",")].map(esc).join(";"));
+    }
+    linhasCsv.push(["TOTAL", "", "", "", "", totalPago.toFixed(2).replace(".", ",")].map(esc).join(";"));
+    const blob = new Blob(["\ufeff" + linhasCsv.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `JOE_${ano || "todos"}${mes ? "-" + mes : ""}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+  }
+
+  return (
+    <div className="joe-modal-overlay" onClick={onFechar}>
+      <div className="joe-modal consulta-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="jm-head">
+          <div>
+            <div className="jm-tit">Consultar JOE</div>
+            <div className="jm-sub">Quem tirou JOE, quantos e quanto recebeu (só aprovados)</div>
+          </div>
+          <button className="jm-x" onClick={onFechar}>✕</button>
+        </div>
+        <div className="jm-corpo">
+          <div className="cj-filtros">
+            <select value={ano} onChange={(e) => setAno(e.target.value)}>
+              <option value="">Todos os anos</option>
+              {anos.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+            <select value={mes} onChange={(e) => setMes(e.target.value)}>
+              <option value="">Todos os meses</option>
+              {MESES.map((n, i) => <option key={n} value={String(i + 1).padStart(2, "0")}>{n}</option>)}
+            </select>
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Procurar militar…" />
+            <button className="btn" onClick={exportar} disabled={!linhas.length}>⬇ Excel</button>
+          </div>
+
+          <div className="cj-cards">
+            <div className="cj-card"><b>{joesComAprovado}</b><span>JOEs realizados</span></div>
+            <div className="cj-card"><b>{linhas.length}</b><span>militares</span></div>
+            <div className="cj-card"><b>{participacoes}</b><span>participações</span></div>
+            <div className="cj-card"><b>{reais(totalPago)}</b><span>total pago</span></div>
+          </div>
+
+          {linhas.length === 0 ? (
+            <div className="joe-vazio">Nenhum militar aprovado em JOE neste período.</div>
+          ) : (
+            <table className="cj-tab">
+              <thead>
+                <tr><th>Militar</th><th className="cj-num">JOEs</th><th className="cj-num">Total</th><th className="cj-num">Último</th></tr>
+              </thead>
+              <tbody>
+                {linhas.map((l) => (
+                  <Fragment key={l.chave}>
+                    <tr className="cj-linha" onClick={() => setAberto((v) => (v === l.chave ? null : l.chave))}>
+                      <td>{aberto === l.chave ? "▾ " : "▸ "}{l.nome}</td>
+                      <td className="cj-num">{l.joes.length}</td>
+                      <td className="cj-num"><b>{reais(l.total)}</b></td>
+                      <td className="cj-num">{l.ultimo ? brData(l.ultimo) : "—"}</td>
+                    </tr>
+                    {aberto === l.chave && (
+                      <tr className="cj-det">
+                        <td colSpan={4}>
+                          <ul>
+                            {l.joes.map((p) => (
+                              <li key={p.joe.id}>
+                                {brData(p.joe.data)} · <b>{p.joe.evento}</b>
+                                {p.joe.local ? ` · ${p.joe.local}` : ""}{p.joe.horario ? ` · ${p.joe.horario}` : ""} · {reais(p.valor)}
+                              </li>
+                            ))}
+                          </ul>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
