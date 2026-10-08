@@ -1150,6 +1150,9 @@ export default function PlanoFerias({
         )}
       </div>
 
+      {/* BUSCA: em que equipe (e quando) está de férias um policial */}
+      <BuscaNoPlano equipes={equipes} ano={anoSelecionado} onAbrir={(e) => setAberta(e)} />
+
       {/* cartões das equipes */}
       <div className="space-y-3">
         {equipes.map((e) => {
@@ -1621,6 +1624,66 @@ export default function PlanoFerias({
           refAssinatura={memInfo ? `${memInfo.efetivoId}:${anoSelecionado}` : undefined}
           onFechar={() => setMemorando(null)}
         />
+      )}
+    </div>
+  );
+}
+
+
+/* Busca por nome, nome de guerra, matrícula ou ID: mostra a equipe e o
+   período de férias de cada policial encontrado, com atalho para os detalhes
+   da equipe. A busca ignora acentos e maiúsculas. */
+function BuscaNoPlano({ equipes, ano, onAbrir }: { equipes: EquipeView[]; ano: string; onAbrir: (e: EquipeView) => void }) {
+  const [q, setQ] = useState("");
+  const norm = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const achados = useMemo(() => {
+    const t = norm(q.trim());
+    if (t.length < 2) return [];
+    const out: { m: MembroEquipe; e: EquipeView }[] = [];
+    for (const e of equipes) for (const m of e.membros) {
+      const alvo = norm(`${m.nome || ""} ${m.nomeGuerra || ""} ${m.matricula || ""} ${m.efetivoId} ${m.numeroBarra || ""}`);
+      if (alvo.includes(t)) out.push({ m, e });
+    }
+    return out.slice(0, 30);
+  }, [q, equipes]);
+
+  return (
+    <div className="mb-3 rounded-xl border border-white/10 bg-[#0F1B2D] p-3">
+      <div className="flex items-center gap-2">
+        <Search className="h-4 w-4 shrink-0 text-[#D4AF37]" />
+        <input
+          value={q}
+          onChange={(ev) => setQ(ev.target.value)}
+          placeholder={`Procurar policial no plano de ${ano} (nome, nome de guerra, matrícula)…`}
+          className="w-full bg-transparent text-sm text-white outline-none placeholder:text-[#6f82a0]"
+        />
+        {q && <button onClick={() => setQ("")} className="text-xs text-[#94A3B8] hover:text-white">limpar</button>}
+      </div>
+      {q.trim().length >= 2 && (
+        <div className="mt-2 border-t border-white/10 pt-2">
+          {achados.length === 0 ? (
+            <p className="px-1 py-2 text-sm text-[#94A3B8]">Ninguém com esse nome no plano de {ano}.</p>
+          ) : (
+            <ul className="divide-y divide-white/5">
+              {achados.map(({ m, e }) => (
+                <li key={`${e.numeroEquipe}-${m.efetivoId}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 py-2 text-sm">
+                  <span className="text-white">
+                    <span className="text-[#94A3B8]">{m.postoGrad ?? ""}</span> {m.nome ?? "—"}
+                    {m.nomeGuerra && <span className="ml-1 text-xs text-[#94A3B8]">({m.nomeGuerra})</span>}
+                  </span>
+                  <span className="rounded-full bg-[#D4AF37]/15 px-2 py-0.5 text-xs font-semibold text-[#D4AF37]">Equipe {e.numeroEquipe}</span>
+                  <span className="text-xs text-[#cdd9ea]">
+                    {e.periodos.map((p) => `${p.inicioBR} → ${p.fimBR}${p.apres && p.apres !== "—" ? ` (apres. ${p.apres})` : ""}`).join(" · ")}
+                  </span>
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] ${e.status.cor}`}>{e.status.rotulo}</span>
+                  <button onClick={() => onAbrir(e)} className="ml-auto rounded-md border border-white/15 px-2 py-1 text-xs text-[#94A3B8] hover:text-white">
+                    Ver equipe
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );
