@@ -7,9 +7,7 @@ import AvatarUpload from "@/components/AvatarUpload";
 import CopiarDados from "./CopiarDados";
 import { ArrowLeft, Pencil } from "lucide-react";
 import { hojeLocal, situacaoCalculada } from "@/lib/situacao";
-import { feriasHoje, licencaPremioHoje } from "@/lib/afastadosHoje";
-import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
-import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
+import { afastadosHoje } from "@/lib/afastadosHoje";
 import { lugarDoUsuario } from "@/lib/lugarUsuario";
 import { pertenceAoNo } from "@/lib/organograma";
 import { podeVerP1 } from "@/lib/encargos";
@@ -67,27 +65,26 @@ export default async function FichaEfetivoPage({
     }
   }
 
-  const m = await prisma.efetivo.findUnique({ where: { id: params.id } });
+  const hoje = hojeLocal();
+  // RAPIDEZ: ficha, afastamentos de hoje e acesso do P/1 vão ao banco juntos
+  const [m, afastados, souP1] = await Promise.all([
+    prisma.efetivo.findUnique({ where: { id: params.id } }),
+    afastadosHoje(hoje),
+    podeVerP1(meuEfetivo || null, ehAdmin).catch(() => false),
+  ]);
   if (!m) redirect(ehAdmin ? "/efetivo" : "/ficha");
 
   const ehDono = meuEfetivo === m.id;
   const podeEditar = ehAdmin || ehDono;
   // Dados para Promoção: só praça (Sd a 1º Sgt), e só o P/1 ou o próprio militar vê
-  const verDadosPromocao = entraNaPlanilha(m.postoGrad) && (ehDono || (await podeVerP1(meuEfetivo || null, ehAdmin)));
+  const verDadosPromocao = entraNaPlanilha(m.postoGrad) && (ehDono || souP1);
 
   // Situacao calculada — mesma composicao da lista de efetivo, para a ficha
-  // nunca discordar dela: plano de ferias + ferias avulsas (datas soltas) +
-  // licenca-premio. Sem as duas ultimas, um militar de ferias avulsas ou em
-  // licenca-premio aparecia na ficha como se estivesse a disposicao.
-  const hoje = hojeLocal();
-  // só as equipes do ano e os membros das que estão em gozo hoje (lib/afastadosHoje)
-  const idsFerias = await feriasHoje(hoje, await idsFeriasAdiadas());
-  // As férias avulsas também respeitam o adiamento: sem isto, quem o P/1
-  // acabou de adiar voltava a aparecer de férias por esta linha.
-  const idsAdiadosAvulsas = await idsFeriasAdiadas();
-  for (const id of await idsFeriasAvulsasHoje(hoje)) if (!idsAdiadosAvulsas.has(id)) idsFerias.add(id);
-
-  const idsLicencaPremio = await licencaPremioHoje(hoje);
+  // nunca discordar dela: plano de ferias + ferias avulsas (datas soltas, menos
+  // quem adiou) + licenca-premio. Sem as duas ultimas, um militar de ferias
+  // avulsas ou em licenca-premio aparecia na ficha como se estivesse a disposicao.
+  const idsFerias = afastados.ferias;
+  const idsLicencaPremio = afastados.licencaPremio;
 
   const sitCalc = situacaoCalculada(m, idsFerias, hoje, idsLicencaPremio);
   const sitDifere = sitCalc !== (m.situacao ?? "").trim() && sitCalc !== "—";

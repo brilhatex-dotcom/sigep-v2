@@ -18,15 +18,19 @@ export default async function RequerimentosPage() {
 
   // admin ve todos os enviados; policial ve so os seus
   const where = ehAdmin ? {} : { efetivoId: meuEfetivo ?? "__sem__" };
-  const lista = await prisma.requerimento.findMany({
-    where,
-    orderBy: { criadoEm: "desc" },
-    select: {
-      id: true, modalidade: true, modalidadeOutros: true, modelo: true,
-      status: true, criadoEm: true, efetivoId: true,
-      nomeCompleto: true, postoGrad: true,
-    },
-  });
+  // RAPIDEZ: requerimentos e premiação pecuniária vão ao banco juntos
+  const [lista, pecunia] = await Promise.all([
+    prisma.requerimento.findMany({
+      where,
+      orderBy: { criadoEm: "desc" },
+      select: {
+        id: true, modalidade: true, modalidadeOutros: true, modelo: true,
+        status: true, criadoEm: true, efetivoId: true,
+        nomeCompleto: true, postoGrad: true,
+      },
+    }),
+    itensPremiacao(String((session.user as any).login || ""), meuEfetivo ?? "", ehAdmin),
+  ]);
 
   // nomes dos requerentes (para o admin ver de quem e)
   const ids = Array.from(new Set(lista.map((r) => r.efetivoId)));
@@ -56,9 +60,6 @@ export default async function RequerimentosPage() {
      cima da tela: ela também tem data, e quem procura um requerimento procura
      pelo mês. A própria lista agrupa, recolhe e filtra — não precisa de uma
      segunda tela para crescer junto. */
-  const pecunia = await itensPremiacao(
-    String((session.user as any).login || ""), meuEfetivo ?? "", ehAdmin,
-  );
   const itens = [...comuns, ...pecunia];
 
   /* Uma linha no alto com o que espera por VOCÊ — só a contagem, porque o selo

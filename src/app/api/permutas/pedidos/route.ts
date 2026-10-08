@@ -89,12 +89,14 @@ export async function GET() {
   const meuId = (session.user as any).refEfetivo as string | null;
   const admin = ehAdmin((session.user as any).perfil);
 
-  const podeP1 = await podeComoEncargo(meuId, "chefe_p1", admin); // pode ASSINAR o parecer (P/1)
-  const veP1 = await podeVerP1(meuId, admin);                     // Seção P/1 (vê/acompanha)
-  const podeSub = await podeComoEncargo(meuId, "subcmt", admin);
-  const meuEncargo = await encargoDe(meuId);                      // ex.: "cmt_2cia"
-
-  const pedidos = await lerPermutas();
+  // RAPIDEZ: encargos e pedidos vão ao banco juntos (antes, 5 idas em fila)
+  const [podeP1, veP1, podeSub, meuEncargo, pedidos] = await Promise.all([
+    podeComoEncargo(meuId, "chefe_p1", admin), // pode ASSINAR o parecer (P/1)
+    podeVerP1(meuId, admin),                   // Seção P/1 (vê/acompanha)
+    podeComoEncargo(meuId, "subcmt", admin),
+    encargoDe(meuId),                          // ex.: "cmt_2cia"
+    lerPermutas(),
+  ]);
   // LGPD: o policial só enxerga as permutas em que ele é parte.
   const meus = pedidos.filter((p) => meuId && (p.solicitanteId === meuId || p.solicitadoId === meuId));
   const paraMim = pedidos.filter((p) => meuId && p.solicitadoId === meuId && p.estado === "aguardando_solicitado");

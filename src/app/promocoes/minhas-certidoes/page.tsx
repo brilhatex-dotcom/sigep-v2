@@ -64,10 +64,15 @@ async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
     );
   }
 
-  const participante = await prisma.participantePromocao.findUnique({
-    where: { periodoId_efetivoId: { periodoId: periodo.id, efetivoId } },
-    include: { certidoes: true },
-  });
+  // RAPIDEZ: certidões, posto e situação no P/1 vão ao banco juntos
+  const [participante, posto, st] = await Promise.all([
+    prisma.participantePromocao.findUnique({
+      where: { periodoId_efetivoId: { periodoId: periodo.id, efetivoId } },
+      include: { certidoes: true },
+    }),
+    postoDoMilitar(efetivoId),
+    statusP1(periodo.id, efetivoId),
+  ]);
 
   const enviadas = new Map(
     (participante?.certidoes ?? []).map((c) => [c.ordem, c.nomeArquivo])
@@ -79,7 +84,6 @@ async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
   );
 
   // oficial: 9 certidoes (inclui o TRF da 6ª Regiao); praca: 8
-  const posto = await postoDoMilitar(efetivoId);
   const exigidas = certidoesExigidas(posto);
   const total = exigidas.length;
   const itens = exigidas.map((c) => ({
@@ -93,7 +97,6 @@ async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
     pelaUnificada: pelaUnificada.has(c.ordem),
   }));
 
-  const st = await statusP1(periodo.id, efetivoId);
 
   return (
     <>

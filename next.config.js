@@ -39,6 +39,13 @@ const nextConfig = {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
   experimental: {
+    /* RAPIDEZ: o navegador guarda por um tempo as telas já abertas. Voltar a
+       uma aba visitada há pouco aparece na hora, sem ir ao servidor. Não fica
+       dado velho: qualquer gravação, em qualquer PC, muda o sinal de mudança
+       e o LiveRefresh chama router.refresh(), que descarta essas cópias.
+       - dynamic: tela visitada (30 s)
+       - static: tela pré-carregada pelo mouse em cima do menu (2 min) */
+    staleTimes: { dynamic: 30, static: 120 },
     /* Empacota os arquivos de /public junto das serverless functions que os
        leem com fs.readFileSync. Sem isto, em producao (Vercel) o arquivo nao
        esta no bundle da function: /public e servido pelo CDN, nao vai junto.

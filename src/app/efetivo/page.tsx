@@ -5,9 +5,7 @@ import AppShell from "@/components/AppShell";
 import EfetivoLista from "@/components/EfetivoLista";
 import LimparFuncoes from "@/components/LimparFuncoes";
 import { hojeLocal, situacaoCalculada } from "@/lib/situacao";
-import { feriasHoje, licencaPremioHoje } from "@/lib/afastadosHoje";
-import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
-import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
+import { afastadosHoje } from "@/lib/afastadosHoje";
 import { idsInativos, semInativos } from "@/lib/inativos";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +21,7 @@ export default async function EfetivoPage({
   const hoje = hojeLocal();
 
   // RAPIDEZ: consultas independentes vão ao banco juntas, não em fila
-  const [fichasBrutas, inativos, comFuncao, idsAdiados, idsAvulsas, idsLicencaPremio] = await Promise.all([
+  const [fichasBrutas, inativos, comFuncao, afastados] = await Promise.all([
     prisma.efetivo.findMany({
       select: {
         id: true, postoGrad: true, nome: true, nomeGuerra: true,
@@ -34,16 +32,12 @@ export default async function EfetivoPage({
     idsInativos(),
     // fichas com FUNÇÃO preenchida (o P/1 pediu o campo em branco em todas)
     prisma.efetivo.count({ where: { AND: [{ funcao: { not: null } }, { NOT: { funcao: "" } }] } }),
-    idsFeriasAdiadas(),
-    idsFeriasAvulsasHoje(hoje),
-    licencaPremioHoje(hoje),
+    // férias (plano + avulsas, menos quem adiou) e licença-prêmio de hoje
+    afastadosHoje(hoje),
   ]);
   const militares = semInativos(fichasBrutas, inativos);
-
-  // ferias de hoje (equipes em gozo + avulsas), respeitando o adiamento:
-  // sem isto, quem o P/1 acabou de adiar voltava a aparecer de férias.
-  const idsFerias = await feriasHoje(hoje, idsAdiados);
-  for (const id of idsAvulsas) if (!idsAdiados.has(id)) idsFerias.add(id);
+  const idsFerias = afastados.ferias;
+  const idsLicencaPremio = afastados.licencaPremio;
 
   // aplica situacao calculada e remove os campos extra
   const lista = militares

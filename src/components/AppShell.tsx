@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import SinoNotificacoes from "@/components/SinoNotificacoes";
 import RelogioInatividade from "@/components/RelogioInatividade";
@@ -248,6 +248,21 @@ export default function AppShell({
     const t = setTimeout(() => setIndoPara(null), 15000);
     return () => clearTimeout(t);
   }, [indoPara]);
+  /* PRÉ-CARGA: o mouse parou em cima de um item do menu -> a tela já começa a
+     ser montada no servidor. Até o clique (uns 200-300 ms depois) boa parte da
+     espera já passou. O pequeno atraso evita carregar tudo o que o mouse
+     apenas atravessa. No celular, começa no toque. */
+  const router = useRouter();
+  const preCarga = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const preCarregar = (href: string, atraso = 120) => {
+    if (href === pathname) return;
+    if (preCarga.current) clearTimeout(preCarga.current);
+    preCarga.current = setTimeout(() => { preCarga.current = null; router.prefetch(href); }, atraso);
+  };
+  const cancelarPreCarga = () => {
+    if (preCarga.current) { clearTimeout(preCarga.current); preCarga.current = null; }
+  };
+  useEffect(() => cancelarPreCarga, []);
   const irPara = (href: string) => {
     setAberto(false);
     // Clicar na tela em que ja se esta nao navega — nao acende nada.
@@ -369,6 +384,9 @@ export default function AppShell({
                       <Link
                         href={item.href}
                         onClick={() => irPara(item.href!)}
+                        onMouseEnter={() => preCarregar(item.href!)}
+                        onMouseLeave={cancelarPreCarga}
+                        onTouchStart={() => preCarregar(item.href!, 0)}
                         aria-current={ativo ? "page" : undefined}
                         aria-busy={indo || undefined}
                         className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${

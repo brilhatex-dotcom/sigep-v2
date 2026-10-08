@@ -6,9 +6,7 @@ import AppShell from "@/components/AppShell";
 import OrganogramaArvore, { Contagens } from "@/components/OrganogramaArvore";
 import { ORGANOGRAMA, NoOrg, pertenceAoNo } from "@/lib/organograma";
 import { hojeLocal, situacaoCalculada } from "@/lib/situacao";
-import { feriasHoje, licencaPremioHoje } from "@/lib/afastadosHoje";
-import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
-import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
+import { afastadosHoje } from "@/lib/afastadosHoje";
 import { idsInativos, semInativos } from "@/lib/inativos";
 import { COORDS_UNIDADE } from "@/lib/coordsUnidades";
 import MapaEfetivoWrapper from "@/components/MapaEfetivoWrapper";
@@ -38,32 +36,28 @@ export default async function OrganogramaPage() {
 
   // efetivo com os campos necessarios para a situacao calculada
   // (militares inativos — que saíram da unidade — ficam de fora)
+  // RAPIDEZ: efetivo, saídas e afastamentos de hoje vão ao banco juntos
+  const [fichasBrutas, inativos, afastados] = await Promise.all([
+    prisma.efetivo.findMany({
+      select: {
+        id: true,
+        lotacao: true,
+        situacao: true,
+        jmsDataInicio: true,
+        jmsDataRetorno: true,
+      },
+    }),
+    idsInativos(),
+    afastadosHoje(hoje),
+  ]);
   const militares = filtrarPeloLugar(
-    semInativos(
-      await prisma.efetivo.findMany({
-        select: {
-          id: true,
-          lotacao: true,
-          situacao: true,
-          jmsDataInicio: true,
-          jmsDataRetorno: true,
-        },
-      }),
-      await idsInativos(),
-    ),
+    semInativos(fichasBrutas, inativos),
     lugar,
   );
 
-  // ferias de hoje
-  // só as equipes do ano e os membros das que estão em gozo hoje (lib/afastadosHoje)
-  const idsFerias = await feriasHoje(hoje, await idsFeriasAdiadas());
-  // As férias avulsas também respeitam o adiamento: sem isto, quem o P/1
-  // acabou de adiar voltava a aparecer de férias por esta linha.
-  const idsAdiadosAvulsas = await idsFeriasAdiadas();
-  for (const id of await idsFeriasAvulsasHoje(hoje)) if (!idsAdiadosAvulsas.has(id)) idsFerias.add(id);
-
-  // licenca-premio de hoje
-  const idsLicencaPremio = await licencaPremioHoje(hoje);
+  // férias (plano + avulsas, menos quem adiou) e licença-prêmio de hoje
+  const idsFerias = afastados.ferias;
+  const idsLicencaPremio = afastados.licencaPremio;
 
   // contagem total por no (efetivo lotado, como antes)
   const lotacoes = militares.map((m) => m.lotacao);
