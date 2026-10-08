@@ -4,6 +4,7 @@ import Providers from "@/components/Providers";
 import RegistrarSW from "@/components/RegistrarSW";
 import LiveRefresh from "@/components/LiveRefresh";
 import CentralAvisos from "@/components/Avisos";
+import NavProgress from "@/components/NavProgress";
 
 export const metadata: Metadata = {
   title: "SIGEP 18º BPM",
@@ -36,6 +37,8 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body>
+        {/* barra no topo assim que se clica num link: o clique responde na hora */}
+        <NavProgress />
         <Providers>{children}</Providers>
         <RegistrarSW />
         <LiveRefresh />

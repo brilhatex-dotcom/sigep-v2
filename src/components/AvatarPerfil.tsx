@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type { ChangeEvent, PointerEvent as ReactPointerEvent } from "react";
 import { X, Upload, Trash2, Move, Loader2, Check, ImagePlus } from "lucide-react";
 import { confirmar } from "@/components/Avisos";
+import { esquecerEu } from "@/lib/euCache";
 
 type Ajuste = { zoom: number; x: number; y: number };
 const PADRAO: Ajuste = { zoom: 1, x: 0, y: 0 };
@@ -109,6 +110,7 @@ export default function AvatarPerfil({
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { setErro(d.error || "Falha ao enviar."); return; }
       setTem(true); setVersao((v) => v + 1);
+      esquecerEu(); // próxima tela pega a foto nova
       setAjuste(PADRAO);
       lembrarAjuste(efetivoId, PADRAO);
       await fetch("/api/foto/ajuste", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ efetivoId, ...PADRAO }) }).catch(() => {});
@@ -123,6 +125,7 @@ export default function AvatarPerfil({
       const r = await fetch("/api/foto", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ efetivoId }) });
       if (!r.ok) { const d = await r.json().catch(() => ({})); setErro(d.error || "Falha ao excluir."); return; }
       setTem(false); setModo("ver");
+      esquecerEu();
     } catch { setErro("Erro de conexão."); }
     finally { setOcupado(null); }
   }

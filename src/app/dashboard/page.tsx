@@ -39,22 +39,29 @@ export default async function DashboardPage() {
   /* Só os campos que o painel usa. Antes vinha a ficha COMPLETA de todo o
      efetivo (51 colunas: endereço, filiação, banco...) — perto de 1 MB do
      Neon a cada visita a esta tela, que é a primeira do admin. */
-  const militares = semInativos(
-    await prisma.efetivo.findMany({
+  /* RAPIDEZ: as consultas que não dependem uma da outra vão ao banco JUNTAS
+     (antes eram ~10 idas em fila, cada uma esperando a anterior). */
+  const anoStr = String(hoje.getFullYear());
+  const [fichasBrutas, inativos, equipes, idsAvulsaHoje, idsAdiados, idsLicencaPremio, dispensados, avisos] = await Promise.all([
+    prisma.efetivo.findMany({
       select: {
         id: true, postoGrad: true, nome: true, nomeGuerra: true, sexo: true, situacao: true,
         dataNasc: true, jmsDataInicio: true, jmsDataRetorno: true, jmsMotivo: true,
       },
     }),
-    await idsInativos(),
-  );
+    idsInativos(),
+    /* Férias de hoje (para a situação calculada e o painel por equipe): as
+       equipes do ano e só os membros das equipes em gozo hoje. */
+    prisma.equipeFerias.findMany({ where: { anoGozo: anoStr } }),
+    idsFeriasAvulsasHoje(hoje), // férias em datas soltas
+    idsFeriasAdiadas(),         // quem adiou não sai de férias
+    licencaPremioHoje(hoje),
+    prisma.alertaDispensado.findMany({ select:{ chave:true } }),
+    prisma.aviso.findMany({ orderBy:{ criadoEm:"desc" } }),
+  ]);
+  const militares = semInativos(fichasBrutas, inativos);
   const total = militares.length;
 
-  /* Férias de hoje (para a situação calculada e o painel por equipe): as
-     equipes do ano e só os membros das equipes em gozo hoje — é tudo o que a
-     conta usa (antes vinha a tabela de membros de todos os anos, duas vezes). */
-  const anoStr = String(hoje.getFullYear());
-  const equipes = await prisma.equipeFerias.findMany({ where: { anoGozo: anoStr } });
   const emGozoHoje = Array.from(equipesEmFeriasHoje(equipes, hoje));
   const membros = emGozoHoje.length
     ? await prisma.membroFerias.findMany({
@@ -62,8 +69,6 @@ export default async function DashboardPage() {
         select: { idPmma: true, numeroEquipe: true, anoGozo: true },
       })
     : [];
-  const idsAvulsaHoje = await idsFeriasAvulsasHoje(hoje); // férias em datas soltas
-  const idsAdiados = await idsFeriasAdiadas(); // quem adiou não sai de férias
 
   /* Quem está em JMS hoje NÃO entra de férias: mesmo chegando o período da
      equipe, primeiro sai do JMS e volta a PRONTO — só então goza as férias,
@@ -81,8 +86,7 @@ export default async function DashboardPage() {
   const idsFeriasPlanoHoje = new Set(idsFerias);
   for (const id of idsJmsHoje) idsFerias.delete(id);
 
-  // licenca-premio de hoje (mesma logica das ferias, 1 periodo por equipe)
-  const idsLicencaPremio = await licencaPremioHoje(hoje);
+  // licenca-premio de hoje: já veio junto com as demais consultas (lá em cima)
 
   // ---- situacao + baldes (usando situacao CALCULADA) ----
   const porSituacao = new Map<string, number>();
@@ -135,7 +139,6 @@ export default async function DashboardPage() {
   });
 
   // ---- alertas dinamicos (JMS a vencer) + avisos manuais ----
-  const dispensados = await prisma.alertaDispensado.findMany({ select:{ chave:true } });
   const setDisp = new Set(dispensados.map((d)=>d.chave));
 
   const alertasJms: Alerta[] = linhasJms
@@ -151,7 +154,6 @@ export default async function DashboardPage() {
     .filter((a)=> !setDisp.has(a.chave));
 
   // avisos manuais ativos (validade futura ou sem validade)
-  const avisos = await prisma.aviso.findMany({ orderBy:{ criadoEm:"desc" } });
   const hojeISO=`${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,"0")}-${String(hoje.getDate()).padStart(2,"0")}`;
   const alertasAvisos: Alerta[] = avisos
     .filter((a)=> !a.validade || a.validade >= hojeISO)
