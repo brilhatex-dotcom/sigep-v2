@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { joeNoPeriodo, conferirPeriodo, periodoOk, type AutorizacaoJoe, type SaldoJoe } from "@/lib/joeSaldo";
 import { confirmar } from "@/components/Avisos";
+import { compararAntiguidade } from "@/lib/patentes";
 
 /* =========================================================================
    SIGEP-18BPM · JOE — Jornada Operacional Extraordinaria.
@@ -1290,14 +1291,20 @@ function ModalConsulta({ lista, onFechar }: { lista: Joe[]; onFechar: () => void
   ), [lista, ano, mes]);
 
   type Part = { joe: Joe; valor: number };
-  type Linha = { chave: string; nome: string; joes: Part[]; total: number; ultimo: string };
+  type Linha = { chave: string; nome: string; joes: Part[]; total: number; ultimo: string; postoGrad: string; numeroBarra: string; nomeOrdem: string };
   const linhas = useMemo(() => {
     const m = new Map<string, Linha>();
     for (const j of joesFiltrados) {
       for (const c of j.candidatos || []) {
         if (c.status !== "aprovado") continue;
         const chave = c.efetivoId || `ext:${(c.extMatricula || c.extNome || c.id).trim()}`;
-        const l = m.get(chave) || { chave, nome: nomeCandidato(c), joes: [], total: 0, ultimo: "" };
+        const l = m.get(chave) || {
+          chave, nome: nomeCandidato(c), joes: [], total: 0, ultimo: "",
+          // para a ordem de hierarquia
+          postoGrad: (c.ficha?.postoGrad || c.extPostoGrad || "").trim(),
+          numeroBarra: (c.ficha?.numeroBarra || "").trim(),
+          nomeOrdem: (c.ficha?.nome || c.extNome || "").trim(),
+        };
         l.joes.push({ joe: j, valor: j.valor || 0 });
         l.total += j.valor || 0;
         if ((j.data || "") > l.ultimo) l.ultimo = j.data || "";
@@ -1308,7 +1315,11 @@ function ModalConsulta({ lista, onFechar }: { lista: Joe[]; onFechar: () => void
     return Array.from(m.values())
       .filter((l) => !t || norm(l.nome).includes(t))
       .map((l) => ({ ...l, joes: l.joes.sort((a, b) => (b.joe.data || "").localeCompare(a.joe.data || "")) }))
-      .sort((a, b) => b.total - a.total || b.joes.length - a.joes.length || a.nome.localeCompare(b.nome, "pt-BR"));
+      // sempre em ordem de HIERARQUIA (posto/graduação, nº de barra, nome)
+      .sort((a, b) => compararAntiguidade(
+        { postoGrad: a.postoGrad, numeroBarra: a.numeroBarra, nome: a.nomeOrdem || a.nome },
+        { postoGrad: b.postoGrad, numeroBarra: b.numeroBarra, nome: b.nomeOrdem || b.nome },
+      ));
   }, [joesFiltrados, busca]);
 
   const totalPago = linhas.reduce((s, l) => s + l.total, 0);
