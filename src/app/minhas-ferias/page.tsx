@@ -34,29 +34,40 @@ export default async function MinhasFeriasPage() {
   const periodos: Periodo[] = [];
   const minhasEquipes: MinhaEquipe[] = [];
 
+  // RAPIDEZ: adiados, minhas equipes e avulsas vão ao banco juntos
+  const [rowPostergados, membros, rowAvulsas] = await Promise.all([
+    prisma.config.findUnique({ where: { chave: "ferias_postergados" } }).catch(() => null),
+    meuId ? prisma.membroFerias.findMany({ where: { idPmma: meuId } }) : Promise.resolve([]),
+    meuId ? prisma.config.findUnique({ where: { chave: "ferias_avulsas" } }).catch(() => null) : Promise.resolve(null),
+  ]);
+
   // Quem postergou / não vai gozar agora (só marcador de controle).
   let postergados = new Set<string>();
   try {
-    const row = await prisma.config.findUnique({ where: { chave: "ferias_postergados" } });
-    const lista = row?.valor ? JSON.parse(row.valor) : [];
+    const lista = rowPostergados?.valor ? JSON.parse(rowPostergados.valor) : [];
     if (Array.isArray(lista)) postergados = new Set(lista.map((p: any) => String(p?.idPmma || "")));
   } catch { /* ignora */ }
   const euAdiei = !!meuId && postergados.has(meuId);
 
   if (meuId) {
-    // férias do PLANO (equipes onde o militar é membro)
-    const membros = await prisma.membroFerias.findMany({ where: { idPmma: meuId } });
-    for (const m of membros) {
-      const eq = await prisma.equipeFerias.findFirst({ where: { numeroEquipe: m.numeroEquipe, anoGozo: m.anoGozo } });
-      if (!eq) continue;
-
+    // férias do PLANO (equipes onde o militar é membro) — cada equipe e o seu
+    // grupo de colegas são lidos ao mesmo tempo, não um ano depois do outro
+    const grupos = await Promise.all(membros.map((m) => Promise.all([
+      prisma.equipeFerias.findFirst({ where: { numeroEquipe: m.numeroEquipe, anoGozo: m.anoGozo } }),
       // Plano da MINHA equipe: os colegas que saem de férias junto comigo.
-      const doGrupo = await prisma.membroFerias.findMany({ where: { numeroEquipe: m.numeroEquipe, anoGozo: m.anoGozo } });
-      const fichas = await prisma.efetivo.findMany({
-        where: { id: { in: doGrupo.map((x) => x.idPmma) } },
-        select: { id: true, postoGrad: true, nome: true, nomeGuerra: true },
-      });
-      const porId = new Map(fichas.map((f) => [f.id, f]));
+      prisma.membroFerias.findMany({ where: { numeroEquipe: m.numeroEquipe, anoGozo: m.anoGozo } }),
+    ])));
+    const idsColegas = Array.from(new Set(grupos.flatMap(([, doGrupo]) => doGrupo.map((x) => x.idPmma))));
+    const fichas = idsColegas.length
+      ? await prisma.efetivo.findMany({
+          where: { id: { in: idsColegas } },
+          select: { id: true, postoGrad: true, nome: true, nomeGuerra: true },
+        })
+      : [];
+    const porId = new Map(fichas.map((f) => [f.id, f]));
+    membros.forEach((m, i) => {
+      const [eq, doGrupo] = grupos[i];
+      if (!eq) return;
       const pers: MinhaEquipe["periodos"] = [];
       if (eq.periodo1Inicio || eq.periodo1Fim) pers.push({ rotulo: "1º período", inicio: eq.periodo1Inicio, fim: eq.periodo1Fim, apres: eq.periodo1Apres });
       if (eq.periodo2Inicio || eq.periodo2Fim) pers.push({ rotulo: "2º período", inicio: eq.periodo2Inicio, fim: eq.periodo2Fim, apres: eq.periodo2Apres });
@@ -81,11 +92,10 @@ export default async function MinhasFeriasPage() {
 
       if (eq.periodo1Inicio || eq.periodo1Fim) periodos.push({ rotulo: `Plano ${m.anoGozo} · Equipe ${m.numeroEquipe} · 1º período`, inicio: eq.periodo1Inicio, fim: eq.periodo1Fim, apres: eq.periodo1Apres, origem: "plano" });
       if (eq.periodo2Inicio || eq.periodo2Fim) periodos.push({ rotulo: `Plano ${m.anoGozo} · Equipe ${m.numeroEquipe} · 2º período`, inicio: eq.periodo2Inicio, fim: eq.periodo2Fim, apres: eq.periodo2Apres, origem: "plano" });
-    }
+    });
     // férias avulsas (datas soltas) do próprio militar
     try {
-      const row = await prisma.config.findUnique({ where: { chave: "ferias_avulsas" } });
-      const lista = row?.valor ? JSON.parse(row.valor) : [];
+      const lista = rowAvulsas?.valor ? JSON.parse(rowAvulsas.valor) : [];
       if (Array.isArray(lista)) {
         for (const a of lista) {
           if (String(a?.idPmma || "") !== meuId) continue;

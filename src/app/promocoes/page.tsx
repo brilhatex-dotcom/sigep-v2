@@ -105,12 +105,21 @@ async function PainelConteudo({
   nome: string;
   dataAlvo: string | null;
 }) {
-  const participantes = await prisma.participantePromocao.findMany({
-    where: { periodoId },
-    include: {
-      _count: { select: { certidoes: true } },
-    },
-  });
+  // RAPIDEZ: participantes, situação no P/1 e lista de períodos vão juntos
+  const [participantes, mapaP1, todos] = await Promise.all([
+    prisma.participantePromocao.findMany({
+      where: { periodoId },
+      include: {
+        _count: { select: { certidoes: true } },
+      },
+    }),
+    lerMapaP1(),
+    // lista de todos os periodos (pro seletor e aba de arquivadas)
+    prisma.periodoPromocao.findMany({
+      orderBy: [{ ativo: "desc" }, { criadoEm: "desc" }],
+      include: { _count: { select: { participantes: true } } },
+    }),
+  ]);
   const ids = participantes.map((p) => p.efetivoId);
   const fichas = await prisma.efetivo.findMany({
     where: { id: { in: ids } },
@@ -125,7 +134,6 @@ async function PainelConteudo({
     },
   });
   const mapaFicha = new Map(fichas.map((f) => [f.id, f]));
-  const mapaP1 = await lerMapaP1();
   const linhas = participantes
     .map((p) => {
       const f = mapaFicha.get(p.efetivoId);
@@ -160,11 +168,6 @@ async function PainelConteudo({
       );
     });
 
-  // lista de todos os periodos (pro seletor e aba de arquivadas)
-  const todos = await prisma.periodoPromocao.findMany({
-    orderBy: [{ ativo: "desc" }, { criadoEm: "desc" }],
-    include: { _count: { select: { participantes: true } } },
-  });
   const periodos = todos.map((p) => ({
     id: p.id,
     nome: p.nome,

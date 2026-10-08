@@ -68,49 +68,55 @@ export async function GET(req: Request) {
   }
 
   try {
-    const f = await prisma.efetivo.findUnique({ where: { id }, select: SELECAO });
+    /* ---- sugestões do que o sistema já sabe ----
+       RAPIDEZ: ficha, histórico e as três sugestões vão ao banco juntos. */
+    const sugestaoPromocoes = async (): Promise<string[]> => {
+      try {
+        const lancadas: any[] = await prisma.$queryRawUnsafe(
+          `SELECT "Posto_Novo" AS "postoNovo", "Data_Promocao" AS "dataPromocao", "Referencia" AS "referencia"
+             FROM "promocoes_lancadas"
+            WHERE "Efetivo_ID" = $1 AND "Desfeito_Em" IS NULL
+            ORDER BY "Data_Promocao"`, id);
+        return sugerirPromocoes(lancadas);
+      } catch { return []; /* a tabela pode não existir ainda; sem sugestão */ }
+    };
+
+    const sugestaoFerias = async (): Promise<string[]> => {
+      try {
+        const membros = await prisma.membroFerias.findMany({
+          where: { idPmma: id },
+          select: { anoGozo: true, equipe: { select: { periodo1Inicio: true, periodo1Fim: true, periodo2Inicio: true, periodo2Fim: true } } },
+        });
+        return sugerirFerias(membros.flatMap((m) => {
+          const e = m.equipe;
+          const p: { ano: string; inicio: string; fim: string }[] = [];
+          if (e?.periodo1Inicio) p.push({ ano: m.anoGozo, inicio: e.periodo1Inicio, fim: e.periodo1Fim || "" });
+          if (e?.periodo2Inicio) p.push({ ano: m.anoGozo, inicio: e.periodo2Inicio, fim: e.periodo2Fim || "" });
+          if (!p.length) p.push({ ano: m.anoGozo, inicio: "", fim: "" });
+          return p;
+        }));
+      } catch { return []; /* sem plano de férias, sem sugestão */ }
+    };
+
+    const sugestaoLp = async (): Promise<string[]> => {
+      try {
+        const membros = await prisma.membroLicencaPremio.findMany({
+          where: { idPmma: id },
+          select: { anoGozo: true, equipe: { select: { periodoInicio: true, periodoFim: true } } },
+        });
+        return sugerirLicencaPremio(membros.map((m) => ({
+          ano: m.anoGozo, inicio: m.equipe?.periodoInicio || "", fim: m.equipe?.periodoFim || "",
+        })));
+      } catch { return []; /* idem */ }
+    };
+
+    const [f, linha, promocoes, ferias, lp] = await Promise.all([
+      prisma.efetivo.findUnique({ where: { id }, select: SELECAO }),
+      lerHistorico(id),
+      sugestaoPromocoes(), sugestaoFerias(), sugestaoLp(),
+    ]);
     if (!f) return NextResponse.json({ error: "Militar não encontrado." }, { status: 404 });
-
-    const linha = await lerHistorico(id);
     const dados = linha ? normalizar(JSON.parse(linha.dados || "{}")) : VAZIO;
-
-    /* ---- sugestões do que o sistema já sabe ---- */
-    let promocoes: string[] = [];
-    try {
-      const lancadas: any[] = await prisma.$queryRawUnsafe(
-        `SELECT "Posto_Novo" AS "postoNovo", "Data_Promocao" AS "dataPromocao", "Referencia" AS "referencia"
-           FROM "promocoes_lancadas"
-          WHERE "Efetivo_ID" = $1 AND "Desfeito_Em" IS NULL
-          ORDER BY "Data_Promocao"`, id);
-      promocoes = sugerirPromocoes(lancadas);
-    } catch { /* a tabela pode não existir ainda; sem sugestão */ }
-
-    let ferias: string[] = [];
-    try {
-      const membros = await prisma.membroFerias.findMany({
-        where: { idPmma: id },
-        select: { anoGozo: true, equipe: { select: { periodo1Inicio: true, periodo1Fim: true, periodo2Inicio: true, periodo2Fim: true } } },
-      });
-      ferias = sugerirFerias(membros.flatMap((m) => {
-        const e = m.equipe;
-        const p: { ano: string; inicio: string; fim: string }[] = [];
-        if (e?.periodo1Inicio) p.push({ ano: m.anoGozo, inicio: e.periodo1Inicio, fim: e.periodo1Fim || "" });
-        if (e?.periodo2Inicio) p.push({ ano: m.anoGozo, inicio: e.periodo2Inicio, fim: e.periodo2Fim || "" });
-        if (!p.length) p.push({ ano: m.anoGozo, inicio: "", fim: "" });
-        return p;
-      }));
-    } catch { /* sem plano de férias, sem sugestão */ }
-
-    let lp: string[] = [];
-    try {
-      const membros = await prisma.membroLicencaPremio.findMany({
-        where: { idPmma: id },
-        select: { anoGozo: true, equipe: { select: { periodoInicio: true, periodoFim: true } } },
-      });
-      lp = sugerirLicencaPremio(membros.map((m) => ({
-        ano: m.anoGozo, inicio: m.equipe?.periodoInicio || "", fim: m.equipe?.periodoFim || "",
-      })));
-    } catch { /* idem */ }
 
     return NextResponse.json({
       dados,

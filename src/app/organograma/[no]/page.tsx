@@ -7,9 +7,7 @@ import AppShell from "@/components/AppShell";
 import { classificarPatente } from "@/lib/patentes";
 import { acharNo, pertenceAoNo } from "@/lib/organograma";
 import { hojeLocal, situacaoCalculada } from "@/lib/situacao";
-import { feriasHoje, licencaPremioHoje } from "@/lib/afastadosHoje";
-import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
-import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
+import { afastadosHoje } from "@/lib/afastadosHoje";
 import { idsInativos, semInativos } from "@/lib/inativos";
 import { exigirAdminOuLugar } from "@/lib/guard";
 import { ArrowLeft, ChevronRight, Users } from "lucide-react";
@@ -39,26 +37,23 @@ export default async function NoOrganogramaPage({
 
   const hoje = hojeLocal();
 
-  const todos = semInativos(
-    await prisma.efetivo.findMany({
+  // RAPIDEZ: efetivo, saídas e afastamentos de hoje vão ao banco juntos
+  const [fichasBrutas, inativos, afastados] = await Promise.all([
+    prisma.efetivo.findMany({
       select: {
         id: true, postoGrad: true, nome: true, nomeGuerra: true,
         matricula: true, situacao: true, lotacao: true,
         jmsDataInicio: true, jmsDataRetorno: true,
       },
     }),
-    await idsInativos(),
-  );
+    idsInativos(),
+    afastadosHoje(hoje),
+  ]);
+  const todos = semInativos(fichasBrutas, inativos);
 
-  // só as equipes do ano e os membros das que estão em gozo hoje (lib/afastadosHoje)
-  const idsFerias = await feriasHoje(hoje, await idsFeriasAdiadas());
-  // As férias avulsas também respeitam o adiamento: sem isto, quem o P/1
-  // acabou de adiar voltava a aparecer de férias por esta linha.
-  const idsAdiadosAvulsas = await idsFeriasAdiadas();
-  for (const id of await idsFeriasAvulsasHoje(hoje)) if (!idsAdiadosAvulsas.has(id)) idsFerias.add(id);
-
-  // licenca-premio de hoje
-  const idsLicencaPremio = await licencaPremioHoje(hoje);
+  // férias (plano + avulsas, menos quem adiou) e licença-prêmio de hoje
+  const idsFerias = afastados.ferias;
+  const idsLicencaPremio = afastados.licencaPremio;
 
   const lista = todos
     .filter((m) => pertenceAoNo(m.lotacao, no))
@@ -101,6 +96,7 @@ export default async function NoOrganogramaPage({
                 <li key={m.id}>
                   <Link
                     href={`/efetivo/${encodeURIComponent(m.id)}`}
+                    prefetch={false}
                     className="group flex items-center gap-3 px-5 py-2.5 transition hover:bg-white/5"
                   >
                     <span className="w-24 shrink-0 text-xs text-[#94A3B8]">{m.postoGrad ?? "—"}</span>

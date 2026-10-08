@@ -40,13 +40,17 @@ export async function GET() {
 
   const perfil = (session.user as any).perfil as string | undefined;
   const admin = ehAdmin(perfil);
-  const meuEfetivoId = await efetivoIdDaSessao(session);
 
   try {
-    const lista = await prisma.joe.findMany({
-      orderBy: [{ data: "asc" }, { horaInicio: "asc" }],
-      include: { inscricoes: true },
-    });
+    // RAPIDEZ: quem sou eu, a lista e as apresentações vão ao banco juntos
+    const [meuEfetivoId, lista, apresentacao] = await Promise.all([
+      efetivoIdDaSessao(session),
+      prisma.joe.findMany({
+        orderBy: [{ data: "asc" }, { horaInicio: "asc" }],
+        include: { inscricoes: true },
+      }),
+      apresentacoesJoe(),
+    ]);
 
     // Enriquece com nomes do efetivo (so dos inscritos do 18, com efetivoId).
     const ids = Array.from(
@@ -64,7 +68,6 @@ export async function GET() {
       : [];
     const mapaFicha: Record<string, any> = {};
     for (const f of fichas) mapaFicha[f.id] = f;
-    const apresentacao = await apresentacoesJoe();
 
     const joe = lista.map((j) => {
       const aprovados = j.inscricoes.filter((i) => i.status === "aprovado").length;

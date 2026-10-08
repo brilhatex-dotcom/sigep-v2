@@ -44,33 +44,31 @@ export async function GET(req: Request) {
   const q = async <T,>(fn: () => Promise<T[]>): Promise<T[]> => { try { return await fn(); } catch { return []; } };
 
   try {
-    const eqFer = await q(() => prisma.equipeFerias.findMany({ where: { anoGozo: { in: anos } } }));
-    const mbFer = await q(() => prisma.membroFerias.findMany({ where: { anoGozo: { in: anos } } }));
-    const eqLic = await q(() => prisma.equipeLicencaPremio.findMany({ where: { anoGozo: { in: anos } } }));
-    const mbLic = await q(() => prisma.membroLicencaPremio.findMany({ where: { anoGozo: { in: anos } } }));
-
-    // fichas: JMS com data e a situação atual (Agregação, LTIP, Licença...)
-    const fichas = await q(() => prisma.efetivo.findMany({
-      select: { id: true, situacao: true, jmsDataInicio: true, jmsDataRetorno: true },
-    }));
-
-    // férias avulsas (datas soltas)
-    let avulsas: any[] = [];
-    try {
-      const row = await prisma.config.findUnique({ where: { chave: "ferias_avulsas" } });
-      const lista = row?.valor ? JSON.parse(row.valor) : [];
-      if (Array.isArray(lista)) avulsas = lista;
-    } catch {}
-
-    // lista de situações do admin (quais contam como afastamento)
-    let situacoes: SituacaoItem[] = SITUACOES_PADRAO;
-    try {
-      const row = await prisma.config.findUnique({ where: { chave: "situacoes" } });
-      const parsed = row?.valor ? JSON.parse(row.valor) : null;
-      if (Array.isArray(parsed) && parsed.length) situacoes = parsed as SituacaoItem[];
-    } catch {}
-
-    const adiados = await idsFeriasAdiadas();
+    // RAPIDEZ: as 8 leituras vão ao banco juntas (antes, uma atrás da outra)
+    const lerJson = async (chave: string): Promise<unknown> => {
+      try {
+        const row = await prisma.config.findUnique({ where: { chave } });
+        return row?.valor ? JSON.parse(row.valor) : null;
+      } catch { return null; }
+    };
+    const [eqFer, mbFer, eqLic, mbLic, fichas, listaAvulsas, listaSituacoes, adiados] = await Promise.all([
+      q(() => prisma.equipeFerias.findMany({ where: { anoGozo: { in: anos } } })),
+      q(() => prisma.membroFerias.findMany({ where: { anoGozo: { in: anos } } })),
+      q(() => prisma.equipeLicencaPremio.findMany({ where: { anoGozo: { in: anos } } })),
+      q(() => prisma.membroLicencaPremio.findMany({ where: { anoGozo: { in: anos } } })),
+      // fichas: JMS com data e a situação atual (Agregação, LTIP, Licença...)
+      q(() => prisma.efetivo.findMany({
+        select: { id: true, situacao: true, jmsDataInicio: true, jmsDataRetorno: true },
+      })),
+      // férias avulsas (datas soltas)
+      lerJson("ferias_avulsas"),
+      // lista de situações do admin (quais contam como afastamento)
+      lerJson("situacoes"),
+      idsFeriasAdiadas(),
+    ]);
+    const avulsas: any[] = Array.isArray(listaAvulsas) ? listaAvulsas : [];
+    const situacoes: SituacaoItem[] =
+      Array.isArray(listaSituacoes) && listaSituacoes.length ? (listaSituacoes as SituacaoItem[]) : SITUACOES_PADRAO;
 
     const afastamentos = montarAfastamentos({
       equipesFerias: eqFer as any,

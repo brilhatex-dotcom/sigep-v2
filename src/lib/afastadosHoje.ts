@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
+import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
 import {
   equipesEmFeriasHoje, equipesEmLicencaHoje, montarIdsEmFerias, montarIdsEmLicencaPremio,
 } from "@/lib/situacao";
@@ -47,4 +49,20 @@ export async function licencaPremioHoje(hoje: Date): Promise<Set<string>> {
     select: { idPmma: true, numeroEquipe: true, anoGozo: true },
   });
   return montarIdsEmLicencaPremio(equipes, membros, hoje);
+}
+
+/* Tudo de uma vez: férias do plano + avulsas (menos quem ADIOU) e
+   licença-prêmio de hoje. As consultas vão ao banco JUNTAS — antes cada tela
+   fazia estas mesmas 5 idas uma atrás da outra (e lia os adiados duas vezes). */
+export async function afastadosHoje(hoje: Date): Promise<{
+  ferias: Set<string>; licencaPremio: Set<string>; adiados: Set<string>;
+}> {
+  const [planoFerias, adiados, avulsas, licencaPremio] = await Promise.all([
+    feriasHoje(hoje), idsFeriasAdiadas(), idsFeriasAvulsasHoje(hoje), licencaPremioHoje(hoje),
+  ]);
+  // Quem adiou não sai de férias — nem pelo plano, nem pela avulsa.
+  const ferias = new Set<string>();
+  for (const id of planoFerias) if (!adiados.has(id)) ferias.add(id);
+  for (const id of avulsas) if (!adiados.has(id)) ferias.add(id);
+  return { ferias, licencaPremio, adiados };
 }

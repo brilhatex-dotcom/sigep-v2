@@ -200,7 +200,7 @@ export default function LotacaoLista({
               {g.lista.map((m, i) => (
                 <li key={m.id} className={`group flex items-center gap-3 px-5 py-2.5 transition hover:bg-white/5 ${ehAfastado(m.situacao) ? "bg-amber-500/5" : ""}`}>
                   <span className="w-6 shrink-0 text-center text-xs font-semibold text-[#D4AF37]">{i + 1}</span>
-                  <Link href={`/efetivo/${encodeURIComponent(m.id)}`} className="flex flex-1 items-center gap-3">
+                  <Link href={`/efetivo/${encodeURIComponent(m.id)}`} prefetch={false} className="flex flex-1 items-center gap-3">
                     <span className="w-24 shrink-0 text-xs text-[#94A3B8]">{m.postoGrad ?? "—"}</span>
                     <span className="w-14 shrink-0 text-xs text-[#94A3B8]">{m.numeroBarra ?? "—"}</span>
                     <span className="flex-1 text-sm text-white">
@@ -214,6 +214,7 @@ export default function LotacaoLista({
                   {isAdmin && (
                     <Link
                       href={`/efetivo/${encodeURIComponent(m.id)}/editar`}
+                      prefetch={false}
                       className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-[#94A3B8] transition hover:border-[#D4AF37]/40 hover:text-white"
                       title="Editar"
                     >

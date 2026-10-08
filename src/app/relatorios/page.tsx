@@ -5,9 +5,7 @@ import RelatoriosClient from "@/components/RelatoriosClient";
 import { ORGANOGRAMA, pertenceAoNo, type NoOrg } from "@/lib/organograma";
 import { idsInativos, semInativos } from "@/lib/inativos";
 import { situacaoCalculada, estaEmJmsHoje, hojeLocal } from "@/lib/situacao";
-import { feriasHoje, licencaPremioHoje } from "@/lib/afastadosHoje";
-import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
-import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
+import { afastadosHoje } from "@/lib/afastadosHoje";
 import { paraData, dataBR, idade as calcIdade, tempoServico } from "@/lib/datas";
 import { classificarPatente } from "@/lib/patentes";
 import type { MilitarRelatorio } from "@/lib/relatorioCampos";
@@ -49,17 +47,19 @@ export default async function RelatoriosPage() {
   const session = await exigirAdmin();
   const hoje = hojeLocal();
 
-  const militares = semInativos(await prisma.efetivo.findMany(), await idsInativos());
+  // RAPIDEZ: efetivo, saídas e ausências de hoje vão ao banco juntos
+  const [fichasBrutas, inativos, afastados] = await Promise.all([
+    prisma.efetivo.findMany(), idsInativos(), afastadosHoje(hoje),
+  ]);
+  const militares = semInativos(fichasBrutas, inativos);
 
   // ---- ausências de hoje, pelas mesmas regras do resto do sistema ----
-  const adiados = await idsFeriasAdiadas();
-  // só as equipes do ano e os membros das que estão em gozo hoje (lib/afastadosHoje)
-  const idsFerias = await feriasHoje(hoje, adiados);
-  for (const id of await idsFeriasAvulsasHoje(hoje)) if (!adiados.has(id)) idsFerias.add(id);
+  // (plano + avulsas, menos quem adiou)
+  const idsFerias = afastados.ferias;
   // JMS na frente das férias: quem está em JMS não entra de férias.
   for (const m of militares) if (estaEmJmsHoje(m, hoje)) idsFerias.delete(m.id);
 
-  const idsLP = await licencaPremioHoje(hoje);
+  const idsLP = afastados.licencaPremio;
 
   const linhas: MilitarRelatorio[] = militares.map((m) => {
     const { unidade, sub } = localizar(m.lotacao, ORGANOGRAMA);

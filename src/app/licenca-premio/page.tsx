@@ -58,7 +58,16 @@ export default async function LicencaPremioPage({
   const hoje = hojeBR();
   const anoAtual = String(hoje.getFullYear());
 
-  const todasEquipes = await prisma.equipeLicencaPremio.findMany();
+  /* RAPIDEZ: o ano pedido quase sempre é válido, então os membros e a
+     numeração dele já vão ao banco junto com as equipes (se o ano da URL não
+     existir, cai no ano atual e busca de novo abaixo). */
+  const anoPedido = searchParams.ano || anoAtual;
+  const membrosDoAno = (ano: string) => prisma.membroLicencaPremio.findMany({ where: { anoGozo: ano } });
+  const [todasEquipes, membrosPedido, numeracaoPedido] = await Promise.all([
+    prisma.equipeLicencaPremio.findMany(),
+    membrosDoAno(anoPedido),
+    numeracaoDoAno(anoPedido),
+  ]);
   const anosBanco = Array.from(new Set(todasEquipes.map((e) => e.anoGozo)));
   const anos = Array.from(new Set([anoAtual, ...anosBanco])).sort().reverse();
 
@@ -68,9 +77,8 @@ export default async function LicencaPremioPage({
   const equipesAno = todasEquipes.filter((e) => e.anoGozo === anoSelecionado);
   const mapaEquipe = new Map(equipesAno.map((e) => [e.numeroEquipe, e]));
 
-  const membros = await prisma.membroLicencaPremio.findMany({
-    where: { anoGozo: anoSelecionado },
-  });
+  const acertou = anoSelecionado === anoPedido;
+  const membros = acertou ? membrosPedido : await membrosDoAno(anoSelecionado);
   const ids = Array.from(new Set(membros.map((m) => m.idPmma)));
   const fichas = ids.length
     ? await prisma.efetivo.findMany({
@@ -141,7 +149,7 @@ export default async function LicencaPremioPage({
   // plano MAIS as ferias avulsas do ano, intercaladas na ordem em que foram
   // cadastradas); a Licenca-Premio segue logo em seguida (N+1 em diante — ex.:
   // ferias terminando em 108, LP comeca em 109).
-  const baseNumeroMemorando = (await numeracaoDoAno(anoSelecionado)).ultimo;
+  const baseNumeroMemorando = (acertou ? numeracaoPedido : await numeracaoDoAno(anoSelecionado)).ultimo;
 
   const isAdmin = (session.user.perfil ?? "").toLowerCase() === "admin";
 

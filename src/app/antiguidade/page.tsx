@@ -5,9 +5,7 @@ import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import AntiguidadeTabela, { MilitarLinha } from "@/components/AntiguidadeTabela";
 import { hojeLocal, situacaoCalculada } from "@/lib/situacao";
-import { feriasHoje, licencaPremioHoje } from "@/lib/afastadosHoje";
-import { idsFeriasAvulsasHoje } from "@/lib/feriasAvulsas";
-import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
+import { afastadosHoje } from "@/lib/afastadosHoje";
 import { idsInativos, semInativos } from "@/lib/inativos";
 import { compararAntiguidade } from "@/lib/antiguidade";
 
@@ -23,28 +21,23 @@ export default async function AntiguidadePage({
 
   const hoje = hojeLocal();
 
-  const militares = semInativos(
-    await prisma.efetivo.findMany({
+  // RAPIDEZ: efetivo, saídas e afastamentos de hoje vão ao banco juntos
+  const [fichasBrutas, inativos, afastados] = await Promise.all([
+    prisma.efetivo.findMany({
       select: {
         id: true, postoGrad: true, numeroBarra: true, nome: true, nomeGuerra: true,
         matricula: true, rg: true, cpf: true, situacao: true, lotacao: true,
         dataPromocao: true, jmsDataInicio: true, jmsDataRetorno: true,
       },
     }),
-    await idsInativos(),
-  );
+    idsInativos(),
+    afastadosHoje(hoje),
+  ]);
+  const militares = semInativos(fichasBrutas, inativos);
 
-  // só as equipes do ano e os membros das que estão em gozo hoje (lib/afastadosHoje)
-  const idsFerias = await feriasHoje(hoje, await idsFeriasAdiadas());
-  // ferias em datas soltas contam igual as do plano — sem isso, quem esta de
-  // ferias avulsas aparecia aqui como se estivesse a disposicao
-  // As férias avulsas também respeitam o adiamento: sem isto, quem o P/1
-  // acabou de adiar voltava a aparecer de férias por esta linha.
-  const idsAdiadosAvulsas = await idsFeriasAdiadas();
-  for (const id of await idsFeriasAvulsasHoje(hoje)) if (!idsAdiadosAvulsas.has(id)) idsFerias.add(id);
-
-  // licenca-premio de hoje
-  const idsLicencaPremio = await licencaPremioHoje(hoje);
+  // férias (plano + avulsas, menos quem adiou) e licença-prêmio de hoje
+  const idsFerias = afastados.ferias;
+  const idsLicencaPremio = afastados.licencaPremio;
 
   // a regra mora em src/lib/antiguidade.ts (a Planilha Padrao usa a mesma)
   const ordenados = [...militares].sort(compararAntiguidade);
