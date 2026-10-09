@@ -83,7 +83,10 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
       setSucesso(true);
       setTimeout(async () => {
         await signOut({ redirect: false });
-        router.push('/login?trocada=1');
+        /* Carga completa, não router.push: o navegador guarda as telas por
+           alguns segundos (staleTimes) e devolveria esta mesma tela, ainda
+           com a cara de "primeiro acesso", no login seguinte. */
+        window.location.assign('/login?trocada=1');
       }, 1500);
     } catch {
       setErro('Erro de comunicacao com o servidor.');

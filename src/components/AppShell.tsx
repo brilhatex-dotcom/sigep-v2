@@ -503,16 +503,21 @@ export default function AppShell({
               <ChevronRight className="h-3 w-3" />
               <span className="truncate text-white/80">{pagina}</span>
             </div>
-            <p className="text-sm font-semibold text-white">
-              {saudacao()}, {nomeExibir}
+            <p className="line-clamp-2 text-sm font-semibold leading-tight text-white">
+              {/* no celular só o nome: com a saudação ele não cabia */}
+              <span className="hidden sm:inline">{saudacao()}, </span>{nomeExibir}
             </p>
           </div>
 
           <BuscaGlobal />
 
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
             {admin && <AcoesRapidas isAdmin={true} />}
-            <Relogio />
+            {/* No celular o relógio espremia a saudação até um texto passar
+                por cima do outro — e o celular já mostra a hora. */}
+            <div className="hidden sm:block">
+              <Relogio />
+            </div>
 
             <SinoNotificacoes />
 
@@ -539,7 +544,7 @@ export default function AppShell({
               href="/trocar-senha"
               title="Trocar senha"
               onClick={() => irPara("/trocar-senha")}
-              className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#94A3B8] transition hover:border-[#D4AF37]/40 hover:bg-[#D4AF37]/10 hover:text-[#D4AF37]"
+              className="flex items-center gap-1.5 rounded-lg border border-white/10 px-2 py-1.5 text-sm text-[#94A3B8] transition hover:border-[#D4AF37]/40 sm:px-3 hover:bg-[#D4AF37]/10 hover:text-[#D4AF37]"
             >
               {indoPara === "/trocar-senha"
                 ? <Loader2 className="h-4 w-4 animate-spin text-[#D4AF37]" />
@@ -549,7 +554,7 @@ export default function AppShell({
 
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}
-              className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#94A3B8] transition hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300"
+              className="flex items-center gap-1.5 rounded-lg border border-white/10 px-2 py-1.5 text-sm text-[#94A3B8] transition hover:border-red-500/40 sm:px-3 hover:bg-red-500/10 hover:text-red-300"
             >
               <LogOut className="h-4 w-4" />
               <span className="hidden sm:inline">Sair</span>

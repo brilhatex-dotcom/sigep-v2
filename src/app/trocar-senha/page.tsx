@@ -60,7 +60,7 @@ export default async function TrocarSenhaPage() {
 
         {precisaTrocar && (
           <div className="mb-4 p-3 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/40 text-[#D4AF37] text-sm">
-            Sua senha foi resetada pelo administrador. Defina uma nova senha pessoal para continuar.
+            Primeiro acesso (ou senha resetada pelo P/1): defina agora a sua senha pessoal para continuar.
           </div>
         )}
 
