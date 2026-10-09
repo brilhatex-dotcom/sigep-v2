@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   Lock,
@@ -34,7 +33,6 @@ const RECURSOS = [
 ];
 
 export default function LoginPage() {
-  const router = useRouter();
   const [login, setLogin] = useState("");
   const [senha, setSenha] = useState("");
   const [verSenha, setVerSenha] = useState(false);
@@ -93,7 +91,10 @@ export default function LoginPage() {
       pedirLocalizacao();
       return;
     }
-    router.push("/dashboard");
+    /* Carga completa: troca de usuário/sessão tem de descartar as telas que o
+       navegador guardou (staleTimes) — senão o 2º login logo após trocar a
+       senha caía de novo na tela de troca, com os dados de antes. */
+    window.location.assign("/dashboard");
   }
 
   return (
