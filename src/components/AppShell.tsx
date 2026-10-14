@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import SinoNotificacoes from "@/components/SinoNotificacoes";
+import AvisoAoEntrar from "@/components/AvisoAoEntrar";
 import RelogioInatividade from "@/components/RelogioInatividade";
 import {
   LayoutDashboard,
@@ -520,6 +521,8 @@ export default function AppShell({
             </div>
 
             <SinoNotificacoes />
+            {/* "falta você neste requerimento" — uma vez por login */}
+            <AvisoAoEntrar />
 
             <div className="hidden items-center gap-3 border-l border-white/10 pl-4 sm:flex">
               <div className="text-right leading-tight">

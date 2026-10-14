@@ -260,6 +260,36 @@ export async function notificacoesFerias(quem: Quem): Promise<Notificacao[]> {
    Quem montou o requerimento não é avisado do próprio documento — ele acabou
    de criá-lo. */
 export async function notificacoesPecunia(quem: Quem): Promise<Notificacao[]> {
+  const itens = await pendenciasPecunia(quem);
+  return itens.map((r) => {
+    const quem = r.montouVoce
+      ? `Você montou o requerimento de premiação pecuniária ${r.id}.`
+      : `${r.criadoPorNome || "O P/1"} incluiu você no requerimento de premiação pecuniária ${r.id}.`;
+    /* O que falta muda o recado. Mandar "falta assinar" para quem ainda nem
+       informou a conta faria a pessoa ir assinar primeiro — e aí o
+       requerimento teria de ser reaberto para ela preencher, derrubando as
+       assinaturas de quem já tinha assinado. */
+    const falta = r.semConta ? "Informe seus dados bancários e assine." : "Falta a sua assinatura.";
+    return { id: "pecunia:" + r.id, texto: `${quem} ${falta}`, em: r.criadoEm, href: r.href };
+  });
+}
+
+/* O que este policial tem PENDENTE nos requerimentos de premiação — a mesma
+   conta serve ao sino e ao aviso que aparece logo depois do login
+   (/api/requerimentos/premiacao/pendentes). Uma fonte só, para os dois nunca
+   discordarem sobre o que falta. */
+export type PendenciaPecunia = {
+  id: string;
+  criadoPorNome: string;
+  criadoEm: string;
+  montouVoce: boolean;     // foi ele mesmo quem montou (o texto do aviso muda)
+  semConta: boolean;       // falta a conta DELE
+  faltamOutros: number;    // de quantos colegas ainda falta a conta (trava o SIGEP)
+  quantidade: number;      // policiais no requerimento
+  href: string;
+};
+
+export async function pendenciasPecunia(quem: Quem): Promise<PendenciaPecunia[]> {
   const meuId = (quem.refEfetivo || "") as string;
   if (!meuId) return [];
   try {
@@ -270,30 +300,26 @@ export async function notificacoesPecunia(quem: Quem): Promise<Notificacao[]> {
     const pendentes = meus.filter((r) => !assinei.has(refAssinatura(r.id, meuId)));
     if (!pendentes.length) return [];
 
-    const nots: Notificacao[] = [];
+    const out: PendenciaPecunia[] = [];
     for (const r of pendentes.slice(0, 20)) {
       /* Só agora o JSON é aberto, e só dos que interessam: para saber se o
          policial já resolveu a linha dele marcando o Gov.br. */
       const doc = await lerPecunia(r.id);
       const minha = doc?.dados.linhas.find((l) => l.efetivoId === meuId);
-      if (!minha || minha.assinarGov) continue;
-      const quemPos = r.criadoPorNome || "O P/1";
-      /* O que falta muda o recado. Mandar "falta assinar" para quem ainda nem
-         informou a conta faria a pessoa ir assinar primeiro — e aí o
-         requerimento teria de ser reaberto para ela preencher, derrubando as
-         assinaturas de quem já tinha assinado. */
-      const oQueFalta = faltaBanco(minha)
-        ? "Informe seus dados bancários e assine."
-        : "Falta a sua assinatura.";
-      nots.push({
-        id: "pecunia:" + r.id,
-        texto: `${quemPos} incluiu você no requerimento de premiação pecuniária ${r.id}. ${oQueFalta}`,
-        em: r.criadoEm,
+      if (!doc || !minha || minha.assinarGov) continue;
+      out.push({
+        id: r.id,
+        criadoPorNome: r.criadoPorNome || "",
+        criadoEm: r.criadoEm,
+        montouVoce: !!quem.login && r.criadoPor === quem.login,
+        semConta: faltaBanco(minha),
+        faltamOutros: doc.dados.linhas.filter((l) => l !== minha && faltaBanco(l)).length,
+        quantidade: doc.dados.linhas.length,
         href: "/requerimentos/premiacao?id=" + encodeURIComponent(r.id),
       });
     }
-    nots.sort((a, b) => (b.em || "").localeCompare(a.em || ""));
-    return nots;
+    out.sort((a, b) => (b.criadoEm || "").localeCompare(a.criadoEm || ""));
+    return out;
   } catch {
     // tabela ainda não criada — o sino simplesmente não mostra esta fonte
     return [];
