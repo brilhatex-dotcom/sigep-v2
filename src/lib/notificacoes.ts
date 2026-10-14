@@ -20,7 +20,13 @@ import { pendentesDeConferencia } from "@/lib/promocaoAvisos";
    sumir da tela porque uma tabela ainda não existe ou o banco piscou.
    ========================================================================= */
 
-export type Notificacao = { id: string; texto: string; em: string; href?: string };
+export type Notificacao = {
+  id: string; texto: string; em: string; href?: string;
+  /* Que AÇÃO a notificação pede (só as de permuta usam, por ora). É o que o
+     aviso ao entrar (pendenciasAoEntrar) olha para separar o que exige ação
+     do que é só acompanhamento. O sino ignora. */
+  acao?: "assinar" | "parecer" | "acompanhar" | "ciencia" | "visto";
+};
 
 export type Quem = {
   login?: string | null;
@@ -55,6 +61,7 @@ export async function notificacoesPermutas(quem: Quem): Promise<Notificacao[]> {
           id: "assinar:" + p.id,
           texto: `${p.solicitante.linha} pediu permuta com você — dia ${dBR(p.dataPermuta)}. Assine o "concordo".`,
           em: p.criadoEm,
+          acao: "assinar",
         });
       } else if (veP1 && p.estado === "aguardando_p1") {
         // Chefe do P/1 assina; auxiliares recebem para acompanhar (não assinam).
@@ -64,6 +71,7 @@ export async function notificacoesPermutas(quem: Quem): Promise<Notificacao[]> {
             ? `Permuta ${p.solicitante.linha} ⇄ ${p.solicitado?.linha || p.solicitadoNome} aguardando o seu parecer (Chefe do P/1).`
             : `Permuta ${p.solicitante.linha} ⇄ ${p.solicitado?.linha || p.solicitadoNome} para acompanhamento do P/1 (o parecer é do Chefe).`,
           em: p.criadoEm,
+          acao: podeP1 ? "parecer" : "acompanhar",
         });
       } else if (meuId && (p.solicitanteId === meuId || p.solicitadoId === meuId)
                  && (p.estado === "autorizada" || p.estado === "nao_autorizada")
@@ -73,12 +81,14 @@ export async function notificacoesPermutas(quem: Quem): Promise<Notificacao[]> {
           id: "ciencia:" + p.id,
           texto: `Sua permuta (${p.protocolo || ""}) foi ${p.estado === "autorizada" ? "AUTORIZADA" : "NÃO autorizada"}. Toque para dar ciência da decisão.`,
           em: p.p1Em || p.criadoEm,
+          acao: "ciencia",
         });
       } else if (podeSub && p.estado === "aguardando_subcmt") {
         nots.push({
           id: "subcmt:" + p.id,
           texto: `Permuta ${p.solicitante.linha} ⇄ ${p.solicitado?.linha || p.solicitadoNome} aguardando o seu visto (Subcomandante).`,
           em: p.criadoEm,
+          acao: "visto",
         });
       }
     }
@@ -276,7 +286,7 @@ export async function notificacoesPecunia(quem: Quem): Promise<Notificacao[]> {
 
 /* O que este policial tem PENDENTE nos requerimentos de premiação — a mesma
    conta serve ao sino e ao aviso que aparece logo depois do login
-   (/api/requerimentos/premiacao/pendentes). Uma fonte só, para os dois nunca
+   (/api/pendencias). Uma fonte só, para os dois nunca
    discordarem sobre o que falta. */
 export type PendenciaPecunia = {
   id: string;
@@ -366,4 +376,69 @@ export async function todasNotificacoes(quem: Quem): Promise<Notificacao[]> {
     notificacoesPermutas(quem),
   ]);
   return [...seg, ...fer, ...pec, ...pro, ...cha, ...per];
+}
+
+/* =========================================================================
+   O QUE ESPERA AÇÃO DESTE USUÁRIO — para o aviso logo depois do login
+   (components/AvisoAoEntrar, via /api/pendencias).
+
+   O sino mostra tudo; o aviso ao entrar mostra só o que PRECISA de alguém
+   agir, porque ele interrompe a tela: chat, alertas de segurança e "seu
+   memorando ficou pronto" ficam só no sino. Sai das MESMAS funções do sino,
+   para os dois nunca discordarem.
+
+   Agrupado por assunto: o Chefe do P/1 com oito permutas na fila vê um
+   cartão "8 permutas aguardando o seu parecer", não oito cartões.
+   ========================================================================= */
+export type CartaoPendencia = {
+  id: string;
+  assunto: "permuta" | "promocao" | "ferias";
+  titulo: string;
+  linhas: string[];        // até 3 exemplos, para saber do que se trata
+  mais: number;            // quantos além dos exemplos
+  botao: string;
+  href: string;
+};
+
+export type PendenciasAoEntrar = { pecunia: PendenciaPecunia[]; outras: CartaoPendencia[] };
+
+export async function pendenciasAoEntrar(quem: Quem): Promise<PendenciasAoEntrar> {
+  const [pecunia, permutas, promocao, ferias] = await Promise.all([
+    pendenciasPecunia(quem),
+    notificacoesPermutas(quem),
+    notificacoesPromocao(quem),
+    notificacoesFerias(quem),
+  ]);
+
+  const cartao = (
+    id: string, assunto: CartaoPendencia["assunto"], itens: Notificacao[],
+    titulo: (n: number) => string, botao: string, href: string,
+  ): CartaoPendencia | null => itens.length
+    ? { id, assunto, titulo: titulo(itens.length), linhas: itens.slice(0, 3).map((n) => n.texto), mais: Math.max(0, itens.length - 3), botao, href }
+    : null;
+
+  const de = (a: Notificacao["acao"]) => permutas.filter((n) => n.acao === a);
+  const outras = [
+    // primeiro o que é do próprio policial...
+    cartao("permuta-assinar", "permuta", de("assinar"),
+      (n) => n === 1 ? "Um colega pediu permuta com você" : `${n} colegas pediram permuta com você`,
+      "Ver e assinar o concordo", "/permutas"),
+    cartao("permuta-ciencia", "permuta", de("ciencia"),
+      (n) => n === 1 ? "Saiu a decisão da sua permuta" : `Saiu a decisão de ${n} permutas suas`,
+      "Ver e dar ciência", "/permutas"),
+    // ...depois o que é da função dele
+    cartao("permuta-parecer", "permuta", de("parecer"),
+      (n) => n === 1 ? "1 permuta aguardando o seu parecer" : `${n} permutas aguardando o seu parecer`,
+      "Dar o parecer", "/permutas"),
+    cartao("permuta-visto", "permuta", de("visto"),
+      (n) => n === 1 ? "1 permuta aguardando o seu visto" : `${n} permutas aguardando o seu visto`,
+      "Dar o visto", "/permutas"),
+    cartao("promocao-conferir", "promocao", promocao,
+      () => "Certidões de promoção para conferir", "Conferir as certidões", "/promocoes"),
+    cartao("ferias-secao", "ferias", ferias.filter((n) => n.id.startsWith("memo:")),
+      (n) => n === 1 ? "1 memorando aguardando a assinatura da seção" : `${n} memorandos aguardando a assinatura da seção`,
+      "Assinar os memorandos", "/ferias"),
+  ].filter((c): c is CartaoPendencia => !!c);
+
+  return { pecunia, outras };
 }
