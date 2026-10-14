@@ -68,7 +68,7 @@ type Linha = {
 type Resposta = { bancoNome: string; agencia: string; conta: string; tipoConta: string };
 
 type Assinatura = { efetivoId: string; id: string; token: string; nome: string; cargo: string; em: string };
-type ItemLista = { id: string; criadoEm: string; criadoPorNome: string; quantidade: number; nomes: string[]; souDele: boolean; jaAssinei: boolean; semBanco: number };
+type ItemLista = { id: string; criadoEm: string; criadoPorNome: string; quantidade: number; nomes: string[]; souDele: boolean; jaAssinei: boolean; semBanco: number; podeApagar?: boolean };
 
 /* A API do efetivo traz a lotação; o tipo compartilhado não a declara. */
 type MilitarComLotacao = Militar & { lotacao?: string | null };
@@ -284,6 +284,34 @@ export default function RequerimentoPecuniaDoc({
     } catch { avisar("Sem conexão com o servidor.", "erro"); }
   };
 
+  /* Excluir — para quem montou errado e quer começar de novo. Só quem montou
+     (ou o P/1) vê o botão; o servidor confere de novo. Apaga junto as
+     assinaturas, e a pendência some do sino e do aviso de todos os incluídos. */
+  const excluir = async (id: string) => {
+    const aberto = id === reqId;
+    const nAss = aberto ? Object.keys(assinaturas).length : 0;
+    const quem = aberto ? Object.values(assinaturas).map((a) => a.nome).filter(Boolean).join(", ") : "";
+    const ok = await confirmar(
+      `Excluir o requerimento ${id}? Ele some para todos os policiais incluídos e não dá para desfazer.` +
+        (nAss ? `\n\n${nAss} assinatura(s) também serão apagadas${quem ? ` (${quem})` : ""}.` : ""),
+      { rotuloOk: "Excluir", perigo: true },
+    );
+    if (!ok) return;
+    try {
+      const r = await fetch(`/api/requerimentos/premiacao?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { avisar(d?.error || "Não foi possível excluir.", "erro"); return; }
+      setLista((l) => (l ? l.filter((x) => x.id !== id) : l));
+      if (aberto) {
+        // a tela volta a ser um requerimento novo, em branco
+        setReqId(""); setLinhas([]); setAssinaturas({}); setPodeMexer(true); setComLogin(null);
+        setTexto(TEXTO_PADRAO); setDestinatario(DESTINATARIO); setLocal("Presidente Dutra/MA"); setData(hojeBR());
+        if (typeof window !== "undefined") window.history.replaceState(null, "", window.location.pathname);
+      }
+      avisar(`Requerimento ${id} excluído.${aberto ? " A tela já está pronta para montar um novo." : ""}`, "sucesso");
+    } catch { avisar("Sem conexão com o servidor.", "erro"); }
+  };
+
   // ------------------------------------------- dados bancários (questionário)
   const abrirResposta = (l: Linha) => {
     setErroBanco("");
@@ -428,10 +456,18 @@ export default function RequerimentoPecuniaDoc({
             ) : (
               <span className="text-xs text-[#94A3B8]">sem assinatura ainda — ainda dá para editar</span>
             )}
-            {travado && podeMexer && (
-              <button onClick={reabrir} className={btn + " ml-auto"}>
-                <Unlock className="h-3.5 w-3.5" /> Reabrir para editar
-              </button>
+            {podeMexer && (
+              <span className="ml-auto flex flex-wrap gap-1.5">
+                {travado && (
+                  <button onClick={reabrir} className={btn}>
+                    <Unlock className="h-3.5 w-3.5" /> Reabrir para editar
+                  </button>
+                )}
+                <button onClick={() => excluir(reqId)} title="Apaga este requerimento (e as assinaturas dele) para montar outro"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-400/40 px-3 py-1.5 text-xs text-red-300 transition hover:bg-red-500/10 hover:text-red-200">
+                  <Trash2 className="h-3.5 w-3.5" /> Excluir
+                </button>
+              </span>
             )}
           </div>
         )}
@@ -444,8 +480,9 @@ export default function RequerimentoPecuniaDoc({
             ) : lista.length === 0 ? (
               <p className="p-3 text-xs text-[#94A3B8]">Nenhum requerimento guardado ainda.</p>
             ) : lista.map((it) => (
-              <button key={it.id} onClick={() => abrir(it.id)}
-                className="block w-full border-b border-white/5 px-3 py-2 text-left transition hover:bg-white/5">
+              <div key={it.id} role="button" tabIndex={0} onClick={() => abrir(it.id)}
+                onKeyDown={(e) => { if (e.key === "Enter") abrir(it.id); }}
+                className="block w-full cursor-pointer border-b border-white/5 px-3 py-2 text-left transition hover:bg-white/5">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-semibold text-white">{it.id}</span>
                   <span className="text-xs text-[#94A3B8]">{quandoBR(it.criadoEm)} · {it.criadoPorNome || "—"} · {it.quantidade} policial(is)</span>
@@ -454,9 +491,15 @@ export default function RequerimentoPecuniaDoc({
                       {it.jaAssinei ? "você já assinou" : "falta a sua assinatura"}
                     </span>
                   )}
+                  {it.podeApagar && (
+                    <button onClick={(e) => { e.stopPropagation(); excluir(it.id); }} title={`Excluir ${it.id}`}
+                      className="ml-auto rounded p-1 text-red-300/70 transition hover:bg-red-500/10 hover:text-red-200">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
                 {it.nomes.length > 0 && <div className="mt-0.5 text-xs text-[#6f82a0]">{it.nomes.join(", ")}{it.quantidade > it.nomes.length ? "…" : ""}</div>}
-              </button>
+              </div>
             ))}
           </div>
         )}

@@ -158,6 +158,8 @@ export async function GET(req: Request) {
         jaAssinei: !!q.efetivoId && assinei.has(refAssinatura(r.id, q.efetivoId)),
         // quantos ainda não informaram a conta — o documento não fica pronto sem
         semBanco: r.dados.linhas.filter(faltaBanco).length,
+        // quem montou (ou o P/1) pode excluir direto da lista
+        podeApagar: podeMexer(r, q),
       })),
     });
   } catch (err) {
