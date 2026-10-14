@@ -94,6 +94,10 @@ export default function LoginPage() {
     /* Carga completa: troca de usuário/sessão tem de descartar as telas que o
        navegador guardou (staleTimes) — senão o 2º login logo após trocar a
        senha caía de novo na tela de troca, com os dados de antes. */
+    /* Marca ESTE login: o aviso de pendências (components/AvisoAoEntrar)
+       aparece uma vez por login, e é por este marcador que ele sabe que é
+       um login novo. */
+    try { localStorage.setItem("sigep-entrada", String(Date.now())); } catch { /* sem storage */ }
     window.location.assign("/dashboard");
   }
 
