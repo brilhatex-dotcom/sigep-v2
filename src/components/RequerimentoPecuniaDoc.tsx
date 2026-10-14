@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Printer, Plus, Trash2, Info, Save, Lock, Unlock, FolderOpen, ShieldCheck, FileSignature, Landmark } from "lucide-react";
+import { Printer, Plus, Trash2, Info, Save, Lock, Unlock, FolderOpen, ShieldCheck, FileSignature, Landmark, ArrowLeft, ArrowDown } from "lucide-react";
 import { imprimirElemento } from "@/lib/imprimir";
 import { avisar, confirmar } from "@/components/Avisos";
 import CarimboSigep from "@/components/CarimboSigep";
+import GuiaAssinaturaPecunia from "@/components/GuiaAssinaturaPecunia";
 import { linhaBanco, faltaBanco, tipoContaDaFicha } from "@/lib/pecuniaComum";
 import {
   Cabecalho, Campo, ESTILO_FOLHA, FOLHA_A4, nomeBusca, type Militar,
@@ -111,6 +112,8 @@ export default function RequerimentoPecuniaDoc({
   const [reqId, setReqId] = useState(idInicial);
   const [assinaturas, setAssinaturas] = useState<Record<string, Assinatura>>({});
   const [podeMexer, setPodeMexer] = useState(true);
+  // quem tem login ativo no SIGEP (null = ainda não se sabe; não afirma nada)
+  const [comLogin, setComLogin] = useState<Set<string> | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [lista, setLista] = useState<ItemLista[] | null>(null);
   const [verLista, setVerLista] = useState(false);
@@ -155,6 +158,7 @@ export default function RequerimentoPecuniaDoc({
       setAssinaturas(m);
     }
     if (typeof d?.podeMexer === "boolean") setPodeMexer(d.podeMexer);
+    if (Array.isArray(d?.comLogin)) setComLogin(new Set(d.comLogin.map(String)));
   }, []);
 
   const abrir = useCallback(async (id: string) => {
@@ -360,6 +364,19 @@ export default function RequerimentoPecuniaDoc({
      nem no servidor. `podeMexer` já vem do servidor com essa conta feita. */
   const souDono = podeMexer;
 
+  // ---- o estado de cada passo, para o guia ----
+  const doEfetivo = useMemo(() => linhas.filter((l) => l.efetivoId), [linhas]);
+  const temLogin = (id: string) => !comLogin || comLogin.has(id);
+  const pendentesAss = useMemo(
+    () => doEfetivo
+      .filter((l) => !assinaturas[l.efetivoId] && !l.assinarGov)
+      .map((l) => ({
+        nome: l.nome || "(sem nome)", temLogin: !comLogin || comLogin.has(l.efetivoId),
+        semConta: faltaBanco(l), sou: l.efetivoId === meuId,
+      })),
+    [doEfetivo, assinaturas, comLogin, meuId],
+  );
+
   const td: React.CSSProperties = { border: "0.5pt solid #000", padding: "2pt 3pt", fontSize: "9pt", verticalAlign: "middle" };
   const th: React.CSSProperties = { ...td, fontWeight: "bold", textAlign: "center", fontSize: "8.5pt" };
   const btn = "inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-[#cbd5e1] transition hover:border-[#D4AF37]/40 hover:text-white disabled:opacity-40";
@@ -494,6 +511,19 @@ export default function RequerimentoPecuniaDoc({
           </p>
         )}
 
+        {linhas.length > 0 && (
+          <GuiaAssinaturaPecunia
+            reqId={reqId}
+            totalPoliciais={doEfetivo.length}
+            totalLinhas={linhas.length}
+            comConta={linhas.length - faltamBanco.length}
+            assinadosSigep={doEfetivo.filter((l) => assinaturas[l.efetivoId]).length}
+            marcadosGov={doEfetivo.filter((l) => !assinaturas[l.efetivoId] && l.assinarGov).length}
+            pendentes={pendentesAss}
+            avulsos={linhas.length - doEfetivo.length}
+          />
+        )}
+
         {/* ---- dados bancários e assinatura, policial por policial ---- */}
         {reqId && linhas.some((l) => l.efetivoId) && (
           <div className="mt-4 rounded-lg border border-white/10 bg-[#0b1626] p-3">
@@ -539,7 +569,8 @@ export default function RequerimentoPecuniaDoc({
               const sou = l.efetivoId === meuId;
               const sem = faltaBanco(l);
               return (
-                <div key={l.chave} className="border-t border-white/5 py-2 first:border-0">
+                <div key={l.chave} className={`border-t border-white/5 py-2 first:border-0 ${
+                  sou && !a && !l.assinarGov ? "-mx-2 rounded-lg border-0 bg-[#D4AF37]/[0.07] px-2 ring-1 ring-[#D4AF37]/40" : ""}`}>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm text-white">{l.nome || "(sem nome)"}{sou && <span className="text-xs text-[#D4AF37]"> · você</span>}</span>
                     {a ? (
@@ -576,6 +607,10 @@ export default function RequerimentoPecuniaDoc({
                       Assinar só aparece depois que a conta está lá: assinar um
                       requerimento com a própria linha em branco não faria
                       sentido nenhum — é justamente o que se está pedindo. */}
+                  <Dica sou={sou} assinado={!!a} gov={!!l.assinarGov} semConta={sem} temLogin={temLogin(l.efetivoId)}
+                    nome={(l.nome || "").split(" ")[0] || "o colega"} podeMarcarGov={souDono}
+                    faltamOutros={faltamBanco.filter((x) => x.chave !== l.chave).map((x) => (x.nome || "—").split(" ")[0])} />
+
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     {sem ? (
                       <span className="text-[11px] text-amber-300">conta ainda não preenchida</span>
@@ -797,5 +832,78 @@ export default function RequerimentoPecuniaDoc({
         </div>
       </div>
     </>
+  );
+}
+
+/* O que falta em CADA linha, dito em português e com seta para o botão.
+
+   A pergunta que motivou isto: "cadê o Assinar no SIGEP dos outros?". O
+   botão só existe na linha de quem está logado — então nas linhas dos
+   colegas a tela diz o que ELE tem de fazer, no login dele, em vez de
+   simplesmente não mostrar nada. */
+function Dica({ sou, assinado, gov, semConta, temLogin, nome, podeMarcarGov, faltamOutros }: {
+  sou: boolean; assinado: boolean; gov: boolean; semConta: boolean; temLogin: boolean; nome: string; podeMarcarGov: boolean;
+  faltamOutros: string[];   // primeiro nome de quem MAIS falta a conta — trava o SIGEP de todos
+}) {
+  if (assinado) return null;
+  const base = "mt-1.5 flex items-start gap-1.5 rounded-md px-2 py-1.5 text-[11px] leading-snug";
+  if (gov) {
+    return (
+      <p className={`${base} bg-sky-500/10 text-sky-200`}>
+        <span>Espaço em branco no PDF. Depois de salvo, {sou ? "você assina" : `${nome} assina`} o PDF em <b>assinador.iti.br</b>.</span>
+      </p>
+    );
+  }
+  if (sou) {
+    if (semConta) {
+      return (
+        <p className={`${base} bg-amber-500/10 text-amber-200`}>
+          <ArrowDown className="mt-0.5 h-3 w-3 shrink-0" />
+          <span>
+            <b>Sua vez — passo 1:</b> preencha seus dados bancários aqui embaixo (ou na Ficha Individual).
+            {faltamOutros.length ? <> Depois, o <b>Assinar no SIGEP</b> libera quando a conta de {faltamOutros.join(", ")} também entrar.</>
+              : <> Depois o botão <b>Assinar no SIGEP</b> libera.</>}
+          </span>
+        </p>
+      );
+    }
+    if (faltamOutros.length) {
+      return (
+        <p className={`${base} bg-white/[0.04] text-[#cbd5e1]`}>
+          <span>🔒</span>
+          <span>
+            Sua conta está ok. O <b>Assinar no SIGEP</b> está travado até entrar a conta de <b>{faltamOutros.join(", ")}</b> —
+            a conta de todos faz parte do que é assinado. Você recebe a vez assim que a última entrar.
+          </span>
+        </p>
+      );
+    }
+    return (
+      <p className={`${base} bg-[#D4AF37]/15 text-[#f3df9d]`}>
+        <span className="animate-pulse font-bold">↗</span>
+        <span><b>Sua vez:</b> clique em <b>Assinar no SIGEP</b> (acima, à direita) e confirme com a <b>sua senha</b>.</span>
+      </p>
+    );
+  }
+  if (!temLogin) {
+    return (
+      <p className={`${base} bg-red-500/10 text-red-200`}>
+        <ArrowLeft className="mt-0.5 h-3 w-3 shrink-0" />
+        <span>
+          {nome} <b>não tem login ativo no SIGEP</b>, então não assina por aqui.
+          {podeMarcarGov ? <> Clique em <b>Assinar pelo Gov.br</b> para deixar o espaço em branco, ou ele assina à caneta.</> : " Vai assinar pelo Gov.br ou à caneta."}
+        </span>
+      </p>
+    );
+  }
+  return (
+    <p className={`${base} bg-white/[0.04] text-[#cbd5e1]`}>
+      <span className="font-bold text-amber-300">⏳</span>
+      <span>
+        <b>{nome}</b> assina no <b>login dele</b>: entra no SIGEP → sino 🔔 → abre este requerimento →
+        {semConta ? " preenche a conta →" : ""} <b>Assinar no SIGEP</b> → senha dele. O aviso já foi enviado.
+        {!semConta && faltamOutros.length > 0 ? <> (Só libera quando a conta de todos estiver preenchida.)</> : null}
+      </span>
+    </p>
   );
 }
