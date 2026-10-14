@@ -2,17 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { usePathname, useRouter } from "next/navigation";
-import { ArrowRight, Check, FileSignature, Landmark, Lock, PenLine, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowRight, Award, BellRing, Check, FileSignature, Landmark, Lock, Palmtree, PenLine, Repeat, X } from "lucide-react";
 
 /* =========================================================================
-   AVISO AO ENTRAR — "você foi incluído num requerimento, falta você".
+   AVISO AO ENTRAR — o que está esperando por você.
 
    O sino já avisava, mas o sino só ajuda quem olha para ele. Um requerimento
    coletivo de premiação fica PARADO até o último policial informar a conta e
-   assinar — e o dinheiro de todos espera junto. Então, logo depois do login,
-   o sistema mostra uma janela clara, com o que falta e um botão que leva
-   direto ao requerimento certo.
+   assinar; uma permuta fica parada até o colega dar o "concordo"; e assim
+   por diante. Então, logo depois do login, o sistema mostra uma janela clara
+   com o que falta e um botão que leva direto à página certa.
+
+   O que entra (lib/notificacoes.ts → pendenciasAoEntrar): só o que exige
+   AÇÃO — requerimento de premiação, permutas (concordo, ciência, parecer,
+   visto), certidões para o P/1 conferir, memorandos esperando a seção.
+   Chat e avisos informativos ficam só no sino.
 
    Quando aparece: UMA vez por login. O login grava um marcador
    (localStorage "sigep-entrada", em app/login/page.tsx); o aviso guarda qual
@@ -20,14 +25,20 @@ import { ArrowRight, Check, FileSignature, Landmark, Lock, PenLine, X } from "lu
      · "Lembrar depois" some com ele até o PRÓXIMO login — sem perseguir o
        policial a cada página ou a cada aba nova;
      · no próximo login, se ainda faltar, ele volta;
-     · quando o policial assina (ou marca Gov.br), a pendência some da fonte
-       e o aviso para de aparecer — a fonte é a mesma do sino.
+     · resolvida a pendência, ela some da fonte e o aviso para de aparecer —
+       a fonte é a mesma do sino.
    ========================================================================= */
 
 type Item = {
   id: string; criadoPorNome: string; criadoEm: string; montouVoce: boolean;
   semConta: boolean; faltamOutros: number; quantidade: number; href: string;
 };
+type Cartao = {
+  id: string; assunto: "permuta" | "promocao" | "ferias"; titulo: string;
+  linhas: string[]; mais: number; botao: string; href: string;
+};
+
+const ICONE: Record<Cartao["assunto"], typeof Repeat> = { permuta: Repeat, promocao: Award, ferias: Palmtree };
 
 const MARCA = "sigep-entrada";
 const VISTO = "sigep-aviso-entrada-visto";
@@ -37,13 +48,11 @@ const gravar = (k: string, v: string) => { try { localStorage.setItem(k, v); } c
 
 export default function AvisoAoEntrar() {
   const [itens, setItens] = useState<Item[]>([]);
+  const [outras, setOutras] = useState<Cartao[]>([]);
   const [aberto, setAberto] = useState(false);
-  const pathname = usePathname();
   const router = useRouter();
 
   useEffect(() => {
-    // já está na tela do requerimento: o aviso seria redundante
-    if (pathname?.startsWith("/requerimentos/premiacao")) return;
     const marca = ler(MARCA) || "sem-marca";
     if (ler(VISTO) === marca) return;
 
@@ -51,12 +60,13 @@ export default function AvisoAoEntrar() {
     // um respiro: a página que o policial abriu carrega primeiro
     const t = setTimeout(async () => {
       try {
-        const r = await fetch("/api/requerimentos/premiacao/pendentes", { cache: "no-store" });
+        const r = await fetch("/api/pendencias", { cache: "no-store" });
         if (!r.ok) return;
         const d = await r.json();
-        const xs: Item[] = Array.isArray(d?.itens) ? d.itens : [];
+        const xs: Item[] = Array.isArray(d?.pecunia) ? d.pecunia : [];
+        const ys: Cartao[] = Array.isArray(d?.outras) ? d.outras : [];
         if (!vivo) return;
-        if (xs.length) { setItens(xs); setAberto(true); }
+        if (xs.length || ys.length) { setItens(xs); setOutras(ys); setAberto(true); }
         // nada pendente: não pergunta de novo a cada página até o próximo login
         else gravar(VISTO, marca);
       } catch { /* sem rede: fica o sino */ }
@@ -76,7 +86,10 @@ export default function AvisoAoEntrar() {
     return () => window.removeEventListener("keydown", k);
   }, [aberto]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!aberto || !itens.length) return null;
+  const total = itens.length + outras.length;
+  if (!aberto || !total) return null;
+  // só requerimento de premiação: o título fala dele; misturado, fala de "pendências"
+  const soPecunia = outras.length === 0;
 
   /* Direto no <body>: montado dentro do cabeçalho (que é uma camada própria,
      z-30), a janela ficaria por baixo do balão do chat e do menu do celular. */
@@ -88,12 +101,16 @@ export default function AvisoAoEntrar() {
         onClick={(e) => e.stopPropagation()}>
         {/* faixa dourada: é para chamar a atenção, sem parecer erro */}
         <div className="flex items-start gap-3 rounded-t-2xl bg-gradient-to-r from-[#D4AF37] to-[#b8932a] px-5 py-4 text-[#1a1205]">
-          <FileSignature className="mt-0.5 h-7 w-7 shrink-0" />
+          {soPecunia ? <FileSignature className="mt-0.5 h-7 w-7 shrink-0" /> : <BellRing className="mt-0.5 h-7 w-7 shrink-0" />}
           <div className="flex-1">
             <h2 id="aviso-entrar-titulo" className="text-lg font-extrabold leading-tight">
-              {itens.length === 1 ? "Falta você neste requerimento" : `${itens.length} requerimentos esperando por você`}
+              {soPecunia
+                ? (itens.length === 1 ? "Falta você neste requerimento" : `${itens.length} requerimentos esperando por você`)
+                : (total === 1 ? "Tem 1 coisa esperando por você" : `Tem ${total} coisas esperando por você`)}
             </h2>
-            <p className="text-xs font-semibold opacity-80">Premiação pecuniária por apreensão de arma de fogo</p>
+            <p className="text-xs font-semibold opacity-80">
+              {soPecunia ? "Premiação pecuniária por apreensão de arma de fogo" : "Resolva agora ou depois — cada botão leva à página certa"}
+            </p>
           </div>
           <button onClick={fechar} aria-label="Fechar" className="rounded-full p-1 hover:bg-black/10">
             <X className="h-5 w-5" />
@@ -103,6 +120,15 @@ export default function AvisoAoEntrar() {
         <div className="space-y-3 p-5">
           {itens.map((it) => (
             <div key={it.id} className="rounded-xl border border-white/10 bg-[#0b1626] p-4">
+              {/* misturado com outras pendências, o cartão diz de que se trata */}
+              {!soPecunia && (
+                <p className="mb-2 flex items-center gap-2 text-sm font-bold text-white">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#D4AF37]/15 text-[#D4AF37]">
+                    <FileSignature className="h-4 w-4" />
+                  </span>
+                  Requerimento de premiação pecuniária
+                </p>
+              )}
               <p className="text-sm leading-relaxed text-[#cbd5e1]">
                 {it.montouVoce ? (
                   <>Você montou o requerimento <b className="whitespace-nowrap text-white">nº {it.id}</b> e ainda falta a <b className="text-white">sua</b> parte.</>
@@ -150,9 +176,33 @@ export default function AvisoAoEntrar() {
             </div>
           ))}
 
+          {outras.map((c) => {
+            const Icone = ICONE[c.assunto] || BellRing;
+            return (
+              <div key={c.id} className="rounded-xl border border-white/10 bg-[#0b1626] p-4">
+                <p className="flex items-center gap-2 text-sm font-bold text-white">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#D4AF37]/15 text-[#D4AF37]">
+                    <Icone className="h-4 w-4" />
+                  </span>
+                  {c.titulo}
+                </p>
+                <ul className="mt-2 space-y-1 pl-9">
+                  {c.linhas.map((l, i) => (
+                    <li key={i} className="list-disc text-xs leading-snug text-[#cbd5e1]">{l}</li>
+                  ))}
+                  {c.mais > 0 && <li className="list-none text-xs text-[#94A3B8]">… e mais {c.mais}.</li>}
+                </ul>
+                <button onClick={() => ir(c.href)}
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[#D4AF37]/60 bg-[#D4AF37]/10 px-4 py-2.5 text-sm font-bold text-[#f3df9d] transition hover:bg-[#D4AF37]/20">
+                  {c.botao} <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            );
+          })}
+
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
             <p className="text-[11px] text-[#6f82a0]">
-              Enquanto faltar a sua assinatura, este aviso volta no próximo login. Também fica no sino 🔔.
+              Enquanto houver pendência, este aviso volta no próximo login. Tudo também fica no sino 🔔.
             </p>
             <button onClick={fechar} className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-[#cbd5e1] hover:bg-white/5">
               Lembrar depois
