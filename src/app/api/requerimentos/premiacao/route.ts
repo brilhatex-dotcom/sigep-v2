@@ -83,6 +83,24 @@ async function avisarIncluidos(r: RequerimentoPecunia, antes: Set<string>, quemP
   } catch (e) { console.error("[premiacao] aviso aos incluidos", e); }
 }
 
+/* Quais policiais do requerimento têm login ATIVO no SIGEP.
+
+   A assinatura SIGEP é feita por cada um, no PRÓPRIO login, com a PRÓPRIA
+   senha — ninguém assina pelo outro. Então quem não tem login não tem como
+   assinar no SIGEP, e a tela precisa dizer isso em vez de deixar a linha
+   esperando um botão que nunca vai aparecer: para ele, Gov.br ou caneta. */
+async function comLogin(r: RequerimentoPecunia | null): Promise<string[]> {
+  const ids = (r?.dados.linhas || []).map((l) => l.efetivoId).filter(Boolean);
+  if (!ids.length) return [];
+  try {
+    const us = await prisma.usuario.findMany({
+      where: { refEfetivo: { in: ids } },
+      select: { refEfetivo: true, ativo: true },
+    });
+    return us.filter((u) => (u.ativo || "").toUpperCase() === "SIM").map((u) => String(u.refEfetivo));
+  } catch { return ids; }   // na dúvida, não afirma que alguém não tem login
+}
+
 /* As assinaturas como a folha precisa delas: por policial, sem o hash. */
 async function assinaturasDe(id: string) {
   const arr = await assinaturasDoConjunto(TIPO_ASSINATURA, id);
@@ -116,6 +134,7 @@ export async function GET(req: Request) {
         requerimento: r,
         assinaturas,
         podeMexer: podeMexer(r, q),
+        comLogin: await comLogin(r),
       });
     }
 
@@ -169,7 +188,7 @@ export async function POST(req: Request) {
       });
       // Todos são novos, menos quem montou.
       await avisarIncluidos(novo, new Set(q.efetivoId ? [q.efetivoId] : []), q.nome);
-      return NextResponse.json({ ok: true, requerimento: novo, assinaturas: [], podeMexer: true });
+      return NextResponse.json({ ok: true, requerimento: novo, assinaturas: [], podeMexer: true, comLogin: await comLogin(novo) });
     }
 
     const r = await lerPecunia(id);
@@ -186,7 +205,7 @@ export async function POST(req: Request) {
         acao: "requerimento_pecunia_reabrir", alvo: id,
         detalhe: `Reabriu o requerimento ${id} para edição, cancelando ${n} assinatura(s).`,
       });
-      return NextResponse.json({ ok: true, requerimento: r, assinaturas: [], podeMexer: true, canceladas: n });
+      return NextResponse.json({ ok: true, requerimento: r, assinaturas: [], podeMexer: true, canceladas: n, comLogin: await comLogin(r) });
     }
 
     /* Editar um documento já assinado quebraria o lacre de quem assinou, sem
@@ -208,7 +227,7 @@ export async function POST(req: Request) {
     if (!ok) return NextResponse.json({ error: "Requerimento não encontrado." }, { status: 404 });
     const atual = await lerPecunia(id);
     if (atual) await avisarIncluidos(atual, jaEstavam, r.criadoPorNome || q.nome);
-    return NextResponse.json({ ok: true, requerimento: atual, assinaturas: [], podeMexer: true });
+    return NextResponse.json({ ok: true, requerimento: atual, assinaturas: [], podeMexer: true, comLogin: await comLogin(atual) });
   } catch (err) {
     console.error("[POST /api/requerimentos/premiacao]", err);
     return NextResponse.json({ error: "Falha ao guardar o requerimento." }, { status: 503 });
