@@ -110,7 +110,7 @@ export default function LimiteClient() {
     for (const l of ls) {
       partes.push(`*${ORIGEM[l.gradOrigem] || l.gradOrigem} → ${l.gradDestino}* (${l.nossos.length})`);
       for (const n of ordenar(l.nossos)) {
-        partes.push(`ORD ${n.ord ?? "?"}${COMBATENTE.test(n.quadro) ? "" : ` (${n.quadro})`} — ${n.nomeSistema || n.nome} — ${n.num}`);
+        partes.push(`ORD ${n.ord ?? "—"}${COMBATENTE.test(n.quadro) ? "" : ` (${n.quadro})`} — ${n.nomeSistema || n.nome} — ${n.num}`);
       }
       partes.push("");
     }
@@ -263,7 +263,8 @@ function TabelaGrad({ l, remover }: { l: Lista; remover: () => void }) {
               {xs.map((n, i) => (
                 <tr key={i} className={n.efetivoId ? "" : "bg-amber-500/[.06]"}>
                   <td className={`${td} whitespace-nowrap font-bold text-[#D4AF37]`}>
-                    {n.ord ?? "?"}
+                    {/* sem ORD no próprio PDF (ex.: candidato único de um quadro) */}
+                    {n.ord ?? "—"}
                     {!COMBATENTE.test(n.quadro) && <span className="block text-[10px] font-normal text-[#94A3B8]">{n.quadro}</span>}
                   </td>
                   <td className={td}>

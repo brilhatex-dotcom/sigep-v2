@@ -27,7 +27,8 @@ import { classificarPatente } from "@/lib/patentes";
    servidor; só as linhas lidas. E dá para testar sem PDF nenhum.
    ========================================================================= */
 
-export type Pedaco = { s: string; x: number; y: number };
+// w = largura do pedaço (o pdf.js informa); serve para colar palavra partida
+export type Pedaco = { s: string; x: number; y: number; w?: number };
 
 export type LinhaLimite = {
   ord: number | null;
@@ -53,9 +54,12 @@ export type LeituraLimite = {
   furos: { quadro: string; faltam: number[] }[];
 };
 
-const NUM = /^\d{1,4}\/\d{2}$/;
+// "158/92" e também "1078/2017" — no PDF dos Cabos parte dos números vem
+// com o ano em quatro dígitos, e essas linhas eram puladas
+const NUM = /^\d{1,4}\/(\d{2}|\d{4})$/;
 const DATA = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
-const NUMERO = /^\d{4,8}$/;
+// matrícula e ID; o PDF dos Cabos tem IDs curtos ("9580") que vieram assim da CPPPM
+const NUMERO = /^\d{3,8}$/;
 const INTEIRO = /^\d{1,4}$/;
 const QUADRO = /QPMP\s*[–—-]\s*\d+\s*\([^)]*\)/i;
 
@@ -77,8 +81,31 @@ function emLinhas(pedacos: Pedaco[]): Linha[] {
     const l = linhas.find((x) => Math.abs(x.y - p.y) < 2.5);
     if (l) l.pedacos.push(p); else linhas.push({ y: p.y, pedacos: [p] });
   }
-  for (const l of linhas) l.pedacos.sort((a, b) => a.x - b.x);
+  for (const l of linhas) {
+    l.pedacos.sort((a, b) => a.x - b.x);
+    l.pedacos = colarPartidos(l.pedacos);
+  }
   return linhas.sort((a, b) => b.y - a.y);
+}
+
+/* O pdf.js do NAVEGADOR às vezes entrega uma palavra ou número partido em
+   dois pedaços encostados: o ID "821570" vinha como "82" + "1570", e
+   "RICARDO" como "RICARD" + "O". Com o ID partido o cruzamento falhava (o
+   policial nosso não era achado), e com a data ou o NUM partido a linha
+   inteira sumia. Pedaços que COMEÇAM onde o anterior TERMINA (sem o espaço
+   de uma palavra para outra) são o mesmo texto: cola. */
+function colarPartidos(ps: Pedaco[]): Pedaco[] {
+  const out: Pedaco[] = [];
+  for (const p of ps) {
+    const ant = out[out.length - 1];
+    if (ant && ant.w !== undefined && p.x - (ant.x + ant.w) < 0.6 && !/\s$/.test(ant.s) && !/^\s/.test(p.s)) {
+      ant.s += p.s;
+      ant.w = p.x + (p.w ?? 0) - ant.x;
+    } else {
+      out.push({ ...p });
+    }
+  }
+  return out;
 }
 
 const texto = (l: Linha) => l.pedacos.map((p) => p.s.trim()).filter(Boolean).join(" ");
@@ -111,7 +138,8 @@ export function lerLimite(paginas: Pedaco[][]): LeituraLimite {
   const gradOrigem = mt ? siglaDaGraduacao(mt[1]) : "";
   // "SUBTENENTE" -> "Subtenente PM"; "1º SARGENTO" -> "1º Sargento PM"
   const gradDestino = mt
-    ? `${mt[2].trim().replace(/\s+/g, " ").toLowerCase().replace(/(^|\s)(\p{L})/gu, (_, a, b) => a + b.toUpperCase())} PM`
+    ? `${mt[2].trim().replace(/\s+/g, " ").toLowerCase().replace(/(^|\s)(\p{L})/gu, (_, a, b) => a + b.toUpperCase())
+        .replace(/\b(Sargento|Cabo|Soldado)s\b/, "$1")} PM`
     : "";
   const ciclo = mc ? `${mc[1].toLowerCase()} de ${mc[2]}` : "";
 
@@ -231,10 +259,10 @@ export type NossoNoLimite = LinhaLimite & {
 const soDig = (t: string | null | undefined) => String(t || "").replace(/\D/g, "").replace(/^0+(?=\d)/, "");
 const normNome = (t: string | null | undefined) =>
   String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z ]/g, " ").replace(/\s+/g, " ").trim();
-// "0276/93" e "276/93" são o mesmo número
+// "0276/93" e "276/93" são o mesmo número; "1078/2017" é o "1078/17" da ficha
 const normNum = (t: string | null | undefined) => {
-  const m = String(t || "").match(/(\d{1,4})\s*\/\s*(\d{2})/);
-  return m ? `${Number(m[1])}/${m[2]}` : "";
+  const m = String(t || "").match(/(\d{1,4})\s*\/\s*(\d{2,4})/);
+  return m ? `${Number(m[1])}/${m[2].slice(-2)}` : "";
 };
 export const ehDoBatalhao = (opm: string) => /\b18\s*[º°o]?\s*BPM\b/i.test(opm);
 
