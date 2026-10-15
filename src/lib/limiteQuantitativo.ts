@@ -133,7 +133,18 @@ export function lerLimite(paginas: Pedaco[][]): LeituraLimite {
   // ---- título, ciclo e nome da última coluna, na primeira página ----
   const primeira = emLinhas(paginas[0] || []).map(texto).join(" ");
   const mt = primeira.match(/LIMITE\s+QUANTITATIVO\s+D[OA]S?\s+(.+?)\s+PARA\s+AS\s+PROMO[ÇC][ÕO]ES\s+[ÀA]\s+GRADUA[ÇC][ÃA]O\s+DE\s+(.+?)\s+PM\b/i);
-  const mc = primeira.match(/prevista\s+para\s+([a-zç]+)\s+de\s+(\d{4})/i);
+  /* O ciclo: "prevista para dezembro de 2026" — e também "previstas para 25
+     de dezembro de 2026". Sem achar a frase, o primeiro "mês de ano" da
+     página. Ciclo não reconhecido jogava a graduação num bloco separado, no
+     fim da tela, fora da ordem hierárquica. */
+  const MES = "(janeiro|fevereiro|mar[çc]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)";
+  const MESES_ = ["janeiro", "fevereiro", "marco", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+  const valor = (m: RegExpMatchArray) => Number(m[2]) * 100 + MESES_.indexOf(m[1].toLowerCase().replace("ç", "c"));
+  /* fallback: a data MAIS RECENTE da página — o texto também cita o
+     "Decreto ... de 29 de agosto de 2003", que não é o ciclo */
+  const mc = primeira.match(new RegExp(`previstas?\\s+para\\s+(?:o\\s+dia\\s+)?(?:\\d{1,2}\\s+de\\s+)?${MES}\\s+de\\s+(\\d{4})`, "i"))
+    || [...primeira.matchAll(new RegExp(`${MES}\\s+de\\s+(\\d{4})`, "gi"))].sort((a, b) => valor(b) - valor(a))[0]
+    || null;
   const titulo = mt ? mt[0].replace(/\s+/g, " ") : "";
   const gradOrigem = mt ? siglaDaGraduacao(mt[1]) : "";
   // "SUBTENENTE" -> "Subtenente PM"; "1º SARGENTO" -> "1º Sargento PM"
@@ -141,7 +152,7 @@ export function lerLimite(paginas: Pedaco[][]): LeituraLimite {
     ? `${mt[2].trim().replace(/\s+/g, " ").toLowerCase().replace(/(^|\s)(\p{L})/gu, (_, a, b) => a + b.toUpperCase())
         .replace(/\b(Sargento|Cabo|Soldado)s\b/, "$1")} PM`
     : "";
-  const ciclo = mc ? `${mc[1].toLowerCase()} de ${mc[2]}` : "";
+  const ciclo = mc ? `${mc[1].toLowerCase().replace("marco", "março")} de ${mc[2]}` : "";
 
   let quadro = "";
   let rotuloData = "";
