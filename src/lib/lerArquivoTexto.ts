@@ -96,6 +96,23 @@ export async function lerPdfItens(buffer: ArrayBuffer): Promise<ItemTexto[][]> {
   return paginas;
 }
 
+/* Os pedaços com a posição CRUA do pdf.js (y cresce para cima, sem
+   arredondar) — o leitor do Limite Quantitativo precisa da distância exata
+   entre as linhas para colar o nome que o Word quebrou em duas
+   (ver src/lib/limiteQuantitativo.ts). */
+export async function lerPdfPedacos(buffer: ArrayBuffer): Promise<{ s: string; x: number; y: number }[][]> {
+  const pdfjs = await carregarPdfjs();
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise;
+  const paginas: { s: string; x: number; y: number }[][] = [];
+  for (let p = 1; p <= doc.numPages; p++) {
+    const tc = await (await doc.getPage(p)).getTextContent();
+    paginas.push((tc.items as any[])
+      .filter((i) => typeof i?.str === "string" && i.str.trim())
+      .map((i) => ({ s: i.str, x: i.transform[4], y: i.transform[5] })));
+  }
+  return paginas;
+}
+
 /* Junta os pedaços de uma página em linhas de texto. */
 export function linhasDeItens(itens: ItemTexto[]): string[] {
   const linhas = new Map<number, ItemTexto[]>();
