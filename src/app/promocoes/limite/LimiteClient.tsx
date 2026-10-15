@@ -29,6 +29,14 @@ const ORIGEM: Record<string, string> = {
   "1SGT": "1º Sargentos", "2SGT": "2º Sargentos", "3SGT": "3º Sargentos", CB: "Cabos", SD: "Soldados",
 };
 const COMBATENTE = /QPMP\s*[–—-]\s*0\b/;
+// a ordem da hierarquia, do mais antigo para o mais moderno
+const ORDEM_GRAD: Record<string, number> = { "1SGT": 1, "2SGT": 2, "3SGT": 3, CB: 4, SD: 5 };
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+// "dezembro de 2026" -> 202612, para pôr o ciclo mais novo em cima
+const ordemCiclo = (c: string) => {
+  const m = c.match(/^(\S+) de (\d{4})$/);
+  return m ? Number(m[2]) * 100 + (MESES.indexOf(m[1]) + 1) : 0;
+};
 const quandoBR = (iso: string) => { const d = new Date(iso); return isNaN(d.getTime()) ? "" : d.toLocaleDateString("pt-BR"); };
 const capital = (c: string) => c.charAt(0).toUpperCase() + c.slice(1);
 
@@ -97,10 +105,22 @@ export default function LimiteClient() {
   };
 
   // agrupa por ciclo (dezembro de 2026, junho de 2027...)
+  /* Por ciclo, e dentro dele SEMPRE na ordem hierárquica (1º Sgt -> Soldado),
+     sem depender da ordem em que os PDFs foram subidos. PDF cujo ciclo não
+     foi reconhecido entra no ciclo mais recente, em vez de virar um bloco
+     solto no fim da tela. */
   const ciclos = useMemo(() => {
+    const xs = listas || [];
+    const conhecidos = [...new Set(xs.map((l) => l.ciclo.trim().toLowerCase()).filter(Boolean))]
+      .sort((a, b) => ordemCiclo(b) - ordemCiclo(a));
     const m = new Map<string, Lista[]>();
-    for (const l of listas || []) m.set(l.ciclo, [...(m.get(l.ciclo) || []), l]);
-    return [...m.entries()];
+    for (const l of xs) {
+      const c = l.ciclo.trim().toLowerCase() || conhecidos[0] || "";
+      m.set(c, [...(m.get(c) || []), l]);
+    }
+    return [...m.entries()]
+      .sort(([a], [b]) => ordemCiclo(b) - ordemCiclo(a))
+      .map(([c, ls]) => [c, [...ls].sort((a, b) => (ORDEM_GRAD[a.gradOrigem] || 9) - (ORDEM_GRAD[b.gradOrigem] || 9))] as [string, Lista[]]);
   }, [listas]);
 
   // texto pronto para o WhatsApp / ofício
@@ -110,7 +130,7 @@ export default function LimiteClient() {
     for (const l of ls) {
       partes.push(`*${ORIGEM[l.gradOrigem] || l.gradOrigem} → ${l.gradDestino}* (${l.nossos.length})`);
       for (const n of ordenar(l.nossos)) {
-        partes.push(`ORD ${n.ord ?? "?"}${COMBATENTE.test(n.quadro) ? "" : ` (${n.quadro})`} — ${n.nomeSistema || n.nome} — ${n.num}`);
+        partes.push(`ORD ${n.ord ?? "—"}${COMBATENTE.test(n.quadro) ? "" : ` (${n.quadro})`} — ${n.nomeSistema || n.nome} — ${n.num}`);
       }
       partes.push("");
     }
@@ -263,7 +283,8 @@ function TabelaGrad({ l, remover }: { l: Lista; remover: () => void }) {
               {xs.map((n, i) => (
                 <tr key={i} className={n.efetivoId ? "" : "bg-amber-500/[.06]"}>
                   <td className={`${td} whitespace-nowrap font-bold text-[#D4AF37]`}>
-                    {n.ord ?? "?"}
+                    {/* sem ORD no próprio PDF (ex.: candidato único de um quadro) */}
+                    {n.ord ?? "—"}
                     {!COMBATENTE.test(n.quadro) && <span className="block text-[10px] font-normal text-[#94A3B8]">{n.quadro}</span>}
                   </td>
                   <td className={td}>

@@ -100,15 +100,16 @@ export async function lerPdfItens(buffer: ArrayBuffer): Promise<ItemTexto[][]> {
    arredondar) — o leitor do Limite Quantitativo precisa da distância exata
    entre as linhas para colar o nome que o Word quebrou em duas
    (ver src/lib/limiteQuantitativo.ts). */
-export async function lerPdfPedacos(buffer: ArrayBuffer): Promise<{ s: string; x: number; y: number }[][]> {
+export async function lerPdfPedacos(buffer: ArrayBuffer): Promise<{ s: string; x: number; y: number; w: number }[][]> {
   const pdfjs = await carregarPdfjs();
   const doc = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise;
-  const paginas: { s: string; x: number; y: number }[][] = [];
+  const paginas: { s: string; x: number; y: number; w: number }[][] = [];
   for (let p = 1; p <= doc.numPages; p++) {
     const tc = await (await doc.getPage(p)).getTextContent();
     paginas.push((tc.items as any[])
       .filter((i) => typeof i?.str === "string" && i.str.trim())
-      .map((i) => ({ s: i.str, x: i.transform[4], y: i.transform[5] })));
+      // w: a largura, para colar palavra que o pdf.js partiu em dois pedaços
+      .map((i) => ({ s: i.str, x: i.transform[4], y: i.transform[5], w: Number(i.width) || 0 })));
   }
   return paginas;
 }
