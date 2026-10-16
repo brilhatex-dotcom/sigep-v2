@@ -165,7 +165,8 @@ function expedienteDocx(e: EscalaDia): Table | null {
         : celValorRotulado([
             { rotulo: "CMT", texto: lista(ex.cmtFt) },
             { rotulo: "SUBCMT", texto: lista(ex.subcmtFt) },
-            { rotulo: "ADM", texto: lista(ex.adm) },
+            // ADM saiu da FT; só entra em escala antiga que tinha alguém nela
+            ...(lista(ex.adm) ? [{ rotulo: "ADM", texto: lista(ex.adm) }] : []),
           ], 39),
       celRotulo("P4", 15), celValor(val("", ex.p4), 37, true),
     ] }),
@@ -505,7 +506,8 @@ export async function gerarEscalaPdf(input: EscalaExportInput): Promise<Uint8Arr
       const ftTexto = feriado ? ft : [
         linhaRotulada("CMT", ex.cmtFt),
         linhaRotulada("SUBCMT", ex.subcmtFt),
-        linhaRotulada("ADM", ex.adm),
+        // ADM saiu da FT; só entra em escala antiga que tinha alguém nela
+        ...(lista(ex.adm) ? [linhaRotulada("ADM", ex.adm)] : []),
       ].join("\n");
       r4("FT", ftTexto, "P4", v("", ex.p4));
       r4("P1", v("", ex.p1), "RONDA ESCOLAR", v("", ex.rondaEscolar));

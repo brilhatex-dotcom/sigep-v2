@@ -3061,10 +3061,15 @@ export default function EscalaClient() {
                               <span className="ft-rotulo">SUBCMT</span>
                               <SlotList efetivo={efetivo} semPermuta centro slots={asSlots(e.expediente.subcmtFt)} onChange={(arr) => editE((d) => { d.expediente.subcmtFt = arr; })} />
                             </div>
-                            <div className="ft-grupo">
-                              <span className="ft-rotulo">ADM</span>
-                              <SlotList efetivo={efetivo} semPermuta centro slots={asSlots(e.expediente.adm)} onChange={(arr) => editE((d) => { d.expediente.adm = arr; })} />
-                            </div>
+                            {/* A linha ADM saiu da FT. Só reaparece numa escala ANTIGA
+                                que ainda tem alguém nela — para dar para tirar o nome;
+                                vazia, ela não existe mais. */}
+                            {asSlots(e.expediente.adm).some((x) => String(x?.titular || "").replace(/<[^>]*>/g, "").trim()) && (
+                              <div className="ft-grupo">
+                                <span className="ft-rotulo">ADM</span>
+                                <SlotList efetivo={efetivo} semPermuta centro slots={asSlots(e.expediente.adm)} onChange={(arr) => editE((d) => { d.expediente.adm = arr; })} />
+                              </div>
+                            )}
                           </div>
                         </td>
                         <td className="lbl">P4</td>
