@@ -371,10 +371,13 @@ export default function FolhaEscalaView({
                             <span className="ft-rotulo">SUBCMT</span>
                             <ListaTexto valor={exp.subcmtFt} centro semPermuta />
                           </div>
-                          <div className="ft-grupo">
-                            <span className="ft-rotulo">ADM</span>
-                            <ListaTexto valor={exp.adm} centro semPermuta />
-                          </div>
+                          {/* ADM saiu da FT; só aparece em escala antiga que tinha alguém nela */}
+                          {comoLista(exp.adm).some((x) => semTags(String(x?.titular ?? ""))) && (
+                            <div className="ft-grupo">
+                              <span className="ft-rotulo">ADM</span>
+                              <ListaTexto valor={exp.adm} centro semPermuta />
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="lbl">P4</td>
