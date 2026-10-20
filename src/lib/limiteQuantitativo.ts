@@ -132,7 +132,10 @@ function ancora(l: Linha) {
   return { iNum, xNum, xMatr, numeros, data: iData >= 0 ? depois[iData].s.trim() : "" };
 }
 
-export function lerLimite(paginas: Pedaco[][]): LeituraLimite {
+/* `dica`: o nome do arquivo ("Limite-Quantitativo-DEZEMBRO-DE-2026-3SGT.pdf").
+   O PDF dos 3º Sargentos diz só "prevista para 2026", sem o mês — e o
+   ciclo então sai do nome do arquivo. */
+export function lerLimite(paginas: Pedaco[][], dica = ""): LeituraLimite {
   // ---- título, ciclo e nome da última coluna, na primeira página ----
   const primeira = emLinhas(paginas[0] || []).map(texto).join(" ");
   const mt = primeira.match(/LIMITE\s+QUANTITATIVO\s+D[OA]S?\s+(.+?)\s+PARA\s+AS\s+PROMO[ÇC][ÕO]ES\s+[ÀA]\s+GRADUA[ÇC][ÃA]O\s+DE\s+(.+?)\s+PM\b/i);
@@ -143,10 +146,17 @@ export function lerLimite(paginas: Pedaco[][]): LeituraLimite {
   const MES = "(janeiro|fevereiro|mar[çc]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)";
   const MESES_ = ["janeiro", "fevereiro", "marco", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
   const valor = (m: RegExpMatchArray) => Number(m[2]) * 100 + MESES_.indexOf(m[1].toLowerCase().replace("ç", "c"));
-  /* fallback: a data MAIS RECENTE da página — o texto também cita o
-     "Decreto ... de 29 de agosto de 2003", que não é o ciclo */
+  /* Na falta da frase: o nome do arquivo ("DEZEMBRO-DE-2026"); e só por
+     último o "mês de ano" mais recente do texto, IGNORANDO datas completas —
+     o texto cita o "Decreto ... de 29 de agosto de 2003", e o PDF dos
+     3º Sargentos (que diz só "prevista para 2026") caía em "agosto de 2003",
+     num bloco separado, fora da ordem. */
+  const doArquivo = dica.replace(/[-_.]+/g, " ").match(new RegExp(`${MES}\\s+de\\s+(\\d{4})`, "i"));
+  const soltas = [...primeira.matchAll(new RegExp(`${MES}\\s+de\\s+(\\d{4})`, "gi"))]
+    .filter((m) => !/\d{1,2}\s+de\s+$/i.test(primeira.slice(Math.max(0, (m.index || 0) - 12), m.index)));
   const mc = primeira.match(new RegExp(`previstas?\\s+para\\s+(?:o\\s+dia\\s+)?(?:\\d{1,2}\\s+de\\s+)?${MES}\\s+de\\s+(\\d{4})`, "i"))
-    || [...primeira.matchAll(new RegExp(`${MES}\\s+de\\s+(\\d{4})`, "gi"))].sort((a, b) => valor(b) - valor(a))[0]
+    || doArquivo
+    || soltas.sort((a, b) => valor(b) - valor(a))[0]
     || null;
   const titulo = mt ? mt[0].replace(/\s+/g, " ") : "";
   const gradOrigem = mt ? siglaDaGraduacao(mt[1]) : "";
