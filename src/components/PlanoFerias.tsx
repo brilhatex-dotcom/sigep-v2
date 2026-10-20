@@ -235,9 +235,10 @@ export default function PlanoFerias({
         `Rodízio de ${anoAnterior} aplicado em ${anoSelecionado}.\n\n` +
         `${d.resumo}\n\n` +
         `${d.total} militares · ${d.equipe1} mantidos na equipe 1.\n` +
-        (d.movidosPorEquilibrio > 0
-          ? `${d.movidosPorEquilibrio} saíram do rodízio para equilibrar unidades concentradas.`
-          : `Nenhum ajuste extra foi preciso — ${anoAnterior} já estava equilibrado.`) +
+        `Ninguém foi mudado de equipe por fora do rodízio.` +
+        (d.semEquipeNoDestino > 0
+          ? `\n\n${d.semEquipeNoDestino} militar(es) estavam em equipe que não existe em ${anoSelecionado}: entraram como "fora do plano", na equipe sugerida.`
+          : "") +
         (d.novosIncluidos > 0
           ? `\n\n${d.novosIncluidos} militar(es) que não estavam no plano de ${anoAnterior} foram incluídos automaticamente.`
           : "")
@@ -328,7 +329,9 @@ export default function PlanoFerias({
       `A EQUIPE 1 continua com os mesmos militares e as DATAS já lançadas não mudam.\n` +
       `As demais equipes são refeitas espalhando cada unidade (ROTEM, Força Tática, ADM\n` +
       `e cada destacamento) entre elas, para não sair muita gente da mesma unidade de uma vez.\n\n` +
-      `Ajustes manuais que você tenha feito nas equipes 2 em diante serão refeitos.`
+      `Ajustes manuais que você tenha feito nas equipes 2 em diante serão refeitos.\n\n` +
+      `ATENÇÃO: o Reequilibrar NÃO segue o rodízio (9→8, 2→9…). Se você já aplicou o rodízio\n` +
+      `neste plano, ele será desfeito e os militares irão para outras equipes.`
     );
     if (!ok) return;
     setReequilibrando(true);
@@ -432,7 +435,7 @@ export default function PlanoFerias({
       "(2→9, 3→2, 4→3, 5→4, 6→5, 7→6, 8→7, 9→8).\n" +
       "Assim todo mundo reveza a época do ano. A EQUIPE 1 fica de fora,\n" +
       "com os mesmos militares.\n\n" +
-      "Depois do rodízio, só é corrigido o que ficar desequilibrado por unidade.\n\n" +
+      "Ninguém sai do rodízio: quem chegou à unidade entra na equipe com menos gente da unidade dele.\n\n" +
       "As datas vêm em branco, e você pode adicionar, remover ou trocar de equipe depois.",
       sugestao
     );
@@ -451,9 +454,7 @@ export default function PlanoFerias({
           ? `Plano de ${dest} criado com ${d.membros || 0} militares.\n\n` +
             `Rodízio aplicado: ${d.resumo}\n` +
             `A equipe 1 manteve os mesmos de ${anoSelecionado}.\n` +
-            (d.movidosPorEquilibrio > 0
-              ? `\n${d.movidosPorEquilibrio} militar(es) saíram do rodízio para equilibrar unidades que estavam concentradas numa equipe só.`
-              : `\nNenhum ajuste foi preciso — o plano de ${anoSelecionado} já estava equilibrado.`) +
+            `Ninguém foi mudado de equipe por fora do rodízio.` +
             (d.novosIncluidos > 0
               ? `\n\n${d.novosIncluidos} militar(es) que não estavam no plano de ${anoSelecionado} (chegaram à unidade) foram incluídos automaticamente.`
               : "") +

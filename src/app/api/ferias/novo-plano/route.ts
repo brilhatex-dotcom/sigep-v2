@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { classificarPatente } from "@/lib/patentes";
-import { rotacionarComEquilibrio, mapaRodizio, type MilitarParaDistribuir } from "@/lib/distribuirEquipes";
+import { rotacionar, mapaRodizio } from "@/lib/distribuirEquipes";
 import { incluirNoPlano, saidosAntesDaPublicacao } from "@/lib/feriasForaDoPlano";
 
 /* POST /api/ferias/novo-plano
@@ -18,14 +17,13 @@ import { incluirNoPlano, saidosAntesDaPublicacao } from "@/lib/feriasForaDoPlano
    Como cada equipe tem o seu periodo no calendario, o rodizio faz todo mundo
    revezar a epoca do ano, em vez de ficar sempre com o mesmo mes.
 
-   Depois de rodar, corrigimos APENAS o que ficou desequilibrado: se o ano de
-   origem tinha uma unidade concentrada numa equipe (meia duzia da ROTEM na
-   mesma), o rodizio herdaria a concentracao e, quando aquela equipe saisse, a
-   unidade ficaria sem ninguem. Se a origem ja esta equilibrada, ninguem e
-   movido e o rodizio sai limpo.
+   RODIZIO PURO, sem excecao (ver rotacionar em lib/distribuirEquipes): nao
+   ha mais "correcao de equilibrio" movendo gente para fora do rodizio.
+   Equilibrar e decisao do P/1, no botao Reequilibrar.
 
    body: { anoDestino, anoOrigem?, equilibrar? }
-     equilibrar (padrao true) — false faz a copia crua, sem rodizio. */
+     equilibrar (padrao true) — false faz a copia crua, sem rodizio (o nome
+     ficou por compatibilidade). */
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ erro: "Nao autorizado" }, { status: 401 });
@@ -62,7 +60,6 @@ export async function POST(req: NextRequest) {
 
     let membrosCopiados = 0;
     let modo: "rodizio" | "copia" = "copia";
-    let movidos = 0;
 
     if (orig) {
       // quem saiu da unidade ANTES da publicação do plano (outubro do ano
@@ -72,41 +69,13 @@ export async function POST(req: NextRequest) {
         .filter((m) => !saidos.has(m.idPmma));
 
       if (membros.length) {
-        const querEquilibrar = equilibrar !== false;
+        const querRodizio = equilibrar !== false;
         let atribuicoes = membros.map((m) => ({ idPmma: m.idPmma, numeroEquipe: m.numeroEquipe }));
 
-        if (querEquilibrar) {
-          // RODÍZIO: cada equipe desce um número e a primeira do rodízio dá a
-          // volta para a última (2 -> 9, 3 -> 2, ... 9 -> 8). A equipe 1 fica
-          // de fora. Assim todo mundo reveza a época do ano, em vez de ficar
-          // sempre com o mesmo mês. Depois do rodízio, só corrigimos o que
-          // ficou desequilibrado — se a origem já estava equilibrada, o
-          // rodízio sai limpo e ninguém é movido.
-          // ficha de cada militar, para saber a unidade (e ordenar de forma estavel)
-          const ids = Array.from(new Set(membros.map((m) => m.idPmma)));
-          const fichas = await prisma.efetivo.findMany({
-            where: { id: { in: ids } },
-            select: { id: true, lotacao: true, postoGrad: true, nome: true },
-          });
-          const mapa = new Map(fichas.map((f) => [f.id, f]));
-
-          const paraDistribuir: MilitarParaDistribuir[] = ids.map((id) => {
-            const f = mapa.get(id);
-            return {
-              idPmma: id,
-              lotacao: f?.lotacao ?? null,
-              postoOrdem: classificarPatente(f?.postoGrad ?? "").ordem,
-              nome: f?.nome ?? null,
-            };
-          });
-
-          const rodado = rotacionarComEquilibrio(
-            paraDistribuir,
-            numeros,
-            membros.map((m) => ({ idPmma: m.idPmma, numeroEquipe: m.numeroEquipe }))
-          );
-          atribuicoes = rodado.atribuicoes;
-          movidos = rodado.movidosPorEquilibrio;
+        if (querRodizio) {
+          // RODÍZIO PURO: cada equipe desce um número, a 2 dá a volta para a
+          // última, a 1 fica — sem mover ninguém por fora da regra.
+          atribuicoes = rotacionar(numeros, atribuicoes);
           modo = "rodizio";
         }
 
@@ -133,7 +102,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true, ano: dest, equipes: numeros.length, membros: membrosCopiados,
-      modo, movidosPorEquilibrio: movidos, resumo, novosIncluidos,
+      modo, resumo, novosIncluidos,
     });
   } catch (e) {
     console.error("[POST /api/ferias/novo-plano]", e);

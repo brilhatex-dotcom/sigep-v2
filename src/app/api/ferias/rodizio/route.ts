@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { classificarPatente } from "@/lib/patentes";
-import { rotacionarComEquilibrio, mapaRodizio, type MilitarParaDistribuir } from "@/lib/distribuirEquipes";
+import { rotacionar, mapaRodizio } from "@/lib/distribuirEquipes";
 import { incluirNoPlano, saidosAntesDaPublicacao } from "@/lib/feriasForaDoPlano";
 
 export const dynamic = "force-dynamic";
@@ -18,10 +17,11 @@ export const dynamic = "force-dynamic";
    Como cada equipe tem o seu período no calendário, o rodízio faz todo mundo
    revezar a época do ano em vez de ficar sempre com o mesmo mês.
 
-   Depois de rodar, corrige APENAS o que ficou desequilibrado: se o ano de
-   origem tinha uma unidade concentrada numa equipe, o rodízio herdaria a
-   concentração, então movemos o mínimo necessário. Quando a origem já está
-   equilibrada, ninguém é movido e o rodízio sai limpo.
+   RODÍZIO PURO, sem exceção: quem estava na 9 vai para a 8, quem estava na
+   2 vai para a 9, a equipe 1 continua a 1. Antes, depois de rodar, havia uma
+   "correção de equilíbrio" que movia gente para a equipe mais vazia da
+   unidade — e alguém da 8 aparecia na 4. Equilibrar agora é só no botão
+   Reequilibrar, quando o P/1 decidir.
 
    NÃO cria nem apaga equipes, e NÃO toca nas datas do ano de destino —
    só troca quem está em cada equipe.
@@ -79,25 +79,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: "As equipes de origem não existem no plano de destino." }, { status: 400 });
     }
 
-    const ids = Array.from(new Set(origemUtil.map((m) => m.idPmma)));
-    const fichas = await prisma.efetivo.findMany({
-      where: { id: { in: ids } },
-      select: { id: true, lotacao: true, postoGrad: true, nome: true },
-    });
-    const mapaFicha = new Map(fichas.map((f) => [f.id, f]));
+    // quem estava numa equipe que não existe no destino não tem para onde
+    // rodar: entra depois como "fora do plano" (e a tela diz quantos)
+    const semEquipeNoDestino = new Set(membrosOrigem.filter((m) => !numerosSet.has(m.numeroEquipe)).map((m) => m.idPmma)).size;
 
-    const militares: MilitarParaDistribuir[] = ids.map((id) => {
-      const f = mapaFicha.get(id);
-      return {
-        idPmma: id,
-        lotacao: f?.lotacao ?? null,
-        postoOrdem: classificarPatente(f?.postoGrad ?? "").ordem,
-        nome: f?.nome ?? null,
-      };
-    });
-
-    const atribuicoesOrigem = origemUtil.map((m) => ({ idPmma: m.idPmma, numeroEquipe: m.numeroEquipe }));
-    const { atribuicoes, movidosPorEquilibrio } = rotacionarComEquilibrio(militares, numeros, atribuicoesOrigem);
+    const atribuicoes = rotacionar(numeros, origemUtil.map((m) => ({ idPmma: m.idPmma, numeroEquipe: m.numeroEquipe })));
 
     const atuais = await prisma.membroFerias.findMany({ where: { anoGozo: anoDestino } });
     const backup = JSON.stringify({
@@ -133,7 +119,7 @@ export async function POST(req: Request) {
       ok: true,
       anoDestino, anoOrigem,
       total: atribuicoes.length,
-      movidosPorEquilibrio,
+      semEquipeNoDestino,
       equipe1: atribuicoes.filter((a) => a.numeroEquipe === numeros[0]).length,
       resumo,
       novosIncluidos,
