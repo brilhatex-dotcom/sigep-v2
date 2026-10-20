@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import MemorandoFerias, { DadosMemorando } from "@/components/MemorandoFerias";
 import { grupoDoMilitar, rotuloDoGrupo } from "@/lib/distribuirEquipes";
+import { formatarLotacao } from "@/lib/formatarLotacao";
 import { avisar, confirmar } from "@/components/Avisos";
 
 export type MembroEquipe = {
@@ -772,7 +773,7 @@ export default function PlanoFerias({
       // só o nome: a marca de férias adiadas fica na tela, não no papel
       const linhas = e.membros.map((m, i) => {
         const nomeCel = `<td>${esc(m.nome)}</td>`;
-        return `<tr><td>${i + 1}</td><td>${esc(m.postoGrad)}</td><td>${esc(m.numeroBarra)}</td>${nomeCel}<td>${esc(m.nomeGuerra)}</td><td>${esc(m.matricula)}</td></tr>`;
+        return `<tr><td>${i + 1}</td><td>${esc(m.postoGrad)}</td><td>${esc(m.numeroBarra)}</td>${nomeCel}<td>${esc(m.nomeGuerra)}</td><td>${esc(m.matricula)}</td><td>${esc(formatarLotacao(m.lotacao))}</td></tr>`;
       }).join("");
       const periodos = e.periodos.length
         ? e.periodos.map((p) => {
@@ -784,7 +785,7 @@ export default function PlanoFerias({
       return `
         <h2>EQUIPE ${esc(e.numeroEquipe)} ${periodos}${e.status?.rotulo ? ` <span class="per">· ${esc(e.status.rotulo)}</span>` : ""} <span class="qtd">${e.membros.length} militar(es)</span></h2>
         ${e.membros.length
-          ? `<table><thead><tr><th>#</th><th>Posto/Grad</th><th>Nº/Barra</th><th>Nome</th><th>Nome de Guerra</th><th>Matrícula</th></tr></thead><tbody>${linhas}</tbody></table>`
+          ? `<table><thead><tr><th>#</th><th>Posto/Grad</th><th>Nº/Barra</th><th>Nome</th><th>Nome de Guerra</th><th>Matrícula</th><th>Local</th></tr></thead><tbody>${linhas}</tbody></table>`
           : `<p class="vazio">Sem militares nesta equipe.</p>`}`;
     }).join("");
 
@@ -1429,6 +1430,7 @@ export default function PlanoFerias({
                       <th className="px-3 py-2 font-semibold">Nº/Barra</th>
                       <th className="px-3 py-2 font-semibold">Nome</th>
                       <th className="px-3 py-2 font-semibold">Matrícula</th>
+                      <th className="px-3 py-2 font-semibold">Local</th>
                       {isAdmin && <th className="px-3 py-2 font-semibold">Ação</th>}
                     </tr>
                   </thead>
@@ -1451,6 +1453,8 @@ export default function PlanoFerias({
                           )}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-[#94A3B8]">{m.matricula ?? "—"}</td>
+                        {/* onde o policial é lotado (a lotação da ficha, sem o "00. " da planilha) */}
+                        <td className="whitespace-nowrap px-3 py-2 text-[#cbd5e1]">{formatarLotacao(m.lotacao) || "—"}</td>
                         {isAdmin && (
                           <td className="whitespace-nowrap px-3 py-2">
                             <div className="flex gap-1.5">

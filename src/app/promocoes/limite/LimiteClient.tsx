@@ -67,7 +67,7 @@ export default function LimiteClient() {
     for (const f of pdfs) {
       setLendo(f.name);
       try {
-        const leitura = lerLimite(await lerPdfPedacos(await f.arrayBuffer()));
+        const leitura = lerLimite(await lerPdfPedacos(await f.arrayBuffer()), f.name);
         if (!leitura.gradOrigem || !leitura.linhas.length) {
           out.push({ arquivo: f.name, ok: false, texto: "não parece um Limite Quantitativo da CPPPM (título ou tabela não encontrados). Se for PDF escaneado (foto), não tem texto para ler." });
           continue;
@@ -111,11 +111,16 @@ export default function LimiteClient() {
      solto no fim da tela. */
   const ciclos = useMemo(() => {
     const xs = listas || [];
-    const conhecidos = [...new Set(xs.map((l) => l.ciclo.trim().toLowerCase()).filter(Boolean))]
+    /* ciclo válido = "mês de ano" de 2020 para cá. O resto (vazio, "2026",
+       ou o "agosto de 2003" que a leitura antiga tirava do Decreto) entra no
+       ciclo mais recente — inclusive o que já está guardado assim. */
+    const valido = (c: string) => ordemCiclo(c) >= 202001;
+    const conhecidos = [...new Set(xs.map((l) => l.ciclo.trim().toLowerCase()).filter(valido))]
       .sort((a, b) => ordemCiclo(b) - ordemCiclo(a));
     const m = new Map<string, Lista[]>();
     for (const l of xs) {
-      const c = l.ciclo.trim().toLowerCase() || conhecidos[0] || "";
+      const proprio = l.ciclo.trim().toLowerCase();
+      const c = valido(proprio) ? proprio : conhecidos[0] || proprio;
       m.set(c, [...(m.get(c) || []), l]);
     }
     return [...m.entries()]
