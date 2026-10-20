@@ -18,11 +18,13 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
   const u = session.user as any;
-  const [r, viu] = await Promise.all([
-    pendenciasAoEntrar({ login: u.login, perfil: u.perfil, refEfetivo: u.refEfetivo }),
-    jaViuBoasVindas(String(u.login || "")),
-  ]);
-  // boasVindas: a apresentação do SIGEP ainda não foi vista por este login
+  const r = await pendenciasAoEntrar({ login: u.login, perfil: u.perfil, refEfetivo: u.refEfetivo });
+  /* boasVindas: a apresentação do SIGEP ainda não foi vista por este login.
+     DESLIGADA por ordem do P/1 até ele revisar o texto dos slides — quem
+     ainda não viu continua sem marca de visto (jaViuBoasVindas), então ela
+     aparece para todos quando for religada. */
+  const BOAS_VINDAS_LIGADA = false;
+  const viu = BOAS_VINDAS_LIGADA ? await jaViuBoasVindas(String(u.login || "")) : true;
   return NextResponse.json({ ...r, boasVindas: !viu }, { headers: { "Cache-Control": "no-store" } });
 }
 
