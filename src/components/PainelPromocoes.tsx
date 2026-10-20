@@ -159,13 +159,16 @@ export default function PainelPromocoes({
   }, [participantes]);
 
   /* Na lista só aparece quem tem PELO MENOS 1 certidão no sistema: quem
-     ainda não mandou nada (ou mandou e excluiu todas) some daqui — fica só
-     contado no card "Não iniciaram". */
+     ainda não mandou nada (ou mandou e excluiu todas) some daqui — fica
+     contado no card "Não iniciaram". Mas o P/1 precisa poder VER e EXCLUIR
+     esses também (inscrições de teste): o filtro "Não iniciaram" (ou clicar
+     no card) mostra só eles. */
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return participantes.filter((p) => {
-      if (p.enviadas < 1) return false;
       const st = statusDe(p.enviadas, p.total).rotulo;
+      if (filtroStatus === "Não iniciou") { if (p.enviadas > 0) return false; }
+      else if (p.enviadas < 1) return false;
       if (filtroStatus && st !== filtroStatus) return false;
       if (!q) return true;
       const alvo = `${p.nome ?? ""} ${p.nomeGuerra ?? ""} ${p.matricula ?? ""} ${p.postoGrad ?? ""}`.toLowerCase();
@@ -352,7 +355,10 @@ export default function PainelPromocoes({
         <Card Icone={Users} valor={participantes.length} rotulo="Total no processo" cor="text-[#D4AF37]" />
         <Card Icone={CheckCircle2} valor={resumo.completos} rotulo="Completos" cor="text-emerald-400" />
         <Card Icone={Clock} valor={resumo.parciais} rotulo="Parciais" cor="text-amber-400" />
-        <Card Icone={AlertTriangle} valor={resumo.naoIniciaram} rotulo="Não iniciaram" cor="text-red-400" />
+        <button type="button" onClick={() => setFiltroStatus("Não iniciou")} className="text-left"
+          title="Mostrar na lista quem não iniciou (para conferir ou excluir)">
+          <Card Icone={AlertTriangle} valor={resumo.naoIniciaram} rotulo="Não iniciaram" cor="text-red-400" />
+        </button>
       </div>
 
       {/* Filtros */}
@@ -374,6 +380,7 @@ export default function PainelPromocoes({
           <option value="">Todos os status</option>
           <option value="Completo">Completos</option>
           <option value="Parcial">Parciais</option>
+          <option value="Não iniciou">Não iniciaram</option>
         </select>
         {(busca || filtroStatus) && (
           <button
