@@ -51,3 +51,17 @@ export async function salvarStatusP1(
   });
   return novo;
 }
+
+/* Tira o militar do mapa (exclusão do participante pelo P/1): sem isto o
+   "enviado"/"recebido" de um teste ficaria valendo se ele voltasse a enviar. */
+export async function apagarStatusP1(periodoId: string, efetivoId: string): Promise<void> {
+  const mapa = await lerMapaP1();
+  const k = chaveDe(periodoId, efetivoId);
+  if (!(k in mapa)) return;
+  delete mapa[k];
+  await prisma.config.upsert({
+    where: { chave: CHAVE_STATUS_P1 },
+    update: { valor: JSON.stringify(mapa) },
+    create: { chave: CHAVE_STATUS_P1, valor: JSON.stringify(mapa), descricao: "Envio/recebimento das certidões de promoção ao P/1" },
+  });
+}
