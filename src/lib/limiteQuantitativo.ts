@@ -56,7 +56,8 @@ export type LeituraLimite = {
 
 // "158/92" e também "1078/2017" — no PDF dos Cabos parte dos números vem
 // com o ano em quatro dígitos, e essas linhas eram puladas
-const NUM = /^\d{1,4}\/(\d{2}|\d{4})$/;
+// (e "810/017", erro de digitação do próprio PDF dos Soldados)
+const NUM = /^\d{1,4}\/\d{2,4}$/;
 const DATA = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
 // matrícula e ID; o PDF dos Cabos tem IDs curtos ("9580") que vieram assim da CPPPM
 const NUMERO = /^\d{3,8}$/;
@@ -115,18 +116,20 @@ const texto = (l: Linha) => l.pedacos.map((p) => p.s.trim()).filter(Boolean).joi
 const juntar = (...xs: string[]) => xs.map((x) => x.trim()).filter(Boolean).join(" ")
   .replace(/\s+/g, " ").replace(/\s*-\s*/g, "-").replace(/\(\s+/g, "(").replace(/\s+\)/g, ")");
 
-/* Uma linha é âncora quando tem o NUM (123/94) e, à direita dele, dois
-   números longos (matrícula e ID) e uma data. */
+/* Uma linha é âncora quando tem o NUM (123/94) e, à direita dele, ao menos
+   a matrícula. ID e data vêm quando a tabela tem essas colunas: o PDF dos
+   SOLDADOS tem só ORD, OPM, NUM, NOME e MATR. — exigir ID e data fazia o
+   leitor não achar linha nenhuma nele. */
 function ancora(l: Linha) {
   const iNum = l.pedacos.findIndex((p) => NUM.test(p.s.trim()));
   if (iNum < 0) return null;
   const depois = l.pedacos.slice(iNum + 1);
   const iData = depois.findIndex((p) => DATA.test(p.s.trim()));
   const numeros = depois.filter((p) => NUMERO.test(p.s.trim()));
-  if (iData < 0 || numeros.length < 2) return null;
+  if (numeros.length < 1) return null;
   const xNum = l.pedacos[iNum].x;
   const xMatr = numeros[0].x;
-  return { iNum, xNum, xMatr, numeros, data: depois[iData].s.trim() };
+  return { iNum, xNum, xMatr, numeros, data: iData >= 0 ? depois[iData].s.trim() : "" };
 }
 
 export function lerLimite(paginas: Pedaco[][]): LeituraLimite {
@@ -229,7 +232,7 @@ export function lerLimite(paginas: Pedaco[][]): LeituraLimite {
         num: l.pedacos[a.iNum].s.trim(),
         nome,
         matricula: a.numeros[0].s.trim(),
-        id: a.numeros[1].s.trim(),
+        id: a.numeros[1]?.s.trim() || "",     // o PDF dos Soldados não tem ID
         data: a.data,
       });
     }
@@ -296,6 +299,10 @@ export function cruzarComEfetivo(linhas: LinhaLimite[], efetivo: MilitarCruzar[]
     let por: NossoNoLimite["por"] = "ID";
     if (soDig(l.id) && porId.has(soDig(l.id))) m = porId.get(soDig(l.id));
     if (!m && soDig(l.matricula) && porMat.has(soDig(l.matricula))) { m = porMat.get(soDig(l.matricula)); por = "matrícula"; }
+    /* PDF sem a coluna ID (o dos Soldados): a matrícula também é tentada
+       contra o ID da ficha — de 2018 para cá os dois são o mesmo número, e há
+       ficha só com o ID preenchido. */
+    if (!m && !l.id && soDig(l.matricula) && porId.has(soDig(l.matricula))) { m = porId.get(soDig(l.matricula)); por = "matrícula"; }
     if (!m) { m = porNumNome.get(`${normNum(l.num)}|${normNome(l.nome)}`); por = "número e nome"; }
     if (m) {
       out.push({

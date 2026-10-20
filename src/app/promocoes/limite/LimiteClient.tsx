@@ -233,6 +233,9 @@ function ordenar(xs: NossoNoLimite[]) {
 
 function TabelaGrad({ l, remover }: { l: Lista; remover: () => void }) {
   const xs = ordenar(l.nossos);
+  // o PDF dos Soldados não tem ID nem data: a coluna só aparece quando há o que mostrar
+  const temId = xs.some((n) => n.id);
+  const temData = xs.some((n) => n.data);
   const th = "border-b border-white/10 px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]";
   const td = "border-b border-white/5 px-2 py-2 align-top";
   return (
@@ -274,8 +277,8 @@ function TabelaGrad({ l, remover }: { l: Lista; remover: () => void }) {
                 <th className={th}>Policial</th>
                 <th className={th}>Nº</th>
                 <th className={th}>Matr.</th>
-                <th className={th}>ID</th>
-                <th className={th}>{l.rotuloData || "Data"}</th>
+                {temId && <th className={th}>ID</th>}
+                {temData && <th className={th}>{l.rotuloData || "Data"}</th>}
                 <th className={th}>OPM no PDF</th>
               </tr>
             </thead>
@@ -301,8 +304,8 @@ function TabelaGrad({ l, remover }: { l: Lista; remover: () => void }) {
                   </td>
                   <td className={`${td} whitespace-nowrap text-[#cbd5e1]`}>{n.num}</td>
                   <td className={`${td} whitespace-nowrap text-[#cbd5e1]`}>{n.matricula}</td>
-                  <td className={`${td} whitespace-nowrap text-[#cbd5e1]`}>{n.id}</td>
-                  <td className={`${td} whitespace-nowrap text-[#cbd5e1]`}>{n.data}</td>
+                  {temId && <td className={`${td} whitespace-nowrap text-[#cbd5e1]`}>{n.id}</td>}
+                  {temData && <td className={`${td} whitespace-nowrap text-[#cbd5e1]`}>{n.data}</td>}
                   <td className={td}>
                     {n.opmDiferente ? (
                       <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-amber-200" title="É nosso no SIGEP, mas o PDF da CPPPM põe outra OPM">
