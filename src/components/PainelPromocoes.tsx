@@ -20,6 +20,7 @@ import {
   RotateCcw,
   X,
   CalendarPlus,
+  Trash2,
 } from "lucide-react";
 import { avisar, confirmar } from "@/components/Avisos";
 
@@ -106,6 +107,32 @@ export default function PainelPromocoes({
         avisar(j?.error || "Falha ao reabrir.");
         return;
       }
+      router.refresh();
+    } finally {
+      setConfirmandoP1(null);
+    }
+  }
+
+  /* Tira o militar do período (envio de TESTE ou feito por engano): apaga as
+     certidões, o PDF unificado e o enviado/recebido do P/1. A ficha dele não
+     é tocada; se precisar concorrer, envia de novo. */
+  async function excluirParticipante(efetivoId: string, quem: string, enviadas: number) {
+    if (!await confirmar(
+      `Excluir ${quem || "este militar"} das promoções deste período?\n\n` +
+      `${enviadas ? `As ${enviadas} certidão(ões) enviada(s) e o PDF unificado serão apagados. ` : ""}` +
+      "Use para envio de teste ou feito por engano. Se ele precisar concorrer, terá de enviar de novo.",
+      { rotuloOk: "Excluir", perigo: true },
+    )) return;
+    setConfirmandoP1(efetivoId);
+    try {
+      const r = await fetch("/api/promocoes/participantes/excluir", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ efetivoId }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { avisar(j?.error || "Falha ao excluir.", "erro"); return; }
+      avisar(`${quem || "Militar"} excluído das promoções deste período.`, "sucesso");
       router.refresh();
     } finally {
       setConfirmandoP1(null);
@@ -445,6 +472,14 @@ export default function PainelPromocoes({
                           <RotateCcw className="h-3.5 w-3.5" /> Reabrir
                         </button>
                       )}
+                      <button
+                        onClick={() => excluirParticipante(p.efetivoId, p.nomeGuerra || p.nome || "", p.enviadas)}
+                        disabled={confirmandoP1 === p.efetivoId}
+                        title="Excluir este militar das promoções deste período (envio de teste ou por engano)"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-red-400/30 px-2.5 py-1 text-xs font-medium text-red-300 transition hover:bg-red-500/10 hover:text-red-200 disabled:opacity-60"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" /> Excluir
+                      </button>
                     </div>
                   </td>
                 </tr>
