@@ -6,6 +6,9 @@ import { envolvemEfetivo, lerPecunia, refAssinatura, TIPO_ASSINATURA, faltaBanco
 import { refsAssinadas } from "@/lib/assinaturaSigep";
 import { periodoAtivo } from "@/lib/promocoes";
 import { pendentesDeConferencia } from "@/lib/promocaoAvisos";
+import { listarLimites } from "@/lib/limiteQuantitativoDb";
+import { cruzarComEfetivo } from "@/lib/limiteQuantitativo";
+import { statusP1 } from "@/lib/promocaoStatusP1";
 
 /* =========================================================================
    AS QUATRO FONTES DO SININHO, NUM LUGAR SÓ
@@ -400,14 +403,54 @@ export type CartaoPendencia = {
   href: string;
 };
 
-export type PendenciasAoEntrar = { pecunia: PendenciaPecunia[]; outras: CartaoPendencia[] };
+/* "Parabéns, você está no Limite Quantitativo": o policial está na lista da
+   CPPPM (a que o P/1 subiu em Promoções → Limite Quantitativo) do ciclo
+   mais recente. Some quando ele envia as certidões ao P/1 no período aberto
+   — aí o recado já cumpriu o papel. */
+export type ParabensLimite = { gradDestino: string; ciclo: string; ord: number | null; quadro: string };
+
+const MESES_LQ = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const ordemCicloLQ = (c: string) => {
+  const m = (c || "").match(/^(\S+) de (\d{4})$/);
+  return m ? Number(m[2]) * 100 + (MESES_LQ.indexOf(m[1]) + 1) : 0;
+};
+
+export async function parabensLimite(quem: Quem): Promise<ParabensLimite | null> {
+  const meuId = (quem.refEfetivo || "") as string;
+  if (!meuId) return null;
+  try {
+    const eu = await prisma.efetivo.findUnique({
+      where: { id: meuId },
+      select: { id: true, nome: true, nomeGuerra: true, matricula: true, numeroBarra: true, postoGrad: true, lotacao: true },
+    });
+    if (!eu) return null;
+    const listas = await listarLimites();
+    if (!listas.length) return null;
+    // só o ciclo mais recente (o de ciclo não reconhecido conta como o atual)
+    const atual = Math.max(...listas.map((l) => ordemCicloLQ(l.ciclo)));
+    for (const l of listas) {
+      const oc = ordemCicloLQ(l.ciclo);
+      if (oc && oc < atual && oc >= 202001) continue;
+      const achado = cruzarComEfetivo(l.linhas, [eu]).find((x) => x.efetivoId === meuId);
+      if (!achado) continue;
+      const periodo = await periodoAtivo();
+      if (periodo && (await statusP1(periodo.id, meuId))?.enviadoEm) return null;   // já enviou ao P/1
+      const ciclo = oc >= 202001 ? l.ciclo : (listas.find((x) => ordemCicloLQ(x.ciclo) === atual)?.ciclo || "");
+      return { gradDestino: l.gradDestino, ciclo, ord: achado.ord, quadro: achado.quadro };
+    }
+    return null;
+  } catch { return null; }
+}
+
+export type PendenciasAoEntrar = { pecunia: PendenciaPecunia[]; outras: CartaoPendencia[]; limite: ParabensLimite | null };
 
 export async function pendenciasAoEntrar(quem: Quem): Promise<PendenciasAoEntrar> {
-  const [pecunia, permutas, promocao, ferias] = await Promise.all([
+  const [pecunia, permutas, promocao, ferias, limite] = await Promise.all([
     pendenciasPecunia(quem),
     notificacoesPermutas(quem),
     notificacoesPromocao(quem),
     notificacoesFerias(quem),
+    parabensLimite(quem),
   ]);
 
   const cartao = (
@@ -440,5 +483,5 @@ export async function pendenciasAoEntrar(quem: Quem): Promise<PendenciasAoEntrar
       "Assinar os memorandos", "/ferias"),
   ].filter((c): c is CartaoPendencia => !!c);
 
-  return { pecunia, outras };
+  return { pecunia, outras, limite };
 }

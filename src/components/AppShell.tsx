@@ -522,7 +522,7 @@ export default function AppShell({
 
             <SinoNotificacoes />
             {/* "falta você neste requerimento" — uma vez por login */}
-            <AvisoAoEntrar />
+            <AvisoAoEntrar nome={(nomeExibir || "").replace(/\.$/, "")} />
 
             <div className="hidden items-center gap-3 border-l border-white/10 pl-4 sm:flex">
               <div className="text-right leading-tight">

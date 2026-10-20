@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Award, BellRing, Check, FileSignature, Landmark, Lock, Palmtree, PenLine, Repeat, X } from "lucide-react";
+import { ArrowRight, Award, BellRing, Check, FileSignature, Landmark, Lock, Palmtree, PartyPopper, PenLine, Repeat, Trophy, X } from "lucide-react";
+import BoasVindas from "@/components/BoasVindas";
 
 /* =========================================================================
    AVISO AO ENTRAR — o que está esperando por você.
@@ -38,6 +39,8 @@ type Cartao = {
   linhas: string[]; mais: number; botao: string; href: string;
 };
 
+type Limite = { gradDestino: string; ciclo: string; ord: number | null; quadro: string };
+
 const ICONE: Record<Cartao["assunto"], typeof Repeat> = { permuta: Repeat, promocao: Award, ferias: Palmtree };
 
 const MARCA = "sigep-entrada";
@@ -46,10 +49,15 @@ const VISTO = "sigep-aviso-entrada-visto";
 const ler = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const gravar = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* sem storage */ } };
 
-export default function AvisoAoEntrar() {
+export default function AvisoAoEntrar({ nome = "" }: { nome?: string }) {
   const [itens, setItens] = useState<Item[]>([]);
   const [outras, setOutras] = useState<Cartao[]>([]);
+  const [limite, setLimite] = useState<Limite | null>(null);
   const [aberto, setAberto] = useState(false);
+  /* Primeiro acesso: a apresentação de boas-vindas vem ANTES dos avisos —
+     duas janelas ao mesmo tempo seria demais. Fechou a apresentação, abre o
+     aviso (se houver o que avisar). */
+  const [boasVindas, setBoasVindas] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -65,8 +73,11 @@ export default function AvisoAoEntrar() {
         const d = await r.json();
         const xs: Item[] = Array.isArray(d?.pecunia) ? d.pecunia : [];
         const ys: Cartao[] = Array.isArray(d?.outras) ? d.outras : [];
+        const lq: Limite | null = d?.limite && typeof d.limite === "object" ? d.limite : null;
         if (!vivo) return;
-        if (xs.length || ys.length) { setItens(xs); setOutras(ys); setAberto(true); }
+        setItens(xs); setOutras(ys); setLimite(lq);
+        if (d?.boasVindas === true) { setBoasVindas(true); return; }
+        if (xs.length || ys.length || lq) setAberto(true);
         // nada pendente: não pergunta de novo a cada página até o próximo login
         else gravar(VISTO, marca);
       } catch { /* sem rede: fica o sino */ }
@@ -86,10 +97,22 @@ export default function AvisoAoEntrar() {
     return () => window.removeEventListener("keydown", k);
   }, [aberto]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const total = itens.length + outras.length;
+  // fechou (ou terminou) a apresentação: marca como vista e segue para os avisos
+  const fecharBoasVindas = () => {
+    setBoasVindas(false);
+    fetch("/api/pendencias", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ boasVindasVista: true }),
+    }).catch(() => {});
+    if (itens.length || outras.length || limite) setAberto(true);
+    else gravar(VISTO, ler(MARCA) || "sem-marca");
+  };
+  if (boasVindas) return <BoasVindas nome={nome} aoFechar={fecharBoasVindas} />;
+
+  const total = itens.length + outras.length + (limite ? 1 : 0);
   if (!aberto || !total) return null;
   // só requerimento de premiação: o título fala dele; misturado, fala de "pendências"
-  const soPecunia = outras.length === 0;
+  const soPecunia = outras.length === 0 && !limite;
+  const soLimite = !!limite && itens.length === 0 && outras.length === 0;
 
   /* Direto no <body>: montado dentro do cabeçalho (que é uma camada própria,
      z-30), a janela ficaria por baixo do balão do chat e do menu do celular. */
@@ -101,15 +124,18 @@ export default function AvisoAoEntrar() {
         onClick={(e) => e.stopPropagation()}>
         {/* faixa dourada: é para chamar a atenção, sem parecer erro */}
         <div className="flex items-start gap-3 rounded-t-2xl bg-gradient-to-r from-[#D4AF37] to-[#b8932a] px-5 py-4 text-[#1a1205]">
-          {soPecunia ? <FileSignature className="mt-0.5 h-7 w-7 shrink-0" /> : <BellRing className="mt-0.5 h-7 w-7 shrink-0" />}
+          {soLimite ? <PartyPopper className="mt-0.5 h-7 w-7 shrink-0" />
+            : soPecunia ? <FileSignature className="mt-0.5 h-7 w-7 shrink-0" /> : <BellRing className="mt-0.5 h-7 w-7 shrink-0" />}
           <div className="flex-1">
             <h2 id="aviso-entrar-titulo" className="text-lg font-extrabold leading-tight">
-              {soPecunia
+              {soLimite ? "Parabéns!"
+                : soPecunia
                 ? (itens.length === 1 ? "Falta você neste requerimento" : `${itens.length} requerimentos esperando por você`)
                 : (total === 1 ? "Tem 1 coisa esperando por você" : `Tem ${total} coisas esperando por você`)}
             </h2>
             <p className="text-xs font-semibold opacity-80">
-              {soPecunia ? "Premiação pecuniária por apreensão de arma de fogo" : "Resolva agora ou depois — cada botão leva à página certa"}
+              {soLimite ? "Você está no Limite Quantitativo da promoção"
+                : soPecunia ? "Premiação pecuniária por apreensão de arma de fogo" : "Resolva agora ou depois — cada botão leva à página certa"}
             </p>
           </div>
           <button onClick={fechar} aria-label="Fechar" className="rounded-full p-1 hover:bg-black/10">
@@ -118,6 +144,24 @@ export default function AvisoAoEntrar() {
         </div>
 
         <div className="space-y-3 p-5">
+          {/* Parabéns: está no Limite Quantitativo da CPPPM */}
+          {limite && (
+            <div className="rounded-xl border border-[#D4AF37]/60 bg-gradient-to-br from-[#D4AF37]/20 to-transparent p-4 text-center">
+              <Trophy className="mx-auto mb-2 h-10 w-10 text-[#D4AF37]" />
+              <p className="text-lg font-extrabold text-white">Parabéns{nome ? `, ${nome}` : ""}!</p>
+              <p className="mt-1 text-sm leading-relaxed text-[#e7d9b0]">
+                Você está no <b className="text-white">Limite Quantitativo</b> para a promoção a{" "}
+                <b className="text-white">{limite.gradDestino || "próxima graduação"}</b>
+                {limite.ciclo ? <> de <b className="text-white">{limite.ciclo}</b></> : null}
+                {limite.ord ? <> — <span className="whitespace-nowrap">ORD <b className="text-white">{limite.ord}</b></span></> : null}.
+              </p>
+              <p className="mt-2 text-sm text-[#cbd5e1]">Boa sorte! O próximo passo é enviar as suas certidões ao P/1.</p>
+              <button onClick={() => ir("/promocoes/minhas-certidoes")}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#D4AF37] px-4 py-3 text-base font-extrabold text-[#1a1205] shadow-lg transition hover:brightness-110">
+                Ir para as minhas certidões <ArrowRight className="h-5 w-5" />
+              </button>
+            </div>
+          )}
           {itens.map((it) => (
             <div key={it.id} className="rounded-xl border border-white/10 bg-[#0b1626] p-4">
               {/* misturado com outras pendências, o cartão diz de que se trata */}
