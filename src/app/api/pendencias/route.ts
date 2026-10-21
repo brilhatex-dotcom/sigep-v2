@@ -19,11 +19,10 @@ export async function GET() {
   if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
   const u = session.user as any;
   const r = await pendenciasAoEntrar({ login: u.login, perfil: u.perfil, refEfetivo: u.refEfetivo });
-  /* boasVindas: a apresentação do SIGEP ainda não foi vista por este login.
-     DESLIGADA por ordem do P/1 até ele revisar o texto dos slides — quem
-     ainda não viu continua sem marca de visto (jaViuBoasVindas), então ela
-     aparece para todos quando for religada. */
-  const BOAS_VINDAS_LIGADA = false;
+  /* boasVindas: a apresentação do SIGEP ainda não foi vista por este login
+     (na versão atual — ver VERSAO_BOAS_VINDAS). Religada com o texto revisto
+     pelo P/1; para tirar do ar de novo, basta trocar para false. */
+  const BOAS_VINDAS_LIGADA = true;
   const viu = BOAS_VINDAS_LIGADA ? await jaViuBoasVindas(String(u.login || "")) : true;
   return NextResponse.json({ ...r, boasVindas: !viu }, { headers: { "Cache-Control": "no-store" } });
 }

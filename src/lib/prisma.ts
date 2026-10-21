@@ -26,7 +26,8 @@ const ESCRITAS = new Set(["create", "createMany", "update", "updateMany", "upser
 const MODELOS_SEM_SINAL = new Set(["Auditoria", "ChatMensagem", "ChatConversa", "ChatPresenca", "ChatChamada", "PushSubscription"]);
 // campos que a tentativa/entrada no sistema grava no usuário — não mudam tela de ninguém
 const CAMPOS_DE_LOGIN = new Set(["tentativas", "bloqueadoAte", "ultimoLogin", "senhaHash", "salt"]);
-const TABELAS_SEM_SINAL = /\b(chat_[a-z_]+|auditoria[a-z_]*|push_subscriptions)\b/i;
+// boas_vindas: a marca de quem já viu a apresentação — nenhuma tela mostra
+const TABELAS_SEM_SINAL = /\b(chat_[a-z_]+|auditoria[a-z_]*|push_subscriptions|boas_vindas)\b/i;
 const CONFIG_SEM_SINAL = /^(escala_|foto_|sinal_|consent_lgpd)/;
 
 function gravacaoVisivel(params: Prisma.MiddlewareParams): boolean {
