@@ -5,16 +5,30 @@ import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import MinhasCertidoes from "@/components/MinhasCertidoes";
 import MinhaCertidaoP1 from "@/components/MinhaCertidaoP1";
-import { periodoAtivo, postoDoMilitar } from "@/lib/promocoes";
+import PassoAPassoCertidoes from "@/components/PassoAPassoCertidoes";
+import { periodoAtivo } from "@/lib/promocoes";
 import { certidoesExigidas, ehCpopm } from "@/lib/certidoes";
 import { statusP1 } from "@/lib/promocaoStatusP1";
 import { chaveCertidaoUnificada } from "@/lib/promocaoUpload";
+import { parabensLimite } from "@/lib/notificacoes";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function MinhasCertidoesPage() {
+// "Sd PM Silva": posto + nome de guerra com a primeira letra maiúscula (como no cabeçalho)
+function nomeExibicao(f: { postoGrad: string | null; nomeGuerra: string | null; nome: string | null } | null): string {
+  if (!f) return "";
+  const guerra = (f.nomeGuerra || f.nome || "").trim().toLowerCase()
+    .split(/\s+/).map((p) => (p ? p.charAt(0).toUpperCase() + p.slice(1) : "")).join(" ");
+  return [(f.postoGrad || "").trim(), guerra].filter(Boolean).join(" ");
+}
+
+export default async function MinhasCertidoesPage({
+  searchParams,
+}: {
+  searchParams: { "passo-a-passo"?: string };
+}) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
@@ -37,13 +51,13 @@ export default async function MinhasCertidoesPage() {
             <ArrowLeft className="h-4 w-4" /> Voltar ao painel do P/1
           </Link>
         )}
-        <Conteudo efetivoId={efetivoId} />
+        <Conteudo efetivoId={efetivoId} abrirPassoAPasso={searchParams["passo-a-passo"] === "1"} />
       </div>
     </AppShell>
   );
 }
 
-async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
+async function Conteudo({ efetivoId, abrirPassoAPasso }: { efetivoId: string | null; abrirPassoAPasso: boolean }) {
   if (!efetivoId) {
     return (
       <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
@@ -64,15 +78,18 @@ async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
     );
   }
 
-  // RAPIDEZ: certidões, posto e situação no P/1 vão ao banco juntos
-  const [participante, posto, st] = await Promise.all([
+  // RAPIDEZ: certidões, ficha, situação no P/1 e o Limite Quantitativo vão ao banco juntos
+  const [participante, ficha, st, limite] = await Promise.all([
     prisma.participantePromocao.findUnique({
       where: { periodoId_efetivoId: { periodoId: periodo.id, efetivoId } },
       include: { certidoes: true },
     }),
-    postoDoMilitar(efetivoId),
+    prisma.efetivo.findUnique({ where: { id: efetivoId }, select: { postoGrad: true, nomeGuerra: true, nome: true } }),
     statusP1(periodo.id, efetivoId),
+    // está na lista da CPPPM e ainda não enviou ao P/1: os parabéns no topo
+    parabensLimite({ refEfetivo: efetivoId }),
   ]);
+  const posto = ficha?.postoGrad ?? null;
 
   const enviadas = new Map(
     (participante?.certidoes ?? []).map((c) => [c.ordem, c.nomeArquivo])
@@ -107,6 +124,15 @@ async function Conteudo({ efetivoId }: { efetivoId: string | null }) {
         {ehCpopm(posto) ? " — e, para oficial e subtenente, a do TRF da 6ª Região" : ""}),
         gere o PDF unificado e envie ao P/1.
       </p>
+      {/* o passo a passo em slides (abre sozinho no 1º acesso) e os parabéns */}
+      <PassoAPassoCertidoes
+        efetivoId={efetivoId}
+        nome={nomeExibicao(ficha)}
+        parabens={limite ? { gradDestino: limite.gradDestino, ciclo: limite.ciclo } : null}
+        ehOficial={ehCpopm(posto)}
+        jaEnviado={!!st?.enviadoEm}
+        abrirAgora={abrirPassoAPasso}
+      />
       <MinhasCertidoes
         itens={itens}
         total={total}

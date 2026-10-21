@@ -1,10 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { conferirSenha, gerarHash, validarSenhaPadrao } from '@/lib/senha';
+import { conferirSenha, gerarHash, validarSenhaPadrao, validarSenhaSimples } from '@/lib/senha';
 import { prisma } from '@/lib/prisma';
+import { periodoAtivo } from '@/lib/promocoes';
+import { listarLimites } from '@/lib/limiteQuantitativoDb';
+import { parabensLimite } from '@/lib/notificacoes';
 
 export const dynamic = 'force-dynamic';
+
+/* Para onde o policial vai depois de criar a senha no primeiro acesso — sem
+   sair e entrar de novo (o token se atualiza sozinho: ver o jwt em lib/auth).
+   Com período de promoção aberto, quem está no Limite Quantitativo (e ainda
+   não mandou ao P/1) vai direto para as certidões, com o passo a passo
+   aberto. Sem as listas do Limite carregadas não dá para saber quem está
+   nelas: aí vão todos para as certidões. O resto vai para a ficha. */
+async function destinoDoPrimeiroAcesso(admin: boolean, refEfetivo: string | null): Promise<string> {
+  if (admin) return '/dashboard';
+  try {
+    if (refEfetivo && (await periodoAtivo())) {
+      const semListas = (await listarLimites()).length === 0;
+      if (semListas || (await parabensLimite({ refEfetivo }))) return '/promocoes/minhas-certidoes?passo-a-passo=1';
+    }
+  } catch { /* banco piscou: vai para a ficha */ }
+  return '/ficha';
+}
 
 function obterIp(req: NextRequest): string {
   const xff = req.headers.get('x-forwarded-for');
@@ -36,7 +56,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ erro: 'É necessário aceitar o Termo de Consentimento (LGPD).' }, { status: 400 });
   }
 
-  const fraca = validarSenhaPadrao(String(novaSenha ?? ""), [login]);
+  // policial: regra simples (pedido do P/1); admin: a regra forte de sempre
+  const admin = String((session.user as any)?.perfil ?? '').toLowerCase() === 'admin';
+  const refEfetivo = ((session.user as any)?.refEfetivo ?? null) as string | null;
+  const fraca = admin
+    ? validarSenhaPadrao(String(novaSenha ?? ""), [login])
+    : validarSenhaSimples(String(novaSenha ?? ""), [login, refEfetivo]);
   if (fraca) return NextResponse.json({ erro: fraca }, { status: 400 });
 
   const usuario = await prisma.usuario.findFirst({
@@ -119,5 +144,7 @@ export async function POST(req: NextRequest) {
     });
   } catch {}
 
-  return NextResponse.json({ ok: true });
+  // 1º acesso: diz para onde seguir (o policial continua logado)
+  const destino = precisaTrocar ? await destinoDoPrimeiroAcesso(admin, refEfetivo) : null;
+  return NextResponse.json({ ok: true, destino });
 }

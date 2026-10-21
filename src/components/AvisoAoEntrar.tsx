@@ -61,6 +61,10 @@ export default function AvisoAoEntrar({ nome = "" }: { nome?: string }) {
   const router = useRouter();
 
   useEffect(() => {
+    /* Na tela das certidões, quem fala é o passo a passo (com os parabéns
+       de quem está no Limite): duas janelas uma em cima da outra confundem.
+       O aviso fica para a próxima tela que ele abrir. */
+    if (window.location.pathname.startsWith("/promocoes/minhas-certidoes")) return;
     const marca = ler(MARCA) || "sem-marca";
     if (ler(VISTO) === marca) return;
 

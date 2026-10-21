@@ -232,6 +232,21 @@ export const authOptions: NextAuthOptions = {
         token.encargoPendente = true;   // ainda falta conferir o acesso por encargo
       }
 
+      /* 1º acesso: enquanto o token disser "precisa trocar a senha", confere
+         no banco a cada pedido. Criou a senha (o banco já diz false), a marca
+         sai do token na hora — sem sair e entrar de novo (pedido do P/1). A
+         tela de troca chama /api/auth/session logo depois de salvar, e é essa
+         chamada que regrava o token. */
+      if (token.precisaTrocar && token.login) {
+        try {
+          const u = await prisma.usuario.findFirst({
+            where: { login: { equals: String(token.login), mode: "insensitive" } },
+            select: { precisaTrocar: true },
+          });
+          if (u && u.precisaTrocar === false) token.precisaTrocar = false;
+        } catch { /* banco piscou: confere de novo no próximo pedido */ }
+      }
+
       /* Cmt do BPM / Subcmt / Chefe do P/1: acesso total (entram como admin).
 
          Esta conferência depende do banco, e ANTES era feita uma única vez, no
