@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Copy, FileUp, Loader2, Printer, Trash2, Users } from "lucide-react";
 import { avisar, confirmar } from "@/components/Avisos";
 import { lerPdfPedacos } from "@/lib/lerArquivoTexto";
-import { lerLimite, type NossoNoLimite } from "@/lib/limiteQuantitativo";
+import { lerLimite, type AcessoLimite, type NossoNoLimite } from "@/lib/limiteQuantitativo";
 
 /* =========================================================================
    LIMITE QUANTITATIVO — a tela do P/1.
@@ -37,6 +37,20 @@ const ordemCiclo = (c: string) => {
   const m = c.match(/^(\S+) de (\d{4})$/);
   return m ? Number(m[2]) * 100 + (MESES.indexOf(m[1]) + 1) : 0;
 };
+/* A coluna "Acesso": ao entrar no SIGEP, o policial cai direto no passo a
+   passo das certidões? Conferida no servidor (ver AcessoLimite). */
+const ACESSO: Record<AcessoLimite["situacao"], { rotulo: string; dica?: string; cor: string }> = {
+  direto: { rotulo: "Vai direto ao passo a passo", cor: "bg-emerald-500/15 text-emerald-300" },
+  enviado: { rotulo: "Já enviou ao P/1", cor: "bg-white/10 text-[#cbd5e1]" },
+  sem_ficha: { rotulo: "Sem ficha no SIGEP", dica: "Cadastre o policial ou confira o ID/matrícula da ficha.", cor: "bg-amber-500/15 text-amber-200" },
+  sem_login: { rotulo: "Sem login", dica: "Crie o login em Gerenciar Acessos.", cor: "bg-red-500/15 text-red-200" },
+  inativo: { rotulo: "Login desativado", dica: "Reative em Gerenciar Acessos.", cor: "bg-red-500/15 text-red-200" },
+  admin: { rotulo: "Administrador", dica: "Entra no painel; as certidões ficam no menu.", cor: "bg-sky-500/15 text-sky-200" },
+  sem_periodo: { rotulo: "Sem período aberto", dica: "Abra o período de promoção.", cor: "bg-amber-500/15 text-amber-200" },
+  ciclo_antigo: { rotulo: "Lista de ciclo anterior", cor: "bg-white/10 text-[#94A3B8]" },
+};
+const PENDENCIA = new Set<AcessoLimite["situacao"]>(["sem_ficha", "sem_login", "inativo", "sem_periodo"]);
+
 const quandoBR = (iso: string) => { const d = new Date(iso); return isNaN(d.getTime()) ? "" : d.toLocaleDateString("pt-BR"); };
 const capital = (c: string) => c.charAt(0).toUpperCase() + c.slice(1);
 
@@ -194,6 +208,12 @@ export default function LimiteClient() {
       {/* ---------------- por ciclo ---------------- */}
       {ciclos.map(([ciclo, ls]) => {
         const total = ls.reduce((s, l) => s + l.nossos.length, 0);
+        // o resumo da coluna "Acesso", para conferir os nomes antes de avisar o grupo
+        const todos = ls.flatMap((l) => l.nossos);
+        const conta = (sit: AcessoLimite["situacao"]) => todos.filter((n) => n.acesso?.situacao === sit).length;
+        const diretos = conta("direto");
+        const primeiro = todos.filter((n) => n.acesso?.situacao === "direto" && n.acesso.primeiroAcesso).length;
+        const pendentes = todos.filter((n) => n.acesso && PENDENCIA.has(n.acesso.situacao)).length;
         return (
           <section key={ciclo} className="space-y-4">
             <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[#D4AF37]/40 bg-gradient-to-r from-[#D4AF37]/15 to-transparent p-4">
@@ -208,6 +228,17 @@ export default function LimiteClient() {
                     </span>
                   ))}
                 </div>
+                {todos.some((n) => n.acesso) && (
+                  <p className="nao-imprimir mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#cbd5e1]">
+                    <span className="font-semibold text-white">Acesso ao SIGEP:</span>
+                    <span className="text-emerald-300">✓ {diretos} vão direto ao passo a passo{primeiro ? ` (${primeiro} ainda no 1º acesso)` : ""}</span>
+                    {conta("enviado") > 0 && <span>· {conta("enviado")} já enviaram ao P/1</span>}
+                    {conta("admin") > 0 && <span className="text-sky-200">· {conta("admin")} administrador(es)</span>}
+                    {pendentes > 0
+                      ? <span className="font-semibold text-red-300">· ⚠ {pendentes} com pendência — veja a coluna “Acesso”</span>
+                      : <span className="text-emerald-300">· nenhuma pendência</span>}
+                  </p>
+                )}
               </div>
               <div className="nao-imprimir flex gap-2">
                 <button onClick={() => copiar(ciclo, ls)}
@@ -285,6 +316,7 @@ function TabelaGrad({ l, remover }: { l: Lista; remover: () => void }) {
                 {temId && <th className={th}>ID</th>}
                 {temData && <th className={th}>{l.rotuloData || "Data"}</th>}
                 <th className={th}>OPM no PDF</th>
+                <th className={`${th} nao-imprimir`}>Acesso</th>
               </tr>
             </thead>
             <tbody>
@@ -318,6 +350,22 @@ function TabelaGrad({ l, remover }: { l: Lista; remover: () => void }) {
                       </span>
                     ) : (
                       <span className="text-[#cbd5e1]">{n.opm}</span>
+                    )}
+                  </td>
+                  <td className={`${td} nao-imprimir`}>
+                    {n.acesso && (
+                      <>
+                        <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${ACESSO[n.acesso.situacao].cor}`}>
+                          {ACESSO[n.acesso.situacao].rotulo}
+                        </span>
+                        <span className="mt-0.5 block text-[10.5px] text-[#94A3B8]">
+                          {n.acesso.situacao === "direto"
+                            ? (n.acesso.primeiroAcesso ? "1º acesso: ID + 12345678" : "já criou a senha")
+                            : n.acesso.situacao === "sem_login" || n.acesso.situacao === "inativo"
+                              ? <Link href="/admin/gerar-logins" className="text-red-200 underline">{ACESSO[n.acesso.situacao].dica}</Link>
+                              : ACESSO[n.acesso.situacao].dica}
+                        </span>
+                      </>
                     )}
                   </td>
                 </tr>

@@ -278,6 +278,24 @@ export type NossoNoLimite = LinhaLimite & {
   nomeSistema: string;
   por: "ID" | "matrícula" | "número e nome" | "OPM";
   opmDiferente: boolean;         // é nosso no sistema, mas o PDF põe outra OPM
+  acesso?: AcessoLimite;         // preenchido em /api/promocoes/limite (GET)
+};
+
+/* Ao entrar no SIGEP, o policial do Limite cai DIRETO no passo a passo das
+   certidões? E, se não, por quê — para o P/1 conferir os nomes ANTES de
+   soltar o aviso no grupo. Mesmas regras do login (dashboard), da troca de
+   senha (api/trocar-senha) e dos parabéns (notificacoes.parabensLimite).
+     direto       vai direto (primeiroAcesso: ainda entra com ID + 12345678)
+     enviado      já mandou ao P/1 — não precisa fazer nada
+     sem_ficha    consta como 18º BPM no PDF, mas não está no efetivo do SIGEP
+     sem_login    tem ficha, mas não tem login
+     inativo      o login está desativado
+     admin        é administrador: entra no painel do P/1
+     sem_periodo  nenhum período de promoção aberto
+     ciclo_antigo a lista é de um ciclo anterior ao mais recente */
+export type AcessoLimite = {
+  situacao: "direto" | "enviado" | "sem_ficha" | "sem_login" | "inativo" | "admin" | "sem_periodo" | "ciclo_antigo";
+  primeiroAcesso?: boolean;
 };
 
 const soDig = (t: string | null | undefined) => String(t || "").replace(/\D/g, "").replace(/^0+(?=\d)/, "");
