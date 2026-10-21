@@ -21,6 +21,7 @@ import {
   Search,
   Maximize2,
   Minimize2,
+  FileSpreadsheet,
 } from "lucide-react";
 import MemorandoFerias, { DadosMemorando } from "@/components/MemorandoFerias";
 import { grupoDoMilitar, rotuloDoGrupo } from "@/lib/distribuirEquipes";
@@ -200,6 +201,10 @@ export default function PlanoFerias({
   const [reequilibrando, setReequilibrando] = useState(false);
   const [rodiziando, setRodiziando] = useState(false);
   const [unidadesAberto, setUnidadesAberto] = useState(false);
+  // Excel do plano: o menu escolhe o recorte (oficiais, praças ou todos)
+  const [excelAberto, setExcelAberto] = useState(false);
+  const [excelParaEsquerda, setExcelParaEsquerda] = useState(false);
+  const [baixandoExcel, setBaixandoExcel] = useState(false);
 
   // ano anterior que tenha plano — origem natural do rodízio
   const anoAnterior = useMemo(() => {
@@ -815,6 +820,33 @@ export default function PlanoFerias({
     setTimeout(() => win.print(), 300);
   }
 
+  /* Plano em Excel, no papel da escala (sem o VISTO) e com a assinatura do
+     Cmt no fim. Quem monta é o servidor: /api/ferias/xlsx. */
+  async function baixarExcel(quem: Filtro) {
+    setExcelAberto(false);
+    setBaixandoExcel(true);
+    try {
+      const r = await fetch(`/api/ferias/xlsx?ano=${encodeURIComponent(anoSelecionado)}&quem=${quem}`);
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        avisar(j.error || "Não foi possível gerar o Excel.");
+        return;
+      }
+      const url = URL.createObjectURL(await r.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Plano_Ferias_${anoSelecionado}_${{ oficiais: "Oficiais", pracas: "Pracas", todos: "Oficiais_e_Pracas" }[quem]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      avisar("Erro de conexão ao gerar o Excel.");
+    } finally {
+      setBaixandoExcel(false);
+    }
+  }
+
   const Aba = ({ id, rotulo, qtd }: { id: Filtro; rotulo: string; qtd: number }) => (
     <button
       onClick={() => setFiltro(id)}
@@ -896,6 +928,48 @@ export default function PlanoFerias({
         >
           🖨 Imprimir / PDF
         </button>
+        {isAdmin && totalMilitares > 0 && (
+          <div className="relative">
+            <button
+              onClick={(ev) => {
+                // sem espaço à direita (celular), o menu abre para a esquerda
+                const b = ev.currentTarget.getBoundingClientRect();
+                setExcelParaEsquerda(b.left + 224 > window.innerWidth - 8);
+                setExcelAberto((v) => !v);
+              }}
+              disabled={baixandoExcel}
+              title="Baixar o plano em Excel: cabeçalho da escala (sem o VISTO) e a assinatura do Cmt no fim"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/40 px-3 py-1.5 text-sm font-medium text-emerald-300 transition hover:bg-emerald-400/10 disabled:opacity-50"
+            >
+              {baixandoExcel ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+              Baixar Excel
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+            {excelAberto && (
+              <>
+                {/* clicar fora fecha o menu */}
+                <div className="fixed inset-0 z-40" onClick={() => setExcelAberto(false)} />
+                <div className={`absolute ${excelParaEsquerda ? "right-0" : "left-0"} top-full z-50 mt-1 w-56 rounded-lg border border-white/10 bg-[#0F1B2D] p-1 shadow-xl`}>
+                  {([
+                    ["oficiais", "Só os oficiais", totalOficiais],
+                    ["pracas", "Só as praças", totalPracas],
+                    ["todos", "Oficiais e praças juntos", totalMilitares],
+                  ] as [Filtro, string, number][]).map(([id, rotulo, qtd]) => (
+                    <button
+                      key={id}
+                      onClick={() => baixarExcel(id)}
+                      disabled={!qtd}
+                      className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm text-white transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {rotulo}
+                      <span className="rounded-full bg-white/10 px-1.5 text-xs text-[#94A3B8]">{qtd}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
         <div className="ml-auto flex flex-wrap gap-2">
           <Aba id="todos" rotulo="Todos" qtd={totalMilitares} />
           <Aba id="oficiais" rotulo="Oficiais" qtd={totalOficiais} />
