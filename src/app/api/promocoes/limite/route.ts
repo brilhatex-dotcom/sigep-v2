@@ -5,8 +5,10 @@ import { prisma } from "@/lib/prisma";
 import { podeVerP1 } from "@/lib/encargos";
 import { registrar } from "@/lib/auditoria";
 import { idsInativos, semInativos } from "@/lib/inativos";
-import { cruzarComEfetivo, type LinhaLimite } from "@/lib/limiteQuantitativo";
+import { cruzarComEfetivo, type AcessoLimite, type LinhaLimite, type NossoNoLimite } from "@/lib/limiteQuantitativo";
 import { apagarLimite, listarLimites, salvarLimite } from "@/lib/limiteQuantitativoDb";
+import { periodoAtivo } from "@/lib/promocoes";
+import { lerMapaP1 } from "@/lib/promocaoStatusP1";
 
 export const dynamic = "force-dynamic";
 
@@ -49,17 +51,63 @@ const ordemCiclo = (c: string) => {
   return m ? Number(m[2]) * 100 + (MESES.indexOf(m[1]) + 1) : 0;
 };
 
+/* A coluna "Acesso" da tela: para cada nosso no Limite, se ao entrar no SIGEP
+   ele cai direto no passo a passo das certidões — e, se não, por quê. As
+   regras são as mesmas do login e dos parabéns (ver AcessoLimite). */
+async function marcarAcesso(listas: { ciclo: string; nossos: NossoNoLimite[] }[]) {
+  const ids = Array.from(new Set(listas.flatMap((l) => l.nossos.map((n) => n.efetivoId)).filter((x): x is string => !!x)));
+  const [usuarios, periodo, mapaP1] = await Promise.all([
+    ids.length
+      ? prisma.usuario.findMany({
+          where: { refEfetivo: { in: ids } },
+          select: { login: true, ativo: true, precisaTrocar: true, perfil: true, refEfetivo: true },
+        })
+      : Promise.resolve([]),
+    periodoAtivo(),
+    lerMapaP1(),
+  ]);
+  // um login por ficha (havendo mais de um, vale o ativo)
+  const porFicha = new Map<string, (typeof usuarios)[number]>();
+  for (const u of usuarios) {
+    const atual = porFicha.get(u.refEfetivo || "");
+    if (!atual || ((atual.ativo ?? "").toUpperCase() !== "SIM" && (u.ativo ?? "").toUpperCase() === "SIM")) {
+      porFicha.set(u.refEfetivo || "", u);
+    }
+  }
+  // os parabéns só olham o ciclo mais recente (notificacoes.parabensLimite)
+  const atual = Math.max(0, ...listas.map((l) => ordemCiclo(l.ciclo)));
+  for (const l of listas) {
+    const oc = ordemCiclo(l.ciclo);
+    const antigo = !!oc && oc < atual && oc >= 202001;
+    for (const n of l.nossos) {
+      const u = n.efetivoId ? porFicha.get(n.efetivoId) : undefined;
+      const acesso: AcessoLimite =
+        !n.efetivoId ? { situacao: "sem_ficha" }
+          : antigo ? { situacao: "ciclo_antigo" }
+          : !u ? { situacao: "sem_login" }
+          : (u.ativo ?? "").toUpperCase() !== "SIM" ? { situacao: "inativo" }
+          : (u.perfil ?? "").toLowerCase() === "admin" ? { situacao: "admin" }
+          : !periodo ? { situacao: "sem_periodo" }
+          : mapaP1[`${periodo.id}:${n.efetivoId}`]?.enviadoEm ? { situacao: "enviado" }
+          : { situacao: "direto", primeiroAcesso: u.precisaTrocar === true };
+      n.acesso = acesso;
+    }
+  }
+}
+
 export async function GET() {
   if (!(await autorizado())) return NextResponse.json({ error: "Apenas o P/1." }, { status: 403 });
   try {
     const [regs, efetivo] = await Promise.all([listarLimites(), efetivoAtual()]);
-    const listas = regs
-      .map((r) => ({
-        chave: r.chave, ciclo: r.ciclo, gradOrigem: r.gradOrigem, gradDestino: r.gradDestino, titulo: r.titulo,
-        rotuloData: r.rotuloData, arquivo: r.arquivo, enviadoEm: r.enviadoEm, enviadoPor: r.enviadoPor,
-        totalPdf: r.linhas.length, furos: r.furos,
-        nossos: cruzarComEfetivo(r.linhas, efetivo),
-      }))
+    const cruzadas = regs.map((r) => ({
+      chave: r.chave, ciclo: r.ciclo, gradOrigem: r.gradOrigem, gradDestino: r.gradDestino, titulo: r.titulo,
+      rotuloData: r.rotuloData, arquivo: r.arquivo, enviadoEm: r.enviadoEm, enviadoPor: r.enviadoPor,
+      totalPdf: r.linhas.length, furos: r.furos,
+      nossos: cruzarComEfetivo(r.linhas, efetivo),
+    }));
+    // a conferência do acesso não pode derrubar a lista
+    try { await marcarAcesso(cruzadas); } catch (e) { console.error("[GET /api/promocoes/limite] acesso", e); }
+    const listas = cruzadas
       // ciclo mais novo primeiro; dentro dele, 1º Sgt -> Soldado
       .sort((a, b) => ordemCiclo(b.ciclo) - ordemCiclo(a.ciclo)
         || (ORDEM_GRAD[a.gradOrigem] || 9) - (ORDEM_GRAD[b.gradOrigem] || 9));
