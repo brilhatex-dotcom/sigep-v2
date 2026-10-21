@@ -85,85 +85,28 @@ export function mapaRodizio(equipes: string[]): Map<string, string> {
   return mapa;
 }
 
-/* Aplica o rodízio e, em seguida, corrige APENAS o que ficou desequilibrado.
+/* Aplica o RODÍZIO PURO: cada militar vai para a equipe que o mapaRodizio
+   manda, e só. Quem estava na 9 vai para a 8, quem estava na 2 vai para a 9,
+   quem estava na 1 continua na 1 — sem exceção e sem ajuste.
 
-   O rodízio sozinho preserva a composição das equipes (só troca o rótulo), o
-   que é ótimo quando o ano de origem já estava equilibrado — nesse caso não há
-   nada a corrigir e todo mundo mantém o rodízio limpo.
+   ANTES havia aqui uma "correção de equilíbrio" depois do rodízio: quando uma
+   unidade (ROTEM, um destacamento) ficava concentrada numa equipe, o sistema
+   movia gente para a equipe mais vazia. Na prática isso tirava militares do
+   rodízio sem ninguém pedir — quem estava na 8 em 2026 aparecia na 4 em 2027,
+   em vez da 7. Por ordem do P/1 o rodízio é a regra, sem exceção; equilibrar é
+   uma decisão à parte (botão Reequilibrar).
 
-   Quando o ano de origem tem uma unidade concentrada numa equipe só, o rodízio
-   herdaria essa concentração. Então, depois de rodar, movemos o MÍNIMO de
-   militares necessário para que nenhuma equipe fique acima do teto daquela
-   unidade — preservando o rodízio de todos os demais. */
-export function rotacionarComEquilibrio(
-  militares: MilitarParaDistribuir[],
-  equipes: string[],
-  atribuicoesOrigem: Atribuicao[]
-): { atribuicoes: Atribuicao[]; movidosPorEquilibrio: number } {
-  const ordenadas = [...equipes].sort((a, b) => Number(a) - Number(b));
-  if (ordenadas.length < 2) {
-    return { atribuicoes: atribuicoesOrigem, movidosPorEquilibrio: 0 };
-  }
-  const primeira = ordenadas[0];
-  const rotativas = ordenadas.slice(1);
-  const mapa = mapaRodizio(ordenadas);
-  const mapaLotacao = new Map(militares.map((m) => [m.idPmma, m.lotacao ?? null]));
-
-  // ---- 1) rodízio puro ----
-  const destino = new Map<string, string>(); // idPmma -> equipe
+   Militar cuja equipe de origem não existe no destino fica de fora daqui (não
+   há para onde rodar): o chamador o inclui depois, como "fora do plano". */
+export function rotacionar(equipes: string[], atribuicoesOrigem: Atribuicao[]): Atribuicao[] {
+  const mapa = mapaRodizio(equipes);
+  if (!mapa.size) return atribuicoesOrigem.filter((a) => equipes.includes(a.numeroEquipe));
+  const destino = new Map<string, string>(); // idPmma -> equipe (um militar, uma equipe)
   for (const a of atribuicoesOrigem) {
-    destino.set(a.idPmma, mapa.get(a.numeroEquipe) ?? a.numeroEquipe);
+    const para = mapa.get(a.numeroEquipe);
+    if (para) destino.set(a.idPmma, para);
   }
-
-  // ---- 2) correção mínima do equilíbrio, unidade por unidade ----
-  // Só mexe em quem está nas equipes do rodízio: a equipe 1 é intocada.
-  const porGrupo = new Map<string, string[]>(); // grupo -> ids (fora da equipe 1)
-  for (const [id, eq] of destino) {
-    if (eq === primeira) continue;
-    const g = grupoDoMilitar(mapaLotacao.get(id) ?? null);
-    if (!porGrupo.has(g)) porGrupo.set(g, []);
-    porGrupo.get(g)!.push(id);
-  }
-
-  let movidos = 0;
-  const gruposOrdenados = Array.from(porGrupo.keys()).sort();
-
-  for (const g of gruposOrdenados) {
-    const ids = porGrupo.get(g)!;
-    const teto = Math.ceil(ids.length / rotativas.length);
-
-    // quantos deste grupo em cada equipe do rodízio
-    const contar = () => {
-      const c = new Map<string, string[]>(rotativas.map((e) => [e, []]));
-      for (const id of ids) {
-        const eq = destino.get(id)!;
-        if (c.has(eq)) c.get(eq)!.push(id);
-      }
-      return c;
-    };
-
-    // enquanto alguma equipe passar do teto, tira um e põe na mais vazia
-    for (let volta = 0; volta < ids.length; volta++) {
-      const c = contar();
-      let cheia = "", vazia = "";
-      for (const e of rotativas) {
-        if (!cheia || c.get(e)!.length > c.get(cheia)!.length) cheia = e;
-        if (!vazia || c.get(e)!.length < c.get(vazia)!.length) vazia = e;
-      }
-      if (c.get(cheia)!.length <= teto) break;             // já está no teto
-      if (c.get(cheia)!.length - c.get(vazia)!.length < 2) break; // nada a ganhar
-
-      // move sempre o mesmo (ordem estável) para o resultado ser repetível
-      const candidato = [...c.get(cheia)!].sort()[0];
-      destino.set(candidato, vazia);
-      movidos++;
-    }
-  }
-
-  return {
-    atribuicoes: Array.from(destino.entries()).map(([idPmma, numeroEquipe]) => ({ idPmma, numeroEquipe })),
-    movidosPorEquilibrio: movidos,
-  };
+  return Array.from(destino.entries()).map(([idPmma, numeroEquipe]) => ({ idPmma, numeroEquipe }));
 }
 
 /* Distribui os militares pelas equipes equilibrando por grupo.

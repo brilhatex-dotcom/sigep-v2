@@ -62,6 +62,9 @@ const nextConfig = {
       "/api/requerimentos/[id]/termo": ["./public/templates/**"],
       "/api/joe/[id]/rene": ["./public/templates/**", "./public/brasoes/**"],
       "/api/ferias/memorando-docx": ["./public/brasoes/**"],
+      // Plano de Férias em Excel: brasões da escala (o do MA fica na raiz) e
+      // a assinatura do Cmt
+      "/api/ferias/xlsx": ["./public/brasoes/**", "./public/brasao-estado-ma.png"],
       "/api/permutas/docx": ["./public/brasoes/**"],
       "/api/disciplinar/fatd-docx": ["./public/brasoes/**"],
       "/api/disciplinar/portaria-docx": ["./public/brasoes/**"],
