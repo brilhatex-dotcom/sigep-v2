@@ -6,6 +6,7 @@ import { garantirPromocoes } from "@/lib/promocaoDb";
 import { normalizar, type DadosHistorico } from "@/lib/historicoPolicial";
 import { lerMapaP1 } from "@/lib/promocaoStatusP1";
 import { lerTodosDadosPromocao } from "@/lib/dadosPromocao";
+import { situacaoNoLimite, type SituacaoNoLimite } from "@/lib/limiteQuantitativoDb";
 import {
   COLUNAS, entraNaPlanilha, montarLinha, type LinhaPlanilha, type PromocaoLancada,
 } from "@/lib/planilhaPadrao";
@@ -161,7 +162,15 @@ export async function carregarPlanilha(periodoId: string): Promise<LinhaComNome[
   const mandou = (id: string) =>
     (enviadas.get(id)?.length || 0) > 0 || !!statusP1[`${periodoId}:${id}`]?.enviadoEm;
 
-  return efetivo.filter((m) => mandou(m.id)).map((m) => {
+  const mandaram = efetivo.filter((m) => mandou(m.id));
+  /* Mandou certidão sem estar no Limite Quantitativo: a linha ganha a
+     pendência, no topo, para o P/1 conferir antes de mandar a planilha. */
+  const limite = await situacaoNoLimite(mandaram.map((m) => m.id)).catch((e) => {
+    console.error("[planilha] situação no Limite", e);
+    return new Map<string, SituacaoNoLimite>();
+  });
+
+  return mandaram.map((m) => {
     const st = statusP1[`${periodoId}:${m.id}`] || {};
     const linha = montarLinha({
       ficha: m,
@@ -175,6 +184,7 @@ export async function carregarPlanilha(periodoId: string): Promise<LinhaComNome[
       manual: manuais.get(m.id) || {},
       dadosPromocao: dadosPromocao.get(m.id) || {},
     });
-    return { ...linha, rotulo: [m.postoGrad, m.nomeGuerra || m.nome].filter(Boolean).join(" ") };
+    const pendencias = limite.get(m.id) === "fora" ? ["Fora do Limite Quantitativo", ...linha.pendencias] : linha.pendencias;
+    return { ...linha, pendencias, rotulo: [m.postoGrad, m.nomeGuerra || m.nome].filter(Boolean).join(" ") };
   });
 }

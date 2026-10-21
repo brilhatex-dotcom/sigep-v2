@@ -6,6 +6,7 @@ import { periodoAtivo, postoDoMilitar } from "@/lib/promocoes";
 import { totalCertidoes, ORDENS_UNIFICADA } from "@/lib/certidoes";
 import { statusP1 } from "@/lib/promocaoStatusP1";
 import { chaveCertidao, chaveCertidaoUnificada } from "@/lib/promocaoUpload";
+import { avisarInicioForaDoLimite } from "@/lib/promocaoAvisos";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // é a primeira certidão dele neste período? (ver o aviso "fora do Limite" abaixo)
+    const antes = await prisma.participantePromocao.findUnique({
+      where: { periodoId_efetivoId: { periodoId: periodo.id, efetivoId } },
+      select: { _count: { select: { certidoes: true } } },
+    });
+    const primeira = !antes || antes._count.certidoes === 0;
+
     const participante = await prisma.participantePromocao.upsert({
       where: { periodoId_efetivoId: { periodoId: periodo.id, efetivoId } },
       update: {},
@@ -87,6 +95,12 @@ export async function POST(req: NextRequest) {
         where: { id: participante.id },
         data: { pdfUnificado: null, geradoEm: null },
       });
+    }
+
+    /* Primeira certidão de quem NÃO está no Limite Quantitativo: o P/1 é
+       avisado na hora (só quando é o próprio policial que envia). */
+    if (primeira && efetivoId === session.user.refEfetivo) {
+      await avisarInicioForaDoLimite(efetivoId, periodo.id, periodo.nome);
     }
 
     return NextResponse.json({ ok: true, ordens: unificada ? ORDENS_UNIFICADA : [ordem] });

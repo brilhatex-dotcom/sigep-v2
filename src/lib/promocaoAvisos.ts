@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { lerEncargos } from "@/lib/encargos";
 import { enviarParaLogin, enviarParaVarios } from "@/lib/push";
 import { lerMapaP1 } from "@/lib/promocaoStatusP1";
+import { situacaoNoLimite } from "@/lib/limiteQuantitativoDb";
 
 /* =========================================================================
    OS AVISOS DO RITO DAS CERTIDÕES
@@ -54,18 +55,46 @@ async function loginDoMilitar(efetivoId: string): Promise<string | null> {
   return u?.login || null;
 }
 
-// Militar enviou as certidões: o P/1 precisa saber que tem conferência a fazer.
+// está fora do Limite Quantitativo? (sem as listas carregadas, não acusa)
+async function foraDoLimite(efetivoId: string): Promise<boolean> {
+  try { return (await situacaoNoLimite([efetivoId])).get(efetivoId) === "fora"; }
+  catch { return false; }
+}
+
+/* Militar enviou as certidões: o P/1 precisa saber que tem conferência a
+   fazer. Se ele NÃO está no Limite Quantitativo, o aviso diz isso no título. */
 export async function avisarEnvioAoP1(efetivoId: string, periodoId: string, periodoNome: string) {
   try {
     const logins = await loginsDoP1();
     if (!logins.length) return;
+    const nome = await nomeDe(efetivoId);
+    const fora = await foraDoLimite(efetivoId);
     await enviarParaVarios(logins, {
-      title: "Certidões para conferir",
-      body: `${await nomeDe(efetivoId)} enviou as certidões da promoção ${periodoNome}. Confira no painel de promoções.`,
+      title: fora ? "⚠ Fora do Limite: certidões para conferir" : "Certidões para conferir",
+      body: fora
+        ? `${nome} enviou as certidões da promoção ${periodoNome}, mas NÃO está no Limite Quantitativo. Confira no painel de promoções.`
+        : `${nome} enviou as certidões da promoção ${periodoNome}. Confira no painel de promoções.`,
       url: "/promocoes",
       tag: `promo-envio-${periodoId}-${efetivoId}`,
     });
   } catch (e) { console.error("[promocao] aviso ao P/1", e); }
+}
+
+/* Primeira certidão de quem NÃO está no Limite Quantitativo: o P/1 fica
+   sabendo logo no começo, e não só quando ele terminar de enviar (pedido do
+   P/1: "acusar destacando quem é"). Quem está no Limite não gera aviso. */
+export async function avisarInicioForaDoLimite(efetivoId: string, periodoId: string, periodoNome: string) {
+  try {
+    if (!(await foraDoLimite(efetivoId))) return;
+    const logins = await loginsDoP1();
+    if (!logins.length) return;
+    await enviarParaVarios(logins, {
+      title: "⚠ Certidão de quem não está no Limite",
+      body: `${await nomeDe(efetivoId)} começou a enviar certidões da promoção ${periodoNome}, mas NÃO está no Limite Quantitativo.`,
+      url: "/promocoes",
+      tag: `promo-fora-${periodoId}-${efetivoId}`,
+    });
+  } catch (e) { console.error("[promocao] aviso fora do Limite", e); }
 }
 
 // P/1 deu o "recebido": o militar pode parar de se preocupar com isso.

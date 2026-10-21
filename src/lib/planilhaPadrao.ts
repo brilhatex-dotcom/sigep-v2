@@ -158,7 +158,7 @@ export function colunaCertidoes(c: CertidoesDoMilitar): { valor: string; pendent
   if (faltam.length) {
     return {
       valor: `CERTIDÃO AUSENTE: ${faltam.map((o) => CURTO[o]).join(", ")}`,
-      pendente: `falta${faltam.length > 1 ? "m" : ""} ${faltam.length} certidã${faltam.length > 1 ? "ões" : "o"}`,
+      pendente: `falta${faltam.length > 1 ? "m" : ""} ${faltam.length} certid${faltam.length > 1 ? "ões" : "ão"}`,
     };
   }
   if (c.recebidoPeloP1) return { valor: "S/A", pendente: null };

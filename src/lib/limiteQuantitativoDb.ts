@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import type { LinhaLimite } from "@/lib/limiteQuantitativo";
+import { cruzarComEfetivo, type LinhaLimite } from "@/lib/limiteQuantitativo";
+import { classificarPatente } from "@/lib/patentes";
 
 /* =========================================================================
    Limite Quantitativo guardado — um registro por PDF (ciclo + graduação).
@@ -72,4 +73,61 @@ export async function listarLimites(): Promise<RegistroLimite[]> {
 export async function apagarLimite(chave: string): Promise<void> {
   await garantir();
   await prisma.$executeRawUnsafe(`DELETE FROM limite_quantitativo WHERE chave = $1`, chave);
+}
+
+/* =========================================================================
+   QUEM ESTÁ (OU NÃO) NO LIMITE — para o P/1 ver de cara quem mandou
+   certidão sem estar na lista da CPPPM (pedido do P/1: "acusar destacando
+   quem é").
+
+     dentro         aparece numa lista do ciclo atual
+     fora           é praça de graduação com lista carregada e NÃO aparece
+     sem_lista      a lista da graduação dele não foi carregada: não dá para
+                    conferir (não acusa à toa)
+     nao_se_aplica  oficial ou subtenente: não há Limite de praça para eles
+
+   Mesmo cruzamento da aba Limite Quantitativo (cruzarComEfetivo) e a mesma
+   regra de ciclo dos parabéns: só vale o ciclo mais recente.
+   ========================================================================= */
+export type SituacaoNoLimite = "dentro" | "fora" | "sem_lista" | "nao_se_aplica";
+
+const MESES_LQ = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const ordemCicloLQ = (c: string) => {
+  const m = (c || "").match(/^(\S+) de (\d{4})$/);
+  return m ? Number(m[2]) * 100 + (MESES_LQ.indexOf(m[1]) + 1) : 0;
+};
+// a graduação da ficha na sigla das listas da CPPPM (1º Sgt a Soldado)
+const SIGLA_DA_ORDEM: Record<number, string> = { 9: "1SGT", 10: "2SGT", 11: "3SGT", 12: "CB", 13: "SD" };
+
+export async function situacaoNoLimite(efetivoIds: string[]): Promise<Map<string, SituacaoNoLimite>> {
+  const out = new Map<string, SituacaoNoLimite>();
+  const ids = Array.from(new Set(efetivoIds.filter(Boolean)));
+  if (!ids.length) return out;
+
+  const [listas, fichas] = await Promise.all([
+    listarLimites(),
+    prisma.efetivo.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, nome: true, nomeGuerra: true, matricula: true, numeroBarra: true, postoGrad: true, lotacao: true },
+    }),
+  ]);
+  const atual = Math.max(0, ...listas.map((l) => ordemCicloLQ(l.ciclo)));
+  const doCiclo = listas.filter((l) => {
+    const oc = ordemCicloLQ(l.ciclo);
+    return !(oc && oc < atual && oc >= 202001);
+  });
+  const comLista = new Set(doCiclo.map((l) => l.gradOrigem));
+  const achados = new Set(
+    cruzarComEfetivo(doCiclo.flatMap((l) => l.linhas), fichas).map((n) => n.efetivoId).filter(Boolean),
+  );
+
+  for (const f of fichas) {
+    const sigla = SIGLA_DA_ORDEM[classificarPatente(f.postoGrad).ordem];
+    out.set(f.id,
+      !sigla ? "nao_se_aplica"
+        : achados.has(f.id) ? "dentro"
+        : comLista.has(sigla) ? "fora"
+        : "sem_lista");
+  }
+  return out;
 }
