@@ -1,7 +1,12 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
 import AtivarNotificacoes from "@/components/AtivarNotificacoes";
 import { prisma } from "@/lib/prisma";
+import { authOptions } from "@/lib/auth";
 import { exigirAdmin } from "@/lib/guard";
+import { parabensLimite } from "@/lib/notificacoes";
+import { periodoAtivo } from "@/lib/promocoes";
 import AppShell from "@/components/AppShell";
 import BarrasPosto from "@/components/BarrasPosto";
 import BannerAlertas, { Alerta } from "@/components/BannerAlertas";
@@ -31,6 +36,20 @@ function isoDe(valor: string | null): string {
 }
 
 export default async function DashboardPage() {
+  /* O login de todos cai aqui. O policial que está no Limite Quantitativo e
+     ainda não mandou as certidões ao P/1 entra direto na tela delas (pedido
+     do P/1: simplificar ao máximo o envio); os demais policiais seguem para
+     a ficha, pelo exigirAdmin. */
+  const s = await getServerSession(authOptions);
+  const u = s?.user as any;
+  if (u?.refEfetivo && !u.precisaTrocar && String(u.perfil ?? "").toLowerCase() !== "admin") {
+    const vaiParaCertidoes = await (async () => {
+      try { return !!(await periodoAtivo()) && !!(await parabensLimite({ refEfetivo: u.refEfetivo })); }
+      catch { return false; }
+    })();
+    if (vaiParaCertidoes) redirect("/promocoes/minhas-certidoes");
+  }
+
   const session = await exigirAdmin();
 
   const hoje = hojeBR();

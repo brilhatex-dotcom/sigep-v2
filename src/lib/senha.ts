@@ -28,25 +28,6 @@ export async function gerarHash(senha: string): Promise<string> {
   return bcrypt.hash(senha, CUSTO_BCRYPT);
 }
 
-/* Política de senha forte. Devolve a mensagem de erro, ou null se estiver ok.
-   Regras: >= 8 caracteres; não pode ser só números; não pode ser toda igual ou
-   sequência óbvia; não pode conter/igualar o login/matrícula/ID. */
-/* Política SIMPLES (usada na troca de senha do policial): mínimo 4 caracteres,
-   pode misturar letras e números. Bloqueia só o óbvio: caractere repetido
-   (1111), a padrão "123456" e ser igual ao login/ID. */
-export function validarSenhaSimples(senha: string, refs: (string | null | undefined)[] = []): string | null {
-  const s = (senha || "");
-  if (s.length < 4) return "A senha deve ter ao menos 4 caracteres.";
-  if (/^(.)\1+$/.test(s)) return "A senha não pode ser um único caractere repetido.";
-  if (s === "123456") return "Escolha uma senha diferente da padrão.";
-  const low = s.toLowerCase();
-  for (const r of refs) {
-    const rr = String(r ?? "").trim().toLowerCase();
-    if (rr && rr.length >= 4 && low === rr) return "A senha não pode ser igual ao seu login ou ID.";
-  }
-  return null;
-}
-
 /* Política PADRÃO do SIGEP (troca de senha de todos): mínimo 8 caracteres,
    obrigando MISTURA de letras com números OU símbolos (maiúsculas/minúsculas à
    vontade). Bloqueia repetição, sequências óbvias (inclui a inicial 12345678) e
@@ -72,6 +53,30 @@ export function validarSenhaPadrao(senha: string, refs: (string | null | undefin
   return null;
 }
 
+/* Política SIMPLES — a do policial, por ordem do P/1: a tropa tem
+   dificuldade com informática, então vale senha fraca — 6 ou mais
+   caracteres, inclusive só números. Bloqueia só o que qualquer um adivinha
+   sabendo o ID (que não é segredo: está nas listas da CPPPM): a senha
+   inicial, as manjadas (123456, 654321, 123123), número repetido (111111)
+   e o próprio ID/login. O admin segue com a regra forte (validarSenhaPadrao). */
+export const SENHA_INICIAL = "12345678";
+const MANJADAS = new Set([SENHA_INICIAL, "123456", "654321", "123123"]);
+
+export function validarSenhaSimples(senha: string, refs: (string | null | undefined)[] = []): string | null {
+  const s = senha || "";
+  if (s.length < 6) return "A senha precisa ter pelo menos 6 números ou letras.";
+  if (s === SENHA_INICIAL) return "Essa é a senha inicial. Crie uma senha diferente de 12345678.";
+  if (MANJADAS.has(s) || /^(.)\1+$/.test(s)) return "Essa senha é muito fácil de adivinhar (ex.: 123456, 111111). Escolha outra — pode ser só números.";
+  for (const r of refs) {
+    const rr = String(r ?? "").trim().toLowerCase();
+    if (rr && s.toLowerCase() === rr) return "A senha não pode ser o seu ID ou o seu login.";
+  }
+  return null;
+}
+
+/* Política de senha forte. Devolve a mensagem de erro, ou null se estiver ok.
+   Regras: >= 8 caracteres; não pode ser só números; não pode ser toda igual ou
+   sequência óbvia; não pode conter/igualar o login/matrícula/ID. */
 export function validarSenhaForte(senha: string, refs: (string | null | undefined)[] = []): string | null {
   const s = (senha || "");
   if (s.length < 8) return "A senha deve ter ao menos 8 caracteres.";

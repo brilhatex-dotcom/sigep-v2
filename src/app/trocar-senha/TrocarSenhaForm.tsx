@@ -2,14 +2,16 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signOut } from 'next-auth/react';
 import { TERMO_TITULO, TERMO_BLOCOS, TERMO_VERSAO } from '@/lib/termoLgpd';
 
 interface Props {
   precisaTrocar: boolean;
+  /* admin segue com a regra forte de senha; o policial, com a simples
+     (pedido do P/1: a tropa tem dificuldade com informática) */
+  admin: boolean;
 }
 
-export default function TrocarSenhaForm({ precisaTrocar }: Props) {
+export default function TrocarSenhaForm({ precisaTrocar, admin }: Props) {
   const router = useRouter();
   const [senhaAtual, setSenhaAtual] = useState('');
   const [novaSenha, setNovaSenha] = useState('');
@@ -19,32 +21,42 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
   const [verTermo, setVerTermo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState(false);
+  const [destino, setDestino] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
 
   const validar = (): string | null => {
     if (!precisaTrocar && senhaAtual.length < 4) {
-      return 'Informe sua senha atual.';
+      return 'Informe a sua senha atual.';
     }
-    if (novaSenha.length < 8) {
-      return 'A nova senha deve ter no mínimo 8 caracteres.';
-    }
-    if (/^(.)\1+$/.test(novaSenha)) {
-      return 'A senha não pode ser um único caractere repetido (ex.: 11111111).';
-    }
-    if (!/[a-zA-ZÀ-ÿ]/.test(novaSenha) || !/[^a-zA-ZÀ-ÿ]/.test(novaSenha)) {
-      return 'Misture letras com números ou símbolos (ex.: Sigep@2026).';
-    }
-    if (/12345678|01234567|abcdefgh|qwertyui/i.test(novaSenha)) {
-      return 'A senha não pode ser uma sequência óbvia (ex.: 12345678).';
+    if (!admin) {
+      // policial: qualquer senha com 6 ou mais caracteres (o servidor confere de novo)
+      if (novaSenha.length < 6) return 'A senha precisa ter pelo menos 6 números ou letras.';
+      if (novaSenha === '12345678') return 'Essa é a senha inicial. Crie uma senha diferente de 12345678.';
+      if (['123456', '654321', '123123'].includes(novaSenha) || /^(.)\1+$/.test(novaSenha)) {
+        return 'Essa senha é muito fácil de adivinhar (ex.: 123456, 111111). Escolha outra — pode ser só números.';
+      }
+    } else {
+      if (novaSenha.length < 8) {
+        return 'A nova senha deve ter no mínimo 8 caracteres.';
+      }
+      if (/^(.)\1+$/.test(novaSenha)) {
+        return 'A senha não pode ser um único caractere repetido (ex.: 11111111).';
+      }
+      if (!/[a-zA-ZÀ-ÿ]/.test(novaSenha) || !/[^a-zA-ZÀ-ÿ]/.test(novaSenha)) {
+        return 'Misture letras com números ou símbolos (ex.: Sigep@2026).';
+      }
+      if (/12345678|01234567|abcdefgh|qwertyui/i.test(novaSenha)) {
+        return 'A senha não pode ser uma sequência óbvia (ex.: 12345678).';
+      }
     }
     if (novaSenha !== confirmar) {
-      return 'A confirmacao nao confere com a nova senha.';
+      return 'As duas senhas não estão iguais. Digite a mesma senha nos dois campos.';
     }
     if (!precisaTrocar && novaSenha === senhaAtual) {
       return 'A nova senha deve ser diferente da atual.';
     }
     if (!aceite) {
-      return 'É necessário ler e aceitar o Termo de Consentimento (LGPD) para continuar.';
+      return 'Marque o quadradinho “Li e aceito” para continuar.';
     }
     return null;
   };
@@ -80,14 +92,25 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
         return;
       }
 
+      /* Continua LOGADO (pedido do P/1: não precisa sair e entrar de novo).
+         No 1º acesso o token ainda diz "precisa trocar a senha": a chamada a
+         /api/auth/session regrava o token (ver o jwt em lib/auth) e o
+         policial segue para onde o servidor mandou — as certidões, para quem
+         está no Limite Quantitativo. Carga completa, não router.push: o
+         navegador guarda as telas por alguns segundos (staleTimes) e
+         devolveria a tela de "primeiro acesso". */
       setSucesso(true);
-      setTimeout(async () => {
-        await signOut({ redirect: false });
-        /* Carga completa, não router.push: o navegador guarda as telas por
-           alguns segundos (staleTimes) e devolveria esta mesma tela, ainda
-           com a cara de "primeiro acesso", no login seguinte. */
-        window.location.assign('/login?trocada=1');
-      }, 1500);
+      if (precisaTrocar) {
+        const ir = typeof data?.destino === 'string' && data.destino.startsWith('/') ? data.destino : '/ficha';
+        setDestino(ir);
+        try { await fetch('/api/auth/session', { cache: 'no-store' }); } catch { /* segue: o servidor confere de novo */ }
+        setTimeout(() => window.location.assign(ir), 900);
+      } else {
+        setTimeout(() => {
+          if (window.history.length > 1) router.back();
+          else window.location.assign('/ficha');
+        }, 1200);
+      }
     } catch {
       setErro('Erro de comunicacao com o servidor.');
       setCarregando(false);
@@ -111,8 +134,12 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
             <polyline points="20 6 9 17 4 12" />
           </svg>
         </div>
-        <p className="text-[#E8EEF6] font-medium">Senha alterada com sucesso!</p>
-        <p className="text-sm text-[#E8EEF6]/60 mt-1">Redirecionando para o login...</p>
+        <p className="text-[#E8EEF6] font-medium">{precisaTrocar ? 'Senha criada!' : 'Senha alterada com sucesso!'}</p>
+        <p className="text-sm text-[#E8EEF6]/60 mt-1">
+          {!precisaTrocar ? 'Voltando...'
+            : destino?.includes('minhas-certidoes') ? 'Abrindo a aba Promoções / Certidões...'
+            : 'Entrando no sistema...'}
+        </p>
       </div>
     );
   }
@@ -142,7 +169,9 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
 
       <div>
         <label className="block text-sm font-medium text-[#E8EEF6] mb-1">
-          Nova senha <span className="text-[#E8EEF6]/50 font-normal">(mínimo 8 caracteres — misture letras com números ou símbolos)</span>
+          {admin
+            ? <>Nova senha <span className="text-[#E8EEF6]/50 font-normal">(mínimo 8 caracteres — misture letras com números ou símbolos)</span></>
+            : <>{precisaTrocar ? 'Crie a sua senha' : 'Nova senha'} <span className="text-[#E8EEF6]/50 font-normal">(pelo menos 6 números ou letras)</span></>}
         </label>
         <input
           type={mostrar ? 'text' : 'password'}
@@ -158,7 +187,7 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
 
       <div>
         <label className="block text-sm font-medium text-[#E8EEF6] mb-1">
-          Confirmar nova senha
+          {admin ? 'Confirmar nova senha' : 'Repita a mesma senha'}
         </label>
         <input
           type={mostrar ? 'text' : 'password'}
@@ -216,12 +245,14 @@ export default function TrocarSenhaForm({ precisaTrocar }: Props) {
         </div>
       )}
 
+      {/* não fica apagado sem o aceite: tocado, ele diz o que falta (quem
+          tem pouca intimidade com o celular achava que estava travado) */}
       <button
         type="submit"
-        disabled={carregando || !aceite}
-        className="w-full py-2.5 rounded-lg bg-[#D4AF37] text-[#08111F] font-semibold hover:bg-[#D4AF37]/90 disabled:opacity-50 disabled:cursor-not-allowed transition"
+        disabled={carregando}
+        className="w-full py-3 rounded-lg bg-[#D4AF37] text-base text-[#08111F] font-bold hover:bg-[#D4AF37]/90 disabled:opacity-50 disabled:cursor-not-allowed transition"
       >
-        {carregando ? 'Salvando...' : 'Trocar senha'}
+        {carregando ? 'Salvando...' : precisaTrocar ? 'Salvar e continuar' : 'Trocar senha'}
       </button>
 
       {!precisaTrocar && (

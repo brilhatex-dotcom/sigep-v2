@@ -306,8 +306,8 @@ export default function MinhasCertidoes({
     if (!completo || !unificadoKey) return;
     if (!await confirmar(
       "Confirmar o envio das certidões ao P/1?\n\n" +
-      "O P/1 receberá seu PDF unificado para análise. " +
-      "Após enviar, as certidões ficam travadas para conferência."
+      "Confira antes se todos os PDFs estão certos. Depois de enviar, as certidões " +
+      "ficam travadas para conferência: para trocar algum arquivo, só pedindo ao P/1 para reabrir."
     )) return;
     setEnviandoP1(true);
     try {

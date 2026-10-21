@@ -32,6 +32,8 @@ export default async function TrocarSenhaPage() {
     where: { id: usuario.id },
   });
   const precisaTrocar = ((dadosExtra as any)?.precisaTrocar ?? false) as boolean;
+  // admin (inclusive por encargo) segue com a regra forte de senha
+  const admin = String((session?.user as any)?.perfil ?? '').toLowerCase() === 'admin';
 
   return (
     <div className="min-h-screen bg-[#08111F] flex items-center justify-center px-4 py-10">
@@ -52,19 +54,32 @@ export default async function TrocarSenhaPage() {
               <path d="M7 11V7a5 5 0 0110 0v4" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-[#E8EEF6]">Trocar Senha</h1>
+          <h1 className="text-2xl font-bold text-[#E8EEF6]">{precisaTrocar ? 'Crie a sua senha' : 'Trocar Senha'}</h1>
           <p className="text-sm text-[#E8EEF6]/60 mt-1">
             {usuario.nomeCompleto ?? usuario.login} — Login: {usuario.login}
           </p>
         </div>
 
+        {/* 1º acesso: o caminho em 4 passos curtos (a tropa tem dificuldade com informática) */}
         {precisaTrocar && (
-          <div className="mb-4 p-3 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/40 text-[#D4AF37] text-sm">
-            Primeiro acesso (ou senha resetada pelo P/1): defina agora a sua senha pessoal para continuar.
+          <div className="mb-4 rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37]/10 p-4 text-sm text-[#f3df9d]">
+            <p className="mb-2 font-bold text-[#D4AF37]">Primeiro acesso: é rápido!</p>
+            <ol className="space-y-1.5">
+              {(admin
+                ? ['Digite a senha nova (mínimo 8 caracteres, com letras e números).', 'Repita a mesma senha.', 'Marque “Li e aceito”.', 'Toque em “Salvar e continuar”.']
+                : ['Digite uma senha nova (pelo menos 6 números ou letras).', 'Repita a mesma senha.', 'Marque “Li e aceito”.', 'Toque em “Salvar e continuar”.']
+              ).map((p, k) => (
+                <li key={p} className="flex items-start gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#D4AF37] text-[11px] font-bold text-[#1a1205]">{k + 1}</span>
+                  {p}
+                </li>
+              ))}
+            </ol>
+            <p className="mt-2 text-xs text-[#E8EEF6]/70">Você continua no sistema depois de salvar — não precisa entrar de novo.</p>
           </div>
         )}
 
-        <TrocarSenhaForm precisaTrocar={precisaTrocar} />
+        <TrocarSenhaForm precisaTrocar={precisaTrocar} admin={admin} />
       </div>
     </div>
   );
