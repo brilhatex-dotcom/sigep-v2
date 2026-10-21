@@ -36,6 +36,9 @@ export type LinhaParticipante = {
   pdfUnificado: string | null;
   enviadoP1Em: string | null;
   recebidoP1Em: string | null;
+  /* está no Limite Quantitativo da CPPPM? "fora" = praça de graduação com
+     lista carregada que NÃO aparece nela (ver situacaoNoLimite) */
+  limite?: "dentro" | "fora" | "sem_lista" | "nao_se_aplica" | null;
 };
 
 export type PeriodoResumo = {
@@ -169,12 +172,20 @@ export default function PainelPromocoes({
       const st = statusDe(p.enviadas, p.total).rotulo;
       if (filtroStatus === "Não iniciou") { if (p.enviadas > 0) return false; }
       else if (p.enviadas < 1) return false;
-      if (filtroStatus && st !== filtroStatus) return false;
+      if (filtroStatus === "Fora do Limite") { if (p.limite !== "fora") return false; }
+      else if (filtroStatus && st !== filtroStatus) return false;
       if (!q) return true;
       const alvo = `${p.nome ?? ""} ${p.nomeGuerra ?? ""} ${p.matricula ?? ""} ${p.postoGrad ?? ""}`.toLowerCase();
       return alvo.includes(q);
     });
   }, [participantes, busca, filtroStatus]);
+
+  /* Mandou certidão sem estar no Limite Quantitativo: o P/1 precisa ver de
+     cara QUEM é (pedido do P/1). Só conta quem mandou ao menos uma. */
+  const foraDoLimite = useMemo(
+    () => participantes.filter((p) => p.limite === "fora" && p.enviadas > 0),
+    [participantes],
+  );
 
   async function adicionarTodos() {
     setCarregando(true);
@@ -350,6 +361,33 @@ export default function PainelPromocoes({
           policial — declaração + as certidões das regiões. */}
       <CertidaoP1Painel />
 
+      {/* Fora do Limite Quantitativo: o alerta vem antes de tudo, com os nomes */}
+      {foraDoLimite.length > 0 && (
+        <div className="rounded-xl border-2 border-red-500/60 bg-red-500/10 p-4">
+          <p className="flex items-center gap-2 text-base font-extrabold text-red-200">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-red-400" />
+            {foraDoLimite.length === 1
+              ? "1 policial mandou certidão sem estar no Limite Quantitativo"
+              : `${foraDoLimite.length} policiais mandaram certidão sem estar no Limite Quantitativo`}
+          </p>
+          <ul className="mt-2 flex flex-wrap gap-1.5">
+            {foraDoLimite.map((p) => (
+              <li key={p.efetivoId} className="rounded-full bg-red-500/20 px-2.5 py-0.5 text-sm font-semibold text-white">
+                {[p.postoGrad, p.nomeGuerra || p.nome].filter(Boolean).join(" ")}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs leading-relaxed text-red-100/80">
+            Eles não aparecem nas listas da CPPPM carregadas em Limite Quantitativo. Confira — se não for o caso,
+            avise o policial e use “Excluir” na linha dele.
+          </p>
+          <button onClick={() => setFiltroStatus("Fora do Limite")}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700">
+            <Search className="h-3.5 w-3.5" /> Ver só esses na lista
+          </button>
+        </div>
+      )}
+
       {/* Cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card Icone={Users} valor={participantes.length} rotulo="Total no processo" cor="text-[#D4AF37]" />
@@ -381,6 +419,7 @@ export default function PainelPromocoes({
           <option value="Completo">Completos</option>
           <option value="Parcial">Parciais</option>
           <option value="Não iniciou">Não iniciaram</option>
+          <option value="Fora do Limite">Fora do Limite Quantitativo</option>
         </select>
         {(busca || filtroStatus) && (
           <button
@@ -409,8 +448,9 @@ export default function PainelPromocoes({
           <tbody className="divide-y divide-white/5">
             {filtrados.map((p) => {
               const st = statusDe(p.enviadas, p.total);
+              const fora = p.limite === "fora" && p.enviadas > 0;
               return (
-                <tr key={p.efetivoId} className="hover:bg-white/5">
+                <tr key={p.efetivoId} className={fora ? "bg-red-500/[.08] hover:bg-red-500/[.12]" : "hover:bg-white/5"}>
                   <td className="whitespace-nowrap px-4 py-2.5 text-[#94A3B8]">
                     {p.postoGrad ?? "—"}
                   </td>
@@ -418,6 +458,12 @@ export default function PainelPromocoes({
                     <span className="font-medium text-white">
                       {p.nomeGuerra || p.nome || "—"}
                     </span>
+                    {fora && (
+                      <span className="mt-1 flex w-fit items-center gap-1 rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-bold text-red-200"
+                        title="Não aparece nas listas da CPPPM carregadas em Limite Quantitativo">
+                        <AlertTriangle className="h-3 w-3" /> Fora do Limite Quantitativo
+                      </span>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-[#94A3B8]">
                     {p.matricula ?? "—"}

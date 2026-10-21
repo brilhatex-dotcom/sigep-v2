@@ -11,6 +11,7 @@ import CriarPeriodo from "@/components/CriarPeriodo";
 import { periodoAtivo } from "@/lib/promocoes";
 import { totalCertidoes } from "@/lib/certidoes";
 import { lerMapaP1 } from "@/lib/promocaoStatusP1";
+import { situacaoNoLimite, type SituacaoNoLimite } from "@/lib/limiteQuantitativoDb";
 
 export const dynamic = "force-dynamic";
 
@@ -136,6 +137,11 @@ async function PainelConteudo({
     }),
   ]);
   const ids = participantes.map((p) => p.efetivoId);
+  // quem mandou certidão sem estar no Limite Quantitativo: o painel acusa
+  const limite = await situacaoNoLimite(ids).catch((e) => {
+    console.error("[promocoes] situação no Limite", e);
+    return new Map<string, SituacaoNoLimite>();
+  });
   const fichas = await prisma.efetivo.findMany({
     where: { id: { in: ids } },
     select: {
@@ -165,6 +171,7 @@ async function PainelConteudo({
         pdfUnificado: p.pdfUnificado,
         enviadoP1Em: st?.enviadoEm ?? null,
         recebidoP1Em: st?.recebidoEm ?? null,
+        limite: limite.get(p.efetivoId) ?? null,
       };
     })
     /* Ordem: primeiro quem ENVIOU e aguarda a conferencia (e o trabalho do
