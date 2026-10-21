@@ -20,9 +20,11 @@ export async function GET() {
   const u = session.user as any;
   const r = await pendenciasAoEntrar({ login: u.login, perfil: u.perfil, refEfetivo: u.refEfetivo });
   /* boasVindas: a apresentação do SIGEP ainda não foi vista por este login
-     (na versão atual — ver VERSAO_BOAS_VINDAS). Religada com o texto revisto
-     pelo P/1; para tirar do ar de novo, basta trocar para false. */
-  const BOAS_VINDAS_LIGADA = true;
+     (na versão atual — ver VERSAO_BOAS_VINDAS). O texto revisto com o P/1
+     está pronto em components/BoasVindas, mas GUARDADO por ordem dele:
+     fica desligada até ele mandar ligar (trocar para true). Enquanto isso,
+     ninguém ganha marca de visto, então ela aparece para todos ao ligar. */
+  const BOAS_VINDAS_LIGADA = false;
   const viu = BOAS_VINDAS_LIGADA ? await jaViuBoasVindas(String(u.login || "")) : true;
   return NextResponse.json({ ...r, boasVindas: !viu }, { headers: { "Cache-Control": "no-store" } });
 }
