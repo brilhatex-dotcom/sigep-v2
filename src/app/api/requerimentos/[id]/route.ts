@@ -4,8 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { removerDoR2 } from "@/lib/r2";
 import { registrar } from "@/lib/auditoria";
-import { ehModeloAquisicao } from "@/lib/requerimentos";
-import { jsonArma, obrigatoriosDoModelo } from "@/lib/requerimentoArma";
+import { jsonArma, obrigatoriosDoModelo, temCamposJson } from "@/lib/requerimentoArma";
 
 export const dynamic = "force-dynamic";
 
@@ -77,7 +76,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       return NextResponse.json({ error: `Preencha antes de enviar: ${faltando.join(", ")}.` }, { status: 400 });
     }
   }
-  if (ehModeloAquisicao(r!.modelo) && acao === "enviado") {
+  // aquisicao de arma (o adquirente e a arma) e movimentacao (o destino)
+  if (acao === "enviado") {
     const faltando = Object.entries(obrigatoriosDoModelo(r!.modelo))
       .filter(([k]) => !v(k))
       .map(([, rotulo]) => rotulo);
@@ -99,8 +99,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   /* Aquisicao de arma: os dados do produto controlado tambem nao tem
      coluna propria — viajam como JSON em p2Complementares, sobrescrevendo o
      valor de texto que o laco acima pos ali (esse campo de texto so existe no
-     modelo de cursos). Mesma convencao da criacao. */
-  if (ehModeloAquisicao(r!.modelo)) {
+     modelo de cursos). Mesma convencao da criacao; idem o destino da
+     movimentacao. */
+  if (temCamposJson(r!.modelo)) {
     dadosUpdate.p2Complementares = jsonArma(r!.modelo, v);
   }
 

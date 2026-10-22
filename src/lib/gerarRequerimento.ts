@@ -2,7 +2,9 @@ import fs from "fs";
 import path from "path";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
-import { ehModeloAquisicao, ehModeloTransferencia } from "@/lib/requerimentos";
+import {
+  ehModeloAquisicao, ehModeloMovimentacao, ehModeloTransferencia, infoMovimentacao, MODALIDADE_MOVIMENTACAO,
+} from "@/lib/requerimentos";
 import { lerDadosArma } from "@/lib/requerimentoArma";
 
 /* =========================================================================
@@ -15,6 +17,8 @@ import { lerDadosArma } from "@/lib/requerimentoArma";
      - requerimento_aquisicao_restrito.docx  (formulario do Exercito/SisFPC)
      - requerimento_aquisicao_permitido.docx (formulario da DAL/PMMA)
      - requerimento_transferencia_sigma.docx / _sinarm.docx (transferencia)
+     - requerimento_movimentacao.docx (transferencia do militar para outra
+       unidade: a folha comum com o rodape do Cmt do modelo real)
 
    IMPORTANTE (Vercel): arquivos de /public NAO entram no bundle da
    serverless function por padrao. Para o fs.readFileSync funcionar em
@@ -54,6 +58,8 @@ const CHAVE_X: Record<string, string> = {
   "CAUTELA DE ARMA DE FOGO (ACAF)": "outros",
   "CAUTELA DE COLETE BALÍSTICO": "outros",
   "AUTORIZAÇÃO DE PERMANÊNCIA DE ARMAMENTO": "outros",
+  // idem a transferencia para outra unidade: OUTROS (TRANSFERÊNCIA POR INTERESSE PRÓPRIO)
+  [MODALIDADE_MOVIMENTACAO]: "outros",
 };
 
 type DadosReq = {
@@ -242,6 +248,7 @@ const TEMPLATE_DO_MODELO: Record<string, string> = {
   transferencia_sigma: "requerimento_transferencia_sigma.docx",
   transferencia_sinarm: "requerimento_transferencia_sinarm.docx",
   cursos: "requerimento_cursos.docx",
+  movimentacao: "requerimento_movimentacao.docx",
 };
 
 export function gerarRequerimentoDocx(d: DadosReq): Buffer {
@@ -378,6 +385,12 @@ export function gerarRequerimentoDocx(d: DadosReq): Buffer {
       if (email) linhas.push(`E-MAIL: ${email}`);
     }
     dados.info = linhas.join("\n");
+  }
+
+  // Movimentacao sem o texto do pedido (apagado na tela): sai o padrao, com o
+  // destino que estiver salvo — o pedido nunca vai em branco para o papel.
+  if (ehModeloMovimentacao(d.modelo) && !s(d.infoAdicional).trim()) {
+    dados.info = infoMovimentacao(lerDadosArma(d.p2Complementares).destino || "");
   }
 
   // marca a modalidade escolhida (todas false, exceto a dela). Qualquer

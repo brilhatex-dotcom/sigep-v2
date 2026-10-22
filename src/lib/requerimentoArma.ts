@@ -1,4 +1,4 @@
-import { ehModeloAquisicao, ehModeloTransferencia, registroDeOrigem } from "@/lib/requerimentos";
+import { ehModeloAquisicao, ehModeloMovimentacao, ehModeloTransferencia, registroDeOrigem } from "@/lib/requerimentos";
 
 /* =========================================================================
    Campos dos requerimentos de ARMA DE FOGO (compra direta e transferência).
@@ -8,6 +8,9 @@ import { ehModeloAquisicao, ehModeloTransferencia, registroDeOrigem } from "@/li
    modelo de cursos usa, e nunca ao mesmo tempo). Aqui fica a lista única de
    quais chaves entram nesse JSON e quais são obrigatórias para ENVIAR, para
    a tela, o POST, o PUT e a geração lerem a mesma regra.
+
+   A transferência do militar para outra unidade (movimentação) usa o mesmo
+   caminho para a única coisa que ela tem a mais: a unidade de destino.
 
    Sem "fs" aqui de propósito: o formulário (cliente) também importa.
    ========================================================================= */
@@ -33,18 +36,27 @@ export const CAMPOS_ALIENANTE = [
 // do adquirente, mas sem coluna no requerimento (o termo e a folha pedem)
 export const CAMPOS_ADQUIRENTE_EXTRA = ["orgao", "rg", "cep"] as const;
 
+// movimentação: para onde o militar pede para ir
+export const CAMPOS_MOVIMENTACAO = ["destino"] as const;
+
 // chaves que vão para o JSON de p2Complementares, conforme o modelo
-export function camposArmaDoModelo(modelo: string): readonly string[] {
+export function camposJsonDoModelo(modelo: string): readonly string[] {
   if (ehModeloTransferencia(modelo)) {
     return [...CAMPOS_ARMA_TRANSFERENCIA, ...CAMPOS_ALIENANTE, ...CAMPOS_ADQUIRENTE_EXTRA];
   }
+  if (ehModeloMovimentacao(modelo)) return CAMPOS_MOVIMENTACAO;
   return ehModeloAquisicao(modelo) ? CAMPOS_PCE : [];
+}
+
+// true quando p2Complementares guarda o JSON (e não o texto do modelo de cursos)
+export function temCamposJson(modelo: string): boolean {
+  return camposJsonDoModelo(modelo).length > 0;
 }
 
 /* Monta o JSON a partir do que veio da tela (null se nada foi preenchido).
    `v` devolve o valor já aparado, ou null quando vazio. */
 export function jsonArma(modelo: string, v: (k: string) => string | null): string | null {
-  const campos = camposArmaDoModelo(modelo);
+  const campos = camposJsonDoModelo(modelo);
   if (!campos.some((k) => v(k))) return null;
   return JSON.stringify(Object.fromEntries(campos.map((k) => [k, v(k) || ""])));
 }
@@ -68,6 +80,8 @@ export function lerDadosArma(json: string | null | undefined): Record<string, st
 /* Obrigatórios para ENVIAR (chave -> rótulo que aparece na mensagem).
    Rascunho não valida: serve justamente para adiantar o que já dá. */
 export function obrigatoriosDoModelo(modelo: string): Record<string, string> {
+  // sem o destino, o pedido sai com a linha em branco: só vale para rascunho
+  if (ehModeloMovimentacao(modelo)) return { destino: "Unidade de destino" };
   if (ehModeloTransferencia(modelo)) {
     return {
       nomeCompleto: "Nome completo", idPmmaTxt: "Identidade (ID PMMA)", cpf: "CPF",

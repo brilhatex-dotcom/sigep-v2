@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Save, Send } from "lucide-react";
 import {
   usaQuadrinhoOutros, ehModeloAquisicao, ehModeloTransferencia, registroDeOrigem,
+  ehModeloMovimentacao, infoMovimentacao,
 } from "@/lib/requerimentos";
 import { obrigatoriosDoModelo } from "@/lib/requerimentoArma";
 import {
@@ -104,6 +105,8 @@ export default function RequerimentoForm({
   const ehAquisicao = ehModeloAquisicao(modelo);
   // transferencia: tem alienante, arma ja registrada e termo de doacao
   const ehTransferencia = ehModeloTransferencia(modelo);
+  // transferencia DO MILITAR para outra unidade: pede o destino
+  const ehMovimentacao = ehModeloMovimentacao(modelo);
   // "OUTROS" puro ou modalidade que cai no quadrinho OUTROS (arma, colete...)
   const ehOutros = !ehAquisicao && usaQuadrinhoOutros(modalidade);
   const campos: Campo[] = ehTransferencia
@@ -121,6 +124,15 @@ export default function RequerimentoForm({
     setF((o) => ({ ...o, ...novos }));
   }
 
+  /* O texto do pedido acompanha o destino enquanto ninguem mexeu nele; se o
+     requerente reescreveu o texto a mao, o dele fica. */
+  function setDestino(v: string) {
+    setF((o) => {
+      const acompanha = !(o.infoAdicional ?? "").trim() || o.infoAdicional === infoMovimentacao(o.destino ?? "");
+      return { ...o, destino: v, ...(acompanha ? { infoAdicional: infoMovimentacao(v) } : {}) };
+    });
+  }
+
   // Campos obrigatorios so para ENVIAR (rascunho pode ficar incompleto).
   // Cursos: CPF, e-mail (ja existem na ficha) + os 4 dados da pagina 2 que
   // so o requerente/comandante sabem na hora (o item 6 do documento, a data
@@ -128,8 +140,8 @@ export default function RequerimentoForm({
   function faltando(): string[] {
     // Aquisicao de arma: a folha so anda com o adquirente identificado e o
     // produto (ou a arma transferida e o alienante) descrito — sem isso o
-    // pedido volta. A lista e a mesma que a API confere.
-    if (ehAquisicao) {
+    // pedido volta. Movimentacao: o destino. A lista e a mesma que a API confere.
+    if (ehAquisicao || ehMovimentacao) {
       return Object.entries(obrigatorios)
         .filter(([k]) => !(f[k] ?? "").trim())
         .map(([, rotulo]) => rotulo);
@@ -213,6 +225,22 @@ export default function RequerimentoForm({
         </GradeCampos>
       </section>
 
+      {/* movimentacao: a unidade para onde o militar pede para ir */}
+      {ehMovimentacao && (
+        <section className="ui-card p-6">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+            <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Unidade de destino *
+          </h2>
+          <p className="mb-3 text-[12px] text-[#94A3B8]">
+            A unidade para onde você pede a transferência, com a cidade. Ela entra sozinha no texto do
+            pedido, em “Informações adicionais”.
+          </p>
+          <input type="text" value={f.destino ?? ""} onChange={(e) => setDestino(e.target.value)}
+            placeholder="Ex: 11º BPM (TIMON-MA)"
+            className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm uppercase text-white outline-none placeholder:normal-case focus:border-[#D4AF37]/50" />
+        </section>
+      )}
+
       {/* transferencia, quadro 2: quem passa a arma (o doador do termo) */}
       {ehTransferencia && (
         <section className="ui-card p-6">
@@ -292,6 +320,11 @@ export default function RequerimentoForm({
             <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
               <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Informações adicionais
             </h2>
+            {ehMovimentacao && (
+              <p className="mb-3 text-[12px] text-[#94A3B8]">
+                Já sai pronto, no texto do requerimento real, com a unidade de destino. É só conferir.
+              </p>
+            )}
             <textarea rows={4} value={f.infoAdicional ?? ""} onChange={(e) => set("infoAdicional", e.target.value)}
               placeholder="Descreva o que solicita..."
               className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
