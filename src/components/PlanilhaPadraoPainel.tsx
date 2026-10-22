@@ -47,7 +47,7 @@ type ResumoImportacao = {
 
 // Larguras em px para a tela (o XLSX usa as larguras do modelo).
 const LARGURA: Record<string, number> = {
-  grad: 56, num: 64, nome: 200, mat: 80, id: 80, instrucao: 150, incl: 90, qpmp: 60, comport: 110,
+  grad: 64, num: 64, nome: 200, mat: 80, id: 80, instrucao: 150, incl: 90, qpmp: 60, comport: 110,
   sitJuridica: 150, certidoes: 220, sitAdm: 170, cursos: 170, promCabo: 170, prom3: 170, prom2: 170,
   prom1: 170, cefc: 90, cefs: 90, cap: 90, eap: 70, elogios: 80, medalhas: 150, conceito: 90,
 };
