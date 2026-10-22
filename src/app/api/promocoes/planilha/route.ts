@@ -72,10 +72,13 @@ export async function GET() {
   }
 }
 
+// "3º SGT" e "3SGT" são a mesma graduação
+const siglaSemSinal = (g: string) => g.replace(/[º°\s]/g, "").toUpperCase();
+
 /* POST { chave, valor, grads? } — preenche a coluna de quem ainda está em
    BRANCO nela. Nunca passa por cima do que já tem valor, seja calculado pelo
    sistema, seja escrito pelo P/1: é o "MB para todo mundo que falta", não um
-   apagador. `grads` (siglas: CB, 3SGT...) restringe a algumas graduações. */
+   apagador. `grads` (siglas: CB, 3º SGT...) restringe a algumas graduações. */
 export async function POST(req: Request) {
   const quem = await autorizado();
   if (!quem) return NextResponse.json({ error: "Apenas o P/1." }, { status: 403 });
@@ -87,7 +90,7 @@ export async function POST(req: Request) {
     const b = await req.json();
     const chave = String(b?.chave || "").trim();
     const valor = String(b?.valor ?? "").trim();
-    const grads: string[] = Array.isArray(b?.grads) ? b.grads.map(String) : [];
+    const grads: string[] = Array.isArray(b?.grads) ? b.grads.map((g: unknown) => siglaSemSinal(String(g))) : [];
     if (!colunaEditavel(chave)) {
       return NextResponse.json({ error: "Esta coluna vem da ficha do militar — corrija lá." }, { status: 400 });
     }
@@ -98,7 +101,7 @@ export async function POST(req: Request) {
 
     const linhas = await carregarPlanilha(periodo.id);
     const alvo = linhas
-      .filter((l) => !grads.length || grads.includes(l.celulas.grad.valor))
+      .filter((l) => !grads.length || grads.includes(siglaSemSinal(l.celulas.grad.valor)))
       .filter((l) => !l.celulas[chave]?.valor)
       .map((l) => l.efetivoId);
     let n = 0;

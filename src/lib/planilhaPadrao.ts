@@ -82,8 +82,9 @@ export const COLUNAS: Coluna[] = [
 
 /* ---------------------------------------------------------------- escopo */
 
-// ordem de classificarPatente: 9 = 1º Sgt ... 13 = Soldado
-const SIGLA: Record<number, string> = { 9: "1SGT", 10: "2SGT", 11: "3SGT", 12: "CB", 13: "SD" };
+// ordem de classificarPatente: 9 = 1º Sgt ... 13 = Soldado. Os sargentos saem
+// com o "º" (pedido do P/1), na tela e no .xlsx: "1º SGT", não "1SGT".
+const SIGLA: Record<number, string> = { 9: "1º SGT", 10: "2º SGT", 11: "3º SGT", 12: "CB", 13: "SD" };
 
 /* Só praça de Soldado a 1º Sargento entra (art. 3º). Subtenente e oficiais
    ficam de fora — têm outro rito. */
@@ -429,7 +430,9 @@ export function montarLinha(e: EntradaLinha): LinhaPlanilha {
   }
   // Ficha Conceito é obrigatória a partir de Cabo (art. 3º, § 1º)
   if (classificarPatente(f.postoGrad).ordem <= 12 && !v("conceito")) pendencias.push("ficha conceito");
-  if (!h) pendencias.push("sem histórico cadastrado");
+  /* Não ter histórico cadastrado NÃO é pendência (decisão do P/1): o que o
+     histórico daria e estiver faltando já aparece pelo nome — comportamento,
+     promoções... —, e quem tem tudo preenchido sai "pronto". */
 
   return { efetivoId: f.id, celulas, pendencias };
 }
