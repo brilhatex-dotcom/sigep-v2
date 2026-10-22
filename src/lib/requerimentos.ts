@@ -13,7 +13,7 @@
 
 export type Modelo =
   | "comum" | "cursos" | "aquisicao_restrito" | "aquisicao_permitido"
-  | "transferencia_sigma" | "transferencia_sinarm";
+  | "transferencia_sigma" | "transferencia_sinarm" | "movimentacao";
 
 /* Aquisicao de arma de fogo: nao usa a folha de requerimento da PMMA — sao os
    formularios de PCE ("REQUERIMENTO/AUTORIZACAO PARA AQUISICAO DE PCE"), com
@@ -37,6 +37,49 @@ export const MODALIDADE_AQUISICAO_RESTRITO = "AQUISIÇÃO DE ARMA DE FOGO DE USO
 export const MODALIDADE_AQUISICAO_PERMITIDO = "AQUISIÇÃO DE ARMA DE FOGO DE USO PERMITIDO";
 export const MODALIDADE_TRANSFERENCIA_SIGMA = "AQUISIÇÃO DE ARMA DE FOGO DE USO RESTRITO (VIA TRANSFERÊNCIA SIGMA P/ SIGMA)";
 export const MODALIDADE_TRANSFERENCIA_SINARM = "TRANSFERÊNCIA DE ARMA DE FOGO (SINARM PARA SIGMA)";
+
+/* Transferencia DO MILITAR para outra unidade, por interesse proprio (nao
+   confundir com as transferencias de ARMA acima). E a folha de requerimento
+   comum da PMMA, marcada em "OUTROS (TRANSFERÊNCIA POR INTERESSE PRÓPRIO)",
+   mas com um rodape proprio — as informacoes do Cmt e o parecer do Cmt do
+   18º BPM —, por isso tem modelo e template seus. Copiado do requerimento
+   real protocolado no 18º BPM. */
+export const MODALIDADE_MOVIMENTACAO = "TRANSFERÊNCIA PARA OUTRA UNIDADE (INTERESSE PRÓPRIO)";
+
+export function ehModeloMovimentacao(modelo: string): boolean {
+  return modelo === "movimentacao";
+}
+
+/* "O 11º BPM", mas "A 3ª CIPM": o ordinal ja diz o genero; sem ordinal, vale
+   a primeira palavra. */
+const UNIDADES_FEMININAS = /^(CIA|CIPM|COMPANHIA|DIRETORIA|ACADEMIA|CASA|SE[ÇC][ÃA]O|SUBSE[ÇC][ÃA]O|CORREGEDORIA|AJUD[ÂA]NCIA|POLICL[ÍI]NICA|ESCOLA|BANDA|ASSESSORIA|COORDENADORIA|SECRETARIA|SUPERINTEND[ÊE]NCIA|UNIDADE)\b/;
+
+function artigoDaUnidade(destino: string): "O" | "A" {
+  const ordinal = destino.match(/^\d+\s*([ºª°])/);
+  if (ordinal) return ordinal[1] === "ª" ? "A" : "O";
+  return UNIDADES_FEMININAS.test(destino) ? "A" : "O";
+}
+
+// "para o 11º bpm (timon-ma)." -> "11º BPM (TIMON-MA)": o papel e em caixa alta
+export function limparDestino(destino: string): string {
+  return destino
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^PARA\s+/, "")
+    .replace(/^(O|A|AO|À)\s+(?=\S)/, "")
+    .replace(/[.\s]+$/, "");
+}
+
+/* O texto do pedido, igual ao do requerimento real: "SOLICITO DE VOSSA
+   SENHORIA, TRANSFERÊNCIA POR INTERESSE PRÓPRIO DO 18º BPM (PRESIDENTE
+   DUTRA-MA), PARA O 11º BPM (TIMON-MA)." Sem destino ainda, sai uma linha
+   para completar a mao. */
+export function infoMovimentacao(destino: string): string {
+  const d = limparDestino(destino);
+  return "SOLICITO DE VOSSA SENHORIA, TRANSFERÊNCIA POR INTERESSE PRÓPRIO DO 18º BPM (PRESIDENTE DUTRA-MA), " +
+    `PARA ${d ? `${artigoDaUnidade(d)} ${d}` : "O ____________________"}.`;
+}
 
 // true nas duas transferencias (alienante, arma ja registrada e termo de doacao)
 export function ehModeloTransferencia(modelo: string): boolean {
@@ -91,6 +134,9 @@ export const MODALIDADES_COMUM: string[] = [
   "OUTROS",
 ];
 
+// movimentacao do militar (folha comum, rodape proprio — ver MODALIDADE_MOVIMENTACAO)
+export const MODALIDADES_MOVIMENTACAO: string[] = [MODALIDADE_MOVIMENTACAO];
+
 // modalidades do MODELO CURSOS (CAS/CFS/CFC e correlatos)
 export const MODALIDADES_CURSOS: string[] = [
   "CAS",
@@ -124,6 +170,7 @@ export function modeloDaModalidade(modalidade: string): Modelo {
   if (m === MODALIDADE_AQUISICAO_PERMITIDO) return "aquisicao_permitido";
   if (m === MODALIDADE_TRANSFERENCIA_SIGMA) return "transferencia_sigma";
   if (m === MODALIDADE_TRANSFERENCIA_SINARM) return "transferencia_sinarm";
+  if (m === MODALIDADE_MOVIMENTACAO) return "movimentacao";
   return FORCAM_CURSOS.has(m) ? "cursos" : "comum";
 }
 
@@ -141,6 +188,7 @@ export const ESPECIFICACAO_OUTROS: Record<string, string> = {
   "CAUTELA DE ARMA DE FOGO (ACAF)": "CAUTELA DE ARMA DE FOGO, MEDIANTE ACAF",
   "CAUTELA DE COLETE BALÍSTICO": "CAUTELA DE COLETE BALÍSTICO",
   "AUTORIZAÇÃO DE PERMANÊNCIA DE ARMAMENTO": "AUTORIZAÇÃO DE PERMANÊNCIA DE ARMAMENTO NAS FÉRIAS",
+  [MODALIDADE_MOVIMENTACAO]: "TRANSFERÊNCIA POR INTERESSE PRÓPRIO",
 };
 
 // ==========================================================
@@ -157,6 +205,9 @@ export const INFO_PADRAO: Record<string, string> = {
 
   "AUTORIZAÇÃO DE PERMANÊNCIA DE ARMAMENTO":
     "SOLICITO DE VOSSA SENHORIA AUTORIZAÇÃO PARA PERMANECER COM O ARMAMENTO CAUTELADO DURANTE MINHAS FÉRIAS, CONFORME DOCUMENTO EM ANEXO.",
+
+  // o destino entra quando o requerente diz para onde vai (infoMovimentacao)
+  [MODALIDADE_MOVIMENTACAO]: infoMovimentacao(""),
 };
 
 // ==========================================================
@@ -220,6 +271,10 @@ export const AMPARO_PADRAO: Record<string, string> = {
   "AUTORIZAÇÃO DE PERMANÊNCIA DE ARMAMENTO":
     "DE ACORDO COM O MANUAL DE ADMINISTRAÇÃO E LOGÍSTICA DA PMMA, NO QUE SE REFERE AO ART. 24 DA PORTARIA Nº 002/2006 – GCG: “NOS CASOS DE AFASTAMENTO SUPERIORES A 08 (OITO) DIAS, O DETENTOR DEVERÁ, ANTES DO INÍCIO DO AFASTAMENTO, RESTITUIR A ARMA À RESERVA DE ARMAMENTO DA UPM, PODENDO, EXCEPCIONALMENTE, PERMANECER COM ELA, A CRITÉRIO DO CPA-I/2, APÓS ANÁLISE DE PEDIDO POR ESCRITO, DEVIDAMENTE FUNDAMENTADO”.",
 
+  // ---- Movimentação (Instrução Provisória nº 001/95) ----
+  [MODALIDADE_MOVIMENTACAO]:
+    "DE ACORDO COM A LETRA “b”, ITEM II, § 1º, ART. IV, LETRA “i”, DO ART. 19, DA INSTRUÇÃO PROVISÓRIA Nº 001/95, QUE REGULAMENTA A MOVIMENTAÇÃO DE OFICIAIS E PRAÇAS DA PMMA, APROVADA PELA PORTARIA Nº 002/95 - DP/4, DATADA DE 02/01/1995, PUBLICADA NO ADIANTAMENTO AO BG Nº 228 DE 16 DE DEZEMBRO DE 1994.",
+
   // ---- Direito de petição / certidão ----
   "CERTIDÃO PARA FINS DE DIREITO":
     "ART. 5º, INCISO XXXIV, ALÍNEA \u201CB\u201D, DA CONSTITUIÇÃO DA REPÚBLICA FEDERATIVA DO BRASIL DE 1988, QUE ASSEGURA A OBTENÇÃO DE CERTIDÕES EM REPARTIÇÕES PÚBLICAS, PARA DEFESA DE DIREITOS E ESCLARECIMENTO DE SITUAÇÕES DE INTERESSE PESSOAL.",
@@ -243,12 +298,8 @@ export const AMPARO_PADRAO: Record<string, string> = {
 
   // OUTROS: a fundamentação varia conforme o pedido específico.
   // Modelos de referência (extraídos de requerimentos reais):
-  //   • Transferência por interesse próprio:
-  //     "DE ACORDO COM A LETRA \u201CB\u201D, ITEM II, § 1º, ART. IV, LETRA
-  //      \u201CI\u201D, DO ART. 19, DA INSTRUÇÃO PROVISÓRIA Nº 001/95, QUE
-  //      REGULAMENTA A MOVIMENTAÇÃO DE OFICIAIS E PRAÇAS DA PMMA, APROVADA
-  //      PELA PORTARIA Nº 002/95 - DP/4, DATADA DE 02/01/1995, PUBLICADA NO
-  //      ADIANTAMENTO AO BG Nº 228 DE 16 DE DEZEMBRO DE 1994."
+  //   • Transferência por interesse próprio: virou modalidade própria
+  //     (MODALIDADE_MOVIMENTACAO, acima).
   //   • Reforma (proporcional):
   //     "ITEM VI DO ART. 120 DA LEI Nº 6.513, DE 30 DE NOVEMBRO DE 1995,
   //      QUE DISPÕE SOBRE O ESTATUTO DOS POLICIAIS MILITARES DA PMMA."
@@ -293,7 +344,8 @@ export function ehModalidadeConhecida(modalidade: string): boolean {
   return (
     TODAS_COM_QUADRINHO_PROPRIO.has(m) ||
     MODALIDADES_CURSOS.includes(m) ||
-    MODALIDADES_MATERIAL.includes(m)
+    MODALIDADES_MATERIAL.includes(m) ||
+    MODALIDADES_MOVIMENTACAO.includes(m)
   );
 }
 

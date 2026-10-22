@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { modeloDaModalidade, ehModeloAquisicao } from "@/lib/requerimentos";
-import { jsonArma, obrigatoriosDoModelo } from "@/lib/requerimentoArma";
+import { modeloDaModalidade } from "@/lib/requerimentos";
+import { jsonArma, obrigatoriosDoModelo, temCamposJson } from "@/lib/requerimentoArma";
 import { registrar } from "@/lib/auditoria";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +40,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `Preencha antes de enviar: ${faltando.join(", ")}.` }, { status: 400 });
     }
   }
-  if (ehModeloAquisicao(modelo) && acao === "enviado") {
+  // aquisicao de arma (o adquirente e a arma) e movimentacao (o destino)
+  if (acao === "enviado") {
     const faltando = Object.entries(obrigatoriosDoModelo(modelo))
       .filter(([k]) => !v(k))
       .map(([, rotulo]) => rotulo);
@@ -61,8 +62,9 @@ export async function POST(req: Request) {
   /* Aquisicao de arma: produto/marca/modelo/calibre/quantidade (e, na
      transferencia, a arma registrada e o alienante) tambem nao tem coluna
      propria — mesma solucao, viajam como JSON em p2Complementares (que so o
-     modelo de cursos usa, nunca os dois juntos). Ver lib/requerimentoArma. */
-  const p2Complementares = ehModeloAquisicao(modelo) ? jsonArma(modelo, v) : v("p2Complementares");
+     modelo de cursos usa, nunca os dois juntos). O destino da movimentacao
+     tambem. Ver lib/requerimentoArma. */
+  const p2Complementares = temCamposJson(modelo) ? jsonArma(modelo, v) : v("p2Complementares");
 
   try {
     const criado = await prisma.requerimento.create({

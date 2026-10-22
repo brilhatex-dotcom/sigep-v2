@@ -10,6 +10,7 @@ import {
   MODALIDADES_COMUM,
   MODALIDADES_CURSOS,
   MODALIDADES_MATERIAL,
+  MODALIDADE_MOVIMENTACAO,
   modeloDaModalidade,
 } from "@/lib/requerimentos";
 import { avisar, confirmar } from "@/components/Avisos";
@@ -508,6 +509,25 @@ export default function RequerimentosClient({
                   {m}
                 </button>
               ))}
+            </div>
+
+            {/* Transferencia do militar para outra unidade: a folha comum, mas
+                com o rodape do Cmt do modelo real. Passa pelo novo(), entao
+                tambem sai em lote. */}
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
+              Movimentação
+            </p>
+            <div className="mb-5">
+              <button
+                onClick={() => novo(MODALIDADE_MOVIMENTACAO)}
+                className="block w-full rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-2.5 text-left text-sm text-[#E8EEF6] transition hover:border-[#D4AF37]/60 hover:bg-[#D4AF37]/15"
+              >
+                TRANSFERÊNCIA PARA OUTRA UNIDADE
+                <span className="mt-0.5 block text-[11px] text-[#94A3B8]">
+                  Por interesse próprio, do 18º BPM para outra unidade — Instrução Provisória nº 001/95.
+                  Basta dizer a unidade de destino.
+                </span>
+              </button>
             </div>
 
             {/* Documento proprio (coletivo, folha montada na tela), entao leva

@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { modeloDaModalidade, ehModeloAquisicao, ehModeloTransferencia } from "@/lib/requerimentos";
-import { camposArmaDoModelo, jsonArma, obrigatoriosDoModelo } from "@/lib/requerimentoArma";
+import {
+  modeloDaModalidade, ehModeloMovimentacao, ehModeloTransferencia, infoMovimentacao,
+} from "@/lib/requerimentos";
+import { camposJsonDoModelo, jsonArma, obrigatoriosDoModelo, temCamposJson } from "@/lib/requerimentoArma";
 import { dadosPessoais } from "@/lib/requerimentoDados";
 import { registrar } from "@/lib/auditoria";
 
@@ -28,6 +30,10 @@ export const dynamic = "force-dynamic";
    — a linha "igual para todos" da tela é só um atalho para preencher a tabela.
    Na TRANSFERÊNCIA, além da arma registrada, o ALIENANTE também é de cada um;
    o RG e o CEP do adquirente (o termo de doação pede) saem da ficha dele.
+
+   Na TRANSFERÊNCIA PARA OUTRA UNIDADE (movimentação), o que é de cada um é o
+   DESTINO — e com ele o texto do pedido ("... PARA O 11º BPM (TIMON-MA)."),
+   montado aqui para cada militar.
 
    Só o admin. E, ao contrário de /api/requerimentos, aqui NÃO se exige que o
    admin tenha ficha de efetivo: o requerimento é dos militares da lista, não
@@ -63,8 +69,9 @@ export async function POST(req: Request) {
   const modalidade = String(body.modalidade || "").trim();
   if (!modalidade) return NextResponse.json({ error: "Modalidade obrigatoria" }, { status: 400 });
   const modelo = modeloDaModalidade(modalidade);
-  // arma (e, na transferência, o alienante): o que vai no JSON de cada um
-  const camposArma = camposArmaDoModelo(modelo);
+  // arma (e, na transferência, o alienante) ou o destino da movimentação:
+  // o que vai no JSON de cada um
+  const camposJson = camposJsonDoModelo(modelo);
 
   const idsPmma: string[] = Array.isArray(body?.idsPmma)
     ? Array.from(new Set(body.idsPmma.map((x: any) => String(x || "").trim()).filter(Boolean)))
@@ -93,7 +100,7 @@ export async function POST(req: Request) {
       efetivoId: string;
       pessoais: Record<string, string>;
       p2: Record<string, string | null>;
-      arma: Record<string, string | null>;
+      extras: Record<string, string | null>;
     };
     const preparados: Preparado[] = [];
     const semFicha: string[] = [];
@@ -107,14 +114,14 @@ export async function POST(req: Request) {
       const doMilitar = porMilitar[efetivoId] || {};
       const p2: Record<string, string | null> = {};
       for (const k of CAMPOS_PAGINA2) p2[k] = limpo(doMilitar[k] ?? d[k]);
-      // arma de cada um; sem valor próprio, cai no "igual para todos"
-      const arma: Record<string, string | null> = {};
-      for (const k of camposArma) arma[k] = limpo(doMilitar[k] ?? d[k]);
+      // arma (ou destino) de cada um; sem valor próprio, cai no "igual para todos"
+      const extras: Record<string, string | null> = {};
+      for (const k of camposJson) extras[k] = limpo(doMilitar[k] ?? d[k]);
       if (ehModeloTransferencia(modelo)) {
         // do adquirente, mas sem coluna no requerimento: vem da ficha dele
-        arma.rg = limpo(pessoais.rg);
-        arma.cep = limpo(pessoais.cep);
-        arma.orgao = "PMMA";
+        extras.rg = limpo(pessoais.rg);
+        extras.cep = limpo(pessoais.cep);
+        extras.orgao = "PMMA";
       }
 
       if (querEnviar && modelo === "cursos") {
@@ -129,10 +136,11 @@ export async function POST(req: Request) {
       }
 
       // mesma lista de obrigatórios do POST individual: o que é da arma/
-      // alienante vem da tela; o resto (nome, CPF, endereço...) da ficha
-      if (querEnviar && ehModeloAquisicao(modelo)) {
+      // alienante (ou o destino) vem da tela; o resto (nome, CPF, endereço...)
+      // da ficha
+      if (querEnviar) {
         const falta = Object.entries(obrigatoriosDoModelo(modelo))
-          .filter(([k]) => !(k in arma ? arma[k] : limpo(pessoais[k])))
+          .filter(([k]) => !(k in extras ? extras[k] : limpo(pessoais[k])))
           .map(([, rotulo]) => rotulo);
         if (falta.length) {
           const quem = [pessoais.postoGrad, pessoais.nomeCompleto].filter(Boolean).join(" ").trim() || efetivoId;
@@ -140,7 +148,7 @@ export async function POST(req: Request) {
         }
       }
 
-      preparados.push({ efetivoId, pessoais, p2, arma });
+      preparados.push({ efetivoId, pessoais, p2, extras });
     }
 
     if (!preparados.length) {
@@ -165,7 +173,7 @@ export async function POST(req: Request) {
     // ---- 2) cria ----
     const status = querEnviar ? "enviado" : "rascunho";
 
-    for (const { efetivoId, pessoais, p2, arma } of preparados) {
+    for (const { efetivoId, pessoais, p2, extras } of preparados) {
       const p = (k: string) => limpo(pessoais[k]);
 
       // O banco não tem colunas próprias para "Nº do BG" e "Data do BG" — como
@@ -177,9 +185,9 @@ export async function POST(req: Request) {
 
       // Aquisição de arma: o produto controlado (e, na transferência, a arma
       // registrada e o alienante) ocupa a coluna p2Complementares (JSON),
-      // mesma convenção do POST individual.
-      const complementares = ehModeloAquisicao(modelo)
-        ? jsonArma(modelo, (k) => arma[k] ?? null)
+      // mesma convenção do POST individual. Idem o destino da movimentação.
+      const complementares = temCamposJson(modelo)
+        ? jsonArma(modelo, (k) => extras[k] ?? null)
         : p2Complementares;
 
       await prisma.requerimento.create({
@@ -208,7 +216,8 @@ export async function POST(req: Request) {
           cpf: p("cpf"),
           email: p("email"),
           amparoLegal,
-          infoAdicional,
+          // movimentação: o pedido leva o destino de cada um
+          infoAdicional: ehModeloMovimentacao(modelo) ? infoMovimentacao(extras.destino || "") : infoAdicional,
           p2Conceito: p2.p2Conceito,
           p2SituacaoJur,
           p2UltimaPromocao: p2.p2UltimaPromocao,

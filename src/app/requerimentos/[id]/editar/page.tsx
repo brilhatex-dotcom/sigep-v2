@@ -5,8 +5,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
 import RequerimentoForm from "@/components/RequerimentoForm";
-import { ehModeloAquisicao } from "@/lib/requerimentos";
-import { lerDadosArma } from "@/lib/requerimentoArma";
+import { lerDadosArma, temCamposJson } from "@/lib/requerimentoArma";
 import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -48,8 +47,8 @@ export default async function EditarRequerimentoPage({
   const bg = lerBg(r.p2SituacaoJur);
   // Aquisicao de arma: o produto (e, na transferencia, a arma registrada e o
   // alienante) fica como JSON dentro de p2Complementares — desfazemos aqui
-  // para o formulario mostrar campo a campo.
-  const arma = ehModeloAquisicao(r.modelo) ? lerDadosArma(r.p2Complementares) : null;
+  // para o formulario mostrar campo a campo. Idem o destino da movimentacao.
+  const arma = temCamposJson(r.modelo) ? lerDadosArma(r.p2Complementares) : null;
 
   const inicial: Record<string, string> = {
     nomeCompleto: r.nomeCompleto ?? "",

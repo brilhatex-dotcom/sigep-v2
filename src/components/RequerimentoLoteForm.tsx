@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { Save, Send, Users, AlertTriangle, ChevronDown } from "lucide-react";
 import {
   usaQuadrinhoOutros, ehModeloAquisicao, ehModeloTransferencia, registroDeOrigem,
+  ehModeloMovimentacao, infoMovimentacao,
 } from "@/lib/requerimentos";
 import {
-  CAMPOS_ARMA_TRANSFERENCIA, CAMPOS_ALIENANTE, obrigatoriosDoModelo, padraoTransferencia,
+  CAMPOS_ARMA_TRANSFERENCIA, CAMPOS_ALIENANTE, CAMPOS_MOVIMENTACAO, obrigatoriosDoModelo, padraoTransferencia,
 } from "@/lib/requerimentoArma";
 import { BuscaMilitarMultiplo, nomeBusca, type Militar } from "@/components/docs/Comum";
 import {
@@ -40,13 +41,15 @@ export default function RequerimentoLoteForm({
 }) {
   const router = useRouter();
   const ehTransferencia = ehModeloTransferencia(modelo);
+  const ehMovimentacao = ehModeloMovimentacao(modelo);
   /* O que muda de militar para militar (e por isso vai em `porMilitar`):
      na compra, a arma pedida; na transferência, a arma registrada E o
      alienante — cada um compra de quem quiser. O adquirente (RG, CEP,
-     endereço...) sai da ficha de cada um no servidor. */
+     endereço...) sai da ficha de cada um no servidor. Na transferência
+     para outra unidade, o destino. */
   const camposPorMilitar: readonly string[] = ehTransferencia
     ? [...CAMPOS_ARMA_TRANSFERENCIA, ...CAMPOS_ALIENANTE]
-    : CAMPOS_PCE.map((c) => c.key);
+    : ehMovimentacao ? CAMPOS_MOVIMENTACAO : CAMPOS_PCE.map((c) => c.key);
   const [militares, setMilitares] = useState<Militar[]>([]);
   const [f, setF] = useState<Record<string, string>>(() => ({
     amparoLegal: inicial.amparoLegal || "",
@@ -62,6 +65,7 @@ export default function RequerimentoLoteForm({
     modeloArma: "",
     calibre: "",
     quantidade: "",
+    destino: "",
     // transferência: todos os campos da arma e do alienante, já com o padrão
     ...(ehTransferencia
       ? {
@@ -216,16 +220,69 @@ export default function RequerimentoLoteForm({
               className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
           </section>
 
-          {/* informacoes adicionais */}
-          <section className="ui-card p-6">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
-              <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Informações adicionais
-            </h2>
-            <textarea rows={4} value={f.infoAdicional} onChange={(e) => set("infoAdicional", e.target.value)}
-              placeholder="Descreva o que solicita..."
-              className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
-          </section>
+          {/* informacoes adicionais (na movimentação, o texto é de cada um:
+              sai montado com o destino dele, logo abaixo) */}
+          {!ehMovimentacao && (
+            <section className="ui-card p-6">
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+                <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Informações adicionais
+              </h2>
+              <textarea rows={4} value={f.infoAdicional} onChange={(e) => set("infoAdicional", e.target.value)}
+                placeholder="Descreva o que solicita..."
+                className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+            </section>
+          )}
         </>
+      )}
+
+      {/* movimentação: a unidade de destino de cada um */}
+      {ehMovimentacao && (
+        <section className="ui-card p-6">
+          <h2 className="mb-1 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+            <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Unidade de destino
+          </h2>
+          <p className="mb-4 text-[12px] text-[#94A3B8]">
+            Para onde cada militar pede para ir, com a cidade. Se for a mesma unidade para todos, preencha
+            “igual para todos”; quem for para outra, ajuste na lista. O texto do pedido de cada um sai
+            montado com a unidade dele. Ao <b>enviar</b>, ninguém pode ficar sem unidade — se faltar,
+            nada é criado e o sistema diz de quem.
+          </p>
+
+          <div className="mb-4 rounded-lg border border-white/10 bg-[#0b1626] p-3">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
+              Igual para todos
+            </p>
+            <input type="text" value={f.destino} onChange={(e) => aplicarATodos("destino", e.target.value)}
+              placeholder="Ex: 11º BPM (TIMON-MA)"
+              className="w-full rounded-lg border border-white/10 bg-[#0F1B2D] px-3 py-2 text-sm uppercase text-white outline-none placeholder:normal-case focus:border-[#D4AF37]/50" />
+          </div>
+
+          {militares.length === 0 ? (
+            <p className="text-[12px] text-[#94A3B8]">
+              Escolha os militares acima para ajustar um a um.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {militares.map((m) => {
+                const destino = porMilitar[m.id]?.destino ?? "";
+                return (
+                  <div key={m.id} className="rounded-lg border border-white/10 bg-[#0b1626] p-3">
+                    <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+                      <span className="text-sm font-semibold text-white">{nomeBusca(m)}</span>
+                      <input type="text" value={destino}
+                        onChange={(e) => setLinha(m.id, "destino", e.target.value)}
+                        placeholder="Unidade de destino"
+                        className={`w-full rounded-lg border bg-[#0F1B2D] px-2 py-1.5 text-sm uppercase text-white outline-none placeholder:normal-case focus:border-[#D4AF37]/50 ${
+                          destino.trim() ? "border-white/10" : "border-amber-500/40"
+                        }`} />
+                    </div>
+                    <p className="mt-2 text-[11px] italic leading-snug text-[#94A3B8]">{infoMovimentacao(destino)}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
       )}
 
       {/* transferência: arma registrada e alienante de cada um */}
