@@ -49,7 +49,7 @@ const nextConfig = {
     /* Leitor de PDF da conferência automática das certidões: carregado do
        node_modules em tempo de execução, sem passar pelo webpack (o pdf.js
        que vem dentro dele não se dá bem empacotado). */
-    serverComponentsExternalPackages: ["unpdf"],
+    serverComponentsExternalPackages: ["unpdf", "tesseract.js"],
     /* Empacota os arquivos de /public junto das serverless functions que os
        leem com fs.readFileSync. Sem isto, em producao (Vercel) o arquivo nao
        esta no bundle da function: /public e servido pelo CDN, nao vai junto.
@@ -79,6 +79,10 @@ const nextConfig = {
       "/api/promocoes/certidao-p1/documento": ["./public/brasoes/**"],
       // modelo oficial da CPPPM (Portaria 168/2026) preenchido pelo sistema
       "/api/promocoes/planilha/xlsx": ["./public/templates/**"],
+      // conferência das certidões: leitura de imagem (OCR) das que chegam
+      // como foto/print — o Tesseract carrega o motor e o português do disco
+      "/api/promocoes/conferencia": ["./public/ocr/por.traineddata.gz", "./node_modules/tesseract.js/**", "./node_modules/tesseract.js-core/**"],
+      "/api/promocoes/status-p1": ["./public/ocr/por.traineddata.gz", "./node_modules/tesseract.js/**", "./node_modules/tesseract.js-core/**"],
     },
   },
 };
