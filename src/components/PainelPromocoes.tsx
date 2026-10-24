@@ -98,16 +98,22 @@ export default function PainelPromocoes({
     let falhas = 0;
     let ultima: LinhaParticipante | null = null;
     for (let i = 0; i < lista.length; i++) {
-      try {
-        const r = await fetch("/api/promocoes/conferencia", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ efetivoId: lista[i].efetivoId }),
-        });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok) falhas++;
-        else ultima = { ...lista[i], conferencia: { ...j.conferencia.resultado, conferidoEm: j.conferencia.conferidoEm }, conferenciaVelha: false };
-      } catch { falhas++; }
+      /* Certidão que chegou como foto/print é lida da imagem, que demora: o
+         servidor lê o que dá em cada chamada e guarda; aqui se chama de novo
+         até terminar (com limite, para não ficar preso num arquivo ruim). */
+      for (let tentativa = 0; tentativa < 4; tentativa++) {
+        try {
+          const r = await fetch("/api/promocoes/conferencia", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ efetivoId: lista[i].efetivoId }),
+          });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok) { falhas++; break; }
+          ultima = { ...lista[i], conferencia: { ...j.conferencia.resultado, conferidoEm: j.conferencia.conferidoEm }, conferenciaVelha: false };
+          if (!j.conferencia.resultado?.incompleto) break;
+        } catch { falhas++; break; }
+      }
       setConferindo({ feitos: i + 1, total: lista.length });
     }
     setConferindo(null);
@@ -885,7 +891,15 @@ function DetalheConferencia({
                   ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
                   : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />}
                 <div className="min-w-0 flex-1 text-sm">
-                  <p className="font-semibold text-white">{i.rotulo}</p>
+                  <p className="font-semibold text-white">
+                    {i.rotulo}
+                    {i.porImagem && (
+                      <span className="ml-2 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-normal text-[#cbd5e1]"
+                        title="O arquivo é foto, print ou escaneado: o texto foi lido da imagem (não é o PDF original do tribunal)">
+                        lida da imagem
+                      </span>
+                    )}
+                  </p>
                   {i.achou && (
                     <p className="text-xs text-[#94A3B8]">
                       {[i.emissao && `emitida em ${i.emissao}`, i.validade && `válida até ${i.validade}`].filter(Boolean).join(" · ") || "datas não lidas"}

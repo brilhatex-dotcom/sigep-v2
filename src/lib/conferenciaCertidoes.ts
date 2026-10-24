@@ -28,6 +28,8 @@ export type ArquivoLido = {
   ordens: number[];      // item(ns) para o qual o militar enviou o arquivo (a Unificada vale 4 a 8)
   paginas: string[];     // texto de cada página
   erroLeitura?: boolean; // não deu para baixar/abrir o arquivo
+  porImagem?: boolean;   // o texto saiu da leitura da imagem (OCR): foto, print ou escaneado
+  incompleto?: boolean;  // ficou página de imagem por ler (o tempo da chamada acabou)
 };
 
 export type MilitarConferido = { nome: string | null; cpf: string | null };
@@ -40,6 +42,7 @@ export type ItemConferido = {
   emissao?: string;      // dd/mm/aaaa
   validade?: string;     // dd/mm/aaaa (só o TJMA imprime)
   codigo?: string;       // código de validação, para conferir no site
+  porImagem?: boolean;   // lida da imagem (OCR) — não é o PDF original do tribunal
   alertas: string[];
 };
 
@@ -47,11 +50,12 @@ export type ResultadoConferencia = {
   status: "ok" | "atencao" | "sem_texto";
   itens: ItemConferido[];
   gerais: string[];
+  incompleto?: boolean;  // falta ler imagem: conferir de novo continua de onde parou
 };
 
 /* Sobe quando as regras mudam: a conferência guardada com regras velhas
    deixa de valer e o painel pede para conferir de novo. */
-export const VERSAO_REGRAS = 2;
+export const VERSAO_REGRAS = 3;
 
 export const ROTULO_ITEM: Record<number, string> = {
   1: "TJMA 1º grau", 2: "TJMA 2º grau", 3: "Justiça Militar Estadual",
@@ -101,10 +105,6 @@ function separarDocumentos(paginas: string[]): Documento[] {
    fim). null = não reconhecida. */
 export function identificar(texto: string): number[] | null {
   const n = umaLinha(normalizar(texto));
-  // a do CJF; "unificada" sozinha não basta (a do TRF4 se diz "unificada do
-  // 1º e 2º graus" e é só da 4ª Região)
-  const regioes = new Set(Array.from(n.matchAll(/FEDERAL DA (\d) ?[AO]? REGIAO/g)).map((m) => m[1]));
-  if (/CONSELHO DA JUSTICA FEDERAL/.test(n) || (/CERTIDAO UNIFICADA/.test(n) && regioes.size >= 3)) return ORDENS_UNIFICADA;
   if (/TRIBUNAL DE JUSTICA DO ESTADO DO MARANHAO/.test(n)) {
     // a do 2º grau cita "recursos oriundos da Justiça Militar" — por isso ESTADUAL
     if (/JUSTICA MILITAR ESTADUAL/.test(n)) return [3];
@@ -119,7 +119,14 @@ export function identificar(texto: string): number[] | null {
     if (r >= 1 && r <= 6) conta.set(r, (conta.get(r) || 0) + 1);
   }
   const [regiao] = Array.from(conta.entries()).sort((a, b) => b[1] - a[1])[0] || [];
-  return regiao ? [3 + regiao] : null;
+  /* A Unificada do CJF vem com uma certidão por região ("CONSELHO DA JUSTIÇA
+     FEDERAL / TRIBUNAL REGIONAL FEDERAL DA 1ª REGIÃO"...): cada página vale
+     pela sua região. Só a que não diz região nenhuma vale pelo conjunto.
+     ("unificada" sozinha não basta: a do TRF4 se diz "unificada do 1º e 2º
+     graus" e é só da 4ª Região.) */
+  if (regiao) return [3 + regiao];
+  if (/CONSELHO DA JUSTICA FEDERAL|CERTIDAO UNIFICADA/.test(n)) return ORDENS_UNIFICADA;
+  return null;
 }
 
 // o nome como a certidão escreveu (para a mensagem mostrar a diferença)
@@ -194,6 +201,9 @@ export function conferirCertidoes(
   for (const arq of arquivos) {
     const total = arq.paginas.join("").replace(/\s/g, "").length;
     const como = arq.ordens.length > 1 ? "a Certidão Unificada" : ROTULO_ITEM[arq.ordens[0]] || `item ${arq.ordens[0]}`;
+    if (arq.incompleto) {
+      gerais.push(`Ainda falta ler imagem do arquivo enviado como ${como} — confira de novo em instantes.`);
+    }
     if (arq.erroLeitura) {
       arq.ordens.forEach((o) => semTexto.add(o));
       gerais.push(`Não consegui abrir o arquivo enviado como ${como}: confira abrindo.`);
@@ -227,20 +237,20 @@ export function conferirCertidoes(
         alertas: [semTexto.has(ordem) ? "arquivo sem texto — conferir abrindo" : "não encontrada nos arquivos enviados"],
       };
     }
-    /* A Certidão Unificada e a do próprio TRF podem vir as duas (ex.: a
-       Unificada no lugar do TRF1 e as regionais nos seus lugares) — as duas
-       valem, não é repetição. Havendo a do próprio item, é ela que se confere. */
-    const especificas = lista.filter((l) => l.cobre.length === 1);
-    const { doc, arquivo, texto, cobre } = especificas[0] || lista[0];
+    /* A mesma certidão pode vir mais de uma vez (a Unificada no lugar do TRF1
+       e as regionais nos seus lugares) — não é erro, as duas valem. Confere-se
+       a que está no lugar do item; senão a da própria região; senão a que houver. */
+    const escolhida = lista.find((l) => l.arquivo.ordens.includes(ordem))
+      || lista.find((l) => l.cobre.length === 1) || lista[0];
+    const { doc, arquivo, texto } = escolhida;
     const n = umaLinha(normalizar(texto));
     const alertas: string[] = [];
     const federal = ordem >= 4;
 
-    if (especificas.length > 1 && new Set(especificas.map((l) => l.doc)).size > 1) {
-      alertas.push(`aparece ${especificas.length} vezes`);
-    }
-    // a Unificada pode ir em qualquer um dos lugares que ela cobre
-    const noLugar = cobre.length > 1 ? arquivo.ordens.some((o) => cobre.includes(o)) : arquivo.ordens.includes(ordem);
+    /* Federal em lugar de outra federal é só ordem trocada dentro da Justiça
+       Federal (a Unificada junta tudo): não atrapalha. Errado é a certidão cair
+       fora do seu grupo (uma do TRF no lugar do TJMA, ou o contrário). */
+    const noLugar = arquivo.ordens.includes(ordem) || (federal && arquivo.ordens.some((o) => o >= 4));
     if (!noLugar) {
       const como = arquivo.ordens.length > 1 ? "Certidão Unificada" : ROTULO_ITEM[arquivo.ordens[0]];
       alertas.push(`foi enviada no lugar de ${como}`);
@@ -281,7 +291,10 @@ export function conferirCertidoes(
     }
     if (dEmissao && dEmissao.getTime() > hoje.getTime() + 86400000) alertas.push(`emissão no futuro (${emissao})`);
 
-    return { ordem, rotulo, achou: true, pagina: doc.pagina, emissao, validade, codigo: codigoDa(texto), alertas };
+    return {
+      ordem, rotulo, achou: true, pagina: doc.pagina, emissao, validade, codigo: codigoDa(texto),
+      ...(arquivo.porImagem ? { porImagem: true } : {}), alertas,
+    };
   });
 
   // sem CPF na ficha, ao menos todas têm de ser do MESMO CPF
@@ -291,5 +304,8 @@ export function conferirCertidoes(
 
   const tudoSemTexto = arquivos.length > 0 && exigidas.every((o) => semTexto.has(o));
   const temAlerta = gerais.length > 0 || itens.some((i) => i.alertas.length);
-  return { status: tudoSemTexto ? "sem_texto" : temAlerta ? "atencao" : "ok", itens, gerais };
+  return {
+    status: tudoSemTexto ? "sem_texto" : temAlerta ? "atencao" : "ok", itens, gerais,
+    ...(arquivos.some((a) => a.incompleto) ? { incompleto: true } : {}),
+  };
 }

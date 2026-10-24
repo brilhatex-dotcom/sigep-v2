@@ -60,7 +60,7 @@ export async function POST(req: Request) {
          leitura passar de alguns segundos (PDF enorme, escaneado), o envio
          segue e o P/1 confere pelo botão do painel. */
       await Promise.race([
-        conferirMilitar(periodo.id, efetivoId).catch((e) => console.error("[status-p1] conferência", e)),
+        conferirMilitar(periodo.id, efetivoId, 5).catch((e) => console.error("[status-p1] conferência", e)),
         new Promise((ok) => setTimeout(ok, 8000)),
       ]);
       return NextResponse.json({ ok: true, status: novo });

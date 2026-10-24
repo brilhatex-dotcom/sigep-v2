@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { baixarDoR2 } from "@/lib/r2";
 import { certidoesExigidas } from "@/lib/certidoes";
 import { conferirCertidoes, VERSAO_REGRAS, type ArquivoLido, type ResultadoConferencia } from "@/lib/conferenciaCertidoes";
+import { lerPdfDeCertidao } from "@/lib/leituraPdf";
 
 /* =========================================================================
    A conferência automática guardada por militar e período.
@@ -48,15 +49,6 @@ export function assinaturaDe(certidoes: CertidaoDoBanco[]): string {
     .join("|");
 }
 
-/* O texto de cada página. O PDF que vem do site do tribunal tem texto; o
-   de foto/escaneado volta vazio (e a conferência manda abrir). */
-async function textoDasPaginas(pdf: Buffer): Promise<string[]> {
-  const { extractText, getDocumentProxy } = await import("unpdf");
-  const doc = await getDocumentProxy(new Uint8Array(pdf));
-  const { text } = await extractText(doc, { mergePages: false });
-  return Array.isArray(text) ? text : [String(text)];
-}
-
 export async function lerConferencias(periodoId: string): Promise<Map<string, ConferenciaGuardada>> {
   const mapa = new Map<string, ConferenciaGuardada>();
   try {
@@ -78,7 +70,10 @@ export async function lerConferencias(periodoId: string): Promise<Map<string, Co
 
 /* Baixa as certidões do militar, lê e confere. Devolve null se ele não
    tem certidão nenhuma no período. */
-export async function conferirMilitar(periodoId: string, efetivoId: string): Promise<ConferenciaGuardada | null> {
+/* `segundos`: quanto desta chamada pode ir para a leitura de imagem (OCR) —
+   o que não couber fica para a próxima (ver lib/leituraPdf.ts). */
+export async function conferirMilitar(periodoId: string, efetivoId: string, segundos = 35): Promise<ConferenciaGuardada | null> {
+  const prazo = Date.now() + segundos * 1000;
   const [participante, ficha] = await Promise.all([
     prisma.participantePromocao.findUnique({
       where: { periodoId_efetivoId: { periodoId, efetivoId } },
@@ -90,16 +85,22 @@ export async function conferirMilitar(periodoId: string, efetivoId: string): Pro
   if (!certidoes.length) return null;
 
   // a Certidão Unificada (itens 4 a 8) é UM arquivo: lido uma vez só
-  const porArquivo = new Map<string, number[]>();
-  for (const c of certidoes) porArquivo.set(c.r2Key, [...(porArquivo.get(c.r2Key) || []), c.ordem]);
+  const porArquivo = new Map<string, { ordens: number[]; versao: number }>();
+  for (const c of certidoes) {
+    const a = porArquivo.get(c.r2Key) || { ordens: [], versao: 0 };
+    porArquivo.set(c.r2Key, { ordens: [...a.ordens, c.ordem], versao: Math.max(a.versao, new Date(c.enviadaEm).getTime()) });
+  }
 
   const arquivos: ArquivoLido[] = [];
-  for (const [chave, ordens] of Array.from(porArquivo.entries())) {
-    let paginas: string[] = [];
-    let erroLeitura = false;
-    try { paginas = await textoDasPaginas(await baixarDoR2(chave)); }
-    catch (e) { erroLeitura = true; console.error("[conferencia] leitura", chave, e); }
-    arquivos.push({ ordens: ordens.sort((a, b) => a - b), paginas, erroLeitura });
+  for (const [chave, { ordens, versao }] of Array.from(porArquivo.entries())) {
+    const ordenadas = ordens.sort((a, b) => a - b);
+    try {
+      const l = await lerPdfDeCertidao(chave, String(versao), () => baixarDoR2(chave), prazo);
+      arquivos.push({ ordens: ordenadas, paginas: l.paginas, porImagem: l.porImagem, incompleto: l.incompleto });
+    } catch (e) {
+      console.error("[conferencia] leitura", chave, e);
+      arquivos.push({ ordens: ordenadas, paginas: [], erroLeitura: true });
+    }
   }
 
   const exigidas = certidoesExigidas(ficha?.postoGrad ?? null).map((c) => c.ordem);
