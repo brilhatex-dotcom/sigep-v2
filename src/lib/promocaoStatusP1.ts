@@ -5,12 +5,14 @@ import { prisma } from "@/lib/prisma";
    alterar o schema/tabelas em producao, seguindo o padrao do projeto).
 
    Config.chave = "promocao_status_p1"
-   Config.valor = JSON: { [`${periodoId}:${efetivoId}`]: { enviadoEm, recebidoEm } }
+   Config.valor = JSON: { [`${periodoId}:${efetivoId}`]: { enviadoEm, recebidoEm, reabertoEm } }
+   reabertoEm: quando o P/1 reabriu pela última vez — o policial vê o alerta
+   "há certidão para corrigir" até enviar de novo.
    ========================================================================= */
 
 export const CHAVE_STATUS_P1 = "promocao_status_p1";
 
-export type StatusP1 = { enviadoEm?: string | null; recebidoEm?: string | null };
+export type StatusP1 = { enviadoEm?: string | null; recebidoEm?: string | null; reabertoEm?: string | null };
 export type MapaStatusP1 = Record<string, StatusP1>;
 
 function chaveDe(periodoId: string, efetivoId: string): string {

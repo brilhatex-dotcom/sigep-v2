@@ -46,6 +46,10 @@ const nextConfig = {
        - dynamic: tela visitada (30 s)
        - static: tela pré-carregada pelo mouse em cima do menu (2 min) */
     staleTimes: { dynamic: 30, static: 120 },
+    /* Leitor de PDF da conferência automática das certidões: carregado do
+       node_modules em tempo de execução, sem passar pelo webpack (o pdf.js
+       que vem dentro dele não se dá bem empacotado). */
+    serverComponentsExternalPackages: ["unpdf"],
     /* Empacota os arquivos de /public junto das serverless functions que os
        leem com fs.readFileSync. Sem isto, em producao (Vercel) o arquivo nao
        esta no bundle da function: /public e servido pelo CDN, nao vai junto.

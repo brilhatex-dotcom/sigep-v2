@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { pendenciasAoEntrar } from "@/lib/notificacoes";
+import { marcarAvisoCertidoesVisto, pendenciasAoEntrar } from "@/lib/notificacoes";
 import { jaViuBoasVindas, marcarBoasVindas } from "@/lib/boasVindasDb";
 
 export const dynamic = "force-dynamic";
@@ -29,12 +29,18 @@ export async function GET() {
   return NextResponse.json({ ...r, boasVindas: !viu }, { headers: { "Cache-Control": "no-store" } });
 }
 
-/* POST /api/pendencias  { boasVindasVista: true } — o policial fechou (ou
-   terminou) a apresentação de boas-vindas: não mostra mais. */
+/* POST /api/pendencias
+     { boasVindasVista: true }  o policial fechou (ou terminou) a apresentação
+                                de boas-vindas: não mostra mais;
+     { certidoesVistas: true }  viu o "certidões recebidas pelo P/1". */
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
   const b = await req.json().catch(() => ({}));
-  if (b?.boasVindasVista === true) await marcarBoasVindas(String((session.user as any).login || ""));
+  const u = session.user as any;
+  if (b?.boasVindasVista === true) await marcarBoasVindas(String(u.login || ""));
+  if (b?.certidoesVistas === true) {
+    await marcarAvisoCertidoesVisto({ login: u.login, perfil: u.perfil, refEfetivo: u.refEfetivo }).catch(() => {});
+  }
   return NextResponse.json({ ok: true });
 }

@@ -12,6 +12,7 @@ import { periodoAtivo } from "@/lib/promocoes";
 import { totalCertidoes } from "@/lib/certidoes";
 import { lerMapaP1 } from "@/lib/promocaoStatusP1";
 import { situacaoNoLimite, type SituacaoNoLimite } from "@/lib/limiteQuantitativoDb";
+import { assinaturaDe, lerConferencias, type ConferenciaGuardada } from "@/lib/conferenciaCertidoesDb";
 
 export const dynamic = "force-dynamic";
 
@@ -112,6 +113,14 @@ export default async function PromocoesPage() {
   );
 }
 
+/* A conferência automática só vale para os arquivos que ela leu: se o
+   militar trocou alguma certidão depois, ela vira "conferir de novo". */
+function conferenciaDaLinha(c: ConferenciaGuardada | undefined, assinaturaAtual: string) {
+  if (!c) return { conferencia: null, conferenciaVelha: false };
+  if (c.assinatura !== assinaturaAtual) return { conferencia: null, conferenciaVelha: true };
+  return { conferencia: { ...c.resultado, conferidoEm: c.conferidoEm }, conferenciaVelha: false };
+}
+
 async function PainelConteudo({
   periodoId,
   nome,
@@ -122,11 +131,13 @@ async function PainelConteudo({
   dataAlvo: string | null;
 }) {
   // RAPIDEZ: participantes, situação no P/1 e lista de períodos vão juntos
-  const [participantes, mapaP1, todos] = await Promise.all([
+  const [participantes, mapaP1, todos, conferencias] = await Promise.all([
     prisma.participantePromocao.findMany({
       where: { periodoId },
       include: {
         _count: { select: { certidoes: true } },
+        // para saber se a conferência automática ainda vale para estes arquivos
+        certidoes: { select: { ordem: true, r2Key: true, enviadaEm: true } },
       },
     }),
     lerMapaP1(),
@@ -135,6 +146,7 @@ async function PainelConteudo({
       orderBy: [{ ativo: "desc" }, { criadoEm: "desc" }],
       include: { _count: { select: { participantes: true } } },
     }),
+    lerConferencias(periodoId),
   ]);
   const ids = participantes.map((p) => p.efetivoId);
   // quem mandou certidão sem estar no Limite Quantitativo: o painel acusa
@@ -172,6 +184,7 @@ async function PainelConteudo({
         enviadoP1Em: st?.enviadoEm ?? null,
         recebidoP1Em: st?.recebidoEm ?? null,
         limite: limite.get(p.efetivoId) ?? null,
+        ...conferenciaDaLinha(conferencias.get(p.efetivoId), assinaturaDe(p.certidoes)),
       };
     })
     /* Ordem: primeiro quem ENVIOU e aguarda a conferencia (e o trabalho do

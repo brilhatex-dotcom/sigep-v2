@@ -21,8 +21,10 @@ import {
   X,
   CalendarPlus,
   Trash2,
+  ScanSearch,
 } from "lucide-react";
 import { avisar, confirmar } from "@/components/Avisos";
+import type { ResultadoConferencia } from "@/lib/conferenciaCertidoes";
 
 export type LinhaParticipante = {
   efetivoId: string;
@@ -39,7 +41,16 @@ export type LinhaParticipante = {
   /* está no Limite Quantitativo da CPPPM? "fora" = praça de graduação com
      lista carregada que NÃO aparece nela (ver situacaoNoLimite) */
   limite?: "dentro" | "fora" | "sem_lista" | "nao_se_aplica" | null;
+  /* conferência automática das certidões (lib/conferenciaCertidoes.ts);
+     null = ainda não conferidas. `conferenciaVelha`: houve conferência, mas
+     o militar trocou certidão depois — tem de conferir de novo. */
+  conferencia?: (ResultadoConferencia & { conferidoEm: string }) | null;
+  conferenciaVelha?: boolean;
 };
+
+const quemE = (p: LinhaParticipante) => [p.postoGrad, p.nomeGuerra || p.nome].filter(Boolean).join(" ");
+const pontosDe = (c: ResultadoConferencia) =>
+  c.gerais.length + c.itens.reduce((n, i) => n + i.alertas.length, 0);
 
 export type PeriodoResumo = {
   id: string;
@@ -75,6 +86,36 @@ export default function PainelPromocoes({
   const [filtroStatus, setFiltroStatus] = useState("");
   const [carregando, setCarregando] = useState(false);
   const [confirmandoP1, setConfirmandoP1] = useState<string | null>(null);
+  // conferência automática: andamento do lote e o militar aberto no detalhe
+  const [conferindo, setConferindo] = useState<{ feitos: number; total: number } | null>(null);
+  const [detalhe, setDetalhe] = useState<LinhaParticipante | null>(null);
+
+  /* Um militar por chamada, para mostrar o andamento e não estourar o tempo
+     da função com a lista inteira. */
+  async function conferir(lista: LinhaParticipante[]) {
+    if (!lista.length || conferindo) return;
+    setConferindo({ feitos: 0, total: lista.length });
+    let falhas = 0;
+    let ultima: LinhaParticipante | null = null;
+    for (let i = 0; i < lista.length; i++) {
+      try {
+        const r = await fetch("/api/promocoes/conferencia", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ efetivoId: lista[i].efetivoId }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) falhas++;
+        else ultima = { ...lista[i], conferencia: { ...j.conferencia.resultado, conferidoEm: j.conferencia.conferidoEm }, conferenciaVelha: false };
+      } catch { falhas++; }
+      setConferindo({ feitos: i + 1, total: lista.length });
+    }
+    setConferindo(null);
+    // conferiu um só (pelo detalhe): o detalhe já mostra o resultado novo
+    if (lista.length === 1 && ultima) setDetalhe(ultima);
+    if (falhas) avisar(`${falhas} militar(es) não puderam ser conferidos agora. Tente de novo.`, "erro");
+    router.refresh();
+  }
 
   async function confirmarRecebimento(efetivoId: string) {
     setConfirmandoP1(efetivoId);
@@ -173,6 +214,7 @@ export default function PainelPromocoes({
       if (filtroStatus === "Não iniciou") { if (p.enviadas > 0) return false; }
       else if (p.enviadas < 1) return false;
       if (filtroStatus === "Fora do Limite") { if (p.limite !== "fora") return false; }
+      else if (filtroStatus === "Conferência: atenção") { if (!p.conferencia || p.conferencia.status === "ok") return false; }
       else if (filtroStatus && st !== filtroStatus) return false;
       if (!q) return true;
       const alvo = `${p.nome ?? ""} ${p.nomeGuerra ?? ""} ${p.matricula ?? ""} ${p.postoGrad ?? ""}`.toLowerCase();
@@ -186,6 +228,16 @@ export default function PainelPromocoes({
     () => participantes.filter((p) => p.limite === "fora" && p.enviadas > 0),
     [participantes],
   );
+
+  // conferência automática: quem tem as certidões completas e o que deu
+  const conf = useMemo(() => {
+    const completos = participantes.filter((p) => p.enviadas >= p.total && p.enviadas > 0);
+    return {
+      ok: completos.filter((p) => p.conferencia?.status === "ok").length,
+      atencao: completos.filter((p) => p.conferencia && p.conferencia.status !== "ok").length,
+      aConferir: completos.filter((p) => !p.conferencia),
+    };
+  }, [participantes]);
 
   async function adicionarTodos() {
     setCarregando(true);
@@ -399,6 +451,34 @@ export default function PainelPromocoes({
         </button>
       </div>
 
+      {/* Conferência automática das certidões */}
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-sky-500/25 bg-sky-500/[.06] p-4">
+        <ScanSearch className="h-6 w-6 shrink-0 text-sky-300" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-white">Conferência automática das certidões</p>
+          <p className="text-xs text-[#94A3B8]">
+            O sistema lê cada PDF e confere se é a certidão certa, do militar (nome e CPF da ficha), NADA CONSTA e
+            dentro da validade. Abra só as marcadas com ⚠. O recebimento continua sendo do senhor.
+          </p>
+          <p className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+            <span className="text-emerald-300">✓ {conf.ok} tudo certo</span>
+            <button type="button" onClick={() => setFiltroStatus("Conferência: atenção")}
+              className="text-amber-300 underline-offset-2 hover:underline">⚠ {conf.atencao} com atenção</button>
+            <span className="text-[#94A3B8]">{conf.aConferir.length} a conferir</span>
+          </p>
+        </div>
+        {conferindo ? (
+          <span className="inline-flex items-center gap-2 rounded-lg bg-sky-500/15 px-3 py-2 text-sm font-semibold text-sky-200">
+            <Loader2 className="h-4 w-4 animate-spin" /> Conferindo {conferindo.feitos} de {conferindo.total}…
+          </span>
+        ) : conf.aConferir.length > 0 && (
+          <button onClick={() => conferir(conf.aConferir)}
+            className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-sky-700">
+            <ScanSearch className="h-4 w-4" /> Conferir agora ({conf.aConferir.length})
+          </button>
+        )}
+      </div>
+
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-[200px] flex-1">
@@ -420,6 +500,7 @@ export default function PainelPromocoes({
           <option value="Parcial">Parciais</option>
           <option value="Não iniciou">Não iniciaram</option>
           <option value="Fora do Limite">Fora do Limite Quantitativo</option>
+          <option value="Conferência: atenção">Conferência com atenção (⚠)</option>
         </select>
         {(busca || filtroStatus) && (
           <button
@@ -442,6 +523,7 @@ export default function PainelPromocoes({
               <th className="px-4 py-3 font-semibold">Certidões</th>
               <th className="px-4 py-3 font-semibold">Status</th>
               <th className="px-4 py-3 font-semibold">P/1</th>
+              <th className="px-4 py-3 font-semibold">Conferência</th>
               <th className="px-4 py-3 font-semibold">Ações</th>
             </tr>
           </thead>
@@ -489,6 +571,10 @@ export default function PainelPromocoes({
                     ) : (
                       <span className="text-xs text-[#94A3B8]">—</span>
                     )}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <SeloConferencia p={p} onAbrir={() => setDetalhe(p)} onConferir={() => conferir([p])}
+                      ocupado={!!conferindo} />
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
@@ -540,7 +626,7 @@ export default function PainelPromocoes({
             })}
             {filtrados.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-[#94A3B8]">
+                <td colSpan={8} className="px-4 py-10 text-center text-[#94A3B8]">
                   {busca || filtroStatus
                     ? "Ninguém com certidão bate com a busca."
                     : "Ninguém enviou certidão ainda. Quem mandar pelo menos uma aparece aqui."}
@@ -550,6 +636,19 @@ export default function PainelPromocoes({
           </tbody>
         </table>
       </div>
+
+      {/* Detalhe da conferência automática */}
+      {detalhe && (
+        <DetalheConferencia
+          p={detalhe}
+          ocupado={!!conferindo}
+          onFechar={() => setDetalhe(null)}
+          onConferir={() => conferir([detalhe])}
+          onReceber={detalhe.enviadoP1Em && !detalhe.recebidoP1Em
+            ? async () => { await confirmarRecebimento(detalhe.efetivoId); setDetalhe(null); }
+            : undefined}
+        />
+      )}
 
       {/* Modal Nova Promocao */}
       {modalNovo && (
@@ -714,6 +813,110 @@ function ModalNovaPromocao({
               Criar promoção
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Conferência automática: selo da linha e detalhe ---------- */
+function SeloConferencia({
+  p, onAbrir, onConferir, ocupado,
+}: { p: LinhaParticipante; onAbrir: () => void; onConferir: () => void; ocupado: boolean }) {
+  const c = p.conferencia;
+  if (c) {
+    const estilo = c.status === "ok"
+      ? "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25"
+      : c.status === "sem_texto"
+        ? "bg-white/10 text-[#cbd5e1] hover:bg-white/15"
+        : "bg-amber-500/15 text-amber-200 hover:bg-amber-500/25";
+    const n = pontosDe(c);
+    return (
+      <button onClick={onAbrir} title="Ver o que o sistema conferiu"
+        className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold transition ${estilo}`}>
+        {c.status === "ok" ? "✓ Tudo certo" : c.status === "sem_texto" ? "Sem texto — abrir" : `⚠ ${n} ${n === 1 ? "ponto" : "pontos"}`}
+      </button>
+    );
+  }
+  if (p.enviadas < p.total) return <span className="text-xs text-[#94A3B8]">—</span>;
+  return (
+    <button onClick={onConferir} disabled={ocupado}
+      title={p.conferenciaVelha ? "O militar trocou certidão depois da última conferência" : "Conferir as certidões deste militar"}
+      className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-sky-500/40 px-2.5 py-0.5 text-xs font-semibold text-sky-300 transition hover:bg-sky-500/10 disabled:opacity-50">
+      <ScanSearch className="h-3.5 w-3.5" /> {p.conferenciaVelha ? "Conferir de novo" : "Conferir"}
+    </button>
+  );
+}
+
+function DetalheConferencia({
+  p, ocupado, onFechar, onConferir, onReceber,
+}: {
+  p: LinhaParticipante; ocupado: boolean;
+  onFechar: () => void; onConferir: () => void; onReceber?: () => void;
+}) {
+  const c = p.conferencia;
+  if (!c) return null;
+  const quando = new Date(c.conferidoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+  return (
+    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-auto bg-black/60 p-4" onClick={onFechar}>
+      <div className="mt-10 w-full max-w-2xl rounded-xl border border-white/10 bg-[#0F1B2D] p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h3 className="flex items-center gap-2 text-lg font-semibold text-white">
+              <ScanSearch className="h-5 w-5 text-sky-300" /> Conferência — {quemE(p)}
+            </h3>
+            <p className="text-xs text-[#94A3B8]">Conferido em {quando}. Triagem automática: na dúvida, abra o PDF.</p>
+          </div>
+          <button onClick={onFechar} className="text-[#94A3B8] hover:text-white"><X className="h-5 w-5" /></button>
+        </div>
+
+        {c.gerais.length > 0 && (
+          <ul className="mb-3 space-y-1 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+            {c.gerais.map((g) => <li key={g} className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />{g}</li>)}
+          </ul>
+        )}
+
+        <ul className="divide-y divide-white/5 rounded-lg border border-white/10">
+          {c.itens.map((i) => {
+            const ok = i.alertas.length === 0;
+            return (
+              <li key={i.ordem} className="flex gap-3 px-3 py-2.5">
+                {ok
+                  ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                  : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />}
+                <div className="min-w-0 flex-1 text-sm">
+                  <p className="font-semibold text-white">{i.rotulo}</p>
+                  {i.achou && (
+                    <p className="text-xs text-[#94A3B8]">
+                      {[i.emissao && `emitida em ${i.emissao}`, i.validade && `válida até ${i.validade}`].filter(Boolean).join(" · ") || "datas não lidas"}
+                      {i.codigo && <> · código <span className="font-mono text-[#cbd5e1]">{i.codigo}</span></>}
+                    </p>
+                  )}
+                  {i.alertas.map((a) => <p key={a} className="text-xs font-medium text-amber-200">⚠ {a}</p>)}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {p.pdfUnificado && (
+            <a href={`/api/promocoes/download?key=${encodeURIComponent(p.pdfUnificado)}`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/30 px-3 py-1.5 text-sm font-medium text-[#D4AF37] transition hover:bg-[#D4AF37] hover:text-[#1a1205]">
+              <Download className="h-4 w-4" /> Abrir PDF unificado
+            </a>
+          )}
+          <button onClick={onConferir} disabled={ocupado}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-sm text-[#cbd5e1] transition hover:bg-white/5 disabled:opacity-50">
+            {ocupado ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanSearch className="h-4 w-4" />} Conferir de novo
+          </button>
+          <div className="flex-1" />
+          {onReceber && (
+            <button onClick={onReceber}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-emerald-700">
+              <ClipboardCheck className="h-4 w-4" /> Confirmar recebimento
+            </button>
+          )}
         </div>
       </div>
     </div>
