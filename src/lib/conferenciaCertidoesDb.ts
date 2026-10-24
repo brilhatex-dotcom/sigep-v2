@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { baixarDoR2 } from "@/lib/r2";
 import { certidoesExigidas } from "@/lib/certidoes";
-import { conferirCertidoes, type ArquivoLido, type ResultadoConferencia } from "@/lib/conferenciaCertidoes";
+import { conferirCertidoes, VERSAO_REGRAS, type ArquivoLido, type ResultadoConferencia } from "@/lib/conferenciaCertidoes";
 
 /* =========================================================================
    A conferência automática guardada por militar e período.
@@ -39,8 +39,9 @@ function garantir(): Promise<void> {
 
 type CertidaoDoBanco = { ordem: number; r2Key: string; enviadaEm: Date };
 
+// as regras entram na assinatura: regra nova, conferência velha não vale
 export function assinaturaDe(certidoes: CertidaoDoBanco[]): string {
-  return certidoes
+  return `v${VERSAO_REGRAS}|` + certidoes
     .slice()
     .sort((a, b) => a.ordem - b.ordem)
     .map((c) => `${c.ordem}:${c.r2Key}:${new Date(c.enviadaEm).getTime()}`)

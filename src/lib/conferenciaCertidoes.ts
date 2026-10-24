@@ -49,6 +49,10 @@ export type ResultadoConferencia = {
   gerais: string[];
 };
 
+/* Sobe quando as regras mudam: a conferência guardada com regras velhas
+   deixa de valer e o painel pede para conferir de novo. */
+export const VERSAO_REGRAS = 2;
+
 export const ROTULO_ITEM: Record<number, string> = {
   1: "TJMA 1º grau", 2: "TJMA 2º grau", 3: "Justiça Militar Estadual",
   4: "TRF1", 5: "TRF2", 6: "TRF3", 7: "TRF4", 8: "TRF5", 9: "TRF6",
@@ -182,7 +186,8 @@ export function conferirCertidoes(
   prazoEntrega?: Date | null,
 ): ResultadoConferencia {
   const gerais: string[] = [];
-  const achados = new Map<number, { doc: Documento; arquivo: ArquivoLido; texto: string }[]>();
+  // cobre: os itens que a certidão vale (a Unificada vale do TRF1 ao TRF5)
+  const achados = new Map<number, { doc: Documento; arquivo: ArquivoLido; texto: string; cobre: number[] }[]>();
   const semTexto = new Set<number>();
   const cpfFicha = soDigitos(militar.cpf || "");
 
@@ -207,7 +212,7 @@ export function conferirCertidoes(
       }
       for (const o of ordens) {
         if (!achados.has(o)) achados.set(o, []);
-        achados.get(o)!.push({ doc, arquivo: arq, texto: doc.texto });
+        achados.get(o)!.push({ doc, arquivo: arq, texto: doc.texto, cobre: ordens });
       }
     }
   }
@@ -222,13 +227,21 @@ export function conferirCertidoes(
         alertas: [semTexto.has(ordem) ? "arquivo sem texto — conferir abrindo" : "não encontrada nos arquivos enviados"],
       };
     }
-    const { doc, arquivo, texto } = lista[0];
+    /* A Certidão Unificada e a do próprio TRF podem vir as duas (ex.: a
+       Unificada no lugar do TRF1 e as regionais nos seus lugares) — as duas
+       valem, não é repetição. Havendo a do próprio item, é ela que se confere. */
+    const especificas = lista.filter((l) => l.cobre.length === 1);
+    const { doc, arquivo, texto, cobre } = especificas[0] || lista[0];
     const n = umaLinha(normalizar(texto));
     const alertas: string[] = [];
     const federal = ordem >= 4;
 
-    if (lista.length > 1 && new Set(lista.map((l) => l.doc)).size > 1) alertas.push(`aparece ${lista.length} vezes`);
-    if (!arquivo.ordens.includes(ordem)) {
+    if (especificas.length > 1 && new Set(especificas.map((l) => l.doc)).size > 1) {
+      alertas.push(`aparece ${especificas.length} vezes`);
+    }
+    // a Unificada pode ir em qualquer um dos lugares que ela cobre
+    const noLugar = cobre.length > 1 ? arquivo.ordens.some((o) => cobre.includes(o)) : arquivo.ordens.includes(ordem);
+    if (!noLugar) {
       const como = arquivo.ordens.length > 1 ? "Certidão Unificada" : ROTULO_ITEM[arquivo.ordens[0]];
       alertas.push(`foi enviada no lugar de ${como}`);
     }
