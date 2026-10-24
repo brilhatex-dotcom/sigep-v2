@@ -27,7 +27,8 @@ const MODELOS_SEM_SINAL = new Set(["Auditoria", "ChatMensagem", "ChatConversa", 
 // campos que a tentativa/entrada no sistema grava no usuário — não mudam tela de ninguém
 const CAMPOS_DE_LOGIN = new Set(["tentativas", "bloqueadoAte", "ultimoLogin", "senhaHash", "salt"]);
 // boas_vindas: a marca de quem já viu a apresentação — nenhuma tela mostra
-const TABELAS_SEM_SINAL = /\b(chat_[a-z_]+|auditoria[a-z_]*|push_subscriptions|boas_vindas)\b/i;
+// conferencia_certidoes: o painel do P/1 recarrega sozinho ao fim da conferência em lote
+const TABELAS_SEM_SINAL = /\b(chat_[a-z_]+|auditoria[a-z_]*|push_subscriptions|boas_vindas|conferencia_certidoes)\b/i;
 const CONFIG_SEM_SINAL = /^(escala_|foto_|sinal_|consent_lgpd)/;
 
 function gravacaoVisivel(params: Prisma.MiddlewareParams): boolean {

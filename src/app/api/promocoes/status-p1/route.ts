@@ -6,6 +6,7 @@ import { periodoAtivo, postoDoMilitar } from "@/lib/promocoes";
 import { certidoesExigidas, faltasDidaticas } from "@/lib/certidoes";
 import { salvarStatusP1, statusP1 } from "@/lib/promocaoStatusP1";
 import { avisarEnvioAoP1, avisarRecebido, avisarReabertura } from "@/lib/promocaoAvisos";
+import { conferirMilitar } from "@/lib/conferenciaCertidoesDb";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,13 @@ export async function POST(req: Request) {
       const novo = await salvarStatusP1(periodo.id, efetivoId, { enviadoEm: new Date().toISOString() });
       // o P/1 fica sabendo na hora, em vez de descobrir rolando o painel
       await avisarEnvioAoP1(efetivoId, periodo.id, periodo.nome);
+      /* E já encontra as certidões conferidas. Sem segurar o militar: se a
+         leitura passar de alguns segundos (PDF enorme, escaneado), o envio
+         segue e o P/1 confere pelo botão do painel. */
+      await Promise.race([
+        conferirMilitar(periodo.id, efetivoId).catch((e) => console.error("[status-p1] conferência", e)),
+        new Promise((ok) => setTimeout(ok, 8000)),
+      ]);
       return NextResponse.json({ ok: true, status: novo });
     }
 
