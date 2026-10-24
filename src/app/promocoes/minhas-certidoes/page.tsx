@@ -140,6 +140,7 @@ async function Conteudo({ efetivoId, abrirPassoAPasso }: { efetivoId: string | n
         efetivoId={efetivoId}
         enviadoP1Em={st?.enviadoEm ?? null}
         recebidoP1Em={st?.recebidoEm ?? null}
+        reabertoP1Em={st?.reabertoEm ?? null}
       >
         {/* oficial e subtenente geram aqui a própria declaração individual */}
         {ehCpopm(posto) && <MinhaCertidaoP1 />}

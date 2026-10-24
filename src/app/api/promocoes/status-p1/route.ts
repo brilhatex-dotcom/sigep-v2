@@ -74,7 +74,10 @@ export async function POST(req: Request) {
       if (!efetivoId || !periodoId) return NextResponse.json({ error: "Dados incompletos." }, { status: 400 });
 
       if (acao === "reabrir") {
-        const novo = await salvarStatusP1(periodoId, efetivoId, { enviadoEm: null, recebidoEm: null });
+        // reabertoEm: o policial vê na tela que há certidão para corrigir
+        const novo = await salvarStatusP1(periodoId, efetivoId, {
+          enviadoEm: null, recebidoEm: null, reabertoEm: new Date().toISOString(),
+        });
         // reabrir = tem certidao para trocar; quem nao souber fica fora da planilha
         await avisarReabertura(efetivoId, periodoId);
         return NextResponse.json({ ok: true, status: novo });

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Award, BellRing, Check, FileSignature, Landmark, Lock, Palmtree, PartyPopper, PenLine, Repeat, Trophy, X } from "lucide-react";
+import { AlertTriangle, ArrowRight, Award, BadgeCheck, BellRing, Check, FileSignature, Landmark, Lock, Palmtree, PartyPopper, PenLine, Repeat, Trophy, X } from "lucide-react";
 import BoasVindas from "@/components/BoasVindas";
 
 /* =========================================================================
@@ -40,6 +40,8 @@ type Cartao = {
 };
 
 type Limite = { gradDestino: string; ciclo: string; ord: number | null; quadro: string };
+// resultado das certidões da promoção (lib/notificacoes.ts → avisoCertidoes)
+type AvisoCert = { tipo: "recebido" | "reaberto"; em: string };
 
 const ICONE: Record<Cartao["assunto"], typeof Repeat> = { permuta: Repeat, promocao: Award, ferias: Palmtree };
 
@@ -53,6 +55,7 @@ export default function AvisoAoEntrar({ nome = "" }: { nome?: string }) {
   const [itens, setItens] = useState<Item[]>([]);
   const [outras, setOutras] = useState<Cartao[]>([]);
   const [limite, setLimite] = useState<Limite | null>(null);
+  const [cert, setCert] = useState<AvisoCert | null>(null);
   const [aberto, setAberto] = useState(false);
   /* Primeiro acesso: a apresentação de boas-vindas vem ANTES dos avisos —
      duas janelas ao mesmo tempo seria demais. Fechou a apresentação, abre o
@@ -78,10 +81,11 @@ export default function AvisoAoEntrar({ nome = "" }: { nome?: string }) {
         const xs: Item[] = Array.isArray(d?.pecunia) ? d.pecunia : [];
         const ys: Cartao[] = Array.isArray(d?.outras) ? d.outras : [];
         const lq: Limite | null = d?.limite && typeof d.limite === "object" ? d.limite : null;
+        const ce: AvisoCert | null = d?.certidoes && typeof d.certidoes === "object" ? d.certidoes : null;
         if (!vivo) return;
-        setItens(xs); setOutras(ys); setLimite(lq);
+        setItens(xs); setOutras(ys); setLimite(lq); setCert(ce);
         if (d?.boasVindas === true) { setBoasVindas(true); return; }
-        if (xs.length || ys.length || lq) setAberto(true);
+        if (xs.length || ys.length || lq || ce) setAberto(true);
         // nada pendente: não pergunta de novo a cada página até o próximo login
         else gravar(VISTO, marca);
       } catch { /* sem rede: fica o sino */ }
@@ -91,7 +95,16 @@ export default function AvisoAoEntrar({ nome = "" }: { nome?: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fechar = () => { gravar(VISTO, ler(MARCA) || "sem-marca"); setAberto(false); };
+  const fechar = () => {
+    gravar(VISTO, ler(MARCA) || "sem-marca");
+    setAberto(false);
+    // o "certidões recebidas" é dado uma vez só; o "reaberto" volta até ele reenviar
+    if (cert?.tipo === "recebido") {
+      fetch("/api/pendencias", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ certidoesVistas: true }),
+      }).catch(() => {});
+    }
+  };
   const ir = (href: string) => { fechar(); router.push(href); };
 
   useEffect(() => {
@@ -107,16 +120,18 @@ export default function AvisoAoEntrar({ nome = "" }: { nome?: string }) {
     fetch("/api/pendencias", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ boasVindasVista: true }),
     }).catch(() => {});
-    if (itens.length || outras.length || limite) setAberto(true);
+    if (itens.length || outras.length || limite || cert) setAberto(true);
     else gravar(VISTO, ler(MARCA) || "sem-marca");
   };
   if (boasVindas) return <BoasVindas nome={nome} aoFechar={fecharBoasVindas} />;
 
-  const total = itens.length + outras.length + (limite ? 1 : 0);
+  const total = itens.length + outras.length + (limite ? 1 : 0) + (cert ? 1 : 0);
   if (!aberto || !total) return null;
   // só requerimento de premiação: o título fala dele; misturado, fala de "pendências"
-  const soPecunia = outras.length === 0 && !limite;
-  const soLimite = !!limite && itens.length === 0 && outras.length === 0;
+  const soPecunia = outras.length === 0 && !limite && !cert;
+  const soLimite = !!limite && itens.length === 0 && outras.length === 0 && !cert;
+  // só a notícia boa do recebido: o título é ela, não "coisas esperando por você"
+  const soRecebido = cert?.tipo === "recebido" && total === 1;
 
   /* Direto no <body>: montado dentro do cabeçalho (que é uma camada própria,
      z-30), a janela ficaria por baixo do balão do chat e do menu do celular. */
@@ -128,17 +143,20 @@ export default function AvisoAoEntrar({ nome = "" }: { nome?: string }) {
         onClick={(e) => e.stopPropagation()}>
         {/* faixa dourada: é para chamar a atenção, sem parecer erro */}
         <div className="flex items-start gap-3 rounded-t-2xl bg-gradient-to-r from-[#D4AF37] to-[#b8932a] px-5 py-4 text-[#1a1205]">
-          {soLimite ? <PartyPopper className="mt-0.5 h-7 w-7 shrink-0" />
+          {soRecebido ? <BadgeCheck className="mt-0.5 h-7 w-7 shrink-0" />
+            : soLimite ? <PartyPopper className="mt-0.5 h-7 w-7 shrink-0" />
             : soPecunia ? <FileSignature className="mt-0.5 h-7 w-7 shrink-0" /> : <BellRing className="mt-0.5 h-7 w-7 shrink-0" />}
           <div className="flex-1">
             <h2 id="aviso-entrar-titulo" className="text-lg font-extrabold leading-tight">
-              {soLimite ? "Parabéns!"
+              {soRecebido ? "Certidões recebidas!"
+                : soLimite ? "Parabéns!"
                 : soPecunia
                 ? (itens.length === 1 ? "Falta você neste requerimento" : `${itens.length} requerimentos esperando por você`)
                 : (total === 1 ? "Tem 1 coisa esperando por você" : `Tem ${total} coisas esperando por você`)}
             </h2>
             <p className="text-xs font-semibold opacity-80">
-              {soLimite ? "Você está no Limite Quantitativo da promoção"
+              {soRecebido ? "Promoção — documentação"
+                : soLimite ? "Você está no Limite Quantitativo da promoção"
                 : soPecunia ? "Premiação pecuniária por apreensão de arma de fogo" : "Resolva agora ou depois — cada botão leva à página certa"}
             </p>
           </div>
@@ -148,6 +166,36 @@ export default function AvisoAoEntrar({ nome = "" }: { nome?: string }) {
         </div>
 
         <div className="space-y-3 p-5">
+          {/* Resultado das certidões: recebidas (uma vez) ou reabertas pelo P/1 */}
+          {cert?.tipo === "recebido" && (
+            <div className="rounded-xl border border-emerald-500/50 bg-gradient-to-br from-emerald-500/15 to-transparent p-4 text-center">
+              <BadgeCheck className="mx-auto mb-2 h-10 w-10 text-emerald-400" />
+              <p className="text-lg font-extrabold text-white">Suas certidões foram conferidas e recebidas pelo P/1</p>
+              <p className="mt-1 text-sm leading-relaxed text-[#cbd5e1]">
+                Está tudo certo com a sua documentação da promoção. <b className="text-white">Você não precisa enviar mais nada.</b>
+              </p>
+              <button onClick={fechar}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-base font-extrabold text-white shadow-lg transition hover:bg-emerald-700">
+                <Check className="h-5 w-5" /> Entendi
+              </button>
+            </div>
+          )}
+          {cert?.tipo === "reaberto" && (
+            <div className="rounded-xl border-2 border-amber-500/60 bg-amber-500/10 p-4">
+              <p className="flex items-center gap-2 text-base font-extrabold text-amber-100">
+                <AlertTriangle className="h-6 w-6 shrink-0 text-amber-300" /> O P/1 reabriu suas certidões
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-amber-100/90">
+                Há certidão para corrigir ou trocar. Abra as suas certidões, troque o que for preciso e envie ao P/1 de novo.
+                Se não souber qual, fale com o P/1.
+              </p>
+              <button onClick={() => ir("/promocoes/minhas-certidoes")}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-3 text-base font-extrabold text-[#1a1205] shadow-lg transition hover:brightness-110">
+                Corrigir minhas certidões <ArrowRight className="h-5 w-5" />
+              </button>
+            </div>
+          )}
+
           {/* Parabéns: está no Limite Quantitativo da CPPPM */}
           {limite && (
             <div className="rounded-xl border border-[#D4AF37]/60 bg-gradient-to-br from-[#D4AF37]/20 to-transparent p-4 text-center">
@@ -248,14 +296,17 @@ export default function AvisoAoEntrar({ nome = "" }: { nome?: string }) {
             );
           })}
 
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-            <p className="text-[11px] text-[#6f82a0]">
-              Enquanto houver pendência, este aviso volta no próximo login. Tudo também fica no sino 🔔.
-            </p>
-            <button onClick={fechar} className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-[#cbd5e1] hover:bg-white/5">
-              Lembrar depois
-            </button>
-          </div>
+          {/* só a notícia do recebido: não há o que lembrar depois */}
+          {!soRecebido && (
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+              <p className="text-[11px] text-[#6f82a0]">
+                Enquanto houver pendência, este aviso volta no próximo login. Tudo também fica no sino 🔔.
+              </p>
+              <button onClick={fechar} className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-[#cbd5e1] hover:bg-white/5">
+                Lembrar depois
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>,

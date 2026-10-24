@@ -118,6 +118,7 @@ export default function MinhasCertidoes({
   efetivoId,
   enviadoP1Em,
   recebidoP1Em,
+  reabertoP1Em = null,
   children,
 }: {
   itens: Item[];
@@ -126,6 +127,8 @@ export default function MinhasCertidoes({
   efetivoId: string;
   enviadoP1Em: string | null;
   recebidoP1Em: string | null;
+  // o P/1 reabriu (há certidão para corrigir) — some quando ele envia de novo
+  reabertoP1Em?: string | null;
   // o que mais a página quiser mostrar depois da lista (ex.: a declaração individual)
   children?: React.ReactNode;
 }) {
@@ -340,6 +343,20 @@ export default function MinhasCertidoes({
 
   return (
     <div className="space-y-5">
+      {/* O P/1 reabriu: é aqui que o policial corrige, então o alerta vem no topo */}
+      {reabertoP1Em && !enviadoP1 && !recebidoP1 && (
+        <div role="alert" className="flex items-start gap-3 rounded-xl border-2 border-amber-500/60 bg-amber-500/10 p-4">
+          <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0 text-amber-300" />
+          <div>
+            <p className="text-base font-extrabold text-amber-100">O P/1 reabriu suas certidões</p>
+            <p className="mt-1 text-sm leading-relaxed text-amber-100/90">
+              Há certidão para corrigir ou trocar (reaberto em {dataHora(reabertoP1Em)}). Se não souber qual,
+              fale com o P/1. Depois de trocar, gere o PDF de novo e envie ao P/1 outra vez.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* A trilha dos três passos, de relance */}
       <div className="ui-card flex flex-wrap items-center gap-2 p-3">
         {trilha.map((t, k) => (

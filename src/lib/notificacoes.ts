@@ -9,6 +9,7 @@ import { pendentesDeConferencia } from "@/lib/promocaoAvisos";
 import { listarLimites } from "@/lib/limiteQuantitativoDb";
 import { cruzarComEfetivo } from "@/lib/limiteQuantitativo";
 import { statusP1 } from "@/lib/promocaoStatusP1";
+import { marcarRecebimentoVisto, recebimentoVisto } from "@/lib/avisoCertidoesDb";
 
 /* =========================================================================
    AS QUATRO FONTES DO SININHO, NUM LUGAR SÓ
@@ -442,15 +443,49 @@ export async function parabensLimite(quem: Quem): Promise<ParabensLimite | null>
   } catch { return null; }
 }
 
-export type PendenciasAoEntrar = { pecunia: PendenciaPecunia[]; outras: CartaoPendencia[]; limite: ParabensLimite | null };
+/* O resultado das certidões, na tela do policial (pedido do P/1):
+     · recebido -> "suas certidões foram conferidas e recebidas", UMA vez;
+     · reaberto -> "o P/1 reabriu: há certidão para corrigir", até ele
+       enviar de novo (é coisa a fazer, como as outras pendências). */
+export type AvisoCertidoes = { tipo: "recebido" | "reaberto"; em: string };
+
+export async function avisoCertidoes(quem: Quem): Promise<AvisoCertidoes | null> {
+  const meuId = (quem.refEfetivo || "") as string;
+  if (!meuId) return null;
+  try {
+    const periodo = await periodoAtivo();
+    if (!periodo) return null;
+    const st = await statusP1(periodo.id, meuId);
+    if (st?.recebidoEm) {
+      return (await recebimentoVisto(periodo.id, meuId)) === st.recebidoEm ? null : { tipo: "recebido", em: st.recebidoEm };
+    }
+    if (st?.reabertoEm && !st.enviadoEm) return { tipo: "reaberto", em: st.reabertoEm };
+    return null;
+  } catch { return null; }
+}
+
+// o policial fechou a janela que mostrava o recebido: não mostra mais
+export async function marcarAvisoCertidoesVisto(quem: Quem): Promise<void> {
+  const meuId = (quem.refEfetivo || "") as string;
+  const periodo = meuId ? await periodoAtivo() : null;
+  if (!periodo) return;
+  const st = await statusP1(periodo.id, meuId);
+  if (st?.recebidoEm) await marcarRecebimentoVisto(periodo.id, meuId, st.recebidoEm);
+}
+
+export type PendenciasAoEntrar = {
+  pecunia: PendenciaPecunia[]; outras: CartaoPendencia[]; limite: ParabensLimite | null;
+  certidoes: AvisoCertidoes | null;
+};
 
 export async function pendenciasAoEntrar(quem: Quem): Promise<PendenciasAoEntrar> {
-  const [pecunia, permutas, promocao, ferias, limite] = await Promise.all([
+  const [pecunia, permutas, promocao, ferias, limite, certidoes] = await Promise.all([
     pendenciasPecunia(quem),
     notificacoesPermutas(quem),
     notificacoesPromocao(quem),
     notificacoesFerias(quem),
     parabensLimite(quem),
+    avisoCertidoes(quem),
   ]);
 
   const cartao = (
@@ -483,5 +518,5 @@ export async function pendenciasAoEntrar(quem: Quem): Promise<PendenciasAoEntrar
       "Assinar os memorandos", "/ferias"),
   ].filter((c): c is CartaoPendencia => !!c);
 
-  return { pecunia, outras, limite };
+  return { pecunia, outras, limite, certidoes };
 }
