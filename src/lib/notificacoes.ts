@@ -9,6 +9,8 @@ import { pendentesDeConferencia } from "@/lib/promocaoAvisos";
 import { listarLimites } from "@/lib/limiteQuantitativoDb";
 import { cruzarComEfetivo } from "@/lib/limiteQuantitativo";
 import { statusP1 } from "@/lib/promocaoStatusP1";
+import { envioEncerrado } from "@/lib/promocaoPrazo";
+import { prazoDoPeriodo } from "@/lib/promocaoPrazoDb";
 import { marcarRecebimentoVisto, recebimentoVisto } from "@/lib/avisoCertidoesDb";
 
 /* =========================================================================
@@ -435,7 +437,12 @@ export async function parabensLimite(quem: Quem): Promise<ParabensLimite | null>
       const achado = cruzarComEfetivo(l.linhas, [eu]).find((x) => x.efetivoId === meuId);
       if (!achado) continue;
       const periodo = await periodoAtivo();
-      if (periodo && (await statusP1(periodo.id, meuId))?.enviadoEm) return null;   // já enviou ao P/1
+      if (periodo) {
+        const st = await statusP1(periodo.id, meuId);
+        if (st?.enviadoEm) return null;   // já enviou ao P/1
+        // passou do prazo de envio: não chama mais para enviar
+        if (envioEncerrado(await prazoDoPeriodo(periodo.id), st)) return null;
+      }
       const ciclo = oc >= 202001 ? l.ciclo : (listas.find((x) => ordemCicloLQ(x.ciclo) === atual)?.ciclo || "");
       return { gradDestino: l.gradDestino, ciclo, ord: achado.ord, quadro: achado.quadro };
     }
@@ -459,7 +466,10 @@ export async function avisoCertidoes(quem: Quem): Promise<AvisoCertidoes | null>
     if (st?.recebidoEm) {
       return (await recebimentoVisto(periodo.id, meuId)) === st.recebidoEm ? null : { tipo: "recebido", em: st.recebidoEm };
     }
-    if (st?.reabertoEm && !st.enviadoEm) return { tipo: "reaberto", em: st.reabertoEm };
+    // reaberto, mas o prazo já passou (e ele não foi liberado): não há o que corrigir
+    if (st?.reabertoEm && !st.enviadoEm && !envioEncerrado(await prazoDoPeriodo(periodo.id), st)) {
+      return { tipo: "reaberto", em: st.reabertoEm };
+    }
     return null;
   } catch { return null; }
 }

@@ -9,6 +9,8 @@ import PassoAPassoCertidoes from "@/components/PassoAPassoCertidoes";
 import { periodoAtivo } from "@/lib/promocoes";
 import { certidoesExigidas, ehCpopm } from "@/lib/certidoes";
 import { statusP1 } from "@/lib/promocaoStatusP1";
+import { envioEncerrado } from "@/lib/promocaoPrazo";
+import { prazoDoPeriodo } from "@/lib/promocaoPrazoDb";
 import { chaveCertidaoUnificada } from "@/lib/promocaoUpload";
 import { parabensLimite } from "@/lib/notificacoes";
 import Link from "next/link";
@@ -51,13 +53,13 @@ export default async function MinhasCertidoesPage({
             <ArrowLeft className="h-4 w-4" /> Voltar ao painel do P/1
           </Link>
         )}
-        <Conteudo efetivoId={efetivoId} abrirPassoAPasso={searchParams["passo-a-passo"] === "1"} />
+        <Conteudo efetivoId={efetivoId} admin={ehAdmin} abrirPassoAPasso={searchParams["passo-a-passo"] === "1"} />
       </div>
     </AppShell>
   );
 }
 
-async function Conteudo({ efetivoId, abrirPassoAPasso }: { efetivoId: string | null; abrirPassoAPasso: boolean }) {
+async function Conteudo({ efetivoId, admin, abrirPassoAPasso }: { efetivoId: string | null; admin: boolean; abrirPassoAPasso: boolean }) {
   if (!efetivoId) {
     return (
       <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
@@ -79,7 +81,7 @@ async function Conteudo({ efetivoId, abrirPassoAPasso }: { efetivoId: string | n
   }
 
   // RAPIDEZ: certidões, ficha, situação no P/1 e o Limite Quantitativo vão ao banco juntos
-  const [participante, ficha, st, limite] = await Promise.all([
+  const [participante, ficha, st, limite, prazo] = await Promise.all([
     prisma.participantePromocao.findUnique({
       where: { periodoId_efetivoId: { periodoId: periodo.id, efetivoId } },
       include: { certidoes: true },
@@ -88,7 +90,10 @@ async function Conteudo({ efetivoId, abrirPassoAPasso }: { efetivoId: string | n
     statusP1(periodo.id, efetivoId),
     // está na lista da CPPPM e ainda não enviou ao P/1: os parabéns no topo
     parabensLimite({ refEfetivo: efetivoId }),
+    prazoDoPeriodo(periodo.id),
   ]);
+  // passou do prazo de envio (o P/1 não é barrado: ver lib/promocaoPrazo)
+  const encerrado = !admin && envioEncerrado(prazo, st);
   const posto = ficha?.postoGrad ?? null;
 
   const enviadas = new Map(
@@ -141,6 +146,8 @@ async function Conteudo({ efetivoId, abrirPassoAPasso }: { efetivoId: string | n
         enviadoP1Em={st?.enviadoEm ?? null}
         recebidoP1Em={st?.recebidoEm ?? null}
         reabertoP1Em={st?.reabertoEm ?? null}
+        prazoAte={prazo?.ate ?? null}
+        encerrado={encerrado}
       >
         {/* oficial e subtenente geram aqui a própria declaração individual */}
         {ehCpopm(posto) && <MinhaCertidaoP1 />}

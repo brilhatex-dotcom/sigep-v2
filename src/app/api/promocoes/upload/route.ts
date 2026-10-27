@@ -5,6 +5,7 @@ import { urlAssinadaUpload } from "@/lib/r2";
 import { periodoAtivo, postoDoMilitar } from "@/lib/promocoes";
 import { totalCertidoes } from "@/lib/certidoes";
 import { statusP1 } from "@/lib/promocaoStatusP1";
+import { barradoPeloPrazo } from "@/lib/promocaoPrazoDb";
 import { chaveCertidao, chaveCertidaoUnificada, LIMITE_CERTIDAO_BYTES } from "@/lib/promocaoUpload";
 
 export const dynamic = "force-dynamic";
@@ -77,6 +78,9 @@ export async function POST(req: NextRequest) {
         { status: 409 }
       );
     }
+    // passou do prazo de envio: o policial não mexe mais (o P/1 sim)
+    const foraDoPrazo = await barradoPeloPrazo(periodo.id, st, ehAdmin);
+    if (foraDoPrazo) return NextResponse.json({ erro: foraDoPrazo }, { status: 403 });
 
     const key = unificada
       ? chaveCertidaoUnificada(periodo.id, efetivoId)

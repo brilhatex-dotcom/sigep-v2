@@ -15,6 +15,8 @@ import { situacaoNoLimite, type SituacaoNoLimite } from "@/lib/limiteQuantitativ
 import { assinaturaDe, lerConferencias, type ConferenciaGuardada } from "@/lib/conferenciaCertidoesDb";
 import { marcarCodigosRepetidos, type ResultadoConferencia } from "@/lib/conferenciaCertidoes";
 import { lerAutenticidades } from "@/lib/autenticidadeCertidoesDb";
+import { envioEncerrado } from "@/lib/promocaoPrazo";
+import { prazoDoPeriodo } from "@/lib/promocaoPrazoDb";
 
 export const dynamic = "force-dynamic";
 
@@ -133,7 +135,7 @@ async function PainelConteudo({
   dataAlvo: string | null;
 }) {
   // RAPIDEZ: participantes, situação no P/1 e lista de períodos vão juntos
-  const [participantes, mapaP1, todos, conferencias, autenticidades] = await Promise.all([
+  const [participantes, mapaP1, todos, conferencias, autenticidades, prazo] = await Promise.all([
     prisma.participantePromocao.findMany({
       where: { periodoId },
       include: {
@@ -150,6 +152,7 @@ async function PainelConteudo({
     }),
     lerConferencias(periodoId),
     lerAutenticidades(periodoId),
+    prazoDoPeriodo(periodoId),
   ]);
   const ids = participantes.map((p) => p.efetivoId);
   // quem mandou certidão sem estar no Limite Quantitativo: o painel acusa
@@ -199,6 +202,8 @@ async function PainelConteudo({
         pdfUnificado: p.pdfUnificado,
         enviadoP1Em: st?.enviadoEm ?? null,
         recebidoP1Em: st?.recebidoEm ?? null,
+        foraDoPrazo: !st?.enviadoEm && envioEncerrado(prazo, st ?? null),
+        liberadoDepoisDoPrazo: !!(prazo?.ate && st?.liberadoEm && st.liberadoEm >= prazo.ate),
         limite: limite.get(p.efetivoId) ?? null,
         ...conferenciaDaLinha(conferencias.get(p.efetivoId), assinaturaDe(p.certidoes), cruzadas.get(p.efetivoId)),
         // o que o P/1 já conferiu no site do tribunal, certidão por certidão
@@ -236,6 +241,7 @@ async function PainelConteudo({
       periodoData={dataAlvo}
       participantes={linhas}
       periodos={periodos}
+      prazoAte={prazo?.ate ?? null}
     />
   );
 }

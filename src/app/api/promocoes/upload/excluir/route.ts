@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { removerDoR2 } from "@/lib/r2";
 import { periodoAtivo } from "@/lib/promocoes";
 import { statusP1 } from "@/lib/promocaoStatusP1";
+import { barradoPeloPrazo } from "@/lib/promocaoPrazoDb";
 import { chaveCertidaoUnificada } from "@/lib/promocaoUpload";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +52,9 @@ export async function POST(req: NextRequest) {
         { status: 409 }
       );
     }
+    // passou do prazo de envio: o policial não mexe mais (o P/1 sim)
+    const foraDoPrazo = await barradoPeloPrazo(periodo.id, st, ehAdmin);
+    if (foraDoPrazo) return NextResponse.json({ erro: foraDoPrazo }, { status: 403 });
 
     const participante = await prisma.participantePromocao.findUnique({
       where: { periodoId_efetivoId: { periodoId: periodo.id, efetivoId } },

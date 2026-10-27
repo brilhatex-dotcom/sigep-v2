@@ -8,11 +8,14 @@ import { prisma } from "@/lib/prisma";
    Config.valor = JSON: { [`${periodoId}:${efetivoId}`]: { enviadoEm, recebidoEm, reabertoEm } }
    reabertoEm: quando o P/1 reabriu pela última vez — o policial vê o alerta
    "há certidão para corrigir" até enviar de novo.
+   liberadoEm: o P/1 liberou o envio dele depois do prazo (ver promocaoPrazo).
    ========================================================================= */
 
 export const CHAVE_STATUS_P1 = "promocao_status_p1";
 
-export type StatusP1 = { enviadoEm?: string | null; recebidoEm?: string | null; reabertoEm?: string | null };
+export type StatusP1 = {
+  enviadoEm?: string | null; recebidoEm?: string | null; reabertoEm?: string | null; liberadoEm?: string | null;
+};
 export type MapaStatusP1 = Record<string, StatusP1>;
 
 function chaveDe(periodoId: string, efetivoId: string): string {
