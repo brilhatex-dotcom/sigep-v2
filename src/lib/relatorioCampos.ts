@@ -55,6 +55,12 @@ export type MilitarRelatorio = {
   equipeFerias: string | null;
   idade: number | null;
   tempoServico: string | null;
+  // anos completos de serviço (pela inclusão) — filtro e faixa da medalha
+  anosServico: number | null;
+  // sem data de inclusão na ficha, o tempo saiu do ANO da barra ("158/92"): estimativa a conferir
+  tempoPelaBarra: boolean;
+  // "30 anos" / "20 anos" / "10 anos" (a medalha a que já tem direito) ou null
+  medalha: string | null;
   observacoes: string | null;
   // mês do nascimento (1–12), só para o filtro de aniversariantes
   mesNasc: number | null;
@@ -108,6 +114,7 @@ export const CAMPOS: Campo[] = [
   { chave: "idade", rotulo: "Idade", grupo: "Datas e carreira", largura: 8 },
   { chave: "dataIncorp", rotulo: "Inclusão", grupo: "Datas e carreira", largura: 12 },
   { chave: "tempoServico", rotulo: "Tempo de serviço", grupo: "Datas e carreira", largura: 14 },
+  { chave: "medalha", rotulo: "Medalha (tempo de serviço)", grupo: "Datas e carreira", largura: 12 },
   { chave: "dataPromocao", rotulo: "Última promoção", grupo: "Datas e carreira", largura: 14 },
   { chave: "grauEscolaridade", rotulo: "Escolaridade", grupo: "Datas e carreira", largura: 16 },
   { chave: "cursosPMMA", rotulo: "Cursos PMMA", grupo: "Datas e carreira", largura: 24 },
@@ -146,13 +153,47 @@ export function campoPorChave(chave: string): Campo | undefined {
    (Posto + nº + nome de guerra), que é o que se espera numa relação. */
 export function valorDoCampo(m: MilitarRelatorio, chave: string): string {
   if (chave === "postoNome") {
-    const barra = (m.numeroBarra || "").trim();
+    // oficial vem com "-" na barra: não sai "nº -"
+    const barra = (m.numeroBarra || "").replace(/^[-–—\s]+$/, "").trim();
     return [m.postoGrad || "", barra ? `nº ${barra}` : "", m.nomeGuerra || m.nome || ""]
       .filter(Boolean).join(" ").trim();
   }
   const v = (m as any)[chave];
   if (v === null || v === undefined) return "";
   return String(v).trim();
+}
+
+export type OrdemRelatorio = "antiguidade" | "lotacao" | "medalha";
+
+/* MEDALHA POR TEMPO DE SERVIÇO (pedido do Cmt): 10, 20 e 30 anos completos
+   desde a inclusão. Cada militar entra só na MAIOR faixa que já alcançou —
+   quem tem 31 anos está nos "30 anos", não nos três. */
+export const FAIXAS_MEDALHA = [30, 20, 10] as const;
+/* Sem data de inclusão: o ano da barra ("158/92" -> 1992) é o ano do curso
+   de formação — dá o tempo aproximado (pode errar por um ano). */
+export function anoDaBarra(numeroBarra: string | null): number | null {
+  const m = String(numeroBarra || "").match(/\/\s*(\d{2}|\d{4})\s*$/);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return m[1].length === 4 ? n : n > 50 ? 1900 + n : 2000 + n;
+}
+export function faixaDaMedalha(anos: number | null): number | null {
+  if (anos === null) return null;
+  return FAIXAS_MEDALHA.find((f) => anos >= f) ?? null;
+}
+// filtro: "10+" = toda a lista da medalha; "30"/"20"/"10" = só aquela faixa
+export type FaixaTempo = "" | "10+" | "30" | "20" | "10";
+export const OPCOES_TEMPO: { valor: FaixaTempo; rotulo: string }[] = [
+  { valor: "", rotulo: "Qualquer tempo" },
+  { valor: "10+", rotulo: "10 anos ou mais (as três medalhas)" },
+  { valor: "30", rotulo: "30 anos ou mais" },
+  { valor: "20", rotulo: "20 a 29 anos" },
+  { valor: "10", rotulo: "10 a 19 anos" },
+];
+export function naFaixa(anos: number | null, f: FaixaTempo): boolean {
+  if (!f) return true;
+  const faixa = faixaDaMedalha(anos);
+  return f === "10+" ? faixa !== null : faixa === Number(f);
 }
 
 /* Modelos prontos: o P/1 clica e já sai o relatório do dia a dia, sem montar
@@ -162,9 +203,9 @@ export type Modelo = {
   nome: string;
   descricao: string;
   campos: string[];
-  ordem?: "antiguidade" | "lotacao";
+  ordem?: OrdemRelatorio;
   // filtros que o modelo já deixa marcados
-  filtros?: { somenteComTelefone?: boolean; somenteComEmail?: boolean; situacoes?: string[] };
+  filtros?: { somenteComTelefone?: boolean; somenteComEmail?: boolean; situacoes?: string[]; tempo?: FaixaTempo };
 };
 
 export const MODELOS: Modelo[] = [
@@ -231,6 +272,14 @@ export const MODELOS: Modelo[] = [
     descricao: "Inclusão, tempo de serviço e última promoção, do mais antigo ao mais moderno.",
     campos: ["postoNome", "matricula", "dataIncorp", "tempoServico", "dataPromocao"],
     ordem: "antiguidade",
+  },
+  {
+    id: "medalha",
+    nome: "Medalha por tempo de serviço",
+    descricao: "Quem tem 30, 20 e 10 anos de serviço (pela inclusão), separado por faixa e em hierarquia.",
+    campos: ["postoNome", "nome", "matricula", "dataIncorp", "tempoServico", "medalha"],
+    ordem: "medalha",
+    filtros: { tempo: "10+" },
   },
   {
     id: "qualificacao",
