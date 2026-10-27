@@ -3,30 +3,40 @@ import path from "path";
 import ExcelJS from "exceljs";
 
 /* =========================================================================
-   PLANO DE FÉRIAS EM EXCEL (.xlsx) — oficiais, praças ou todos.
+   PLANO DE FÉRIAS EM EXCEL (.xlsx) — oficiais, praças ou os dois.
 
-   O papel segue o padrão dos documentos do Batalhão:
-     · o MESMO cabeçalho da Escala de Serviço — 190 anos da PMMA à esquerda,
-       armas do Maranhão no centro, brasão do 18º BPM à direita, e o texto da
-       organização — SEM o "VISTO" do Cmt (isso é da escala do dia);
-     · uma faixa por equipe com os períodos e a apresentação, e a tabela dos
-       militares em ordem de hierarquia (posto, promoção, número, nome);
-     · no fim, "Quartel do 18º BPM..." e a ASSINATURA DO CMT DA UNIDADE — a
-       mesma imagem do VISTO da escala (Config "escala_chefe_p1".cmtAssinatura)
-       com o nome do Comandante embaixo;
-     · na impressão, cada equipe sai inteira numa folha, e a última equipe vai
-       junto com a assinatura (que nunca fica sozinha numa página).
+   O LAYOUT é o das planilhas que o P/1 já usava (PLANO DE FÉRIAS 2026 —
+   praças e oficiais); o CABEÇALHO é o nosso, o da Escala de Serviço:
+     · 190 anos da PMMA à esquerda, armas do Maranhão no centro, brasão do
+       18º BPM à direita e o texto da organização — SEM o "VISTO" do Cmt;
+     · título "PLANO DE FÉRIAS DOS PRAÇAS (OFICIAIS) DO 18º BPM REFERENTE AO
+       EXERCÍCIO DE <ano>." (Arial 12, como no modelo).
 
-   As imagens vêm da mesma configuração da escala ("escala_brasoes"): trocar
-   um brasão lá troca aqui também. Data URL ou arquivo em /public.
+   PRAÇAS — uma tabela por equipe, uma embaixo da outra, cada uma com o seu
+   cabeçalho cinza: ORD | GRAD | NUMERO | NOME | ID | MATRÍCULA | EQUIPE |
+   PERIODO. O ORD recomeça em cada equipe; o período sai "02/01/27 a
+   05/02/27" (e " e " entre os dois períodos, quando a equipe tem dois).
+   OFICIAIS — uma tabela só, em ordem de hierarquia: ORD | POSTO | NOME |
+   MATRICULA | ID | EQUIPE (o modelo dos oficiais não traz o período).
+   Nos dois, o NOME DE GUERRA sai em negrito dentro do nome completo.
+
+   "Oficiais e praças" = as duas abas no mesmo arquivo (como no modelo).
+
+   No fim de cada aba, "Quartel do 18º BPM..." e a ASSINATURA DO CMT DA
+   UNIDADE — a mesma imagem do VISTO da escala (Config "escala_chefe_p1"
+   .cmtAssinatura) com o nome do Comandante embaixo. Na impressão, uma
+   equipe não se parte entre duas folhas, e a assinatura não fica sozinha.
 
    A marca de férias ADIADAS não sai no papel — a mesma regra do "Imprimir"
    do plano: ela é aviso de tela, não informação do documento.
    ========================================================================= */
 
 export type MembroPlano = {
+  id: string;
   postoGrad: string | null; numeroBarra: string | null; nome: string | null;
-  nomeGuerra: string | null; matricula: string | null; lotacao: string | null;
+  nomeGuerra: string | null; matricula: string | null;
+  oficial: boolean;
+  antiguidade: number;   // posição na hierarquia do plano todo (0 = mais antigo)
 };
 export type PeriodoPlano = { rotulo: string; inicio: string; fim: string; apres: string };
 export type EquipePlano = { numero: string; periodos: PeriodoPlano[]; membros: MembroPlano[] };
@@ -52,17 +62,27 @@ const ORG = [
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 const FONTE = "Times New Roman";
 
-// colunas: as mesmas do "Imprimir" do plano, mais a lotação (Local)
-const COLUNAS: { titulo: string; largura: number; alinhar: "left" | "center" }[] = [
-  { titulo: "Nº", largura: 5, alinhar: "center" },
-  { titulo: "POSTO/GRAD", largura: 17, alinhar: "left" },
-  { titulo: "Nº/BARRA", largura: 11, alinhar: "center" },
-  { titulo: "NOME", largura: 40, alinhar: "left" },
-  { titulo: "NOME DE GUERRA", largura: 18, alinhar: "left" },
-  { titulo: "MATRÍCULA", largura: 13, alinhar: "center" },
-  { titulo: "LOCAL", largura: 24, alinhar: "left" },
+type Coluna = { titulo: string; largura: number; alinhar: "left" | "center"; tam: number };
+
+// larguras, fontes e alinhamentos copiados dos modelos
+const COLUNAS_PRACAS: Coluna[] = [
+  { titulo: "ORD", largura: 7.43, alinhar: "center", tam: 12 },
+  { titulo: "GRAD", largura: 18.14, alinhar: "center", tam: 10 },
+  { titulo: "NUMERO", largura: 14.29, alinhar: "center", tam: 10 },
+  { titulo: "NOME", largura: 53.86, alinhar: "center", tam: 10 },
+  { titulo: "ID", largura: 14.57, alinhar: "center", tam: 10 },
+  { titulo: "MATRÍCULA", largura: 17.57, alinhar: "center", tam: 10 },
+  { titulo: "EQUIPE", largura: 9.57, alinhar: "center", tam: 12 },
+  { titulo: "PERIODO", largura: 43.29, alinhar: "center", tam: 12 },
 ];
-const N = COLUNAS.length;
+const COLUNAS_OFICIAIS: Coluna[] = [
+  { titulo: "ORD", largura: 5.86, alinhar: "center", tam: 12 },
+  { titulo: "POSTO", largura: 18.57, alinhar: "center", tam: 12 },
+  { titulo: "NOME", largura: 50.71, alinhar: "left", tam: 12 },
+  { titulo: "MATRICULA", largura: 13.57, alinhar: "center", tam: 12 },
+  { titulo: "ID", largura: 14, alinhar: "center", tam: 12 },
+  { titulo: "EQUIPE", largura: 15.14, alinhar: "center", tam: 12 },
+];
 
 const fina = { style: "thin" as const, color: { argb: "FF000000" } };
 const grade = { top: fina, left: fina, bottom: fina, right: fina };
@@ -118,9 +138,9 @@ const EMU_PX = 9525;    // EMU por pixel (96 dpi)
 const EMU_PT = 12700;   // EMU por ponto
 
 // ponto x (px a partir da borda esquerda da coluna A) -> coluna 0-based + sobra em EMU
-function naColuna(x: number) {
+function naColuna(colunas: Coluna[], x: number) {
   let col = 0;
-  while (col < N - 1 && x >= pxColuna(COLUNAS[col].largura)) { x -= pxColuna(COLUNAS[col].largura); col++; }
+  while (col < colunas.length - 1 && x >= pxColuna(colunas[col].largura)) { x -= pxColuna(colunas[col].largura); col++; }
   return { nativeCol: col, nativeColOff: Math.round(x * EMU_PX) };
 }
 
@@ -141,36 +161,63 @@ function naLinha(ws: ExcelJS.Worksheet, y: number) {
    largura de coluna irreal e jogava as imagens para a esquerda, e a âncora de
    um canto só com tamanho sai com um atributo (editAs) fora do padrão do
    formato. */
-function porImagem(wb: ExcelJS.Workbook, ws: ExcelJS.Worksheet, img: Imagem, centroX: number, linha: number, topoPt: number, altura: number) {
+function porImagem(wb: ExcelJS.Workbook, ws: ExcelJS.Worksheet, colunas: Coluna[], img: Imagem, centroX: number, linha: number, topoPt: number, altura: number) {
   const largura = Math.round((img.largura / img.altura) * altura);
   const x = Math.max(0, centroX - largura / 2);
   let y = topoPt;
   for (let i = 1; i < linha; i++) y += ws.getRow(i).height ?? 15;
   const id = wb.addImage({ buffer: img.buffer as any, extension: img.extension });
   ws.addImage(id, {
-    tl: { ...naColuna(x), ...naLinha(ws, y) },
-    br: { ...naColuna(x + largura), ...naLinha(ws, y + altura * 0.75) },   // 1 px = 0,75 pt
+    tl: { ...naColuna(colunas, x), ...naLinha(ws, y) },
+    br: { ...naColuna(colunas, x + largura), ...naLinha(ws, y + altura * 0.75) },   // 1 px = 0,75 pt
     editAs: "oneCell",
   } as any);
 }
 
 /* ---------------------------------------------------------------- planilha */
 
-const TITULO_QUEM: Record<QuemPlano, string> = { oficiais: "OFICIAIS", pracas: "PRAÇAS", todos: "OFICIAIS E PRAÇAS" };
+// "02/01/2027" -> "02/01/27", como no modelo
+const curta = (d: string) => (/^\d{2}\/\d{2}\/\d{4}$/.test(d) ? `${d.slice(0, 6)}${d.slice(8)}` : d);
 
+// "02/01/27 a 05/02/27" — com dois períodos, " e " entre eles
 export function textoPeriodos(periodos: PeriodoPlano[]): string {
   const ps = periodos.filter((p) => p.inicio && p.inicio !== "—");
-  if (!ps.length) return "períodos a definir";
-  return ps.map((p) => {
-    const apres = p.apres && p.apres !== "—" ? ` (apres. ${p.apres})` : "";
-    return `${ps.length > 1 ? `${p.rotulo}: ` : ""}${p.inicio} a ${p.fim}${apres}`;
-  }).join("   ·   ");
+  if (!ps.length) return "a definir";
+  return ps.map((p) => `${curta(p.inicio)} a ${curta(p.fim)}`).join(" e ");
 }
 
-export async function gerarPlanoFeriasXlsx(equipes: EquipePlano[], op: OpcoesPlanoXlsx): Promise<Buffer> {
-  const wb = new ExcelJS.Workbook();
-  wb.creator = "SIGEP — 18º BPM";
-  const ws = wb.addWorksheet(`Plano de Férias ${op.ano}`.slice(0, 31), {
+const semAcento = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
+const PARTICULAS = new Set(["DE", "DA", "DO", "DAS", "DOS", "E"]);
+
+/* O nome completo com o NOME DE GUERRA em negrito (como no modelo:
+   "**Aldean** da Costa Monteiro"). Palavra a palavra, sem ligar para acento
+   nem caixa; se o nome de guerra não estiver no nome, sai tudo normal. */
+export function nomeComGuerra(nome: string, guerra: string | null, tam: number): ExcelJS.CellRichTextValue | string {
+  const alvo = new Set(semAcento(guerra || "").split(/\s+/).filter((p) => p && !PARTICULAS.has(p)));
+  if (!alvo.size || !nome) return nome;
+  const pedacos = nome.split(/(\s+)/);
+  if (!pedacos.some((p) => alvo.has(semAcento(p)))) return nome;
+  const richText: ExcelJS.RichText[] = [];
+  for (const p of pedacos) {
+    const negrito = alvo.has(semAcento(p));
+    const ultimo = richText[richText.length - 1];
+    // junta os pedaços vizinhos de mesmo estilo
+    if (ultimo && !!ultimo.font?.bold === negrito) ultimo.text += p;
+    else richText.push({ text: p, font: { name: FONTE, size: tam, bold: negrito } });
+  }
+  return { richText };
+}
+
+type Folha = { titulo: string; nomeAba: string; colunas: Coluna[] };
+const FOLHA_PRACAS: Folha = { titulo: "PRAÇAS", nomeAba: "Praças", colunas: COLUNAS_PRACAS };
+const FOLHA_OFICIAIS: Folha = { titulo: "OFICIAIS", nomeAba: "Oficiais", colunas: COLUNAS_OFICIAIS };
+
+/* Cabeçalho (o da escala, sem o VISTO), título, e as ferramentas de linha e
+   de quebra de página de uma aba. */
+function novaAba(wb: ExcelJS.Workbook, folha: Folha, op: OpcoesPlanoXlsx) {
+  const colunas = folha.colunas;
+  const N = colunas.length;
+  const ws = wb.addWorksheet(folha.nomeAba, {
     views: [{ showGridLines: false }],
     pageSetup: {
       paperSize: 9, orientation: "portrait", fitToPage: true, fitToWidth: 1, fitToHeight: 0,
@@ -178,14 +225,14 @@ export async function gerarPlanoFeriasXlsx(equipes: EquipePlano[], op: OpcoesPla
       margins: { left: 0.35, right: 0.35, top: 0.4, bottom: 0.5, header: 0.2, footer: 0.2 },
     },
   });
-  COLUNAS.forEach((c, i) => { ws.getColumn(i + 1).width = c.largura; });
-  const larguraTotal = COLUNAS.reduce((s, c) => s + pxColuna(c.largura), 0);
+  colunas.forEach((c, i) => { ws.getColumn(i + 1).width = c.largura; });
+  const larguraTotal = colunas.reduce((s, c) => s + pxColuna(c.largura), 0);
 
-  const linhaTexto = (r: number, texto: string, opt: { bold?: boolean; size?: number; underline?: boolean; altura?: number; alinhar?: "center" | "right" | "left"; italic?: boolean } = {}) => {
+  const linhaTexto = (r: number, texto: string, opt: { bold?: boolean; size?: number; altura?: number; alinhar?: "center" | "right" | "left"; italic?: boolean; fonte?: string } = {}) => {
     ws.mergeCells(r, 1, r, N);
     const c = ws.getCell(r, 1);
     c.value = texto;
-    c.font = { name: FONTE, size: opt.size ?? 10, bold: !!opt.bold, underline: !!opt.underline, italic: !!opt.italic };
+    c.font = { name: opt.fonte ?? FONTE, size: opt.size ?? 10, bold: !!opt.bold, italic: !!opt.italic };
     c.alignment = { horizontal: opt.alinhar ?? "center", vertical: "middle", wrapText: true };
     if (opt.altura) ws.getRow(r).height = opt.altura;
   };
@@ -198,107 +245,135 @@ export async function gerarPlanoFeriasXlsx(equipes: EquipePlano[], op: OpcoesPla
   const pmma = carregarImagem(op.brasoes.pmma);
   const ma = carregarImagem(op.brasoes.ma);
   const bpm = carregarImagem(op.brasoes.bpm);
-  if (ma) porImagem(wb, ws, ma, larguraTotal / 2, 1, 3, 56);
-  if (pmma) porImagem(wb, ws, pmma, 58, 2, 4, 84);
-  if (bpm) porImagem(wb, ws, bpm, larguraTotal - 52, 2, 4, 84);
+  if (ma) porImagem(wb, ws, colunas, ma, larguraTotal / 2, 1, 3, 56);
+  if (pmma) porImagem(wb, ws, colunas, pmma, 58, 2, 4, 84);
+  if (bpm) porImagem(wb, ws, colunas, bpm, larguraTotal - 52, 2, 4, 84);
 
-  // ---- título ----
-  let r = 10;
-  ws.getRow(9).height = 8;
-  linhaTexto(r++, `PLANO DE FÉRIAS — ${op.ano}`, { bold: true, size: 14, underline: true, altura: 22 });
-  linhaTexto(r++, TITULO_QUEM[op.quem], { bold: true, size: 11, altura: 16 });
-  ws.getRow(r++).height = 8;
+  // ---- título, como no modelo (Arial 12) ----
+  ws.getRow(9).height = 10;
+  linhaTexto(10, `PLANO DE FÉRIAS DOS ${folha.titulo} DO 18º BPM REFERENTE AO EXERCÍCIO DE ${op.ano}.`,
+    { size: 12, fonte: "Arial", altura: 20 });
+  ws.getRow(11).height = 12;
 
-  /* ---- quebra de página: uma equipe não se parte entre duas folhas ----
-     (o mesmo do "Imprimir" do plano, que usa break-inside: avoid). Na folha
-     A4 em pé, com a redução do "ajustar à largura", cabem `porPagina` pontos
-     de linhas; 5% de folga para a diferença de medida entre os programas. */
+  /* ---- quebra de página: um bloco não se parte entre duas folhas ----
+     Na folha A4 em pé, com a redução do "ajustar à largura", cabem
+     `porPagina` pontos de linhas; 5% de folga para a diferença de medida
+     entre os programas. */
   const reducao = Math.min(1, (595.28 - 2 * 0.35 * 72) / (larguraTotal * 0.75));
   const porPagina = ((841.89 - (0.4 + 0.5) * 72) / reducao) * 0.95;
   let usado = 0;
-  for (let i = 1; i < r; i++) usado += ws.getRow(i).height ?? 15;
+  for (let i = 1; i <= 11; i++) usado += ws.getRow(i).height ?? 15;
   // o bloco de `altura` pontos que começa na linha r não cabe? quebra antes dela
-  const reservar = (altura: number) => {
+  const reservar = (r: number, altura: number) => {
     if (usado > 0 && usado + altura > porPagina) { ws.getRow(r - 1).addPageBreak(); usado = 0; }
     usado = (usado + altura) % porPagina;
   };
-  // nome comprido quebra em duas linhas: a altura acompanha
-  const alturaLinha = (valores: string[]) =>
-    Math.max(14, Math.max(...valores.map((v, i) => Math.ceil(v.length / Math.max(4, COLUNAS[i].largura * 1.15)))) * 12 + 2);
 
-  // data + assinatura + nome + cargo do Cmt (as alturas das linhas do fecho)
-  const FECHO = 10 + 16 + 10 + 48 + 14 + 14;
+  return { ws, colunas, larguraTotal, linhaTexto, reservar, primeira: 12 };
+}
 
-  // ---- uma faixa por equipe, a tabela dos militares embaixo ----
-  // (equipe sem ninguém deste recorte não sai)
-  const comMembros = equipes.filter((e) => e.membros.length);
-  let total = 0;
-  for (const e of comMembros) {
-    const linhas = e.membros.map((m, k) =>
-      [`${k + 1}º`, m.postoGrad || "—", m.numeroBarra || "—", m.nome || "—", m.nomeGuerra || "", m.matricula || "—", m.lotacao || "—"]);
-    // a última equipe vai junto com o total e o fecho: a assinatura do Cmt
-    // não fica sozinha numa folha
-    const ultima = e === comMembros[comMembros.length - 1];
-    reservar(18 + 15 + linhas.reduce((s, v) => s + alturaLinha(v), 0) + 8 + (ultima ? 14 + FECHO : 0));
+const ALTURA_LINHA = 17.25;   // a do modelo
+// data + assinatura + nome + cargo do Cmt (as alturas das linhas do fecho)
+const FECHO = 14 + 18 + 10 + 48 + 14 + 14;
 
-    ws.mergeCells(r, 1, r, N);
-    const faixa = ws.getCell(r, 1);
-    faixa.value = `EQUIPE ${e.numero}   —   ${textoPeriodos(e.periodos)}   —   ${e.membros.length} militar(es)`;
-    faixa.font = { name: FONTE, size: 10, bold: true };
-    faixa.alignment = { horizontal: "left", vertical: "middle", wrapText: true, indent: 1 };
-    faixa.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9D9D9" } };
-    faixa.border = grade;
-    ws.getRow(r).height = 18;
-    r++;
+function cabecalhoTabela(ws: ExcelJS.Worksheet, r: number, colunas: Coluna[], estilo: "pracas" | "oficiais") {
+  colunas.forEach((c, i) => {
+    const cel = ws.getCell(r, i + 1);
+    cel.value = c.titulo;
+    // praças: Times 12 em cinza claro; oficiais: Arial 10 negrito em cinza (os modelos)
+    cel.font = estilo === "pracas" ? { name: FONTE, size: 12 } : { name: "Arial", size: 10, bold: true };
+    cel.alignment = { horizontal: "center", vertical: "middle" };
+    cel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: estilo === "pracas" ? "FFD9D9D9" : "FFC0C0C0" } };
+    cel.border = grade;
+  });
+  ws.getRow(r).height = estilo === "pracas" ? 16.5 : 15;
+}
 
-    COLUNAS.forEach((c, i) => {
-      const cel = ws.getCell(r, i + 1);
-      cel.value = c.titulo;
-      cel.font = { name: FONTE, size: 9, bold: true };
-      cel.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-      cel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F2F2" } };
-      cel.border = grade;
-    });
-    ws.getRow(r).height = 15;
-    r++;
+function linhaMilitar(ws: ExcelJS.Worksheet, r: number, colunas: Coluna[], valores: (string | ExcelJS.CellRichTextValue)[]) {
+  valores.forEach((v, i) => {
+    const cel = ws.getCell(r, i + 1);
+    cel.value = v as any;
+    cel.font = { name: FONTE, size: colunas[i].tam };
+    cel.alignment = { horizontal: colunas[i].alinhar, vertical: "middle", wrapText: true };
+    cel.border = grade;
+  });
+  ws.getRow(r).height = ALTURA_LINHA;
+}
 
-    for (const valores of linhas) {
-      valores.forEach((v, i) => {
-        const cel = ws.getCell(r, i + 1);
-        cel.value = v;
-        cel.font = { name: FONTE, size: 9 };
-        cel.alignment = { horizontal: COLUNAS[i].alinhar, vertical: "middle", wrapText: true };
-        cel.border = grade;
-      });
-      ws.getRow(r).height = alturaLinha(valores);
-      r++;
-    }
-    total += e.membros.length;
-    ws.getRow(r++).height = 8;
-  }
-
-  if (!total) {
-    reservar(18 + FECHO);
-    linhaTexto(r++, "Nenhum militar neste recorte do plano.", { italic: true, altura: 18 });
-  } else {
-    linhaTexto(r++, `Total: ${total} militar(es)`, { bold: true, size: 9, alinhar: "right", altura: 14 });
-  }
-
-  // ---- fecho e assinatura do Cmt da unidade ----
+// "Quartel do 18º BPM..." e a assinatura do Cmt da unidade
+function fecho(wb: ExcelJS.Workbook, aba: ReturnType<typeof novaAba>, r: number, op: OpcoesPlanoXlsx) {
+  const { ws, colunas, larguraTotal, linhaTexto } = aba;
   const hoje = op.hoje ?? new Date();
-  ws.getRow(r++).height = 10;
+  ws.getRow(r++).height = 14;
   linhaTexto(r++, `Quartel do 18º BPM, em Presidente Dutra-MA, ${hoje.getDate()} de ${MESES[hoje.getMonth()]} de ${hoje.getFullYear()}.`,
-    { size: 10, alinhar: "right", altura: 16 });
+    { size: 12, fonte: "Arial", altura: 18 });
   ws.getRow(r++).height = 10;
-
   const ass = carregarImagem(op.cmt.assinatura);
   ws.getRow(r).height = 48;
-  ws.mergeCells(r, 1, r, N);
-  if (ass) porImagem(wb, ws, ass, larguraTotal / 2, r, 2, 60);
+  ws.mergeCells(r, 1, r, colunas.length);
+  if (ass) porImagem(wb, ws, colunas, ass, larguraTotal / 2, r, 2, 60);
   r++;
-  linhaTexto(r++, (op.cmt.nome || "").toUpperCase() || "________________________________", { bold: true, size: 10, altura: 14 });
-  linhaTexto(r++, op.cmt.cargo || "Comandante do 18º BPM", { size: 10, altura: 14 });
+  linhaTexto(r++, (op.cmt.nome || "").toUpperCase() || "________________________________", { bold: true, size: 11, altura: 14 });
+  linhaTexto(r++, op.cmt.cargo || "Comandante do 18º BPM", { size: 11, altura: 14 });
+  ws.pageSetup.printArea = `A1:${String.fromCharCode(64 + colunas.length)}${r - 1}`;
+}
 
-  ws.pageSetup.printArea = `A1:${String.fromCharCode(64 + N)}${r - 1}`;
+/* PRAÇAS: uma tabela por equipe, com o cabeçalho cinza em cada uma. */
+function abaPracas(wb: ExcelJS.Workbook, equipes: EquipePlano[], op: OpcoesPlanoXlsx) {
+  const aba = novaAba(wb, FOLHA_PRACAS, op);
+  const { ws, colunas, linhaTexto, reservar } = aba;
+  let r = aba.primeira;
+  const blocos = equipes
+    .map((e) => ({ ...e, membros: e.membros.filter((m) => !m.oficial) }))
+    .filter((e) => e.membros.length);
+  blocos.forEach((e, k) => {
+    const ultima = k === blocos.length - 1;
+    // a tabela da equipe inteira numa folha; a última vai junto com a assinatura
+    reservar(r, 16.5 + e.membros.length * ALTURA_LINHA + (ultima ? FECHO : 2 * 15));
+    cabecalhoTabela(ws, r++, colunas, "pracas");
+    const periodo = textoPeriodos(e.periodos);
+    e.membros.forEach((m, i) => {
+      linhaMilitar(ws, r++, colunas, [
+        String(i + 1), m.postoGrad || "-------", m.numeroBarra || "-------",
+        nomeComGuerra(m.nome || "", m.nomeGuerra, colunas[3].tam), m.id || "-------", m.matricula || "-------",
+        e.numero, periodo,
+      ]);
+    });
+    // duas linhas entre uma equipe e a outra (o modelo)
+    if (!ultima) { ws.getRow(r++).height = 15; ws.getRow(r++).height = 15; }
+  });
+  if (!blocos.length) linhaTexto(r++, "Nenhuma praça neste plano.", { italic: true, altura: 18 });
+  fecho(wb, aba, r, op);
+}
+
+/* OFICIAIS: uma tabela só, em ordem de hierarquia, com a equipe de cada um. */
+function abaOficiais(wb: ExcelJS.Workbook, equipes: EquipePlano[], op: OpcoesPlanoXlsx) {
+  const aba = novaAba(wb, FOLHA_OFICIAIS, op);
+  const { ws, colunas, linhaTexto, reservar } = aba;
+  let r = aba.primeira;
+  const oficiais = equipes
+    .flatMap((e) => e.membros.filter((m) => m.oficial).map((m) => ({ m, equipe: e.numero })))
+    .sort((a, b) => a.m.antiguidade - b.m.antiguidade);
+  if (oficiais.length) {
+    reservar(r, 15 + oficiais.length * ALTURA_LINHA + FECHO);
+    cabecalhoTabela(ws, r++, colunas, "oficiais");
+    oficiais.forEach(({ m, equipe }, i) => {
+      linhaMilitar(ws, r++, colunas, [
+        String(i + 1), m.postoGrad || "-------",
+        nomeComGuerra(m.nome || "", m.nomeGuerra, colunas[2].tam), m.matricula || "-------", m.id || "-------", equipe,
+      ]);
+    });
+  } else {
+    linhaTexto(r++, "Nenhum oficial neste plano.", { italic: true, altura: 18 });
+  }
+  fecho(wb, aba, r, op);
+}
+
+export async function gerarPlanoFeriasXlsx(equipes: EquipePlano[], op: OpcoesPlanoXlsx): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "SIGEP — 18º BPM";
+  // "oficiais e praças": as duas abas no mesmo arquivo, oficiais primeiro
+  if (op.quem !== "pracas") abaOficiais(wb, equipes, op);
+  if (op.quem !== "oficiais") abaPracas(wb, equipes, op);
   return Buffer.from(await wb.xlsx.writeBuffer());
 }

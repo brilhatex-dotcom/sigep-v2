@@ -5,7 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { classificarPatente } from "@/lib/patentes";
 import { compararAntiguidade } from "@/lib/antiguidade";
 import { dataBR, hojeBR } from "@/lib/ferias";
-import { formatarLotacao } from "@/lib/formatarLotacao";
 import { registrar } from "@/lib/auditoria";
 import { gerarPlanoFeriasXlsx, type EquipePlano, type QuemPlano } from "@/lib/planoFeriasXlsx";
 
@@ -18,6 +17,10 @@ export const dynamic = "force-dynamic";
    "escala_brasoes", a do Batalhão) e o mesmo texto da organização, SEM o
    VISTO — e, no fim, a assinatura do Cmt da unidade: a imagem e o nome que
    estão na aba "Chefe do P1" da escala (Config "escala_chefe_p1").
+
+   O layout segue os modelos do P/1: as praças em uma tabela por equipe
+   (com o período de cada uma); os oficiais numa tabela só, por hierarquia.
+   "todos" = as duas abas no mesmo arquivo.
 
    Só o administrador (P/1): o arquivo leva a imagem da assinatura do Cmt. */
 
@@ -64,9 +67,11 @@ export async function GET(req: NextRequest) {
 
     const fichas = await prisma.efetivo.findMany({
       where: { id: { in: Array.from(new Set(membros.map((m) => m.idPmma))) } },
-      select: { id: true, postoGrad: true, numeroBarra: true, nome: true, nomeGuerra: true, matricula: true, lotacao: true, dataPromocao: true },
+      select: { id: true, postoGrad: true, numeroBarra: true, nome: true, nomeGuerra: true, matricula: true, dataPromocao: true },
     });
     const mapaFicha = new Map(fichas.map((f) => [f.id, f]));
+    // a posição de cada um na hierarquia do batalhão (a tabela dos oficiais junta as equipes)
+    const antiguidade = new Map([...fichas].sort(compararAntiguidade).map((f, i) => [f.id, i]));
 
     const plano: EquipePlano[] = [...equipes]
       .sort((a, b) => Number(a.numeroEquipe) - Number(b.numeroEquipe))
@@ -87,8 +92,9 @@ export async function GET(req: NextRequest) {
           numero: e.numeroEquipe,
           periodos: periodos.map((p) => ({ rotulo: p.rotulo, inicio: dataBR(p.inicio), fim: dataBR(p.fim), apres: dataBR(p.apres) })),
           membros: doRecorte.map((f) => ({
-            postoGrad: f.postoGrad, numeroBarra: f.numeroBarra, nome: f.nome,
-            nomeGuerra: f.nomeGuerra, matricula: f.matricula, lotacao: formatarLotacao(f.lotacao),
+            id: f.id, postoGrad: f.postoGrad, numeroBarra: f.numeroBarra, nome: f.nome,
+            nomeGuerra: f.nomeGuerra, matricula: f.matricula,
+            oficial: ehOficial(f.postoGrad), antiguidade: antiguidade.get(f.id) ?? 0,
           })),
         };
       });
