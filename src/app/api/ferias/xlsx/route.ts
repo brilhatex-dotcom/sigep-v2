@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { classificarPatente } from "@/lib/patentes";
+import { abrevPosto } from "@/lib/refMilitar";
 import { compararAntiguidade } from "@/lib/antiguidade";
 import { dataBR, hojeBR } from "@/lib/ferias";
 import { registrar } from "@/lib/auditoria";
@@ -14,9 +15,10 @@ export const dynamic = "force-dynamic";
    O Plano de Férias do ano em Excel: só os oficiais, só as praças ou todos.
 
    Papel no padrão da Escala de Serviço — mesmos brasões (Config
-   "escala_brasoes", a do Batalhão) e o mesmo texto da organização, SEM o
-   VISTO — e, no fim, a assinatura do Cmt da unidade: a imagem e o nome que
-   estão na aba "Chefe do P1" da escala (Config "escala_chefe_p1").
+   "escala_brasoes", a do Batalhão) e o mesmo texto da organização. Quem
+   assina vem da aba "Chefe do P1" da escala (Config "escala_chefe_p1"):
+   praças com o VISTO do Cmt em cima e o Chefe do P/1 no fim; oficiais com
+   o Cmt da unidade no fim.
 
    O layout segue os modelos do P/1: as praças em uma tabela por equipe
    (com o período de cada uma); os oficiais numa tabela só, por hierarquia.
@@ -29,6 +31,10 @@ const BRASOES_PADRAO = {
   ma: "/brasao-estado-ma.png",
   bpm: "/brasoes/brasao-18bpm.png",
 };
+const P1_PADRAO = {
+  nome: "1º TEN QOEM PAULO SILAS BARROS DE BRITO JUNIOR",
+  funcao: "CHEFE DO P/1 DO 18º BPM",
+};
 const CMT_PADRAO = {
   nome: "TEN CEL QOEM FLÁVIO DE CARVALHO RAMOS",
   assinatura: "/brasoes/assinatura-cmt.png",
@@ -38,6 +44,16 @@ const SUFIXO: Record<QuemPlano, string> = { oficiais: "Oficiais", pracas: "Praca
 const ROTULO: Record<QuemPlano, string> = { oficiais: "oficiais", pracas: "praças", todos: "oficiais e praças" };
 
 const ehOficial = (postoGrad: string | null) => classificarPatente(postoGrad).ordem <= 7;
+
+/* O posto COM o quadro, como nos modelos: "TEN CEL QOEM", "CAP QOMUS".
+   Praça é sempre "PM" depois da graduação ("SD PM", "1º SGT PM" — pedido do
+   P/1); oficial sem quadro na ficha fica só o posto. */
+function postoComQuadro(postoGrad: string | null, quadro: string | null): string {
+  const posto = abrevPosto(postoGrad || "");
+  const q = ehOficial(postoGrad) ? (quadro || "").trim().toUpperCase() : "PM";
+  if (!posto) return q;
+  return q && !posto.split(/\s+/).includes(q) ? `${posto} ${q}` : posto;
+}
 
 function lerJson(valor: string | null | undefined): any {
   try { return valor ? JSON.parse(valor) : null; } catch { return null; }
@@ -67,7 +83,7 @@ export async function GET(req: NextRequest) {
 
     const fichas = await prisma.efetivo.findMany({
       where: { id: { in: Array.from(new Set(membros.map((m) => m.idPmma))) } },
-      select: { id: true, postoGrad: true, numeroBarra: true, nome: true, nomeGuerra: true, matricula: true, dataPromocao: true },
+      select: { id: true, postoGrad: true, numeroBarra: true, nome: true, nomeGuerra: true, matricula: true, quadro: true, dataPromocao: true },
     });
     const mapaFicha = new Map(fichas.map((f) => [f.id, f]));
     // a posição de cada um na hierarquia do batalhão (a tabela dos oficiais junta as equipes)
@@ -92,7 +108,7 @@ export async function GET(req: NextRequest) {
           numero: e.numeroEquipe,
           periodos: periodos.map((p) => ({ rotulo: p.rotulo, inicio: dataBR(p.inicio), fim: dataBR(p.fim), apres: dataBR(p.apres) })),
           membros: doRecorte.map((f) => ({
-            id: f.id, postoGrad: f.postoGrad, numeroBarra: f.numeroBarra, nome: f.nome,
+            id: f.id, postoGrad: postoComQuadro(f.postoGrad, f.quadro), numeroBarra: f.numeroBarra, nome: f.nome,
             nomeGuerra: f.nomeGuerra, matricula: f.matricula,
             oficial: ehOficial(f.postoGrad), antiguidade: antiguidade.get(f.id) ?? 0,
           })),
@@ -112,6 +128,12 @@ export async function GET(req: NextRequest) {
         nome: texto(chefe.comandante) || CMT_PADRAO.nome,
         cargo: "Comandante do 18º BPM",
         assinatura: texto(chefe.cmtAssinatura) || CMT_PADRAO.assinatura,
+      },
+      p1: {
+        nome: texto(chefe.nome) || P1_PADRAO.nome,
+        funcao: texto(chefe.funcao) || P1_PADRAO.funcao,
+        // assinando pelo gov.br, o espaço da assinatura fica em branco (como na escala)
+        assinatura: chefe.assinarGov === true ? "" : texto(chefe.assinatura),
       },
       hoje: hojeBR(),
     });
