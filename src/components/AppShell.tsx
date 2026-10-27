@@ -62,6 +62,7 @@ import {
   Crosshair,
   Table2,
   Loader2,
+  Library,
 } from "lucide-react";
 import Relogio from "@/components/Relogio";
 import BuscaGlobal from "@/components/BuscaGlobal";
@@ -127,6 +128,8 @@ const NAV: Secao[] = [
       { rotulo: "Requerimentos", href: "/requerimentos", Icone: ScrollText, disponivel: true },
       { rotulo: "Cursos", href: "/cursos", Icone: GraduationCap, disponivel: true },
       { rotulo: "Verificar Documento", href: "/verificar", Icone: ShieldCheck, disponivel: true },
+      // BGs, portarias e editais: todos consultam, o P/1 põe (o restrito, só ele vê)
+      { rotulo: "Documentos Oficiais", href: "/documentos", Icone: Library, disponivel: true },
       { rotulo: "Escala de Serviço", href: "/minha-escala", Icone: CalendarDays, disponivel: true, policialOnly: true },
       { rotulo: "Meu Mapa de Escala", href: "/meu-mapa", Icone: MapPinned, disponivel: true, policialOnly: true },
       { rotulo: "Minhas Férias", href: "/minhas-ferias", Icone: Sun, disponivel: true, policialOnly: true },
@@ -332,6 +335,10 @@ export default function AppShell({
     }))
     .filter((secao) => secao.itens.length > 0);
 
+  // as telas do menu desta pessoa: a busca do topo também acha por elas
+  const telasBusca = secoesVisiveis.flatMap((s) =>
+    s.itens.filter((i) => i.href && i.disponivel).map((i) => ({ rotulo: i.rotulo, href: i.href! })));
+
   const sidebar = (
     <div className="ui-glass flex h-full w-60 flex-col border-r border-white/5 text-white">
       {/* logo */}
@@ -510,7 +517,7 @@ export default function AppShell({
             </p>
           </div>
 
-          <BuscaGlobal />
+          <BuscaGlobal telas={telasBusca} admin={admin} />
 
           <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
             {admin && <AcoesRapidas isAdmin={true} />}
