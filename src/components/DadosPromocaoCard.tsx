@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Pencil, Save, X } from "lucide-react";
 import { avisar } from "@/components/Avisos";
+import TextoComBG from "@/components/TextoComBG";
 
 /* =========================================================================
    DADOS PARA PROMOÇÃO — seção da ficha da praça (src/lib/dadosPromocao.ts)
@@ -122,7 +123,7 @@ export default function DadosPromocaoCard({ efetivoId }: { efetivoId: string }) 
                       )
                     ) : (
                       <p className="mt-0.5 whitespace-pre-line text-[15px] font-medium text-white">
-                        {r.dados[c.chave] || <span className="text-[#4b5d7a]">—</span>}
+                        {r.dados[c.chave] ? <TextoComBG texto={r.dados[c.chave]} /> : <span className="text-[#4b5d7a]">—</span>}
                       </p>
                     )}
                   </div>
