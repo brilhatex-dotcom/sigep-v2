@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { classificarPatente } from "@/lib/patentes";
+import { abrevPosto } from "@/lib/refMilitar";
 import { compararAntiguidade } from "@/lib/antiguidade";
 import { dataBR, hojeBR } from "@/lib/ferias";
 import { registrar } from "@/lib/auditoria";
@@ -39,6 +40,15 @@ const ROTULO: Record<QuemPlano, string> = { oficiais: "oficiais", pracas: "praç
 
 const ehOficial = (postoGrad: string | null) => classificarPatente(postoGrad).ordem <= 7;
 
+/* O posto COM o quadro, como nos modelos: "TEN CEL QOEM", "CAP QOMUS",
+   "SD PM". Praça sem quadro na ficha é PM; oficial sem quadro fica só o posto. */
+function postoComQuadro(postoGrad: string | null, quadro: string | null): string {
+  const posto = abrevPosto(postoGrad || "");
+  const q = (quadro || "").trim().toUpperCase() || (ehOficial(postoGrad) ? "" : "PM");
+  if (!posto) return q;
+  return q && !posto.split(/\s+/).includes(q) ? `${posto} ${q}` : posto;
+}
+
 function lerJson(valor: string | null | undefined): any {
   try { return valor ? JSON.parse(valor) : null; } catch { return null; }
 }
@@ -67,7 +77,7 @@ export async function GET(req: NextRequest) {
 
     const fichas = await prisma.efetivo.findMany({
       where: { id: { in: Array.from(new Set(membros.map((m) => m.idPmma))) } },
-      select: { id: true, postoGrad: true, numeroBarra: true, nome: true, nomeGuerra: true, matricula: true, dataPromocao: true },
+      select: { id: true, postoGrad: true, numeroBarra: true, nome: true, nomeGuerra: true, matricula: true, quadro: true, dataPromocao: true },
     });
     const mapaFicha = new Map(fichas.map((f) => [f.id, f]));
     // a posição de cada um na hierarquia do batalhão (a tabela dos oficiais junta as equipes)
@@ -92,7 +102,7 @@ export async function GET(req: NextRequest) {
           numero: e.numeroEquipe,
           periodos: periodos.map((p) => ({ rotulo: p.rotulo, inicio: dataBR(p.inicio), fim: dataBR(p.fim), apres: dataBR(p.apres) })),
           membros: doRecorte.map((f) => ({
-            id: f.id, postoGrad: f.postoGrad, numeroBarra: f.numeroBarra, nome: f.nome,
+            id: f.id, postoGrad: postoComQuadro(f.postoGrad, f.quadro), numeroBarra: f.numeroBarra, nome: f.nome,
             nomeGuerra: f.nomeGuerra, matricula: f.matricula,
             oficial: ehOficial(f.postoGrad), antiguidade: antiguidade.get(f.id) ?? 0,
           })),
