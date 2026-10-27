@@ -90,7 +90,7 @@ type Secao = { titulo: string; itens: Item[]; cor?: string };
 
 // adminOnly: true  -> SO o admin ve/acessa.
 // Sem adminOnly    -> todos (inclusive policial) veem.
-// Regra final: o policial so enxerga Ficha Individual, JOE e Promocoes/Certidoes.
+// O JOE e so do admin (P/1): para os demais fica oculto do menu.
 const NAV: Secao[] = [
   {
     titulo: "Principal",
@@ -123,7 +123,8 @@ const NAV: Secao[] = [
     itens: [
       { rotulo: "Plano de Férias", href: "/ferias", Icone: Palmtree, disponivel: true, adminOnly: true },
       { rotulo: "Licença-Prêmio", href: "/licenca-premio", Icone: BadgeCheck, disponivel: true, adminOnly: true },
-      { rotulo: "JOE", href: "/joe", Icone: ClipboardList, disponivel: true },
+      // JOE: só o P/1 (admin) — oculta para os demais, por ordem do P/1
+      { rotulo: "JOE", href: "/joe", Icone: ClipboardList, disponivel: true, adminOnly: true },
       { rotulo: "Permutas", href: "/permutas", Icone: ArrowLeftRight, disponivel: true },
       { rotulo: "Requerimentos", href: "/requerimentos", Icone: ScrollText, disponivel: true },
       { rotulo: "Cursos", href: "/cursos", Icone: GraduationCap, disponivel: true },
