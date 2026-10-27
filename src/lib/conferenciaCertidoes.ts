@@ -30,6 +30,7 @@ export type ArquivoLido = {
   erroLeitura?: boolean; // não deu para baixar/abrir o arquivo
   porImagem?: boolean;   // o texto saiu da leitura da imagem (OCR): foto, print ou escaneado
   incompleto?: boolean;  // ficou página de imagem por ler (o tempo da chamada acabou)
+  sinais?: string[];     // sinais de adulteração do ARQUIVO (ver sinaisDeAdulteracao)
 };
 
 export type MilitarConferido = { nome: string | null; cpf: string | null };
@@ -43,6 +44,8 @@ export type ItemConferido = {
   validade?: string;     // dd/mm/aaaa (só o TJMA imprime)
   codigo?: string;       // código de validação, para conferir no site
   porImagem?: boolean;   // lida da imagem (OCR) — não é o PDF original do tribunal
+  linkVerificacao?: string; // página de autenticidade do tribunal (com o código, quando o site aceita)
+  suspeita?: boolean;    // sinal de adulteração ou de clone: conferir no site
   alertas: string[];
 };
 
@@ -55,7 +58,7 @@ export type ResultadoConferencia = {
 
 /* Sobe quando as regras mudam: a conferência guardada com regras velhas
    deixa de valer e o painel pede para conferir de novo. */
-export const VERSAO_REGRAS = 3;
+export const VERSAO_REGRAS = 4;
 
 export const ROTULO_ITEM: Record<number, string> = {
   1: "TJMA 1º grau", 2: "TJMA 2º grau", 3: "Justiça Militar Estadual",
@@ -183,6 +186,121 @@ function codigoDa(texto: string): string | undefined {
   return [m[1], ...grupos].join(" ");
 }
 
+/* ------------------------------------------- sinais de adulteração */
+
+/* O que o próprio arquivo conta de onde veio (lib/leituraPdf.ts). */
+export type MetaPdf = {
+  produtor: string; criador: string;
+  criadoEm: string | null; modificadoEm: string | null;   // ISO
+  edicoes: number;        // vezes que o PDF foi alterado e salvo depois de pronto
+};
+
+/* Programas de EDITAR ou recriar PDF. A certidão de verdade sai do sistema
+   do tribunal; passou por um destes, o arquivo não é o original — pode ser
+   só um "juntar páginas", mas também pode ser nome trocado. Não condena:
+   manda conferir o código no site. (CamScanner fica de fora: já aparece
+   como "lida da imagem".) */
+const EDITORES: [RegExp, string][] = [
+  [/ilovepdf/i, "iLovePDF"], [/smallpdf/i, "Smallpdf"], [/sejda/i, "Sejda"], [/pdf24/i, "PDF24"],
+  [/pdfescape/i, "PDFescape"], [/nitro/i, "Nitro"], [/foxit/i, "Foxit"], [/pdfelement|wondershare/i, "PDFelement"],
+  [/acrobat pro|acrobat standard|adobe acrobat \d/i, "Adobe Acrobat"], [/libreoffice|openoffice/i, "LibreOffice"],
+  [/microsoft.*word|word for|\bword\b/i, "Microsoft Word"], [/print to pdf|microsoft: print/i, "Imprimir como PDF (Windows)"],
+  [/canva/i, "Canva"], [/google docs/i, "Google Docs"], [/wps/i, "WPS Office"], [/xodo/i, "Xodo"],
+  [/pdf ?candy/i, "PDF Candy"], [/soda ?pdf/i, "Soda PDF"], [/photoshop/i, "Photoshop"],
+];
+
+const dataHoraBR = (iso: string) => {
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? iso : d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
+};
+
+export function sinaisDeAdulteracao(m: MetaPdf | null | undefined): string[] {
+  if (!m) return [];
+  const out: string[] = [];
+  const programa = `${m.produtor} ${m.criador}`;
+  const editor = EDITORES.find(([re]) => re.test(programa));
+  if (editor) out.push(`não é o PDF original do tribunal: passou pelo ${editor[1]} — confira o código no site`);
+  if (m.edicoes > 0) out.push("o PDF foi alterado e salvo de novo depois de gerado — confira o código no site");
+  else if (m.criadoEm && m.modificadoEm) {
+    const dif = new Date(m.modificadoEm).getTime() - new Date(m.criadoEm).getTime();
+    if (dif > 10 * 60000) out.push(`modificado em ${dataHoraBR(m.modificadoEm)}, depois de gerado em ${dataHoraBR(m.criadoEm)} — confira o código no site`);
+  }
+  return out;
+}
+
+/* ------------------------------------------ verificação no site */
+
+/* Página de autenticidade de cada tribunal (a que a própria certidão
+   imprime). Só endereço da Justiça (.jus.br) vira link: um PDF forjado não
+   pode mandar o P/1 para um site qualquer. */
+const PAGINA_AUTENTICIDADE: Record<number, string> = {
+  1: "https://jurisconsult.tjma.jus.br/", 2: "https://jurisconsult.tjma.jus.br/", 3: "https://jurisconsult.tjma.jus.br/",
+  4: "https://sistemas.trf1.jus.br/certidao/",
+  5: "https://certidoes.trf2.jus.br/certidoes/#/principal/verificar",
+  6: "https://web.trf3.jus.br/certidao-regional/CertidaoCivelEleitoralCriminal/VerificarAutenticidade",
+  7: "https://www.trf4.jus.br/autenticidade",
+  8: "https://www.trf5.jus.br/",
+  9: "https://sistemas.trf6.jus.br/certidao/",
+};
+const PAGINA_CJF = "https://certidao-unificada.cjf.jus.br/#/validacao-certidao";
+
+export function linkDeVerificacao(texto: string, ordem: number, codigo?: string): string {
+  // junta o endereço que a quebra de linha partiu ("verificar?\nconsultar=...")
+  const corrido = texto.replace(/([?&=\-/])\s+(?=[\w#])/g, "$1");
+  const urls = (corrido.match(/(?:https?:\/\/|www\.)[^\s;,"'<>()]+/gi) || [])
+    // sempre https (o TRF4 imprime "http://")
+    .map((u) => (u.startsWith("http") ? u : `https://${u}`).replace(/^http:\/\//i, "https://").replace(/[.]+$/, ""))
+    .filter((u) => { try { return new URL(u).hostname.endsWith(".jus.br"); } catch { return false; } });
+  const comCodigo = codigo ? urls.find((u) => u.replace(/\W/g, "").includes(codigo.replace(/\W/g, ""))) : undefined;
+  const deVerificar = urls.find((u) => /verific|validac|autentic/i.test(u));
+  if (comCodigo) return comCodigo;
+  if (deVerificar) return deVerificar;
+  if (/CONSELHO DA JUSTICA FEDERAL/.test(normalizar(texto))) return PAGINA_CJF;
+  return PAGINA_AUTENTICIDADE[ordem] || "";
+}
+
+/* Amostra para conferir no site: cerca de 1 em cada 4 certidões, sempre as
+   MESMAS para o mesmo militar e período (não muda a cada vez que se abre). */
+export function sorteadaParaSite(periodoId: string, efetivoId: string, ordem: number): boolean {
+  let h = 2166136261;
+  for (const c of `${periodoId}|${efetivoId}|${ordem}`) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
+  return h % 4 === 0;
+}
+
+/* CLONE: o mesmo código de validação em dois militares é a certidão de um
+   com o nome do outro (ou duas pessoas usando o mesmo arquivo). Cruza todos
+   os conferidos do período e acrescenta o alerta nos dois lados. */
+export function marcarCodigosRepetidos(
+  conferencias: Map<string, ResultadoConferencia>,
+  nomeDe: (efetivoId: string) => string,
+): Map<string, ResultadoConferencia> {
+  const chave = (c: string) => c.replace(/\W/g, "").toUpperCase();
+  const donos = new Map<string, Set<string>>();
+  conferencias.forEach((r, id) => {
+    for (const i of r.itens) {
+      if (!i.codigo || chave(i.codigo).length < 6) continue;
+      const k = chave(i.codigo);
+      if (!donos.has(k)) donos.set(k, new Set());
+      donos.get(k)!.add(id);
+    }
+  });
+  const out = new Map<string, ResultadoConferencia>();
+  conferencias.forEach((r, id) => {
+    let mudou = false;
+    const itens = r.itens.map((i) => {
+      const outros = i.codigo ? Array.from(donos.get(chave(i.codigo)) || []).filter((x) => x !== id) : [];
+      if (!outros.length) return i;
+      mudou = true;
+      return {
+        ...i, suspeita: true,
+        alertas: [...i.alertas, `mesmo código da certidão de ${outros.map(nomeDe).join(", ")} — possível certidão clonada`],
+      };
+    });
+    out.set(id, mudou ? { ...r, itens, status: "atencao" } : r);
+  });
+  return out;
+}
+
 /* -------------------------------------------------------------- conferir */
 
 export function conferirCertidoes(
@@ -291,9 +409,19 @@ export function conferirCertidoes(
     }
     if (dEmissao && dEmissao.getTime() > hoje.getTime() + 86400000) alertas.push(`emissão no futuro (${emissao})`);
 
+    // sinais do arquivo (programa de edição, salvo de novo...)
+    const sinais = arquivo.sinais || [];
+    for (const sx of sinais) if (!alertas.includes(sx)) alertas.push(sx);
+    const codigo = codigoDa(texto);
+    // PDF com texto do tribunal sempre traz o código; sem ele, desconfie
+    if (!codigo && !arquivo.porImagem) alertas.push("código de validação não encontrado — confira no site");
+
     return {
-      ordem, rotulo, achou: true, pagina: doc.pagina, emissao, validade, codigo: codigoDa(texto),
-      ...(arquivo.porImagem ? { porImagem: true } : {}), alertas,
+      ordem, rotulo, achou: true, pagina: doc.pagina, emissao, validade, codigo,
+      linkVerificacao: linkDeVerificacao(texto, ordem, codigo) || undefined,
+      ...(arquivo.porImagem ? { porImagem: true } : {}),
+      ...(sinais.length || (!codigo && !arquivo.porImagem) ? { suspeita: true } : {}),
+      alertas,
     };
   });
 
