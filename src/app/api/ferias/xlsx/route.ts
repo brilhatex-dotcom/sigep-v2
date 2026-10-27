@@ -15,9 +15,10 @@ export const dynamic = "force-dynamic";
    O Plano de Férias do ano em Excel: só os oficiais, só as praças ou todos.
 
    Papel no padrão da Escala de Serviço — mesmos brasões (Config
-   "escala_brasoes", a do Batalhão) e o mesmo texto da organização, SEM o
-   VISTO — e, no fim, a assinatura do Cmt da unidade: a imagem e o nome que
-   estão na aba "Chefe do P1" da escala (Config "escala_chefe_p1").
+   "escala_brasoes", a do Batalhão) e o mesmo texto da organização. Quem
+   assina vem da aba "Chefe do P1" da escala (Config "escala_chefe_p1"):
+   praças com o VISTO do Cmt em cima e o Chefe do P/1 no fim; oficiais com
+   o Cmt da unidade no fim.
 
    O layout segue os modelos do P/1: as praças em uma tabela por equipe
    (com o período de cada uma); os oficiais numa tabela só, por hierarquia.
@@ -30,6 +31,10 @@ const BRASOES_PADRAO = {
   ma: "/brasao-estado-ma.png",
   bpm: "/brasoes/brasao-18bpm.png",
 };
+const P1_PADRAO = {
+  nome: "1º TEN QOEM PAULO SILAS BARROS DE BRITO JUNIOR",
+  funcao: "CHEFE DO P/1 DO 18º BPM",
+};
 const CMT_PADRAO = {
   nome: "TEN CEL QOEM FLÁVIO DE CARVALHO RAMOS",
   assinatura: "/brasoes/assinatura-cmt.png",
@@ -40,11 +45,12 @@ const ROTULO: Record<QuemPlano, string> = { oficiais: "oficiais", pracas: "praç
 
 const ehOficial = (postoGrad: string | null) => classificarPatente(postoGrad).ordem <= 7;
 
-/* O posto COM o quadro, como nos modelos: "TEN CEL QOEM", "CAP QOMUS",
-   "SD PM". Praça sem quadro na ficha é PM; oficial sem quadro fica só o posto. */
+/* O posto COM o quadro, como nos modelos: "TEN CEL QOEM", "CAP QOMUS".
+   Praça é sempre "PM" depois da graduação ("SD PM", "1º SGT PM" — pedido do
+   P/1); oficial sem quadro na ficha fica só o posto. */
 function postoComQuadro(postoGrad: string | null, quadro: string | null): string {
   const posto = abrevPosto(postoGrad || "");
-  const q = (quadro || "").trim().toUpperCase() || (ehOficial(postoGrad) ? "" : "PM");
+  const q = ehOficial(postoGrad) ? (quadro || "").trim().toUpperCase() : "PM";
   if (!posto) return q;
   return q && !posto.split(/\s+/).includes(q) ? `${posto} ${q}` : posto;
 }
@@ -122,6 +128,12 @@ export async function GET(req: NextRequest) {
         nome: texto(chefe.comandante) || CMT_PADRAO.nome,
         cargo: "Comandante do 18º BPM",
         assinatura: texto(chefe.cmtAssinatura) || CMT_PADRAO.assinatura,
+      },
+      p1: {
+        nome: texto(chefe.nome) || P1_PADRAO.nome,
+        funcao: texto(chefe.funcao) || P1_PADRAO.funcao,
+        // assinando pelo gov.br, o espaço da assinatura fica em branco (como na escala)
+        assinatura: chefe.assinarGov === true ? "" : texto(chefe.assinatura),
       },
       hoje: hojeBR(),
     });

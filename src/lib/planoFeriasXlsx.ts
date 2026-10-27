@@ -8,7 +8,7 @@ import ExcelJS from "exceljs";
    O LAYOUT é o das planilhas que o P/1 já usava (PLANO DE FÉRIAS 2026 —
    praças e oficiais); o CABEÇALHO é o nosso, o da Escala de Serviço:
      · 190 anos da PMMA à esquerda, armas do Maranhão no centro, brasão do
-       18º BPM à direita e o texto da organização — SEM o "VISTO" do Cmt;
+       18º BPM à direita e o texto da organização;
      · título "PLANO DE FÉRIAS DOS PRAÇAS (OFICIAIS) DO 18º BPM REFERENTE AO
        EXERCÍCIO DE <ano>." (Arial 12, como no modelo).
 
@@ -22,10 +22,13 @@ import ExcelJS from "exceljs";
 
    "Oficiais e praças" = as duas abas no mesmo arquivo (como no modelo).
 
-   No fim de cada aba, "Quartel do 18º BPM..." e a ASSINATURA DO CMT DA
-   UNIDADE — a mesma imagem do VISTO da escala (Config "escala_chefe_p1"
-   .cmtAssinatura) com o nome do Comandante embaixo. Na impressão, uma
-   equipe não se parte entre duas folhas, e a assinatura não fica sozinha.
+   Quem assina (os modelos, e o que o P/1 pediu):
+     · PRAÇAS — como a escala: o VISTO do Cmt em cima, à esquerda do título
+       (Config "escala_chefe_p1".cmtAssinatura), e no fim "Quartel do 18º
+       BPM..." com a assinatura, o nome e a função do CHEFE DO P/1;
+     · OFICIAIS — sem VISTO; no fim, a assinatura e o nome do CMT DA UNIDADE.
+   Na impressão, uma equipe não se parte entre duas folhas, e a assinatura
+   não fica sozinha.
 
    A marca de férias ADIADAS não sai no papel — a mesma regra do "Imprimir"
    do plano: ela é aviso de tela, não informação do documento.
@@ -47,6 +50,8 @@ export type OpcoesPlanoXlsx = {
   quem: QuemPlano;
   brasoes: { pmma?: string; ma?: string; bpm?: string };
   cmt: { nome: string; cargo: string; assinatura?: string };
+  // o Chefe do P/1 (aba "Chefe do P1" da escala); sem imagem quando assina pelo gov.br
+  p1: { nome: string; funcao: string; assinatura?: string };
   hoje?: Date;
 };
 
@@ -208,12 +213,13 @@ export function nomeComGuerra(nome: string, guerra: string | null, tam: number):
   return { richText };
 }
 
-type Folha = { titulo: string; nomeAba: string; colunas: Coluna[] };
-const FOLHA_PRACAS: Folha = { titulo: "PRAÇAS", nomeAba: "Praças", colunas: COLUNAS_PRACAS };
-const FOLHA_OFICIAIS: Folha = { titulo: "OFICIAIS", nomeAba: "Oficiais", colunas: COLUNAS_OFICIAIS };
+// visto: o VISTO do Cmt em cima; assina: quem assina no fim
+type Folha = { titulo: string; nomeAba: string; colunas: Coluna[]; visto: boolean; assina: "cmt" | "p1" };
+const FOLHA_PRACAS: Folha = { titulo: "PRAÇAS", nomeAba: "Praças", colunas: COLUNAS_PRACAS, visto: true, assina: "p1" };
+const FOLHA_OFICIAIS: Folha = { titulo: "OFICIAIS", nomeAba: "Oficiais", colunas: COLUNAS_OFICIAIS, visto: false, assina: "cmt" };
 
-/* Cabeçalho (o da escala, sem o VISTO), título, e as ferramentas de linha e
-   de quebra de página de uma aba. */
+/* Cabeçalho (o da escala; com o VISTO, se a aba leva), título, e as
+   ferramentas de linha e de quebra de página de uma aba. */
 function novaAba(wb: ExcelJS.Workbook, folha: Folha, op: OpcoesPlanoXlsx) {
   const colunas = folha.colunas;
   const N = colunas.length;
@@ -237,7 +243,7 @@ function novaAba(wb: ExcelJS.Workbook, folha: Folha, op: OpcoesPlanoXlsx) {
     if (opt.altura) ws.getRow(r).height = opt.altura;
   };
 
-  /* ---- cabeçalho: o da escala, sem o VISTO ----
+  /* ---- cabeçalho: o da escala ----
      linha 1: armas do MA no centro; linhas 2..8: a organização;
      190 anos da PMMA à esquerda e o 18º BPM à direita, na altura do texto. */
   ws.getRow(1).height = 46;
@@ -250,10 +256,34 @@ function novaAba(wb: ExcelJS.Workbook, folha: Folha, op: OpcoesPlanoXlsx) {
   if (bpm) porImagem(wb, ws, colunas, bpm, larguraTotal - 52, 2, 4, 84);
 
   // ---- título, como no modelo (Arial 12) ----
-  ws.getRow(9).height = 10;
-  linhaTexto(10, `PLANO DE FÉRIAS DOS ${folha.titulo} DO 18º BPM REFERENTE AO EXERCÍCIO DE ${op.ano}.`,
-    { size: 12, fonte: "Arial", altura: 20 });
-  ws.getRow(11).height = 12;
+  const titulo = `PLANO DE FÉRIAS DOS ${folha.titulo} DO 18º BPM REFERENTE AO EXERCÍCIO DE ${op.ano}.`;
+  let primeira = 12;
+  if (folha.visto) {
+    /* VISTO do Cmt à esquerda do título, como na escala: "VISTO" (linha 9),
+       a rubrica solta sobre a linha do título (10) e "Cmt. do 18º BPM" (11).
+       O título continua centrado na folha inteira. */
+    const fimVisto = 2;   // colunas A:B (ORD + GRAD)
+    const centroVisto = (pxColuna(colunas[0].largura) + pxColuna(colunas[1].largura)) / 2;
+    const rotulo = (r: number, t: string, bold: boolean, altura: number) => {
+      ws.mergeCells(r, 1, r, fimVisto);
+      const c = ws.getCell(r, 1);
+      c.value = t;
+      c.font = { name: FONTE, size: bold ? 10 : 9, bold };
+      c.alignment = { horizontal: "center", vertical: bold ? "bottom" : "top" };
+      ws.getRow(r).height = altura;
+    };
+    rotulo(9, "VISTO", true, 16);
+    linhaTexto(10, titulo, { size: 12, fonte: "Arial", altura: 36 });
+    rotulo(11, "Cmt. do 18º BPM", false, 14);
+    ws.getRow(12).height = 8;
+    const rubrica = carregarImagem(op.cmt.assinatura);
+    if (rubrica) porImagem(wb, ws, colunas, rubrica, centroVisto, 10, 2, 42);
+    primeira = 13;
+  } else {
+    ws.getRow(9).height = 10;
+    linhaTexto(10, titulo, { size: 12, fonte: "Arial", altura: 20 });
+    ws.getRow(11).height = 12;
+  }
 
   /* ---- quebra de página: um bloco não se parte entre duas folhas ----
      Na folha A4 em pé, com a redução do "ajustar à largura", cabem
@@ -262,18 +292,18 @@ function novaAba(wb: ExcelJS.Workbook, folha: Folha, op: OpcoesPlanoXlsx) {
   const reducao = Math.min(1, (595.28 - 2 * 0.35 * 72) / (larguraTotal * 0.75));
   const porPagina = ((841.89 - (0.4 + 0.5) * 72) / reducao) * 0.95;
   let usado = 0;
-  for (let i = 1; i <= 11; i++) usado += ws.getRow(i).height ?? 15;
+  for (let i = 1; i < primeira; i++) usado += ws.getRow(i).height ?? 15;
   // o bloco de `altura` pontos que começa na linha r não cabe? quebra antes dela
   const reservar = (r: number, altura: number) => {
     if (usado > 0 && usado + altura > porPagina) { ws.getRow(r - 1).addPageBreak(); usado = 0; }
     usado = (usado + altura) % porPagina;
   };
 
-  return { ws, colunas, larguraTotal, linhaTexto, reservar, primeira: 12 };
+  return { ws, folha, colunas, larguraTotal, linhaTexto, reservar, primeira };
 }
 
 const ALTURA_LINHA = 17.25;   // a do modelo
-// data + assinatura + nome + cargo do Cmt (as alturas das linhas do fecho)
+// data + assinatura + nome + cargo de quem assina (as alturas das linhas do fecho)
 const FECHO = 14 + 18 + 10 + 48 + 14 + 14;
 
 function cabecalhoTabela(ws: ExcelJS.Worksheet, r: number, colunas: Coluna[], estilo: "pracas" | "oficiais") {
@@ -300,21 +330,24 @@ function linhaMilitar(ws: ExcelJS.Worksheet, r: number, colunas: Coluna[], valor
   ws.getRow(r).height = ALTURA_LINHA;
 }
 
-// "Quartel do 18º BPM..." e a assinatura do Cmt da unidade
+// "Quartel do 18º BPM..." e a assinatura de quem assina a aba (Chefe do P/1 ou Cmt)
 function fecho(wb: ExcelJS.Workbook, aba: ReturnType<typeof novaAba>, r: number, op: OpcoesPlanoXlsx) {
-  const { ws, colunas, larguraTotal, linhaTexto } = aba;
+  const { ws, folha, colunas, larguraTotal, linhaTexto } = aba;
+  const quem = folha.assina === "p1"
+    ? { nome: op.p1.nome, cargo: op.p1.funcao, assinatura: op.p1.assinatura }
+    : { nome: op.cmt.nome, cargo: op.cmt.cargo || "Comandante do 18º BPM", assinatura: op.cmt.assinatura };
   const hoje = op.hoje ?? new Date();
   ws.getRow(r++).height = 14;
   linhaTexto(r++, `Quartel do 18º BPM, em Presidente Dutra-MA, ${hoje.getDate()} de ${MESES[hoje.getMonth()]} de ${hoje.getFullYear()}.`,
     { size: 12, fonte: "Arial", altura: 18 });
   ws.getRow(r++).height = 10;
-  const ass = carregarImagem(op.cmt.assinatura);
+  const ass = carregarImagem(quem.assinatura);
   ws.getRow(r).height = 48;
   ws.mergeCells(r, 1, r, colunas.length);
   if (ass) porImagem(wb, ws, colunas, ass, larguraTotal / 2, r, 2, 60);
   r++;
-  linhaTexto(r++, (op.cmt.nome || "").toUpperCase() || "________________________________", { bold: true, size: 11, altura: 14 });
-  linhaTexto(r++, op.cmt.cargo || "Comandante do 18º BPM", { size: 11, altura: 14 });
+  linhaTexto(r++, (quem.nome || "").toUpperCase() || "________________________________", { bold: true, size: 11, altura: 14 });
+  linhaTexto(r++, quem.cargo || "", { size: 11, altura: 14 });
   ws.pageSetup.printArea = `A1:${String.fromCharCode(64 + colunas.length)}${r - 1}`;
 }
 
