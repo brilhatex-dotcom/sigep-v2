@@ -25,6 +25,7 @@ import {
 import { LINKS_OFICIAIS, LINK_CERTIDAO_UNIFICADA, ORDENS_UNIFICADA, faltasDidaticas } from "@/lib/certidoes";
 import { LIMITE_CERTIDAO_BYTES as LIMITE_BYTES } from "@/lib/promocaoUpload";
 import { confirmar } from "@/components/Avisos";
+import { dataHoraBR } from "@/lib/promocaoPrazo";
 
 type Item = {
   ordem: number;
@@ -119,6 +120,8 @@ export default function MinhasCertidoes({
   enviadoP1Em,
   recebidoP1Em,
   reabertoP1Em = null,
+  prazoAte = null,
+  encerrado = false,
   children,
 }: {
   itens: Item[];
@@ -129,6 +132,9 @@ export default function MinhasCertidoes({
   recebidoP1Em: string | null;
   // o P/1 reabriu (há certidão para corrigir) — some quando ele envia de novo
   reabertoP1Em?: string | null;
+  // prazo de envio do P/1 (ISO) e se já passou para este militar
+  prazoAte?: string | null;
+  encerrado?: boolean;
   // o que mais a página quiser mostrar depois da lista (ex.: a declaração individual)
   children?: React.ReactNode;
 }) {
@@ -161,7 +167,11 @@ export default function MinhasCertidoes({
   const faltas = faltasDidaticas(lista.filter((i) => !i.enviada).map((i) => i.ordem));
   const textoFaltas = faltas.join("; ");
   // Depois de enviado ao P/1, trava o reenvio/troca para nao bagunçar o que ja foi protocolado.
-  const travado = !!enviadoP1;
+  // Passou do prazo do P/1 (sem ter enviado): trava tudo também — o servidor recusa.
+  const foraDoPrazo = encerrado && !enviadoP1;
+  const travado = !!enviadoP1 || foraDoPrazo;
+  const porQueTravado = (acao: string) =>
+    foraDoPrazo ? "Prazo de envio encerrado — procure o P/1" : `Enviado ao P/1 — peça reabertura para ${acao}`;
 
   /* Envio em dois passos: a API devolve uma URL assinada e o PDF sobe DIRETO
      para o R2, sem passar pela Vercel — que corta requisicao acima de ~4,5 MB
@@ -343,8 +353,30 @@ export default function MinhasCertidoes({
 
   return (
     <div className="space-y-5">
+      {/* Prazo do P/1: encerrado (trava tudo) ou correndo (para não esquecer) */}
+      {foraDoPrazo && prazoAte ? (
+        <div role="alert" className="flex items-start gap-3 rounded-xl border-2 border-red-500/60 bg-red-500/10 p-4">
+          <Lock className="mt-0.5 h-6 w-6 shrink-0 text-red-300" />
+          <div>
+            <p className="text-base font-extrabold text-red-100">Prazo de envio encerrado</p>
+            <p className="mt-1 text-sm leading-relaxed text-red-100/90">
+              O prazo para enviar as certidões terminou em {dataHoraBR(prazoAte)}. Não é mais possível
+              enviar, trocar nem excluir certidões. Se precisar, procure o P/1.
+            </p>
+          </div>
+        </div>
+      ) : prazoAte && !enviadoP1 && !recebidoP1 && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/50 bg-amber-500/10 p-3">
+          <Clock className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+          <p className="text-sm text-amber-100">
+            <b>Prazo:</b> envie as certidões ao P/1 até <b>{dataHoraBR(prazoAte)}</b>. Depois disso, o sistema
+            não aceita mais.
+          </p>
+        </div>
+      )}
+
       {/* O P/1 reabriu: é aqui que o policial corrige, então o alerta vem no topo */}
-      {reabertoP1Em && !enviadoP1 && !recebidoP1 && (
+      {reabertoP1Em && !enviadoP1 && !recebidoP1 && !foraDoPrazo && (
         <div role="alert" className="flex items-start gap-3 rounded-xl border-2 border-amber-500/60 bg-amber-500/10 p-4">
           <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0 text-amber-300" />
           <div>
@@ -443,7 +475,7 @@ export default function MinhasCertidoes({
         )}
       </div>
 
-      {travado && (
+      {travado && !foraDoPrazo && (
         <p className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-[#94A3B8]">
           <Clock className="h-4 w-4 shrink-0 text-[#D4AF37]" />
           Certidões enviadas ao P/1 — travadas para conferência. Se precisar trocar algum
@@ -510,7 +542,7 @@ export default function MinhasCertidoes({
                     <button
                       onClick={() => inputUnificada.current?.click()}
                       disabled={ocupado || travado}
-                      title={travado ? "Enviado ao P/1 — peça reabertura para trocar" : "Vale pelos itens 4 a 8"}
+                      title={travado ? porQueTravado("trocar") : "Vale pelos itens 4 a 8"}
                       className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/50 px-3 py-1.5 text-sm font-medium text-[#D4AF37] transition hover:bg-[#D4AF37]/10 disabled:opacity-40"
                     >
                       {enviando === "unificada" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
@@ -523,7 +555,7 @@ export default function MinhasCertidoes({
                         onClick={() => excluir("unificada")}
                         carregando={excluindo === "unificada"}
                         disabled={ocupado || travado}
-                        title={travado ? "Enviado ao P/1 — peça reabertura para excluir" : "Excluir a Certidão Unificada (itens 4 a 8)"}
+                        title={travado ? porQueTravado("excluir") : "Excluir a Certidão Unificada (itens 4 a 8)"}
                       />
                     )}
                   </div>
@@ -577,7 +609,7 @@ export default function MinhasCertidoes({
                 <button
                   onClick={() => inputs.current[i.ordem]?.click()}
                   disabled={ocupado || travado}
-                  title={travado ? "Enviado ao P/1 — peça reabertura para trocar" : undefined}
+                  title={travado ? porQueTravado("trocar") : undefined}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-sm text-white transition hover:bg-white/5 disabled:opacity-40"
                 >
                   {enviando === i.ordem ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
@@ -590,7 +622,7 @@ export default function MinhasCertidoes({
                     onClick={() => excluir(i.ordem)}
                     carregando={excluindo === i.ordem}
                     disabled={ocupado || travado}
-                    title={travado ? "Enviado ao P/1 — peça reabertura para excluir"
+                    title={travado ? porQueTravado("excluir")
                       : i.pelaUnificada ? "Tirar só este item (a unificada continua nos outros)" : "Excluir o arquivo deste item"}
                   />
                 )}
@@ -695,7 +727,9 @@ export default function MinhasCertidoes({
             <div className="flex-1">
               <p className="text-sm font-semibold text-white">Enviar ao P/1</p>
               <p className="text-xs text-[#94A3B8]">
-                {completo && unificadoKey
+                {foraDoPrazo
+                  ? "Prazo de envio encerrado. Procure o P/1."
+                  : completo && unificadoKey
                   ? "Tudo pronto. Envie o PDF unificado ao P/1 para análise."
                   : completo
                   ? "Falta o 2º passo: gere o PDF unificado."
@@ -704,7 +738,7 @@ export default function MinhasCertidoes({
             </div>
             <button
               onClick={enviarAoP1}
-              disabled={!completo || !unificadoKey || enviandoP1}
+              disabled={!completo || !unificadoKey || enviandoP1 || foraDoPrazo}
               className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {enviandoP1 ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

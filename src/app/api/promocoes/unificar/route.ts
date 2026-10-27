@@ -7,6 +7,7 @@ import { unirPdfs } from "@/lib/pdf";
 import { periodoAtivo, postoDoMilitar } from "@/lib/promocoes";
 import { certidoesExigidas, faltasDidaticas } from "@/lib/certidoes";
 import { statusP1 } from "@/lib/promocaoStatusP1";
+import { barradoPeloPrazo } from "@/lib/promocaoPrazoDb";
 import { semRepetirArquivo } from "@/lib/promocaoUpload";
 
 // POST: junta as certidoes exigidas (8 da praca, 9 do oficial — ordem
@@ -42,6 +43,9 @@ export async function POST(req: NextRequest) {
         { status: 409 }
       );
     }
+    // passou do prazo de envio: o policial não mexe mais (o P/1 sim)
+    const foraDoPrazo = await barradoPeloPrazo(periodo.id, st, ehAdmin);
+    if (foraDoPrazo) return NextResponse.json({ erro: foraDoPrazo }, { status: 403 });
 
     const participante = await prisma.participantePromocao.findUnique({
       where: { periodoId_efetivoId: { periodoId: periodo.id, efetivoId } },

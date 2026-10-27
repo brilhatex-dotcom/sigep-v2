@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { periodoAtivo, postoDoMilitar } from "@/lib/promocoes";
 import { totalCertidoes, ORDENS_UNIFICADA } from "@/lib/certidoes";
 import { statusP1 } from "@/lib/promocaoStatusP1";
+import { barradoPeloPrazo } from "@/lib/promocaoPrazoDb";
 import { chaveCertidao, chaveCertidaoUnificada } from "@/lib/promocaoUpload";
 import { avisarInicioForaDoLimite } from "@/lib/promocaoAvisos";
 
@@ -65,6 +66,9 @@ export async function POST(req: NextRequest) {
         { status: 409 }
       );
     }
+    // passou do prazo de envio: o policial não mexe mais (o P/1 sim)
+    const foraDoPrazo = await barradoPeloPrazo(periodo.id, st, ehAdmin);
+    if (foraDoPrazo) return NextResponse.json({ erro: foraDoPrazo }, { status: 403 });
 
     // é a primeira certidão dele neste período? (ver o aviso "fora do Limite" abaixo)
     const antes = await prisma.participantePromocao.findUnique({

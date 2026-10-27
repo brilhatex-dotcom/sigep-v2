@@ -7,6 +7,7 @@ import { certidoesExigidas, faltasDidaticas } from "@/lib/certidoes";
 import { salvarStatusP1, statusP1 } from "@/lib/promocaoStatusP1";
 import { avisarEnvioAoP1, avisarRecebido, avisarReabertura } from "@/lib/promocaoAvisos";
 import { conferirMilitar } from "@/lib/conferenciaCertidoesDb";
+import { barradoPeloPrazo } from "@/lib/promocaoPrazoDb";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,8 @@ function ehAdmin(perfil?: string | null): boolean {
    POST { acao: "enviar" }                       -> o proprio militar envia ao P/1
    POST { acao: "receber", efetivoId, periodoId } -> admin (P/1) confirma recebimento
    POST { acao: "reabrir", efetivoId, periodoId } -> admin desfaz o envio (correcao)
+   POST { acao: "liberar", efetivoId, periodoId } -> admin libera um militar
+        depois do prazo de envio (o Cmt aceitou o atrasado)
    ========================================================================= */
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -35,6 +38,8 @@ export async function POST(req: Request) {
       if (!periodo) return NextResponse.json({ error: "Nenhum periodo de promocao aberto." }, { status: 400 });
       const efetivoId = (session.user as any).refEfetivo as string | null;
       if (!efetivoId) return NextResponse.json({ error: "Usuario sem ficha vinculada." }, { status: 400 });
+      const foraDoPrazo = await barradoPeloPrazo(periodo.id, await statusP1(periodo.id, efetivoId), admin);
+      if (foraDoPrazo) return NextResponse.json({ error: foraDoPrazo }, { status: 403 });
 
       // exige todas as certidoes do posto (8 da praca, 9 do oficial)
       const exigidas = certidoesExigidas(await postoDoMilitar(efetivoId)).map((c) => c.ordem);
@@ -67,12 +72,17 @@ export async function POST(req: Request) {
     }
 
     // ---- admin (P/1) confirma recebimento ----
-    if (acao === "receber" || acao === "reabrir") {
+    if (acao === "receber" || acao === "reabrir" || acao === "liberar") {
       if (!admin) return NextResponse.json({ error: "Apenas o P/1 pode confirmar." }, { status: 403 });
       const efetivoId = String(b?.efetivoId || "");
       const periodoId = String(b?.periodoId || "");
       if (!efetivoId || !periodoId) return NextResponse.json({ error: "Dados incompletos." }, { status: 400 });
 
+      if (acao === "liberar") {
+        // sem aviso de "certidão para corrigir": ele só ganhou mais tempo
+        const novo = await salvarStatusP1(periodoId, efetivoId, { liberadoEm: new Date().toISOString() });
+        return NextResponse.json({ ok: true, status: novo });
+      }
       if (acao === "reabrir") {
         // reabertoEm: o policial vê na tela que há certidão para corrigir
         const novo = await salvarStatusP1(periodoId, efetivoId, {

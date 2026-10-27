@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import PlanilhaPadraoPainel from "@/components/PlanilhaPadraoPainel";
 import CertidaoP1Painel from "@/components/CertidaoP1Painel";
+import PrazoEnvioCertidoes from "@/components/PrazoEnvioCertidoes";
 import { useRouter } from "next/navigation";
 import {
   Users,
@@ -23,6 +24,7 @@ import {
   Trash2,
   ScanSearch,
   ExternalLink,
+  LockOpen,
 } from "lucide-react";
 import { avisar, confirmar } from "@/components/Avisos";
 import { sorteadaParaSite, type ItemConferido, type ResultadoConferencia } from "@/lib/conferenciaCertidoes";
@@ -39,6 +41,10 @@ export type LinhaParticipante = {
   pdfUnificado: string | null;
   enviadoP1Em: string | null;
   recebidoP1Em: string | null;
+  // passou o prazo de envio e ele não enviou ao P/1 (nem foi liberado/reaberto depois)
+  foraDoPrazo?: boolean;
+  // o P/1 liberou o envio dele depois do prazo
+  liberadoDepoisDoPrazo?: boolean;
   /* está no Limite Quantitativo da CPPPM? "fora" = praça de graduação com
      lista carregada que NÃO aparece nela (ver situacaoNoLimite) */
   limite?: "dentro" | "fora" | "sem_lista" | "nao_se_aplica" | null;
@@ -93,6 +99,7 @@ type Props = {
   periodoData: string | null;
   participantes: LinhaParticipante[];
   periodos: PeriodoResumo[]; // todos os periodos (pro seletor e arquivadas)
+  prazoAte: string | null;   // prazo de envio das certidões (ISO), se houver
 };
 
 function statusDe(enviadas: number, total: number) {
@@ -107,6 +114,7 @@ export default function PainelPromocoes({
   periodoData,
   participantes,
   periodos,
+  prazoAte,
 }: Props) {
   const router = useRouter();
   const [busca, setBusca] = useState("");
@@ -207,6 +215,32 @@ export default function PainelPromocoes({
         avisar(j?.error || "Falha ao reabrir.");
         return;
       }
+      router.refresh();
+    } finally {
+      setConfirmandoP1(null);
+    }
+  }
+
+  /* Depois do prazo: o Cmt aceitou o atrasado. Só este militar volta a poder
+     enviar (até mandar ao P/1); os outros continuam travados. */
+  async function liberar(efetivoId: string, quem: string) {
+    if (!await confirmar(
+      `Liberar o envio de ${quem || "este militar"} fora do prazo?\n\n` +
+      "Só ele volta a poder enviar e trocar certidões, até enviar ao P/1."
+    )) return;
+    setConfirmandoP1(efetivoId);
+    try {
+      const r = await fetch("/api/promocoes/status-p1", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acao: "liberar", efetivoId, periodoId }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        avisar(j?.error || "Falha ao liberar.", "erro");
+        return;
+      }
+      avisar(`${quem || "Militar"} liberado para enviar fora do prazo.`, "sucesso");
       router.refresh();
     } finally {
       setConfirmandoP1(null);
@@ -471,6 +505,13 @@ export default function PainelPromocoes({
       {/* Planilha Padrao da CPPPM: fecha em 06/11, e e o que de fato sobe para
           a Comissao — as certidoes ficam arquivadas aqui (Portaria 168/2026,
           art. 4º, § 3º). Fica no alto, recolhida, para nao empurrar a lista. */}
+      {/* Prazo de envio: digitou a data, o sistema trava sozinho na hora */}
+      <PrazoEnvioCertidoes
+        periodoId={periodoId}
+        ate={prazoAte}
+        foraDoPrazo={participantes.filter((p) => p.foraDoPrazo).length}
+      />
+
       <PlanilhaPadraoPainel />
 
       {/* Declaração individual dos OFICIAIS e subtenentes (CAE): a de praça
@@ -686,6 +727,21 @@ export default function PainelPromocoes({
                         >
                           <RotateCcw className="h-3.5 w-3.5" /> Reabrir
                         </button>
+                      )}
+                      {p.foraDoPrazo && (
+                        <button
+                          onClick={() => liberar(p.efetivoId, p.nomeGuerra || p.nome || "")}
+                          disabled={confirmandoP1 === p.efetivoId}
+                          title="Passou do prazo: libera só este militar para enviar"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/40 px-2.5 py-1 text-xs font-medium text-amber-300 transition hover:bg-amber-500/10 disabled:opacity-60"
+                        >
+                          <LockOpen className="h-3.5 w-3.5" /> Liberar
+                        </button>
+                      )}
+                      {p.liberadoDepoisDoPrazo && !p.enviadoP1Em && (
+                        <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-300" title="O P/1 liberou o envio depois do prazo">
+                          liberado fora do prazo
+                        </span>
                       )}
                       <button
                         onClick={() => excluirParticipante(p.efetivoId, p.nomeGuerra || p.nome || "", p.enviadas)}
