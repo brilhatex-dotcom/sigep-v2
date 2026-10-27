@@ -2,6 +2,7 @@ import os from "os";
 import path from "path";
 import { PDFDict, PDFDocument, PDFName, PDFRawStream } from "pdf-lib";
 import { prisma } from "@/lib/prisma";
+import type { MetaPdf } from "@/lib/conferenciaCertidoes";
 
 /* =========================================================================
    TIRAR O TEXTO DE UM PDF DE CERTIDÃO — no servidor, para a conferência.
@@ -19,7 +20,7 @@ import { prisma } from "@/lib/prisma";
    Trocou o arquivo (enviadaEm muda), a leitura guardada não vale mais.
    ========================================================================= */
 
-export type LeituraPdf = { paginas: string[]; porImagem: boolean; incompleto: boolean };
+export type LeituraPdf = { paginas: string[]; porImagem: boolean; incompleto: boolean; meta: MetaPdf | null };
 
 // menos que isso de texto numa página = é imagem
 const MINIMO_DE_TEXTO = 80;
@@ -38,7 +39,7 @@ function garantir(): Promise<void> {
   return pronto;
 }
 
-type Guardada = { paginas: string[]; porImagem: boolean; pendentes: number[] };
+type Guardada = { paginas: string[]; porImagem: boolean; pendentes: number[]; meta?: MetaPdf | null };
 
 async function lerGuardada(chave: string, versao: string): Promise<Guardada | null> {
   try {
@@ -97,6 +98,31 @@ async function fotosDasPaginas(pdf: Buffer): Promise<(Uint8Array | null)[]> {
   });
 }
 
+/* De onde o arquivo veio: o programa que gerou/salvou, as datas, e quantas
+   vezes foi ALTERADO e salvo por cima depois de pronto (cada salvamento por
+   cima acrescenta um "%%EOF" ao fim do arquivo; o PDF "linearizado" — o de
+   abrir rápido na web — já nasce com dois). */
+async function metaDoPdf(pdf: Buffer): Promise<MetaPdf | null> {
+  try {
+    // updateMetadata:false — senão o próprio pdf-lib carimba o nome dele
+    const doc = await PDFDocument.load(pdf, { ignoreEncryption: true, updateMetadata: false });
+    const bruto = pdf.toString("latin1");
+    const eofs = (bruto.match(/%%EOF/g) || []).length;
+    const linearizado = /\/Linearized/.test(bruto.slice(0, 2048));
+    /* PDF assinado digitalmente ganha uma revisão a cada assinatura (e às
+       vezes uma de validação depois) — isso é do próprio tribunal, não é
+       adulteração. Nesses, a contagem de "salvo de novo" não vale. */
+    const assinado = /\/ByteRange\s*\[/.test(bruto);
+    return {
+      produtor: doc.getProducer() || "",
+      criador: doc.getCreator() || "",
+      criadoEm: doc.getCreationDate()?.toISOString() ?? null,
+      modificadoEm: doc.getModificationDate()?.toISOString() ?? null,
+      edicoes: assinado ? 0 : Math.max(0, eofs - (linearizado ? 2 : 1)),
+    };
+  } catch { return null; }
+}
+
 /* ------------------------------------------------------------ leitura */
 
 export async function lerPdfDeCertidao(
@@ -116,7 +142,12 @@ export async function lerPdfDeCertidao(
     const pendentes = paginas
       .map((t, i) => (t.replace(/\s/g, "").length < MINIMO_DE_TEXTO ? i : -1))
       .filter((i) => i >= 0);
-    g = { paginas, porImagem: false, pendentes };
+    g = { paginas, porImagem: false, pendentes, meta: await metaDoPdf(pdf) };
+  }
+  // leitura guardada antes de existir a checagem do arquivo: completa agora
+  if (g.meta === undefined) {
+    pdf = pdf || (await baixar());
+    g.meta = await metaDoPdf(pdf);
   }
 
   if (g.pendentes.length && Date.now() < prazo) {
@@ -141,5 +172,5 @@ export async function lerPdfDeCertidao(
   }
 
   await guardar(chave, versao, g);
-  return { paginas: g.paginas, porImagem: g.porImagem, incompleto: g.pendentes.length > 0 };
+  return { paginas: g.paginas, porImagem: g.porImagem, incompleto: g.pendentes.length > 0, meta: g.meta ?? null };
 }

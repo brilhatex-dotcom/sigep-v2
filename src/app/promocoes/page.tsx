@@ -13,6 +13,8 @@ import { totalCertidoes } from "@/lib/certidoes";
 import { lerMapaP1 } from "@/lib/promocaoStatusP1";
 import { situacaoNoLimite, type SituacaoNoLimite } from "@/lib/limiteQuantitativoDb";
 import { assinaturaDe, lerConferencias, type ConferenciaGuardada } from "@/lib/conferenciaCertidoesDb";
+import { marcarCodigosRepetidos, type ResultadoConferencia } from "@/lib/conferenciaCertidoes";
+import { lerAutenticidades } from "@/lib/autenticidadeCertidoesDb";
 
 export const dynamic = "force-dynamic";
 
@@ -115,10 +117,10 @@ export default async function PromocoesPage() {
 
 /* A conferência automática só vale para os arquivos que ela leu: se o
    militar trocou alguma certidão depois, ela vira "conferir de novo". */
-function conferenciaDaLinha(c: ConferenciaGuardada | undefined, assinaturaAtual: string) {
+function conferenciaDaLinha(c: ConferenciaGuardada | undefined, assinaturaAtual: string, resultado?: ResultadoConferencia) {
   if (!c) return { conferencia: null, conferenciaVelha: false };
   if (c.assinatura !== assinaturaAtual) return { conferencia: null, conferenciaVelha: true };
-  return { conferencia: { ...c.resultado, conferidoEm: c.conferidoEm }, conferenciaVelha: false };
+  return { conferencia: { ...(resultado || c.resultado), conferidoEm: c.conferidoEm }, conferenciaVelha: false };
 }
 
 async function PainelConteudo({
@@ -131,7 +133,7 @@ async function PainelConteudo({
   dataAlvo: string | null;
 }) {
   // RAPIDEZ: participantes, situação no P/1 e lista de períodos vão juntos
-  const [participantes, mapaP1, todos, conferencias] = await Promise.all([
+  const [participantes, mapaP1, todos, conferencias, autenticidades] = await Promise.all([
     prisma.participantePromocao.findMany({
       where: { periodoId },
       include: {
@@ -147,6 +149,7 @@ async function PainelConteudo({
       include: { _count: { select: { participantes: true } } },
     }),
     lerConferencias(periodoId),
+    lerAutenticidades(periodoId),
   ]);
   const ids = participantes.map((p) => p.efetivoId);
   // quem mandou certidão sem estar no Limite Quantitativo: o painel acusa
@@ -167,6 +170,19 @@ async function PainelConteudo({
     },
   });
   const mapaFicha = new Map(fichas.map((f) => [f.id, f]));
+
+  /* Clone: o mesmo código de validação em dois militares. Cruza só as
+     conferências que ainda valem (arquivos não trocados). */
+  const validas = new Map<string, ResultadoConferencia>();
+  for (const p of participantes) {
+    const c = conferencias.get(p.efetivoId);
+    if (c && c.assinatura === assinaturaDe(p.certidoes)) validas.set(p.efetivoId, c.resultado);
+  }
+  const cruzadas = marcarCodigosRepetidos(validas, (id) => {
+    const f = mapaFicha.get(id);
+    return [f?.postoGrad, f?.nomeGuerra || f?.nome].filter(Boolean).join(" ") || id;
+  });
+
   const linhas = participantes
     .map((p) => {
       const f = mapaFicha.get(p.efetivoId);
@@ -184,7 +200,9 @@ async function PainelConteudo({
         enviadoP1Em: st?.enviadoEm ?? null,
         recebidoP1Em: st?.recebidoEm ?? null,
         limite: limite.get(p.efetivoId) ?? null,
-        ...conferenciaDaLinha(conferencias.get(p.efetivoId), assinaturaDe(p.certidoes)),
+        ...conferenciaDaLinha(conferencias.get(p.efetivoId), assinaturaDe(p.certidoes), cruzadas.get(p.efetivoId)),
+        // o que o P/1 já conferiu no site do tribunal, certidão por certidão
+        autenticidade: autenticidades.get(p.efetivoId) || {},
       };
     })
     /* Ordem: primeiro quem ENVIOU e aguarda a conferencia (e o trabalho do

@@ -1,6 +1,6 @@
 /* eslint-disable react/no-unescaped-entities */
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PlanilhaPadraoPainel from "@/components/PlanilhaPadraoPainel";
 import CertidaoP1Painel from "@/components/CertidaoP1Painel";
 import { useRouter } from "next/navigation";
@@ -22,9 +22,10 @@ import {
   CalendarPlus,
   Trash2,
   ScanSearch,
+  ExternalLink,
 } from "lucide-react";
 import { avisar, confirmar } from "@/components/Avisos";
-import type { ResultadoConferencia } from "@/lib/conferenciaCertidoes";
+import { sorteadaParaSite, type ItemConferido, type ResultadoConferencia } from "@/lib/conferenciaCertidoes";
 
 export type LinhaParticipante = {
   efetivoId: string;
@@ -46,7 +47,33 @@ export type LinhaParticipante = {
      o militar trocou certidão depois — tem de conferir de novo. */
   conferencia?: (ResultadoConferencia & { conferidoEm: string }) | null;
   conferenciaVelha?: boolean;
+  // conferência no SITE do tribunal, feita pelo P/1, por item (ordem)
+  autenticidade?: Record<number, Marca>;
 };
+
+type Marca = { codigo: string; resultado: "autentica" | "nao_confere"; por: string; em: string };
+type MarcasPorMilitar = Record<string, Record<number, Marca>>;
+
+// a marca só vale para o código que foi conferido (trocou a certidão, não vale)
+const marcaDe = (m: Record<number, Marca> | undefined, i: ItemConferido) => {
+  const x = m?.[i.ordem];
+  return x && x.codigo === (i.codigo || "") ? x : undefined;
+};
+/* Precisa conferir no site: a amostra sorteada (1 em cada 4) e TODA certidão
+   com sinal de adulteração ou de clone. */
+const precisaSite = (periodoId: string, efetivoId: string, i: ItemConferido) =>
+  i.achou && (!!i.suspeita || sorteadaParaSite(periodoId, efetivoId, i.ordem));
+
+function situacaoSite(periodoId: string, p: LinhaParticipante, marcas: MarcasPorMilitar) {
+  const c = p.conferencia;
+  let faltam = 0, conferidas = 0, naoConfere = 0;
+  for (const i of c?.itens || []) {
+    const m = marcaDe(marcas[p.efetivoId], i);
+    if (m) { conferidas++; if (m.resultado === "nao_confere") naoConfere++; }
+    else if (precisaSite(periodoId, p.efetivoId, i)) faltam++;
+  }
+  return { faltam, conferidas, naoConfere };
+}
 
 const quemE = (p: LinhaParticipante) => [p.postoGrad, p.nomeGuerra || p.nome].filter(Boolean).join(" ");
 const pontosDe = (c: ResultadoConferencia) =>
@@ -89,6 +116,29 @@ export default function PainelPromocoes({
   // conferência automática: andamento do lote e o militar aberto no detalhe
   const [conferindo, setConferindo] = useState<{ feitos: number; total: number } | null>(null);
   const [detalhe, setDetalhe] = useState<LinhaParticipante | null>(null);
+  // o que o P/1 marcou no site do tribunal (atualiza na hora, sem recarregar)
+  const [marcas, setMarcas] = useState<MarcasPorMilitar>(() =>
+    Object.fromEntries(participantes.map((p) => [p.efetivoId, p.autenticidade || {}])));
+  useEffect(() => {
+    setMarcas(Object.fromEntries(participantes.map((p) => [p.efetivoId, p.autenticidade || {}])));
+  }, [participantes]);
+
+  async function marcarSite(efetivoId: string, i: ItemConferido, resultado: Marca["resultado"] | null) {
+    try {
+      const r = await fetch("/api/promocoes/conferencia/autenticidade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ efetivoId, ordem: i.ordem, codigo: i.codigo || "", resultado }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { avisar(j?.error || "Não foi possível gravar.", "erro"); return; }
+      setMarcas((o) => {
+        const doMilitar = { ...(o[efetivoId] || {}) };
+        if (j.marca) doMilitar[i.ordem] = j.marca; else delete doMilitar[i.ordem];
+        return { ...o, [efetivoId]: doMilitar };
+      });
+    } catch { avisar("Sem conexão com o servidor.", "erro"); }
+  }
 
   /* Um militar por chamada, para mostrar o andamento e não estourar o tempo
      da função com a lista inteira. */
@@ -221,12 +271,16 @@ export default function PainelPromocoes({
       else if (p.enviadas < 1) return false;
       if (filtroStatus === "Fora do Limite") { if (p.limite !== "fora") return false; }
       else if (filtroStatus === "Conferência: atenção") { if (!p.conferencia || p.conferencia.status === "ok") return false; }
+      else if (filtroStatus === "Autenticidade") {
+        const st = situacaoSite(periodoId, p, marcas);
+        if (!st.faltam && !st.naoConfere) return false;
+      }
       else if (filtroStatus && st !== filtroStatus) return false;
       if (!q) return true;
       const alvo = `${p.nome ?? ""} ${p.nomeGuerra ?? ""} ${p.matricula ?? ""} ${p.postoGrad ?? ""}`.toLowerCase();
       return alvo.includes(q);
     });
-  }, [participantes, busca, filtroStatus]);
+  }, [participantes, busca, filtroStatus, marcas, periodoId]);
 
   /* Mandou certidão sem estar no Limite Quantitativo: o P/1 precisa ver de
      cara QUEM é (pedido do P/1). Só conta quem mandou ao menos uma. */
@@ -242,8 +296,13 @@ export default function PainelPromocoes({
       ok: completos.filter((p) => p.conferencia?.status === "ok").length,
       atencao: completos.filter((p) => p.conferencia && p.conferencia.status !== "ok").length,
       aConferir: completos.filter((p) => !p.conferencia),
+      // autenticidade no site: o que falta (amostra + suspeitas), o feito e o que não conferiu
+      site: completos.reduce((t, p) => {
+        const st = situacaoSite(periodoId, p, marcas);
+        return { faltam: t.faltam + st.faltam, conferidas: t.conferidas + st.conferidas, naoConfere: t.naoConfere + st.naoConfere };
+      }, { faltam: 0, conferidas: 0, naoConfere: 0 }),
     };
-  }, [participantes]);
+  }, [participantes, marcas, periodoId]);
 
   async function adicionarTodos() {
     setCarregando(true);
@@ -472,6 +531,16 @@ export default function PainelPromocoes({
               className="text-amber-300 underline-offset-2 hover:underline">⚠ {conf.atencao} com atenção</button>
             <span className="text-[#94A3B8]">{conf.aConferir.length} a conferir</span>
           </p>
+          {/* autenticidade: o código conferido no site do tribunal, por amostragem */}
+          <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+            <button type="button" onClick={() => setFiltroStatus("Autenticidade")}
+              className="text-sky-300 underline-offset-2 hover:underline"
+              title="Amostra sorteada (1 em cada 4 certidões) e todas as que têm sinal de adulteração ou de clone">
+              🔎 {conf.site.faltam} para conferir no site do tribunal
+            </button>
+            <span className="text-emerald-300">{conf.site.conferidas} conferidas no site</span>
+            {conf.site.naoConfere > 0 && <span className="font-bold text-red-300">✗ {conf.site.naoConfere} não conferem</span>}
+          </p>
         </div>
         {conferindo ? (
           <span className="inline-flex items-center gap-2 rounded-lg bg-sky-500/15 px-3 py-2 text-sm font-semibold text-sky-200">
@@ -507,6 +576,7 @@ export default function PainelPromocoes({
           <option value="Não iniciou">Não iniciaram</option>
           <option value="Fora do Limite">Fora do Limite Quantitativo</option>
           <option value="Conferência: atenção">Conferência com atenção (⚠)</option>
+          <option value="Autenticidade">Autenticidade: conferir no site (🔎)</option>
         </select>
         {(busca || filtroStatus) && (
           <button
@@ -580,7 +650,7 @@ export default function PainelPromocoes({
                   </td>
                   <td className="px-4 py-2.5">
                     <SeloConferencia p={p} onAbrir={() => setDetalhe(p)} onConferir={() => conferir([p])}
-                      ocupado={!!conferindo} />
+                      ocupado={!!conferindo} site={situacaoSite(periodoId, p, marcas)} />
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
@@ -647,6 +717,9 @@ export default function PainelPromocoes({
       {detalhe && (
         <DetalheConferencia
           p={detalhe}
+          periodoId={periodoId}
+          marcas={marcas[detalhe.efetivoId] || {}}
+          onMarcar={(i, resultado) => marcarSite(detalhe.efetivoId, i, resultado)}
           ocupado={!!conferindo}
           onFechar={() => setDetalhe(null)}
           onConferir={() => conferir([detalhe])}
@@ -827,9 +900,21 @@ function ModalNovaPromocao({
 
 /* ---------- Conferência automática: selo da linha e detalhe ---------- */
 function SeloConferencia({
-  p, onAbrir, onConferir, ocupado,
-}: { p: LinhaParticipante; onAbrir: () => void; onConferir: () => void; ocupado: boolean }) {
+  p, onAbrir, onConferir, ocupado, site,
+}: {
+  p: LinhaParticipante; onAbrir: () => void; onConferir: () => void; ocupado: boolean;
+  site: { faltam: number; conferidas: number; naoConfere: number };
+}) {
   const c = p.conferencia;
+  // o site do tribunal disse que não confere: isso passa na frente de tudo
+  if (c && site.naoConfere > 0) {
+    return (
+      <button onClick={onAbrir} title="O P/1 conferiu no site do tribunal e o código não confere"
+        className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-red-500/20 px-2.5 py-0.5 text-xs font-bold text-red-200 hover:bg-red-500/30">
+        ✗ Não confere no site
+      </button>
+    );
+  }
   if (c) {
     const estilo = c.status === "ok"
       ? "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25"
@@ -838,10 +923,18 @@ function SeloConferencia({
         : "bg-amber-500/15 text-amber-200 hover:bg-amber-500/25";
     const n = pontosDe(c);
     return (
-      <button onClick={onAbrir} title="Ver o que o sistema conferiu"
-        className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold transition ${estilo}`}>
-        {c.status === "ok" ? "✓ Tudo certo" : c.status === "sem_texto" ? "Sem texto — abrir" : `⚠ ${n} ${n === 1 ? "ponto" : "pontos"}`}
-      </button>
+      <span className="flex flex-col items-start gap-1">
+        <button onClick={onAbrir} title="Ver o que o sistema conferiu"
+          className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold transition ${estilo}`}>
+          {c.status === "ok" ? "✓ Tudo certo" : c.status === "sem_texto" ? "Sem texto — abrir" : `⚠ ${n} ${n === 1 ? "ponto" : "pontos"}`}
+        </button>
+        {site.faltam > 0 && (
+          <button onClick={onAbrir} title="Certidões sorteadas ou suspeitas para conferir o código no site do tribunal"
+            className="whitespace-nowrap text-[11px] text-sky-300 hover:underline">
+            🔎 {site.faltam} no site
+          </button>
+        )}
+      </span>
     );
   }
   if (p.enviadas < p.total) return <span className="text-xs text-[#94A3B8]">—</span>;
@@ -855,11 +948,17 @@ function SeloConferencia({
 }
 
 function DetalheConferencia({
-  p, ocupado, onFechar, onConferir, onReceber,
+  p, periodoId, marcas, onMarcar, ocupado, onFechar, onConferir, onReceber,
 }: {
-  p: LinhaParticipante; ocupado: boolean;
-  onFechar: () => void; onConferir: () => void; onReceber?: () => void;
+  p: LinhaParticipante; periodoId: string; marcas: Record<number, Marca>;
+  onMarcar: (i: ItemConferido, resultado: Marca["resultado"] | null) => void;
+  ocupado: boolean; onFechar: () => void; onConferir: () => void; onReceber?: () => void;
 }) {
+  // abre a página de autenticidade do tribunal com o código já copiado
+  const verificar = async (i: ItemConferido) => {
+    if (i.codigo) { try { await navigator.clipboard.writeText(i.codigo); avisar(`Código ${i.codigo} copiado: cole no site, se ele pedir.`, "sucesso"); } catch { /* sem área de transferência */ } }
+    if (i.linkVerificacao) window.open(i.linkVerificacao, "_blank", "noopener,noreferrer");
+  };
   const c = p.conferencia;
   if (!c) return null;
   const quando = new Date(c.conferidoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
@@ -907,6 +1006,45 @@ function DetalheConferencia({
                     </p>
                   )}
                   {i.alertas.map((a) => <p key={a} className="text-xs font-medium text-amber-200">⚠ {a}</p>)}
+                  {i.achou && (() => {
+                    const m = marcaDe(marcas, i);
+                    const precisa = precisaSite(periodoId, p.efetivoId, i);
+                    const quando = m ? new Date(m.em).toLocaleDateString("pt-BR") : "";
+                    return (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        {m ? (
+                          <>
+                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${m.resultado === "autentica" ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/20 text-red-200"}`}>
+                              {m.resultado === "autentica" ? "✓ autêntica no site" : "✗ NÃO CONFERE no site"} · {m.por} · {quando}
+                            </span>
+                            <button onClick={() => onMarcar(i, null)} className="text-[11px] text-[#94A3B8] hover:text-white hover:underline">desfazer</button>
+                          </>
+                        ) : (
+                          <>
+                            {precisa && (
+                              <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-[11px] font-semibold text-sky-300">
+                                {i.suspeita ? "🔎 suspeita: conferir no site" : "🔎 sorteada para conferir no site"}
+                              </span>
+                            )}
+                            {i.linkVerificacao && (
+                              <button onClick={() => verificar(i)}
+                                className="inline-flex items-center gap-1 rounded-md border border-sky-500/40 px-2 py-0.5 text-[11px] font-semibold text-sky-300 hover:bg-sky-500/10">
+                                <ExternalLink className="h-3 w-3" /> Verificar no site
+                              </button>
+                            )}
+                            <button onClick={() => onMarcar(i, "autentica")}
+                              className="rounded-md border border-emerald-500/40 px-2 py-0.5 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/10">
+                              ✓ Autêntica
+                            </button>
+                            <button onClick={() => onMarcar(i, "nao_confere")}
+                              className="rounded-md border border-red-500/40 px-2 py-0.5 text-[11px] font-semibold text-red-300 hover:bg-red-500/10">
+                              ✗ Não confere
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </li>
             );

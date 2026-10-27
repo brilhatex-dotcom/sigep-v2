@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { baixarDoR2 } from "@/lib/r2";
 import { certidoesExigidas } from "@/lib/certidoes";
-import { conferirCertidoes, VERSAO_REGRAS, type ArquivoLido, type ResultadoConferencia } from "@/lib/conferenciaCertidoes";
+import {
+  conferirCertidoes, sinaisDeAdulteracao, VERSAO_REGRAS, type ArquivoLido, type ResultadoConferencia,
+} from "@/lib/conferenciaCertidoes";
 import { lerPdfDeCertidao } from "@/lib/leituraPdf";
 
 /* =========================================================================
@@ -96,7 +98,10 @@ export async function conferirMilitar(periodoId: string, efetivoId: string, segu
     const ordenadas = ordens.sort((a, b) => a - b);
     try {
       const l = await lerPdfDeCertidao(chave, String(versao), () => baixarDoR2(chave), prazo);
-      arquivos.push({ ordens: ordenadas, paginas: l.paginas, porImagem: l.porImagem, incompleto: l.incompleto });
+      arquivos.push({
+        ordens: ordenadas, paginas: l.paginas, porImagem: l.porImagem, incompleto: l.incompleto,
+        sinais: sinaisDeAdulteracao(l.meta),
+      });
     } catch (e) {
       console.error("[conferencia] leitura", chave, e);
       arquivos.push({ ordens: ordenadas, paginas: [], erroLeitura: true });
