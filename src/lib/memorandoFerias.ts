@@ -49,7 +49,13 @@ export type MemorandoMilitar = {
   assinaturaMilitar: { nome: string; em: string; id: string } | null;
   assinaturaChefe: { nome: string; cargo: string; em: string; id: string } | null;
   diasParaComecar: number | null;  // negativo = já começou
+  /* A assinatura do militar só abre DIAS_LIBERA_MEMORANDO dias antes do
+     início (pedido do P/1): antes disso o cartão diz a partir de quando. */
+  liberado: boolean;
+  liberaEmBR: string;
 };
+
+export const DIAS_LIBERA_MEMORANDO = 30;
 
 function extenso(br: string): string {
   const d = paraData(br);
@@ -89,7 +95,7 @@ export async function memorandosDoMilitar(efetivoId: string): Promise<MemorandoM
   };
 
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-  const saida: MemorandoMilitar[] = [];
+  const saida: Omit<MemorandoMilitar, "liberado" | "liberaEmBR">[] = [];
 
   /* ---------- férias do plano ---------- */
   const membros = await prisma.membroFerias.findMany({ where: { idPmma: efetivoId } });
@@ -181,7 +187,11 @@ export async function memorandosDoMilitar(efetivoId: string): Promise<MemorandoM
   } catch { /* módulo de LP pode não existir ainda */ }
 
   saida.sort((a, b) => (paraData(a.inicioBR)?.getTime() ?? 0) - (paraData(b.inicioBR)?.getTime() ?? 0));
-  return saida;
+  return saida.map((m) => ({
+    ...m,
+    liberado: m.diasParaComecar === null || m.diasParaComecar <= DIAS_LIBERA_MEMORANDO,
+    liberaEmBR: somaDiasBR(m.inicioBR, -DIAS_LIBERA_MEMORANDO),
+  }));
 }
 
 /** O texto que é assinado — precisa bater nas duas pontas (militar e chefe). */

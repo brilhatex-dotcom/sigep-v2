@@ -3,20 +3,24 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
-import MeusMemorandos from "@/components/MeusMemorandos";
+import MinhasFeriasPainel, { type CartaoFerias, type PeriodoTela } from "@/components/MinhasFeriasPainel";
 import { Palmtree } from "lucide-react";
-import { dataBR } from "@/lib/datas";
+import { dataBR, paraData } from "@/lib/datas";
 
 export const dynamic = "force-dynamic";
 
 /* "Minhas Férias" — área do policial. Mostra SOMENTE as férias do próprio
    militar (equipe onde ele é membro + avulsas dele). LGPD: minimização — ele
-   não vê as férias dos outros. */
+   não vê as férias dos outros, só quem sai na mesma equipe.
+   A tela (MinhasFeriasPainel) mostra cada férias UMA vez: a próxima em
+   destaque, com o que fazer agora; as outras abaixo; as que já passaram
+   recolhidas no fim. */
 
 // Usa o formatador padrão do SIGEP (dd/mm/aaaa). O banco guarda datas em
 // formatos variados — inclusive o texto longo do JavaScript — e o dataBR
 // resolve todos; antes o valor cru vazava para a tela.
 const dBR = (v: string | null) => dataBR(v);
+const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 type Periodo = { rotulo: string; inicio: string | null; fim: string | null; apres: string | null; origem: "plano" | "avulsa" };
 type Colega = { id: string; postoGrad: string | null; nome: string | null; nomeGuerra: string | null; eu: boolean; postergado: boolean };
@@ -105,7 +109,41 @@ export default async function MinhasFeriasPage() {
     } catch { /* ignora */ }
   }
 
-  periodos.sort((a, b) => (a.inicio || "").localeCompare(b.inicio || ""));
+  /* Um cartão por férias (cada equipe do plano e cada avulsa), já com as
+     datas prontas e os dias contados — a tela só arruma e conta o tempo. */
+  const per = (rotulo: string, inicio: string | null, fim: string | null, apres: string | null): PeriodoTela => {
+    const a = paraData(inicio), b = paraData(fim);
+    return {
+      rotulo,
+      inicioBR: dBR(inicio), fimBR: dBR(fim),
+      // sem apresentação gravada, é o dia seguinte ao fim (a regra do memorando)
+      apresBR: apres && dBR(apres) !== "—" ? dBR(apres) : b ? dBR(iso(new Date(b.getTime() + 86400000))) : "—",
+      inicioISO: a ? iso(a) : null, fimISO: b ? iso(b) : null,
+      dias: a && b ? Math.max(0, Math.round((b.getTime() - a.getTime()) / 86400000) + 1) : 0,
+    };
+  };
+  const cartoes: CartaoFerias[] = [
+    ...minhasEquipes.map((eq): CartaoFerias => ({
+      chave: `plano:${eq.anoGozo}:${eq.numeroEquipe}`,
+      tipo: "plano",
+      titulo: `Férias ${eq.anoGozo}`,
+      anoGozo: eq.anoGozo, numeroEquipe: eq.numeroEquipe,
+      periodos: eq.periodos.map((p) => per(p.rotulo, p.inicio, p.fim, p.apres)),
+      adiado: euAdiei,
+      colegas: eq.colegas.map((c) => ({
+        id: c.id, nome: [c.postoGrad, c.nomeGuerra || c.nome].filter(Boolean).join(" ") || "—", eu: c.eu, adiado: c.postergado,
+      })),
+    })),
+    ...periodos.filter((p) => p.origem === "avulsa").map((p, i): CartaoFerias => ({
+      chave: `avulsa:${i}`,
+      tipo: "avulsa",
+      titulo: p.rotulo.replace(/^Férias avulsa/, "Férias avulsas"),
+      anoGozo: null, numeroEquipe: null,
+      periodos: [per("Período", p.inicio, p.fim, p.apres)],
+      adiado: false,
+      colegas: [],
+    })),
+  ].sort((x, y) => (x.periodos[0]?.inicioISO || "").localeCompare(y.periodos[0]?.inicioISO || ""));
 
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
@@ -113,84 +151,11 @@ export default async function MinhasFeriasPage() {
         <h1 className="mb-1 flex items-center gap-2 text-2xl font-bold text-white">
           <Palmtree className="h-6 w-6 text-teal-300" /> Minhas Férias
         </h1>
-        <p className="mb-5 text-sm text-[#94A3B8]">Suas férias registradas — plano por equipe e datas soltas. Você vê apenas as suas.</p>
-
-        {/* Memorandos: assinar / ver na tela / baixar. Fica no topo porque é o
-            que exige ação do militar; some sozinho quando não há nenhum. */}
-        <MeusMemorandos />
-
+        <p className="mb-5 text-sm text-[#94A3B8]">As suas férias, o memorando e quem sai junto com você. Só você vê as suas.</p>
         {!meuId ? (
           <div className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-6 text-center text-sm text-[#94A3B8]">Seu login não está vinculado a uma ficha. Procure o P/1.</div>
-        ) : periodos.length === 0 ? (
-          <div className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-6 text-center text-sm text-[#94A3B8]">Nenhuma férias registrada para você no momento.</div>
         ) : (
-          <ul className="space-y-3">
-            {periodos.map((p, i) => (
-              <li key={i} className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-4">
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <span className="text-sm font-bold text-white">{p.rotulo}</span>
-                  <div className="flex items-center gap-1.5">
-                    {p.origem === "plano" && euAdiei && (
-                      <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-300">adiado</span>
-                    )}
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${p.origem === "avulsa" ? "bg-[#3a2f10] text-[#f3df9d]" : "bg-teal-950/60 text-teal-300"}`}>{p.origem}</span>
-                  </div>
-                </div>
-                <p className="text-sm text-[#cdd9ea]">
-                  <b>{dBR(p.inicio)}</b> a <b>{dBR(p.fim)}</b>
-                  {p.apres ? <span className="text-[#94A3B8]"> · apresentação: {dBR(p.apres)}</span> : null}
-                </p>
-                {p.origem === "plano" && euAdiei && (
-                  <p className="mt-1 text-xs text-amber-300/90">Você adiou estas férias — permanece no serviço normal neste período.</p>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {/* Plano de férias da MINHA equipe — quem sai junto comigo. */}
-        {minhasEquipes.length > 0 && (
-          <div className="mt-8">
-            <h2 className="mb-1 text-lg font-bold text-white">Plano de férias da minha equipe</h2>
-            <p className="mb-4 text-sm text-[#94A3B8]">A equipe em que você está lotado no plano e os militares que saem no mesmo período.</p>
-            {minhasEquipes.map((eq, i) => (
-              <div key={i} className="mb-4 rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-4">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-bold text-white">Equipe {eq.numeroEquipe}</span>
-                  <span className="rounded-full bg-teal-950/60 px-2 py-0.5 text-[10px] font-bold uppercase text-teal-300">ano {eq.anoGozo}</span>
-                  <span className="text-xs text-[#94A3B8]">{eq.colegas.length} militar(es)</span>
-                </div>
-                {eq.periodos.length > 0 && (
-                  <ul className="mb-3 space-y-1">
-                    {eq.periodos.map((p, j) => (
-                      <li key={j} className="text-sm text-[#cdd9ea]">
-                        <span className="text-[#94A3B8]">{p.rotulo}:</span> <b>{dBR(p.inicio)}</b> a <b>{dBR(p.fim)}</b>
-                        {p.apres ? <span className="text-[#94A3B8]"> · apresentação: {dBR(p.apres)}</span> : null}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <div className="flex flex-wrap gap-1.5">
-                  {eq.colegas.map((c) => (
-                    <span
-                      key={c.id}
-                      title={c.postergado ? "Férias adiadas — não sai de férias neste período" : undefined}
-                      className={
-                        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs " +
-                        (c.eu
-                          ? "border-[#D4AF37]/50 bg-[#D4AF37]/10 font-bold text-[#D4AF37]"
-                          : "border-white/10 bg-white/5 text-[#cdd9ea]")
-                      }
-                    >
-                      {[c.postoGrad, c.nomeGuerra || c.nome].filter(Boolean).join(" ") || "—"}
-                      {c.eu && <span className="text-[10px] uppercase">(você)</span>}
-                      {c.postergado && <span className="rounded bg-amber-500/20 px-1 text-[9px] font-bold uppercase text-amber-300">adiado</span>}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+          <MinhasFeriasPainel cartoes={cartoes} />
         )}
       </div>
     </AppShell>

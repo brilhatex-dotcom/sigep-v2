@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { periodoAtivo } from '@/lib/promocoes';
 import { listarLimites } from '@/lib/limiteQuantitativoDb';
 import { parabensLimite } from '@/lib/notificacoes';
+import { AVISO_PROMOCAO_LIGADO } from '@/lib/avisoPromocao';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +19,7 @@ export const dynamic = 'force-dynamic';
 async function destinoDoPrimeiroAcesso(admin: boolean, refEfetivo: string | null): Promise<string> {
   if (admin) return '/dashboard';
   try {
-    if (refEfetivo && (await periodoAtivo())) {
+    if (AVISO_PROMOCAO_LIGADO && refEfetivo && (await periodoAtivo())) {
       const semListas = (await listarLimites()).length === 0;
       if (semListas || (await parabensLimite({ refEfetivo }))) return '/promocoes/minhas-certidoes?passo-a-passo=1';
     }

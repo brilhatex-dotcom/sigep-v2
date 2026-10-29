@@ -9,6 +9,7 @@ import { pendentesDeConferencia } from "@/lib/promocaoAvisos";
 import { listarLimites } from "@/lib/limiteQuantitativoDb";
 import { cruzarComEfetivo } from "@/lib/limiteQuantitativo";
 import { statusP1 } from "@/lib/promocaoStatusP1";
+import { AVISO_PROMOCAO_LIGADO } from "@/lib/avisoPromocao";
 import { envioEncerrado } from "@/lib/promocaoPrazo";
 import { prazoDoPeriodo } from "@/lib/promocaoPrazoDb";
 import { marcarRecebimentoVisto, recebimentoVisto } from "@/lib/avisoCertidoesDb";
@@ -494,7 +495,8 @@ export async function pendenciasAoEntrar(quem: Quem): Promise<PendenciasAoEntrar
     notificacoesPermutas(quem),
     notificacoesPromocao(quem),
     notificacoesFerias(quem),
-    parabensLimite(quem),
+    // a mensagem da promoção no login só com a chave ligada (lib/avisoPromocao)
+    AVISO_PROMOCAO_LIGADO ? parabensLimite(quem) : Promise.resolve(null),
     avisoCertidoes(quem),
   ]);
 
