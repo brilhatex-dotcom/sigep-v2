@@ -249,6 +249,26 @@ export async function apagarAssinaturasDoConjunto(tipo: string, doc: string): Pr
   return Number(n) || 0;
 }
 
+/* Apaga só a assinatura de UM papel num documento (ex.: o P/1 desfaz a do
+   militar no memorando assinado antes da hora; a da seção, se houver, fica). */
+export async function apagarAssinaturaDoPapel(tipo: string, ref: string, papel: string): Promise<number> {
+  await garantir();
+  const n = await prisma.$executeRawUnsafe(
+    `DELETE FROM assinatura_sigep WHERE tipo=$1 AND ref=$2 AND papel=$3`, tipo, ref, papel);
+  return Number(n) || 0;
+}
+
+/* As assinaturas de um papel numa lista de documentos, numa ida só ao banco. */
+export async function assinaturasDoPapel(tipo: string, refs: string[], papel: string): Promise<{ ref: string; nome: string; em: string }[]> {
+  const lista = Array.from(new Set(refs.filter(Boolean))).slice(0, 500);
+  if (!lista.length) return [];
+  await garantir();
+  const marcadores = lista.map((_, i) => `$${i + 3}`).join(",");
+  const rows: any[] = await prisma.$queryRawUnsafe(
+    `SELECT ref, nome, em FROM assinatura_sigep WHERE tipo=$1 AND papel=$2 AND ref IN (${marcadores})`, tipo, papel, ...lista);
+  return rows.map((r) => ({ ref: String(r.ref), nome: String(r.nome || ""), em: new Date(r.em).toISOString() }));
+}
+
 // Apaga UMA assinatura (ex.: o policial desfez a dele para assinar pelo Gov.br).
 export async function apagarAssinatura(tipo: string, ref: string): Promise<number> {
   await garantir();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Palmtree,
@@ -22,6 +22,7 @@ import {
   Maximize2,
   Minimize2,
   FileSpreadsheet,
+  Undo2,
 } from "lucide-react";
 import MemorandoFerias, { DadosMemorando } from "@/components/MemorandoFerias";
 import { grupoDoMilitar, rotuloDoGrupo } from "@/lib/distribuirEquipes";
@@ -182,6 +183,43 @@ export default function PlanoFerias({
   }
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [aberta, setAberta] = useState<EquipeView | null>(null);
+  /* Quem da equipe aberta já assinou o próprio memorando — com o botão de
+     DESFAZER, para quem assinou antes da hora (o aviso "aguardando a seção"
+     não saía da tela do P/1). */
+  const [assinouMemo, setAssinouMemo] = useState<Record<string, { nome: string; em: string }>>({});
+  const [desfazendo, setDesfazendo] = useState<string | null>(null);
+  const idsAberta = aberta ? aberta.membros.map((m) => m.efetivoId).join(",") : "";
+  useEffect(() => {
+    setAssinouMemo({});
+    if (!isAdmin || !idsAberta) return;
+    let vivo = true;
+    fetch(`/api/ferias/memorando-militar?ano=${encodeURIComponent(anoSelecionado)}&ids=${encodeURIComponent(idsAberta)}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => { if (vivo && d?.assinados) setAssinouMemo(d.assinados); })
+      .catch(() => { /* sem o selo; o resto da tela segue */ });
+    return () => { vivo = false; };
+  }, [idsAberta, anoSelecionado, isAdmin]);
+
+  async function desfazerAssinatura(m: MembroEquipe) {
+    const quem = m.nomeGuerra || m.nome || "este militar";
+    if (!await confirmar(
+      `Desfazer a assinatura de ${quem} no memorando de férias de ${anoSelecionado}?\n\n` +
+      "A assinatura dele sai e o aviso \"aguardando a seção\" some. Ele assina de novo pela tela Minhas Férias quando faltarem 30 dias para as férias.",
+      { rotuloOk: "Desfazer assinatura", perigo: true },
+    )) return;
+    setDesfazendo(m.efetivoId);
+    try {
+      const r = await fetch("/api/ferias/memorando-militar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ efetivoId: m.efetivoId, ano: anoSelecionado }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { avisar(d?.error || "Não foi possível desfazer.", "erro"); return; }
+      setAssinouMemo((x) => { const y = { ...x }; delete y[m.efetivoId]; return y; });
+      avisar(`Assinatura de ${quem} desfeita.`, "sucesso");
+    } catch { avisar("Sem conexão. Tente de novo.", "erro"); }
+    finally { setDesfazendo(null); }
+  }
   /* Tela cheia da janela da equipe. Uma equipe tem quase 30 militares e a
      janela pequena mostrava meia dúzia por vez. A escolha fica valendo
      enquanto a pessoa estiver na tela, para não ter de maximizar de novo a
@@ -1476,6 +1514,12 @@ export default function PlanoFerias({
                         <td className="px-3 py-2">
                           <span className="font-medium text-white">{m.nome ?? "—"}</span>
                           {m.nomeGuerra && <span className="ml-1 text-xs text-[#94A3B8]">({m.nomeGuerra})</span>}
+                          {assinouMemo[m.efetivoId] && (
+                            <span title={`Assinou o memorando de ${anoSelecionado} em ${new Date(assinouMemo[m.efetivoId].em).toLocaleString("pt-BR")}`}
+                              className="ml-2 inline-flex items-center rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+                              ✓ assinou o memorando
+                            </span>
+                          )}
                           {postergados.has(m.efetivoId) && (
                             <span
                               title={`Férias adiadas — não sai de férias, segue no serviço normal.${postergados.get(m.efetivoId)?.exercicio ? ` Exercício ${postergados.get(m.efetivoId)!.exercicio}.` : ""}${postergados.get(m.efetivoId)?.motivo ? ` Motivo: ${postergados.get(m.efetivoId)!.motivo}` : ""}`}
@@ -1519,6 +1563,17 @@ export default function PlanoFerias({
                                   : <Clock className="h-3.5 w-3.5" />}
                                 {postergados.has(m.efetivoId) ? "Adiado" : "Adiar"}
                               </button>
+                              {assinouMemo[m.efetivoId] && (
+                                <button
+                                  onClick={() => desfazerAssinatura(m)}
+                                  disabled={desfazendo === m.efetivoId}
+                                  title="Tira a assinatura que o militar fez no memorando (ex.: assinou antes da hora)"
+                                  className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-[#94A3B8] hover:border-amber-400/40 hover:text-amber-300 disabled:opacity-50"
+                                >
+                                  {desfazendo === m.efetivoId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
+                                  Desfazer assinatura
+                                </button>
+                              )}
                               <button
                                 onClick={() => removerMembro(m)}
                                 disabled={removendo === m.efetivoId}
