@@ -63,6 +63,7 @@ import {
   Table2,
   Loader2,
   Library,
+  FileSignature,
 } from "lucide-react";
 import Relogio from "@/components/Relogio";
 import BuscaGlobal from "@/components/BuscaGlobal";
@@ -114,6 +115,7 @@ const NAV: Secao[] = [
       { rotulo: "Relatórios", href: "/relatorios", Icone: Table2, disponivel: true, adminOnly: true },
       { rotulo: "Ficha Individual", href: "/ficha", Icone: Contact, disponivel: true },
       { rotulo: "Histórico Policial", href: "/historico", Icone: BookOpen, disponivel: true, adminOnly: true },
+      { rotulo: "Certidões", href: "/certidoes", Icone: FileSignature, disponivel: true, adminOnly: true },
       { rotulo: "Promoções / Certidões", href: "/promocoes", Icone: Medal, disponivel: true },
     ],
   },

@@ -55,7 +55,7 @@ export type OpcoesPlanoXlsx = {
   hoje?: Date;
 };
 
-const ORG = [
+export const ORG = [
   "ESTADO DO MARANHÃO",
   "SECRETARIA DE ESTADO DA SEGURANÇA PÚBLICA",
   "POLÍCIA MILITAR DO MARANHÃO",
@@ -64,13 +64,13 @@ const ORG = [
   "Rua do Sol, S/N, Cohab, Presidente Dutra-MA, CEP-65.760-000",
   "(99) 98509-5005(Permanência) – 18batalhaopmma@gmail.com",
 ];
-const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+export const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 const FONTE = "Times New Roman";
 
-type Coluna = { titulo: string; largura: number; alinhar: "left" | "center"; tam: number };
+export type Coluna = { titulo: string; largura: number; alinhar: "left" | "center"; tam: number };
 
 // larguras, fontes e alinhamentos copiados dos modelos
-const COLUNAS_PRACAS: Coluna[] = [
+export const COLUNAS_PRACAS: Coluna[] = [
   { titulo: "ORD", largura: 7.43, alinhar: "center", tam: 12 },
   { titulo: "GRAD", largura: 18.14, alinhar: "center", tam: 10 },
   { titulo: "NUMERO", largura: 14.29, alinhar: "center", tam: 10 },
@@ -80,7 +80,7 @@ const COLUNAS_PRACAS: Coluna[] = [
   { titulo: "EQUIPE", largura: 9.57, alinhar: "center", tam: 12 },
   { titulo: "PERIODO", largura: 43.29, alinhar: "center", tam: 12 },
 ];
-const COLUNAS_OFICIAIS: Coluna[] = [
+export const COLUNAS_OFICIAIS: Coluna[] = [
   { titulo: "ORD", largura: 5.86, alinhar: "center", tam: 12 },
   { titulo: "POSTO", largura: 18.57, alinhar: "center", tam: 12 },
   { titulo: "NOME", largura: 50.71, alinhar: "left", tam: 12 },
@@ -197,20 +197,24 @@ const PARTICULAS = new Set(["DE", "DA", "DO", "DAS", "DOS", "E"]);
 /* O nome completo com o NOME DE GUERRA em negrito (como no modelo:
    "**Aldean** da Costa Monteiro"). Palavra a palavra, sem ligar para acento
    nem caixa; se o nome de guerra não estiver no nome, sai tudo normal. */
-export function nomeComGuerra(nome: string, guerra: string | null, tam: number): ExcelJS.CellRichTextValue | string {
+export function trechosComGuerra(nome: string, guerra: string | null): { t: string; b: boolean }[] {
   const alvo = new Set(semAcento(guerra || "").split(/\s+/).filter((p) => p && !PARTICULAS.has(p)));
-  if (!alvo.size || !nome) return nome;
-  const pedacos = nome.split(/(\s+)/);
-  if (!pedacos.some((p) => alvo.has(semAcento(p)))) return nome;
-  const richText: ExcelJS.RichText[] = [];
-  for (const p of pedacos) {
+  const out: { t: string; b: boolean }[] = [];
+  for (const p of (nome || "").split(/(\s+)/)) {
+    if (!p) continue;
     const negrito = alvo.has(semAcento(p));
-    const ultimo = richText[richText.length - 1];
+    const ultimo = out[out.length - 1];
     // junta os pedaços vizinhos de mesmo estilo
-    if (ultimo && !!ultimo.font?.bold === negrito) ultimo.text += p;
-    else richText.push({ text: p, font: { name: FONTE, size: tam, bold: negrito } });
+    if (ultimo && ultimo.b === negrito) ultimo.t += p;
+    else out.push({ t: p, b: negrito });
   }
-  return { richText };
+  return out;
+}
+
+export function nomeComGuerra(nome: string, guerra: string | null, tam: number): ExcelJS.CellRichTextValue | string {
+  const trechos = trechosComGuerra(nome, guerra);
+  if (!trechos.some((x) => x.b)) return nome;
+  return { richText: trechos.map((x) => ({ text: x.t, font: { name: FONTE, size: tam, bold: x.b } })) };
 }
 
 // visto: o VISTO do Cmt em cima; assina: quem assina no fim

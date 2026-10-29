@@ -7,8 +7,8 @@ import {
 } from "lucide-react";
 import { compararAntiguidade } from "@/lib/antiguidade";
 import {
-  CAMPOS, GRUPOS, MODELOS, campoPorChave, valorDoCampo,
-  type MilitarRelatorio, type Modelo,
+  CAMPOS, GRUPOS, MODELOS, OPCOES_TEMPO, campoPorChave, valorDoCampo, faixaDaMedalha, naFaixa,
+  type MilitarRelatorio, type Modelo, type OrdemRelatorio, type FaixaTempo,
 } from "@/lib/relatorioCampos";
 import { avisar } from "@/components/Avisos";
 
@@ -26,7 +26,7 @@ export default function RelatoriosClient({
 }) {
   // ---- o que sai no papel ----
   const [colunas, setColunas] = useState<string[]>(MODELOS[0].campos);
-  const [ordem, setOrdem] = useState<"antiguidade" | "lotacao">("antiguidade");
+  const [ordem, setOrdem] = useState<OrdemRelatorio>("antiguidade");
   const [titulo, setTitulo] = useState("Lista telefônica");
   const [modeloAtivo, setModeloAtivo] = useState<string>(MODELOS[0].id);
 
@@ -39,6 +39,7 @@ export default function RelatoriosClient({
   const [postosSel, setPostosSel] = useState<string[]>([]);
   const [sexo, setSexo] = useState("");
   const [mes, setMes] = useState("");
+  const [tempo, setTempo] = useState<FaixaTempo>("");
   const [busca, setBusca] = useState("");
   const [soComTelefone, setSoComTelefone] = useState(true);
   const [soComEmail, setSoComEmail] = useState(false);
@@ -53,6 +54,7 @@ export default function RelatoriosClient({
     if (m.ordem) setOrdem(m.ordem);
     setSoComTelefone(!!m.filtros?.somenteComTelefone);
     setSoComEmail(!!m.filtros?.somenteComEmail);
+    setTempo(m.filtros?.tempo ?? "");
   }
 
   function alternarColuna(chave: string) {
@@ -61,7 +63,7 @@ export default function RelatoriosClient({
   }
 
   function limparFiltros() {
-    setUnidade(""); setSituacao(""); setPostosSel([]); setSexo(""); setMes("");
+    setUnidade(""); setSituacao(""); setPostosSel([]); setSexo(""); setMes(""); setTempo("");
     setBusca(""); setSoComTelefone(false); setSoComEmail(false);
   }
 
@@ -82,6 +84,7 @@ export default function RelatoriosClient({
       if (postosSel.length && !postosSel.includes((m.postoGrad || "").trim())) return false;
       if (sexo && !(m.sexo || "").toUpperCase().startsWith(sexo)) return false;
       if (mes && m.mesNasc !== Number(mes)) return false;
+      if (!naFaixa(m.anosServico, tempo)) return false;
       if (soComTelefone && !(m.telefone || "").trim()) return false;
       if (soComEmail && !(m.email || "").trim()) return false;
       if (t) {
@@ -90,7 +93,7 @@ export default function RelatoriosClient({
       }
       return true;
     });
-  }, [militares, unidades, unidade, situacao, postosSel, sexo, mes, busca, soComTelefone, soComEmail]);
+  }, [militares, unidades, unidade, situacao, postosSel, sexo, mes, tempo, busca, soComTelefone, soComEmail]);
 
   const ordenados = useMemo(() => {
     const lista = [...filtrados];
@@ -102,6 +105,11 @@ export default function RelatoriosClient({
        que quebrava o padrão. O agrupamento por unidade continua, mas a
        hierarquia vale DENTRO de cada unidade e pelotão. */
     const porPatente = (a: MilitarRelatorio, b: MilitarRelatorio) => compararAntiguidade(a, b);
+    // medalha: os de 30 anos, depois 20, depois 10 — hierarquia dentro de cada faixa
+    if (ordem === "medalha") {
+      return lista.sort((a, b) =>
+        (faixaDaMedalha(b.anosServico) ?? -1) - (faixaDaMedalha(a.anosServico) ?? -1) || porPatente(a, b));
+    }
     if (ordem === "lotacao") {
       return lista.sort((a, b) => {
         const u = (a.unidade || "zzz").localeCompare(b.unidade || "zzz", "pt-BR");
@@ -125,11 +133,24 @@ export default function RelatoriosClient({
     if (postosSel.length) p.push(postos.filter((x) => postosSel.includes(x)).join(", "));
     if (sexo) p.push(sexo === "M" ? "masculino" : "feminino");
     if (mes) p.push(`aniversariantes de ${MESES[Number(mes) - 1]}`);
+    if (tempo) p.push(`tempo de serviço: ${OPCOES_TEMPO.find((o) => o.valor === tempo)?.rotulo.toLowerCase()}`);
     if (soComTelefone) p.push("com telefone");
     if (soComEmail) p.push("com e-mail");
     if (busca.trim()) p.push(`contendo "${busca.trim()}"`);
     return p.length ? p.join(" · ") : "todo o efetivo";
-  }, [unidades, unidade, situacao, postosSel, postos, sexo, mes, soComTelefone, soComEmail, busca]);
+  }, [unidades, unidade, situacao, postosSel, postos, sexo, mes, tempo, soComTelefone, soComEmail, busca]);
+
+  /* Sem data de inclusão na ficha não há como contar o tempo: sem barra,
+     ficam de fora; com barra, entram pelo ANO da barra (aproximado). O P/1
+     precisa saber quem são uns e outros para conferir e completar a ficha. */
+  const semInclusao = useMemo(
+    () => (tempo ? militares.filter((m) => m.anosServico === null) : []),
+    [militares, tempo]
+  );
+  const pelaBarra = useMemo(
+    () => (tempo ? filtrados.filter((m) => m.tempoPelaBarra) : []),
+    [filtrados, tempo]
+  );
 
   const cabecalhos = colunasOrdenadas.map((c) => c.rotulo);
   const dados = ordenados.map((m) => colunasOrdenadas.map((c) => valorDoCampo(m, String(c.chave))));
@@ -303,13 +324,40 @@ export default function RelatoriosClient({
                 {MESES.map((n, i) => <option key={n} value={i + 1}>{n}</option>)}
               </select>
             </Campo>
+            <Campo rotulo="Tempo de serviço (medalha)">
+              <select value={tempo} onChange={(e) => setTempo(e.target.value as FaixaTempo)} className={estiloSelect}>
+                {OPCOES_TEMPO.map((o) => <option key={o.valor} value={o.valor}>{o.rotulo}</option>)}
+              </select>
+            </Campo>
             <Campo rotulo="Ordenar por">
               <select value={ordem} onChange={(e) => setOrdem(e.target.value as any)} className={estiloSelect}>
                 <option value="antiguidade">Hierarquia (antiguidade)</option>
                 <option value="lotacao">Unidade e pelotão (hierarquia em cada um)</option>
+                <option value="medalha">Medalha: 30, 20 e 10 anos (hierarquia em cada faixa)</option>
               </select>
             </Campo>
           </div>
+
+          {pelaBarra.length > 0 && (
+            <details className="mt-3 rounded-lg border border-sky-500/40 bg-sky-500/10 p-3 text-xs text-sky-100">
+              <summary className="cursor-pointer font-semibold">
+                {pelaBarra.length} da lista sem data de inclusão — o tempo saiu do ano da barra (conferir)
+              </summary>
+              <p className="mt-2 leading-relaxed text-sky-100/90">
+                {[...pelaBarra].sort(compararAntiguidade).map((m) => valorDoCampo(m, "postoNome")).join(" · ")}
+              </p>
+            </details>
+          )}
+          {semInclusao.length > 0 && (
+            <details className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-100">
+              <summary className="cursor-pointer font-semibold">
+                {semInclusao.length} militar(es) sem data de inclusão nem barra na ficha — ficam fora da conta
+              </summary>
+              <p className="mt-2 leading-relaxed text-amber-100/90">
+                {[...semInclusao].sort(compararAntiguidade).map((m) => valorDoCampo(m, "postoNome")).join(" · ")}
+              </p>
+            </details>
+          )}
 
           <div className="mt-3 flex flex-wrap gap-4">
             <Marcador ligado={soComTelefone} onClick={() => setSoComTelefone((v) => !v)}>
