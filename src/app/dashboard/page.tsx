@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { exigirAdmin } from "@/lib/guard";
 import { parabensLimite } from "@/lib/notificacoes";
+import { AVISO_PROMOCAO_LIGADO } from "@/lib/avisoPromocao";
 import { periodoAtivo } from "@/lib/promocoes";
 import AppShell from "@/components/AppShell";
 import BarrasPosto from "@/components/BarrasPosto";
@@ -42,7 +43,7 @@ export default async function DashboardPage() {
      a ficha, pelo exigirAdmin. */
   const s = await getServerSession(authOptions);
   const u = s?.user as any;
-  if (u?.refEfetivo && !u.precisaTrocar && String(u.perfil ?? "").toLowerCase() !== "admin") {
+  if (AVISO_PROMOCAO_LIGADO && u?.refEfetivo && !u.precisaTrocar && String(u.perfil ?? "").toLowerCase() !== "admin") {
     const vaiParaCertidoes = await (async () => {
       try { return !!(await periodoAtivo()) && !!(await parabensLimite({ refEfetivo: u.refEfetivo })); }
       catch { return false; }

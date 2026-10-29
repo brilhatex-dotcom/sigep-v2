@@ -13,6 +13,7 @@ import { envioEncerrado } from "@/lib/promocaoPrazo";
 import { prazoDoPeriodo } from "@/lib/promocaoPrazoDb";
 import { chaveCertidaoUnificada } from "@/lib/promocaoUpload";
 import { parabensLimite } from "@/lib/notificacoes";
+import { AVISO_PROMOCAO_LIGADO } from "@/lib/avisoPromocao";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft } from "lucide-react";
 
@@ -135,7 +136,8 @@ async function Conteudo({ efetivoId, admin, abrirPassoAPasso }: { efetivoId: str
         nome={nomeExibicao(ficha)}
         parabens={limite ? { gradDestino: limite.gradDestino, ciclo: limite.ciclo } : null}
         ehOficial={ehCpopm(posto)}
-        jaEnviado={!!st?.enviadoEm}
+        // com o aviso de promoção desligado, o passo a passo só abre pelo botão
+        jaEnviado={!!st?.enviadoEm || !AVISO_PROMOCAO_LIGADO}
         abrirAgora={abrirPassoAPasso}
       />
       <MinhasCertidoes
