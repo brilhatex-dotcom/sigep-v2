@@ -72,6 +72,12 @@ export async function POST(req: Request) {
     const m = meus.find((x) => x.ref === ref && x.tipo === tipo);
     if (!m) return NextResponse.json({ error: "Memorando não encontrado." }, { status: 404 });
     if (m.assinaturaMilitar) return NextResponse.json({ ok: true, jaAssinado: true });
+    // só a partir de 30 dias antes das férias (lib/memorandoFerias)
+    if (!m.liberado) {
+      return NextResponse.json(
+        { error: `O memorando fica disponível para assinar a partir de ${m.liberaEmBR} (30 dias antes das férias).` },
+        { status: 409 });
+    }
 
     const nomeMilitar = [m.postoGrad, m.nome || m.nomeGuerra].filter(Boolean).join(" ").trim();
     await criarAssinaturas(
