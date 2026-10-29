@@ -8,7 +8,7 @@ import { situacaoCalculada, estaEmJmsHoje, hojeLocal } from "@/lib/situacao";
 import { afastadosHoje } from "@/lib/afastadosHoje";
 import { paraData, dataBR, idade as calcIdade, tempoServico } from "@/lib/datas";
 import { classificarPatente } from "@/lib/patentes";
-import { anoDaBarra, faixaDaMedalha, type MilitarRelatorio } from "@/lib/relatorioCampos";
+import type { MilitarRelatorio } from "@/lib/relatorioCampos";
 
 export const dynamic = "force-dynamic";
 
@@ -66,10 +66,6 @@ export default async function RelatoriosPage() {
     const nasc = paraData(m.dataNasc);
     const incorp = paraData(m.dataIncorp);
     const ts = incorp ? tempoServico(incorp, hoje) : null;
-    // sem inclusão na ficha: o ano da barra dá o tempo aproximado (só para a medalha)
-    const anoBarra = ts ? null : anoDaBarra(m.numeroBarra);
-    const anos = ts ? ts.anos : anoBarra ? Math.max(0, hoje.getFullYear() - anoBarra) : null;
-    const faixa = faixaDaMedalha(anos);
     return {
       id: m.id,
       postoGrad: m.postoGrad, numeroBarra: m.numeroBarra, nome: m.nome, nomeGuerra: m.nomeGuerra,
@@ -91,9 +87,6 @@ export default async function RelatoriosPage() {
       equipeFerias: m.equipeFerias,
       idade: nasc ? calcIdade(nasc, hoje) : null,
       tempoServico: ts ? `${ts.anos}a ${ts.meses}m` : null,
-      anosServico: anos,
-      tempoPelaBarra: !ts && anos !== null,
-      medalha: faixa ? `${faixa} anos${ts ? "" : " (pela barra)"}` : null,
       observacoes: m.observacoes,
       // guardado só para o filtro de aniversariantes (mês do nascimento)
       mesNasc: nasc ? nasc.getMonth() + 1 : null,
