@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FileSignature, Eye, Download, Check, Loader2, X, ChevronDown, Users, CalendarDays,
-  Sun, Clock, HelpCircle, History, PauseCircle, Lock,
+  Sun, Clock, History, PauseCircle, Lock,
 } from "lucide-react";
 import MemorandoFerias, {
   type DadosMemorando, dataExtenso, hojeExtenso, linhaAo, linhaAssinaturaDestino, OBS_PADRAO,
@@ -17,8 +17,10 @@ import MemorandoFerias, {
        apresentação e o que fazer agora (um botão só);
      · o memorando em três etapas acesas: você assina → a seção assina →
        pronto para baixar. A assinatura abre 30 dias antes das férias;
-     · quem sai junto fica recolhido; as férias que já passaram, no fim;
-     · dúvidas rápidas no rodapé.
+     · a CONTAGEM: antes, "faltam N dias" com a barra enchendo até o
+       início; durante, "dia X de Y" com a barra até a volta ao serviço;
+     · uma cor por situação (vem aí, de férias, adiada, já gozada);
+     · quem sai junto fica recolhido; as férias que já passaram, no fim.
    O memorando (ver, assinar com a senha, baixar) é o mesmo da seção.
    ========================================================================= */
 
@@ -91,16 +93,32 @@ function cartaoDaLP(m: Memo): CartaoFerias {
   };
 }
 
-type Situacao = { tipo: "gozando"; volta: string } | { tipo: "falta"; dias: number } | { tipo: "passou" } | { tipo: "sem-data" };
-function situacaoDe(c: CartaoFerias, hoje: string): Situacao {
+type Situacao =
+  | { tipo: "gozando"; volta: string; dia: number; total: number; restam: number }
+  | { tipo: "falta"; dias: number; progresso: number; inicioBR: string }
+  | { tipo: "passou" }
+  | { tipo: "sem-data" };
+
+/* `desde`: de onde a barra da espera começa a contar — o fim das férias
+   anteriores (ou, sem elas, um ano antes do início). */
+function situacaoDe(c: CartaoFerias, hoje: string, desde: string | null): Situacao {
   const ini = c.periodos.map((p) => p.inicioISO).filter(Boolean).sort()[0];
   const fim = c.periodos.map((p) => p.fimISO).filter(Boolean).sort().slice(-1)[0];
   if (!ini) return { tipo: "sem-data" };
   if (fim && fim < hoje) return { tipo: "passou" };
   const atual = c.periodos.find((p) => p.inicioISO && p.fimISO && p.inicioISO <= hoje && hoje <= p.fimISO);
-  if (atual) return { tipo: "gozando", volta: atual.apresBR };
-  const proximo = c.periodos.map((p) => p.inicioISO).filter((x): x is string => !!x && x > hoje).sort()[0];
-  return { tipo: "falta", dias: diasAte(proximo || ini, hoje) };
+  if (atual && atual.inicioISO && atual.fimISO) {
+    const total = diasAte(atual.fimISO, atual.inicioISO) + 1;
+    return { tipo: "gozando", volta: atual.apresBR, dia: diasAte(hoje, atual.inicioISO) + 1, total, restam: diasAte(atual.fimISO, hoje) + 1 };
+  }
+  const prox = c.periodos.find((p) => p.inicioISO && p.inicioISO > hoje) || c.periodos[0];
+  const alvo = prox.inicioISO || ini;
+  // entre os dois períodos da mesma férias, a espera conta do fim do 1º
+  const antes = [desde, ...c.periodos.map((p) => p.fimISO)].filter((x): x is string => !!x && x < alvo).sort().slice(-1)[0];
+  const comeco = antes || new Date(Date.parse(alvo) - 365 * 86400000).toISOString().slice(0, 10);
+  const total = Math.max(1, diasAte(alvo, comeco));
+  const dias = diasAte(alvo, hoje);
+  return { tipo: "falta", dias, progresso: Math.min(1, Math.max(0, 1 - dias / total)), inicioBR: prox.inicioBR };
 }
 
 export default function MinhasFeriasPainel({ cartoes }: { cartoes: CartaoFerias[] }) {
@@ -136,13 +154,16 @@ export default function MinhasFeriasPainel({ cartoes }: { cartoes: CartaoFerias[
   // o memorando de cada cartão (férias: pelo ano e equipe; LP: o próprio)
   const todos = useMemo(() => {
     const lista = [...cartoes, ...memos.filter((m) => m.tipo === "memorando_lp").map(cartaoDaLP)];
+    // o fim mais recente ANTES de cada férias: o começo da contagem dela
+    const fins = lista.flatMap((x) => x.periodos.map((p) => p.fimISO)).filter((x): x is string => !!x).sort();
     return lista
       .map((c) => ({
         c,
         memo: c.chave.startsWith("lp:")
           ? memos.find((m) => `lp:${m.ref}` === c.chave) || null
           : c.tipo === "plano" ? memos.find((m) => m.tipo === "memorando_ferias" && m.anoGozo === c.anoGozo && m.numeroEquipe === c.numeroEquipe) || null : null,
-        sit: situacaoDe(c, hoje),
+        // (só férias que já acabaram: a espera não começa no futuro)
+        sit: situacaoDe(c, hoje, fins.filter((f) => f < (c.periodos[0]?.inicioISO || "") && f <= hoje).slice(-1)[0] || null),
       }))
       .sort((a, b) => (a.c.periodos[0]?.inicioISO || "9").localeCompare(b.c.periodos[0]?.inicioISO || "9"));
   }, [cartoes, memos, hoje]);
@@ -258,8 +279,6 @@ export default function MinhasFeriasPainel({ cartoes }: { cartoes: CartaoFerias[
         </details>
       )}
 
-      <Duvidas />
-
       {/* o memorando oficial na tela — só leitura */}
       {vendo && (
         <MemorandoFerias
@@ -327,6 +346,56 @@ function Selo({ sit, adiado }: { sit: Situacao; adiado: boolean }) {
   return null;
 }
 
+const COR = {
+  vem: { borda: "border-[#D4AF37]/40 border-l-[#D4AF37]", fundo: "from-[#D4AF37]/[.12]", sombra: "shadow-[0_14px_40px_-20px_rgba(212,175,55,.45)]", texto: "text-[#D4AF37]" },
+  gozando: { borda: "border-teal-400/40 border-l-teal-400", fundo: "from-teal-500/[.16]", sombra: "shadow-[0_14px_40px_-20px_rgba(45,212,191,.45)]", texto: "text-teal-300" },
+  adiada: { borda: "border-amber-500/30 border-l-amber-500", fundo: "from-amber-500/[.10]", sombra: "", texto: "text-amber-300" },
+  passou: { borda: "border-[#1d2c44] border-l-slate-600", fundo: "from-white/[.03]", sombra: "", texto: "text-[#94A3B8]" },
+};
+
+/* O contador e a barra que enche: antes das férias, até o início (dourada;
+   nos últimos 30 dias — quando o memorando abre — fica verde); durante,
+   até a volta ao serviço (verde-água). A barra cresce ao abrir a tela. */
+function Contagem({ sit, grande }: { sit: Extract<Situacao, { tipo: "falta" | "gozando" }>; grande: boolean }) {
+  const [cheio, setCheio] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setCheio(true), 60); return () => clearTimeout(t); }, []);
+  const gozando = sit.tipo === "gozando";
+  const pct = gozando ? Math.min(1, sit.dia / sit.total) : sit.progresso;
+  const perto = !gozando && sit.dias <= 30;
+  const numero = gozando ? sit.restam : sit.dias;
+  const barra = gozando ? "from-teal-400 to-cyan-300" : perto ? "from-amber-400 via-lime-400 to-emerald-400" : "from-[#b8932a] to-[#f3d27a]";
+  const corNum = gozando ? "from-teal-200 to-cyan-300" : perto ? "from-amber-200 to-emerald-300" : "from-[#f3df9d] to-[#D4AF37]";
+  const rotulo = gozando
+    ? (numero === 1 ? "dia para voltar ao serviço" : "dias para voltar ao serviço")
+    : sit.dias === 0 ? "as suas férias começam HOJE!" : sit.dias === 1 ? "dia para as suas férias" : "dias para as suas férias";
+
+  return (
+    <div className={`mb-3 rounded-xl border border-white/5 bg-black/25 ${grande ? "p-4" : "p-3"}`}>
+      <div className="flex items-end gap-3">
+        {!(sit.tipo === "falta" && sit.dias === 0) && (
+          <span className={`bg-gradient-to-br ${corNum} bg-clip-text font-black leading-none text-transparent ${grande ? "text-6xl" : "text-4xl"}`}>{numero}</span>
+        )}
+        <span className="pb-1">
+          <span className={`block font-bold text-white ${grande ? "text-base" : "text-sm"}`}>{rotulo}</span>
+          <span className="block text-xs text-[#94A3B8]">
+            {gozando ? <>Dia <b className="text-teal-200">{sit.dia}</b> de {sit.total} · apresentação em <b className="text-white">{sit.volta}</b></>
+              : <>começam em <b className="text-white">{sit.inicioBR}</b>{perto && sit.dias > 0 && " · reta final!"}</>}
+          </span>
+        </span>
+      </div>
+      <div className={`mt-3 overflow-hidden rounded-full bg-white/10 ${grande ? "h-3" : "h-2"}`} role="progressbar"
+        aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct * 100)}>
+        <div className={`h-full rounded-full bg-gradient-to-r ${barra} transition-[width] duration-[1400ms] ease-out`}
+          style={{ width: `${cheio ? Math.max(3, pct * 100) : 0}%` }} />
+      </div>
+      <div className="mt-1 flex justify-between text-[10px] uppercase tracking-wider text-[#5b6b85]">
+        <span>{gozando ? "início" : "espera"}</span>
+        <span>{gozando ? "volta ao serviço" : "férias"}</span>
+      </div>
+    </div>
+  );
+}
+
 function Cartao({ item, hoje, grande = false, carregando, acoes }: {
   item: { c: CartaoFerias; memo: Memo | null; sit: Situacao };
   hoje: string; grande?: boolean; carregando: boolean; acoes: Acoes;
@@ -334,19 +403,25 @@ function Cartao({ item, hoje, grande = false, carregando, acoes }: {
   const { c, memo, sit } = item;
   const totalDias = c.periodos.reduce((s, p) => s + p.dias, 0);
   const passou = sit.tipo === "passou";
+  // uma cor por situação: dourado (vem aí), verde-água (de férias), âmbar (adiada), cinza (já gozada)
+  const cor = c.adiado ? COR.adiada : sit.tipo === "gozando" ? COR.gozando : passou ? COR.passou : COR.vem;
   return (
-    <article className={grande
-      ? "overflow-hidden rounded-2xl border border-[#D4AF37]/40 bg-gradient-to-br from-[#D4AF37]/[.10] via-[#0F1B2D] to-[#0F1B2D] shadow-[0_14px_40px_-20px_rgba(212,175,55,.45)]"
-      : "overflow-hidden rounded-xl border border-[#1d2c44] bg-[#0F1B2D]"}>
+    <article className={`overflow-hidden border border-l-4 ${cor.borda} ${grande
+      ? `rounded-2xl bg-gradient-to-br ${cor.fundo} via-[#0F1B2D] to-[#0F1B2D] ${cor.sombra}`
+      : "rounded-xl bg-[#0F1B2D]"}`}>
       <div className={grande ? "p-5" : "p-4"}>
-        {grande && <p className="mb-1 text-[11px] font-black uppercase tracking-[0.2em] text-[#D4AF37]">Suas próximas férias</p>}
+        {grande && <p className={`mb-1 text-[11px] font-black uppercase tracking-[0.2em] ${cor.texto}`}>{sit.tipo === "gozando" ? "Boas férias!" : "Suas próximas férias"}</p>}
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <p className={`${grande ? "text-lg" : "text-sm"} font-bold text-white`}>
             {c.titulo}
             {c.numeroEquipe && !c.chave.startsWith("lp:") && <span className="ml-2 text-xs font-normal text-[#94A3B8]">Equipe {c.numeroEquipe}</span>}
           </p>
-          <Selo sit={sit} adiado={c.adiado} />
+          {/* com a contagem à vista, o selo de "faltam N dias" seria repetido */}
+          {(c.adiado || (sit.tipo !== "falta" && sit.tipo !== "gozando")) && <Selo sit={sit} adiado={c.adiado} />}
         </div>
+
+        {/* a contagem: quanto falta para começar / para voltar */}
+        {!c.adiado && (sit.tipo === "falta" || sit.tipo === "gozando") && <Contagem sit={sit} grande={grande} />}
 
         {/* as datas, grandes e claras */}
         <div className="space-y-2">
@@ -476,35 +551,5 @@ function BlocoMemorando({ m, passou, acoes }: { m: Memo; passou: boolean; acoes:
         )}
       </div>
     </div>
-  );
-}
-
-/* ------------------------------------------------------------ dúvidas */
-
-const DUVIDAS: { p: string; r: string }[] = [
-  { p: "Quando eu volto ao serviço?", r: "No dia da apresentação mostrado no cartão (o dia seguinte ao fim das férias), às 07h30. Se as férias tiverem dois períodos, cada um tem a sua apresentação." },
-  { p: "Por que ainda não consigo assinar o memorando?", r: "A assinatura abre 30 dias antes do início das férias. Antes disso você já pode ver o documento; quando abrir, o botão “Assinar memorando” aparece no cartão." },
-  { p: "Assinei. E agora?", r: "O P/1 recebe o aviso na hora e a seção assina. Você recebe um aviso no celular e o memorando fica pronto para baixar aqui mesmo." },
-  { p: "Preciso adiar ou mudar minhas férias. O que faço?", r: "Fale com o P/1. Adiamento e troca de equipe são feitos por ele no Plano de Férias — depois disso a mudança aparece aqui sozinha." },
-];
-
-function Duvidas() {
-  return (
-    <section className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-4">
-      <h2 className="mb-2 flex items-center gap-2 text-sm font-bold text-white">
-        <HelpCircle className="h-4 w-4 text-teal-300" /> Dúvidas rápidas
-      </h2>
-      <div className="divide-y divide-white/5">
-        {DUVIDAS.map((d) => (
-          <details key={d.p} className="group py-2">
-            <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-[#cdd9ea]">
-              {d.p}
-              <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-[#94A3B8] transition group-open:rotate-180" />
-            </summary>
-            <p className="mt-1.5 text-xs leading-relaxed text-[#94A3B8]">{d.r}</p>
-          </details>
-        ))}
-      </div>
-    </section>
   );
 }
