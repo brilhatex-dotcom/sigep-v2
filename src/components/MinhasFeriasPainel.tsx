@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  FileSignature, Eye, Download, Check, Loader2, X, ChevronDown, Users, CalendarDays,
+  FileSignature, Eye, Download, Check, Loader2, X, ChevronDown, CalendarDays,
   Sun, Clock, History, PauseCircle, Lock,
 } from "lucide-react";
 import MemorandoFerias, {
@@ -20,7 +20,7 @@ import MemorandoFerias, {
      · a CONTAGEM: antes, "faltam N dias" com a barra enchendo até o
        início; durante, "dia X de Y" com a barra até a volta ao serviço;
      · uma cor por situação (vem aí, de férias, adiada, já gozada);
-     · quem sai junto fica recolhido; as férias que já passaram, no fim.
+     · as férias que já passaram, recolhidas no fim.
    O memorando (ver, assinar com a senha, baixar) é o mesmo da seção.
    ========================================================================= */
 
@@ -35,7 +35,6 @@ export type CartaoFerias = {
   anoGozo: string | null; numeroEquipe: string | null;
   periodos: PeriodoTela[];
   adiado: boolean;
-  colegas: { id: string; nome: string; eu: boolean; adiado: boolean }[];
 };
 
 type PeriodoMemo = { rotulo: string; inicioBR: string; fimBR: string; apresBR: string };
@@ -89,7 +88,7 @@ function cartaoDaLP(m: Memo): CartaoFerias {
     chave: `lp:${m.ref}`, tipo: "plano", titulo: `Licença-Prêmio ${m.anoGozo}`,
     anoGozo: m.anoGozo, numeroEquipe: m.numeroEquipe,
     periodos: [{ rotulo: "Licença-Prêmio", inicioBR: p.inicioBR, fimBR: p.fimBR || "—", apresBR: p.apresBR || "—", inicioISO: isoDe(p.inicioBR), fimISO: isoDe(p.fimBR), dias: m.dias }],
-    adiado: false, colegas: [],
+    adiado: false,
   };
 }
 
@@ -455,25 +454,6 @@ function Cartao({ item, hoje, grande = false, carregando, acoes }: {
             : memo && <BlocoMemorando m={memo} passou={passou} acoes={acoes} />
         )}
 
-        {/* quem sai junto */}
-        {c.colegas.length > 1 && (
-          <details className="group mt-3 rounded-lg border border-white/10">
-            <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-xs font-semibold text-[#cdd9ea]">
-              <Users className="h-4 w-4 text-teal-300" /> Quem sai junto com você ({c.colegas.length - 1})
-              <ChevronDown className="ml-auto h-4 w-4 text-[#94A3B8] transition group-open:rotate-180" />
-            </summary>
-            <div className="flex flex-wrap gap-1.5 border-t border-white/5 p-3">
-              {c.colegas.map((x) => (
-                <span key={x.id} title={x.adiado ? "Férias adiadas — não sai neste período" : undefined}
-                  className={"inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs " +
-                    (x.eu ? "border-[#D4AF37]/50 bg-[#D4AF37]/10 font-bold text-[#D4AF37]" : "border-white/10 bg-white/5 text-[#cdd9ea]")}>
-                  {x.nome}{x.eu && " (você)"}
-                  {x.adiado && <span className="rounded-full bg-amber-500/20 px-1.5 text-[9px] font-bold uppercase text-amber-300">adiado</span>}
-                </span>
-              ))}
-            </div>
-          </details>
-        )}
       </div>
     </article>
   );

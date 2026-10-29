@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 /* "Minhas Férias" — área do policial. Mostra SOMENTE as férias do próprio
    militar (equipe onde ele é membro + avulsas dele). LGPD: minimização — ele
-   não vê as férias dos outros, só quem sai na mesma equipe.
+   não vê as férias dos outros, nem quem mais está na equipe dele.
    A tela (MinhasFeriasPainel) mostra cada férias UMA vez: a próxima em
    destaque, com o que fazer agora; as outras abaixo; as que já passaram
    recolhidas no fim. */
@@ -23,11 +23,9 @@ const dBR = (v: string | null) => dataBR(v);
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 type Periodo = { rotulo: string; inicio: string | null; fim: string | null; apres: string | null; origem: "plano" | "avulsa" };
-type Colega = { id: string; postoGrad: string | null; nome: string | null; nomeGuerra: string | null; eu: boolean; postergado: boolean };
 type MinhaEquipe = {
   numeroEquipe: string; anoGozo: string;
   periodos: { rotulo: string; inicio: string | null; fim: string | null; apres: string | null }[];
-  colegas: Colega[];
 };
 
 export default async function MinhasFeriasPage() {
@@ -54,23 +52,12 @@ export default async function MinhasFeriasPage() {
   const euAdiei = !!meuId && postergados.has(meuId);
 
   if (meuId) {
-    // férias do PLANO (equipes onde o militar é membro) — cada equipe e o seu
-    // grupo de colegas são lidos ao mesmo tempo, não um ano depois do outro
-    const grupos = await Promise.all(membros.map((m) => Promise.all([
-      prisma.equipeFerias.findFirst({ where: { numeroEquipe: m.numeroEquipe, anoGozo: m.anoGozo } }),
-      // Plano da MINHA equipe: os colegas que saem de férias junto comigo.
-      prisma.membroFerias.findMany({ where: { numeroEquipe: m.numeroEquipe, anoGozo: m.anoGozo } }),
-    ])));
-    const idsColegas = Array.from(new Set(grupos.flatMap(([, doGrupo]) => doGrupo.map((x) => x.idPmma))));
-    const fichas = idsColegas.length
-      ? await prisma.efetivo.findMany({
-          where: { id: { in: idsColegas } },
-          select: { id: true, postoGrad: true, nome: true, nomeGuerra: true },
-        })
-      : [];
-    const porId = new Map(fichas.map((f) => [f.id, f]));
+    // férias do PLANO (as equipes onde o militar está) — lidas ao mesmo tempo.
+    // Só as datas: quem mais está na equipe não aparece (pedido do P/1).
+    const equipesDele = await Promise.all(membros.map((m) =>
+      prisma.equipeFerias.findFirst({ where: { numeroEquipe: m.numeroEquipe, anoGozo: m.anoGozo } })));
     membros.forEach((m, i) => {
-      const [eq, doGrupo] = grupos[i];
+      const eq = equipesDele[i];
       if (!eq) return;
       const pers: MinhaEquipe["periodos"] = [];
       if (eq.periodo1Inicio || eq.periodo1Fim) pers.push({ rotulo: "1º período", inicio: eq.periodo1Inicio, fim: eq.periodo1Fim, apres: eq.periodo1Apres });
@@ -79,19 +66,6 @@ export default async function MinhasFeriasPage() {
         numeroEquipe: m.numeroEquipe,
         anoGozo: m.anoGozo,
         periodos: pers,
-        colegas: doGrupo
-          .map((x) => {
-            const f = porId.get(x.idPmma);
-            return {
-              id: x.idPmma,
-              postoGrad: f?.postoGrad ?? null,
-              nome: f?.nome ?? null,
-              nomeGuerra: f?.nomeGuerra ?? null,
-              eu: x.idPmma === meuId,
-              postergado: postergados.has(x.idPmma),
-            };
-          })
-          .sort((a, b) => (a.nome ?? "").localeCompare(b.nome ?? "")),
       });
 
       if (eq.periodo1Inicio || eq.periodo1Fim) periodos.push({ rotulo: `Plano ${m.anoGozo} · Equipe ${m.numeroEquipe} · 1º período`, inicio: eq.periodo1Inicio, fim: eq.periodo1Fim, apres: eq.periodo1Apres, origem: "plano" });
@@ -130,9 +104,6 @@ export default async function MinhasFeriasPage() {
       anoGozo: eq.anoGozo, numeroEquipe: eq.numeroEquipe,
       periodos: eq.periodos.map((p) => per(p.rotulo, p.inicio, p.fim, p.apres)),
       adiado: euAdiei,
-      colegas: eq.colegas.map((c) => ({
-        id: c.id, nome: [c.postoGrad, c.nomeGuerra || c.nome].filter(Boolean).join(" ") || "—", eu: c.eu, adiado: c.postergado,
-      })),
     })),
     ...periodos.filter((p) => p.origem === "avulsa").map((p, i): CartaoFerias => ({
       chave: `avulsa:${i}`,
@@ -141,7 +112,6 @@ export default async function MinhasFeriasPage() {
       anoGozo: null, numeroEquipe: null,
       periodos: [per("Período", p.inicio, p.fim, p.apres)],
       adiado: false,
-      colegas: [],
     })),
   ].sort((x, y) => (x.periodos[0]?.inicioISO || "").localeCompare(y.periodos[0]?.inicioISO || ""));
 
@@ -151,7 +121,7 @@ export default async function MinhasFeriasPage() {
         <h1 className="mb-1 flex items-center gap-2 text-2xl font-bold text-white">
           <Palmtree className="h-6 w-6 text-teal-300" /> Minhas Férias
         </h1>
-        <p className="mb-5 text-sm text-[#94A3B8]">As suas férias, o memorando e quem sai junto com você. Só você vê as suas.</p>
+        <p className="mb-5 text-sm text-[#94A3B8]">As suas férias e o seu memorando. Só você vê as suas.</p>
         {!meuId ? (
           <div className="rounded-xl border border-[#1d2c44] bg-[#0F1B2D] p-6 text-center text-sm text-[#94A3B8]">Seu login não está vinculado a uma ficha. Procure o P/1.</div>
         ) : (
