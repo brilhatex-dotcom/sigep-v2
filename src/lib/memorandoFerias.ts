@@ -57,6 +57,41 @@ export type MemorandoMilitar = {
 
 export const DIAS_LIBERA_MEMORANDO = 30;
 
+/* Já está na janela do memorando (30 dias antes do início, ou depois)?
+   Para uma lista de documentos { tipo, ref: "<idPmma>:<ano>" }, numa leva só
+   ao banco. Sem data de início achada, conta como na janela (o aviso não
+   some por falta de dado). Serve ao aviso "aguardando a assinatura da seção"
+   do P/1: memorando assinado antes da hora não aparece até chegar a época. */
+export async function naJanelaDoMemorando(itens: { tipo: string; ref: string }[]): Promise<Set<string>> {
+  const chave = (tipo: string, ref: string) => `${tipo}|${ref}`;
+  const ids = Array.from(new Set(itens.map((i) => i.ref.split(":")[0]).filter(Boolean)));
+  if (!ids.length) return new Set();
+  const [mf, mlp] = await Promise.all([
+    prisma.membroFerias.findMany({ where: { idPmma: { in: ids } } }),
+    prisma.membroLicencaPremio.findMany({ where: { idPmma: { in: ids } } }).catch(() => []),
+  ]);
+  const [ef, elp] = await Promise.all([
+    mf.length ? prisma.equipeFerias.findMany({ where: { anoGozo: { in: Array.from(new Set(mf.map((m) => m.anoGozo))) } } }) : [],
+    mlp.length ? prisma.equipeLicencaPremio.findMany({ where: { anoGozo: { in: Array.from(new Set(mlp.map((m) => m.anoGozo))) } } }).catch(() => []) : [],
+  ]);
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const dentro = new Set<string>();
+  for (const it of itens) {
+    const [id, ano] = it.ref.split(":");
+    let inicio: string | null = null;
+    if (it.tipo === "memorando_lp") {
+      const m = mlp.find((x) => x.idPmma === id && x.anoGozo === ano);
+      inicio = m ? elp.find((e) => e.anoGozo === ano && e.numeroEquipe === m.numeroEquipe)?.periodoInicio ?? null : null;
+    } else {
+      const m = mf.find((x) => x.idPmma === id && x.anoGozo === ano);
+      inicio = m ? ef.find((e) => e.anoGozo === ano && e.numeroEquipe === m.numeroEquipe)?.periodo1Inicio ?? null : null;
+    }
+    const d = paraData(inicio);
+    if (!d || Math.round((d.getTime() - hoje.getTime()) / 86400000) <= DIAS_LIBERA_MEMORANDO) dentro.add(chave(it.tipo, it.ref));
+  }
+  return dentro;
+}
+
 function extenso(br: string): string {
   const d = paraData(br);
   if (!d) return br || "";
