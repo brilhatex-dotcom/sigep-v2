@@ -9,6 +9,7 @@ import { pendentesDeConferencia } from "@/lib/promocaoAvisos";
 import { listarLimites } from "@/lib/limiteQuantitativoDb";
 import { cruzarComEfetivo } from "@/lib/limiteQuantitativo";
 import { statusP1 } from "@/lib/promocaoStatusP1";
+import { naJanelaDoMemorando } from "@/lib/memorandoFerias";
 import { AVISO_PROMOCAO_LIGADO } from "@/lib/avisoPromocao";
 import { envioEncerrado } from "@/lib/promocaoPrazo";
 import { prazoDoPeriodo } from "@/lib/promocaoPrazoDb";
@@ -224,7 +225,11 @@ export async function notificacoesFerias(quem: Quem): Promise<Notificacao[]> {
           GROUP BY tipo, ref
          HAVING bool_or(papel = 'militar') AND NOT bool_or(papel <> 'militar')`
       );
+      /* Só os que já estão na época (30 dias antes das férias): assinado antes
+         da hora não fica cobrando a seção (pedido do P/1). */
+      const naJanela = await naJanelaDoMemorando(pendentes.map((d) => ({ tipo: String(d.tipo), ref: String(d.ref) })));
       for (const d of pendentes) {
+        if (!naJanela.has(`${d.tipo}|${d.ref}`)) continue;
         const oQue = d.tipo === "memorando_lp" ? "licença-prêmio" : "férias";
         nots.push({
           id: "memo:" + d.tipo + ":" + d.ref,
