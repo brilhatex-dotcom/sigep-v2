@@ -39,7 +39,8 @@ export type MembroPlano = {
   postoGrad: string | null; numeroBarra: string | null; nome: string | null;
   nomeGuerra: string | null; matricula: string | null;
   oficial: boolean;
-  antiguidade: number;   // posição na hierarquia do plano todo (0 = mais antigo)
+  antiguidade: number;
+  lotacao?: string;      // onde serve (só a impressão mostra; o Excel segue o modelo)   // posição na hierarquia do plano todo (0 = mais antigo)
 };
 export type PeriodoPlano = { rotulo: string; inicio: string; fim: string; apres: string };
 export type EquipePlano = { numero: string; periodos: PeriodoPlano[]; membros: MembroPlano[] };

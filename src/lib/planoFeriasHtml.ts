@@ -1,6 +1,5 @@
 import {
-  ORG, MESES, COLUNAS_PRACAS, COLUNAS_OFICIAIS, textoPeriodos, trechosComGuerra,
-  type Coluna, type EquipePlano, type OpcoesPlanoXlsx,
+  ORG, MESES, textoPeriodos, trechosComGuerra, type EquipePlano, type OpcoesPlanoXlsx,
 } from "@/lib/planoFeriasXlsx";
 
 /* =========================================================================
@@ -22,14 +21,21 @@ const esc = (v: unknown) =>
 const img = (src: string | undefined, classe: string) =>
   src ? `<img class="${classe}" src="${esc(src)}" alt="">` : "";
 
-/* Largura das colunas: a proporção do Excel; nas praças, ajustada para a
-   folha em pé (no Excel a planilha é larga e o "ajustar à largura" reduz
-   tudo; aqui o período com dois trechos e os títulos cabem sem quebrar). */
-const PCT_PRACAS = [4.5, 9.5, 7.5, 28, 7.5, 9.5, 6, 27.5];
-function colgroup(colunas: Coluna[], pct?: number[]): string {
-  const total = colunas.reduce((s, c) => s + c.largura, 0);
-  return `<colgroup>${colunas.map((c, i) => `<col style="width:${(pct ? pct[i] : (c.largura / total) * 100).toFixed(2)}%">`).join("")}</colgroup>`;
-}
+/* As colunas da IMPRESSÃO: as do Excel (os modelos do P/1) mais o LOCAL
+   onde o militar serve, que a impressão antiga trazia e o P/1 pediu de
+   volta. Larguras em % da folha em pé. */
+type ColImp = { titulo: string; pct: number };
+const IMP_PRACAS: ColImp[] = [
+  { titulo: "ORD", pct: 4 }, { titulo: "GRAD", pct: 9 }, { titulo: "NUMERO", pct: 7 }, { titulo: "NOME", pct: 24 },
+  { titulo: "ID", pct: 7 }, { titulo: "MATRÍCULA", pct: 9 }, { titulo: "LOCAL", pct: 14 }, { titulo: "EQUIPE", pct: 6 },
+  { titulo: "PERIODO", pct: 20 },
+];
+const IMP_OFICIAIS: ColImp[] = [
+  { titulo: "ORD", pct: 5 }, { titulo: "POSTO", pct: 15 }, { titulo: "NOME", pct: 35 }, { titulo: "MATRICULA", pct: 11 },
+  { titulo: "ID", pct: 10 }, { titulo: "LOCAL", pct: 16 }, { titulo: "EQUIPE", pct: 8 },
+];
+const colgroup = (cols: ColImp[]) => `<colgroup>${cols.map((c) => `<col style="width:${c.pct}%">`).join("")}</colgroup>`;
+const thead = (cols: ColImp[]) => `<thead><tr>${cols.map((c) => `<th>${esc(c.titulo)}</th>`).join("")}</tr></thead>`;
 
 function nomeHtml(nome: string | null, guerra: string | null): string {
   return trechosComGuerra(nome || "", guerra).map((x) => (x.b ? `<b>${esc(x.t)}</b>` : esc(x.t))).join("");
@@ -66,17 +72,19 @@ function folhaPracas(equipes: EquipePlano[], op: OpcoesPlanoXlsx): string {
     .map((e) => ({ ...e, membros: e.membros.filter((m) => !m.oficial) }))
     .filter((e) => e.membros.length);
   const tabelas = blocos.map((e) => {
-    const periodo = esc(textoPeriodos(e.periodos));
+    // dois períodos: um em cada linha, para caber na coluna
+    const periodo = textoPeriodos(e.periodos).split(" e ").map(esc).join("<br>");
     const linhas = e.membros.map((m, i) => `
       <tr>
         <td class="c g">${i + 1}</td><td class="c">${esc(m.postoGrad || "-------")}</td>
         <td class="c">${esc(m.numeroBarra || "-------")}</td><td class="c">${nomeHtml(m.nome, m.nomeGuerra)}</td>
         <td class="c">${esc(m.id || "-------")}</td><td class="c">${esc(m.matricula || "-------")}</td>
+        <td class="c local">${esc(m.lotacao || "—")}</td>
         <td class="c g">${esc(e.numero)}</td><td class="c g">${periodo}</td>
       </tr>`).join("");
     return `
-      <table class="pracas">${colgroup(COLUNAS_PRACAS, PCT_PRACAS)}
-        <thead><tr>${COLUNAS_PRACAS.map((c) => `<th>${esc(c.titulo)}</th>`).join("")}</tr></thead>
+      <table class="pracas">${colgroup(IMP_PRACAS)}
+        ${thead(IMP_PRACAS)}
         <tbody>${linhas}</tbody>
       </table>`;
   });
@@ -104,15 +112,15 @@ function folhaOficiais(equipes: EquipePlano[], op: OpcoesPlanoXlsx): string {
     <tr>
       <td class="c">${i + 1}</td><td class="c">${esc(m.postoGrad || "-------")}</td>
       <td>${nomeHtml(m.nome, m.nomeGuerra)}</td><td class="c">${esc(m.matricula || "-------")}</td>
-      <td class="c">${esc(m.id || "-------")}</td><td class="c">${esc(equipe)}</td>
+      <td class="c">${esc(m.id || "-------")}</td><td class="c local">${esc(m.lotacao || "—")}</td><td class="c">${esc(equipe)}</td>
     </tr>`).join("");
   return `
     <section class="folha">
       ${cabecalho(op)}
       <p class="titulo so">PLANO DE FÉRIAS DOS OFICIAIS DO 18º BPM REFERENTE AO EXERCÍCIO DE ${esc(op.ano)}.</p>
       ${oficiais.length ? `
-        <table class="oficiais">${colgroup(COLUNAS_OFICIAIS)}
-          <thead><tr>${COLUNAS_OFICIAIS.map((c) => `<th>${esc(c.titulo)}</th>`).join("")}</tr></thead>
+        <table class="oficiais">${colgroup(IMP_OFICIAIS)}
+          ${thead(IMP_OFICIAIS)}
           <tbody>${linhas}</tbody>
         </table>` : `<p class="vazio">Nenhum oficial neste plano.</p>`}
       ${fecho(op, "cmt")}
@@ -155,6 +163,8 @@ export function gerarPlanoFeriasHtml(equipes: EquipePlano[], op: OpcoesPlanoXlsx
   table.pracas th { background: #D9D9D9; font-weight: normal; font-size: 8pt; }
   table.pracas td { font-size: 7.5pt; height: 5.2mm; }
   table.pracas td.g { font-size: 7.5pt; white-space: nowrap; }
+  td.local { font-size: 7pt; line-height: 1.15; }
+  table.oficiais td.local { font-size: 8.5pt; }
   table.oficiais th { background: #C0C0C0; font-family: Arial, Helvetica, sans-serif; font-weight: bold; font-size: 8.5pt; }
   table.oficiais td { font-size: 10pt; height: 6mm; }
   .fecho { text-align: center; break-inside: avoid; margin-top: 4mm; }

@@ -3,6 +3,7 @@ import { classificarPatente } from "@/lib/patentes";
 import { abrevPosto } from "@/lib/refMilitar";
 import { compararAntiguidade } from "@/lib/antiguidade";
 import { dataBR, hojeBR } from "@/lib/ferias";
+import { formatarLotacao } from "@/lib/formatarLotacao";
 import type { EquipePlano, OpcoesPlanoXlsx, QuemPlano } from "@/lib/planoFeriasXlsx";
 
 /* =========================================================================
@@ -58,7 +59,7 @@ if (!equipes.length) return null;
 
   const fichas = await prisma.efetivo.findMany({
     where: { id: { in: Array.from(new Set(membros.map((m) => m.idPmma))) } },
-    select: { id: true, postoGrad: true, numeroBarra: true, nome: true, nomeGuerra: true, matricula: true, quadro: true, dataPromocao: true },
+    select: { id: true, postoGrad: true, numeroBarra: true, nome: true, nomeGuerra: true, matricula: true, quadro: true, dataPromocao: true, lotacao: true },
   });
   const mapaFicha = new Map(fichas.map((f) => [f.id, f]));
   // a posição de cada um na hierarquia do batalhão (a tabela dos oficiais junta as equipes)
@@ -86,6 +87,7 @@ if (!equipes.length) return null;
           id: f.id, postoGrad: postoComQuadro(f.postoGrad, f.quadro), numeroBarra: f.numeroBarra, nome: f.nome,
           nomeGuerra: f.nomeGuerra, matricula: f.matricula,
           oficial: ehOficial(f.postoGrad), antiguidade: antiguidade.get(f.id) ?? 0,
+        lotacao: formatarLotacao(f.lotacao),
         })),
       };
     });
