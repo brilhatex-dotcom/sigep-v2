@@ -13,11 +13,12 @@ import ExcelJS from "exceljs";
        EXERCÍCIO DE <ano>." (Arial 12, como no modelo).
 
    PRAÇAS — uma tabela por equipe, uma embaixo da outra, cada uma com o seu
-   cabeçalho cinza: ORD | GRAD | NUMERO | NOME | ID | MATRÍCULA | EQUIPE |
+   cabeçalho cinza: ORD | GRAD | NUMERO | NOME | ID | MATRÍCULA | LOCAL | EQUIPE |
    PERIODO. O ORD recomeça em cada equipe; o período sai "02/01/27 a
    05/02/27" (e " e " entre os dois períodos, quando a equipe tem dois).
    OFICIAIS — uma tabela só, em ordem de hierarquia: ORD | POSTO | NOME |
-   MATRICULA | ID | EQUIPE (o modelo dos oficiais não traz o período).
+   MATRICULA | ID | LOCAL | EQUIPE (o modelo dos oficiais não traz o
+   período). O LOCAL (onde serve) não está nos modelos: o P/1 pediu.
    Nos dois, o NOME DE GUERRA sai em negrito dentro do nome completo.
 
    "Oficiais e praças" = as duas abas no mesmo arquivo (como no modelo).
@@ -40,7 +41,7 @@ export type MembroPlano = {
   nomeGuerra: string | null; matricula: string | null;
   oficial: boolean;
   antiguidade: number;
-  lotacao?: string;      // onde serve (só a impressão mostra; o Excel segue o modelo)   // posição na hierarquia do plano todo (0 = mais antigo)
+  lotacao?: string;      // onde serve (coluna LOCAL do Excel e da impressão)   // posição na hierarquia do plano todo (0 = mais antigo)
 };
 export type PeriodoPlano = { rotulo: string; inicio: string; fim: string; apres: string };
 export type EquipePlano = { numero: string; periodos: PeriodoPlano[]; membros: MembroPlano[] };
@@ -78,6 +79,8 @@ export const COLUNAS_PRACAS: Coluna[] = [
   { titulo: "NOME", largura: 53.86, alinhar: "center", tam: 10 },
   { titulo: "ID", largura: 14.57, alinhar: "center", tam: 10 },
   { titulo: "MATRÍCULA", largura: 17.57, alinhar: "center", tam: 10 },
+  // o LOCAL não está no modelo: o P/1 pediu, como na impressão
+  { titulo: "LOCAL", largura: 30, alinhar: "center", tam: 10 },
   { titulo: "EQUIPE", largura: 9.57, alinhar: "center", tam: 12 },
   { titulo: "PERIODO", largura: 43.29, alinhar: "center", tam: 12 },
 ];
@@ -87,6 +90,7 @@ export const COLUNAS_OFICIAIS: Coluna[] = [
   { titulo: "NOME", largura: 50.71, alinhar: "left", tam: 12 },
   { titulo: "MATRICULA", largura: 13.57, alinhar: "center", tam: 12 },
   { titulo: "ID", largura: 14, alinhar: "center", tam: 12 },
+  { titulo: "LOCAL", largura: 28, alinhar: "center", tam: 11 },
   { titulo: "EQUIPE", largura: 15.14, alinhar: "center", tam: 12 },
 ];
 
@@ -374,7 +378,7 @@ function abaPracas(wb: ExcelJS.Workbook, equipes: EquipePlano[], op: OpcoesPlano
       linhaMilitar(ws, r++, colunas, [
         String(i + 1), m.postoGrad || "-------", m.numeroBarra || "-------",
         nomeComGuerra(m.nome || "", m.nomeGuerra, colunas[3].tam), m.id || "-------", m.matricula || "-------",
-        e.numero, periodo,
+        m.lotacao || "—", e.numero, periodo,
       ]);
     });
     // duas linhas entre uma equipe e a outra (o modelo)
@@ -398,7 +402,8 @@ function abaOficiais(wb: ExcelJS.Workbook, equipes: EquipePlano[], op: OpcoesPla
     oficiais.forEach(({ m, equipe }, i) => {
       linhaMilitar(ws, r++, colunas, [
         String(i + 1), m.postoGrad || "-------",
-        nomeComGuerra(m.nome || "", m.nomeGuerra, colunas[2].tam), m.matricula || "-------", m.id || "-------", equipe,
+        nomeComGuerra(m.nome || "", m.nomeGuerra, colunas[2].tam), m.matricula || "-------", m.id || "-------",
+        m.lotacao || "—", equipe,
       ]);
     });
   } else {
