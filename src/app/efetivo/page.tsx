@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { exigirAdmin } from "@/lib/guard";
@@ -7,6 +8,7 @@ import LimparFuncoes from "@/components/LimparFuncoes";
 import { hojeLocal, situacaoCalculada } from "@/lib/situacao";
 import { afastadosHoje } from "@/lib/afastadosHoje";
 import { idsInativos, semInativos } from "@/lib/inativos";
+import { compararAntiguidade } from "@/lib/antiguidade";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +26,7 @@ export default async function EfetivoPage({
   const [fichasBrutas, inativos, comFuncao, afastados] = await Promise.all([
     prisma.efetivo.findMany({
       select: {
-        id: true, postoGrad: true, nome: true, nomeGuerra: true,
+        id: true, postoGrad: true, numeroBarra: true, dataPromocao: true, nome: true, nomeGuerra: true,
         matricula: true, situacao: true, lotacao: true, telefone: true,
         jmsDataInicio: true, jmsDataRetorno: true,
       },
@@ -39,8 +41,11 @@ export default async function EfetivoPage({
   const idsFerias = afastados.ferias;
   const idsLicencaPremio = afastados.licencaPremio;
 
-  // aplica situacao calculada e remove os campos extra
-  const lista = militares
+  // aplica situacao calculada e remove os campos extra — em ordem de
+  // HIERARQUIA (pedido do P/1: tudo no sistema por hierarquia; antes era
+  // alfabética). A busca da tela continua achando pelo nome.
+  const lista = [...militares]
+    .sort(compararAntiguidade)
     .map((m) => ({
       id: m.id,
       postoGrad: m.postoGrad,
@@ -50,14 +55,16 @@ export default async function EfetivoPage({
       situacao: situacaoCalculada(m, idsFerias, hoje, idsLicencaPremio),
       lotacao: m.lotacao,
       telefone: m.telefone,
-    }))
-    .sort((a, b) => (a.nome ?? "").localeCompare(b.nome ?? ""));
+    }));
 
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-6xl">
         <h1 className="mb-1 text-2xl font-bold text-white">Cadastro de Efetivo</h1>
-        <p className="mb-5 text-sm text-[#94A3B8]">{lista.length} militares cadastrados.</p>
+        <p className="mb-5 flex flex-wrap items-center gap-x-3 text-sm text-[#94A3B8]">
+          {lista.length} militares cadastrados.
+          <Link href="/efetivo/inclusao" className="text-[#D4AF37] hover:underline">Conferir datas de inclusão →</Link>
+        </p>
         <LimparFuncoes total={comFuncao} />
         <EfetivoLista militares={lista} buscaInicial={searchParams.q ?? ""} situacaoInicial={searchParams.situacao ?? ""} />
       </div>

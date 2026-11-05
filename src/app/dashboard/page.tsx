@@ -25,6 +25,7 @@ import {
 import {
   Users, Cake, HeartPulse, CheckCircle2, Plane, ShieldAlert, Hourglass, ChevronRight,
 } from "lucide-react";
+import { compararAntiguidade } from "@/lib/antiguidade";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,7 @@ export default async function DashboardPage() {
   const [fichasBrutas, inativos, equipes, idsAvulsaHoje, idsAdiados, idsLicencaPremio, dispensados, avisos] = await Promise.all([
     prisma.efetivo.findMany({
       select: {
-        id: true, postoGrad: true, nome: true, nomeGuerra: true, sexo: true, situacao: true,
+        id: true, postoGrad: true, numeroBarra: true, dataPromocao: true, nome: true, nomeGuerra: true, sexo: true, situacao: true,
         dataNasc: true, jmsDataInicio: true, jmsDataRetorno: true, jmsMotivo: true,
       },
     }),
@@ -228,6 +229,7 @@ export default async function DashboardPage() {
   // NOMINAL de cada equipe — quem adiou as férias fica de fora (segue no serviço).
   const totalPorEquipe=new Map<string,number>();
   const nomesPorEquipe=new Map<string,string[]>();
+  const fichasPorEquipe=new Map<string,(typeof militares)[number][]>();
   membros.forEach((mb)=>{
     if(idsAdiados.has(mb.idPmma)) return;
     if(idsJmsHoje.has(mb.idPmma)) return;      // em JMS: não está de férias
@@ -235,9 +237,11 @@ export default async function DashboardPage() {
     totalPorEquipe.set(mb.numeroEquipe,(totalPorEquipe.get(mb.numeroEquipe)??0)+1);
     const f=fichasMap.get(mb.idPmma);
     const nome=[f?.postoGrad, f?.nomeGuerra || f?.nome].filter(Boolean).join(" ").trim();
-    if(nome){ const arr=nomesPorEquipe.get(mb.numeroEquipe)??[]; arr.push(nome); nomesPorEquipe.set(mb.numeroEquipe,arr); }
+    if(nome && f){ const arr=fichasPorEquipe.get(mb.numeroEquipe)??[]; arr.push(f); fichasPorEquipe.set(mb.numeroEquipe,arr); }
   });
-  nomesPorEquipe.forEach((arr)=>arr.sort((a,b)=>a.localeCompare(b)));
+  // a lista nominal de cada equipe em ordem de HIERARQUIA (antes, alfabética)
+  fichasPorEquipe.forEach((arr,eq)=>nomesPorEquipe.set(eq,[...arr].sort(compararAntiguidade)
+    .map((f)=>[f.postoGrad, f.nomeGuerra || f.nome].filter(Boolean).join(" ").trim())));
 
   // monta as equipes que estao de ferias HOJE (periodo 1 ou 2 engloba hoje)
   type EquipeFeriasItem={

@@ -6,6 +6,7 @@ import {
   ehModeloAquisicao, ehModeloMovimentacao, ehModeloTransferencia, infoMovimentacao, MODALIDADE_MOVIMENTACAO,
 } from "@/lib/requerimentos";
 import { lerDadosArma } from "@/lib/requerimentoArma";
+import { comportamentoMilitar, ehOficial } from "@/lib/comportamento";
 
 /* =========================================================================
    Gera o DOCX do requerimento a partir do template (substitui dados +
@@ -359,6 +360,12 @@ export function gerarRequerimentoDocx(d: DadosReq): Buffer {
     email: s(d.email),
     p2conceito: s(d.p2Conceito),
     p2situacaojur: composeSituacaoJuridica(d),
+    /* Pág. 2: comportamento pela regra do P/1 (lib/comportamento) — oficial
+       em branco; praça por tempo de inclusão. E o bloco "ASSINATURA DO CMT.
+       IMEDIATO" só existe para praça: oficial não tem Cmt imediato, o Cmt da
+       unidade assina direto (o template apaga o bloco com {#cmtimediato}). */
+    comportamento: comportamentoMilitar(d.postoGrad, d.dataInclusao),
+    cmtimediato: !ehOficial(d.postoGrad),
   };
 
   /* No requerimento de CURSOS, o documento oficial traz MATRICULA/CPF/E-MAIL

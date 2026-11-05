@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { padronizarBrasao } from "@/lib/imagem";
 import { usePulso, avisarMudanca } from "@/lib/sincronia";
 import CarimboSigep from "@/components/CarimboSigep";
-import { compararAntiguidade } from "@/lib/patentes";
+import { compararAntiguidade } from "@/lib/antiguidade";
 import { incluiComReducao, podeNoDia, rotuloDias, ROTEM_HORARIOS_PADRAO, horariosRotemDoDia, extrasDoDia, proximosDoGiro, rotuloGiro, serveNoGiro, type GiroSemanal } from "@/lib/escalaMotor";
 import { avisar, confirmar } from "@/components/Avisos";
 

@@ -9,6 +9,7 @@ import { modeloDaModalidade, ehModeloTransferencia, descricaoDoModelo } from "@/
 import { padraoTransferencia } from "@/lib/requerimentoArma";
 import { textoDaModalidade, dadosPessoais } from "@/lib/requerimentoDados";
 import { ArrowLeft } from "lucide-react";
+import { comportamentoMilitar } from "@/lib/comportamento";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +63,8 @@ export default async function NovoRequerimentoPage({
   const inicial = {
     ...pessoais,
     ...textos,
-    p2Conceito: "",
+    // já vem com o da regra do P/1 (praça pelo tempo de inclusão; oficial em branco) — editável
+    p2Conceito: comportamentoMilitar(pessoais.postoGrad, pessoais.dataInclusao),
     p2UltimaPromocao: "",
     p2BgNumero: "",
     p2BgData: "",

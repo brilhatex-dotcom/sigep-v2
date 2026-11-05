@@ -13,6 +13,22 @@
    divergir do documento que ela lacra.
    ========================================================================= */
 
+import { compararAntiguidade, type ParaAntiguidade } from "@/lib/antiguidade";
+
+/* A ORDEM dos policiais no requerimento: a HIERARQUIA (pedido do P/1 — o mais
+   graduado e mais antigo primeiro, no ofício e nas assinaturas). Do efetivo,
+   pela ficha (posto, data da promoção, barra); digitado à mão, pelo cargo
+   escrito na linha. Empate total mantém a ordem em que foram postos. */
+export function emHierarquia<T extends { efetivoId: string; cargo: string; nome: string }>(
+  linhas: T[], fichas: Map<string, ParaAntiguidade>,
+): T[] {
+  const regua = (l: T): ParaAntiguidade => (l.efetivoId && fichas.get(l.efetivoId)) || { postoGrad: l.cargo, nome: l.nome };
+  return linhas
+    .map((l, i) => ({ l, i }))
+    .sort((a, b) => compararAntiguidade(regua(a.l), regua(b.l)) || a.i - b.i)
+    .map((x) => x.l);
+}
+
 export type RespostaBanco = {
   bancoNome?: string;
   agencia?: string;

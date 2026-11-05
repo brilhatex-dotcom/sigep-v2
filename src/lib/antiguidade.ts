@@ -81,15 +81,21 @@ export function ordemBarra(barra: string | null): number {
 }
 
 
-type ParaAntiguidade = { postoGrad: string | null; dataPromocao: string | null; numeroBarra: string | null; nome: string | null };
+export type ParaAntiguidade = {
+  postoGrad?: string | null; dataPromocao?: string | null; numeroBarra?: string | null; nome?: string | null;
+};
 
+/* A ÚNICA régua de hierarquia do SIGEP (pedido do P/1: tudo o que o sistema
+   lista ou imprime sai nesta ordem). Havia uma segunda cópia em patentes.ts,
+   que lia o ano da barra cru ("/07" antes de "/92") e não entendia data no
+   formato dd/mm/aaaa — saiu; quem a usava passou a usar esta. */
 export function compararAntiguidade(a: ParaAntiguidade, b: ParaAntiguidade): number {
-  const pa = classificarPatente(a.postoGrad).ordem;
-  const pb = classificarPatente(b.postoGrad).ordem;
+  const pa = classificarPatente(a.postoGrad ?? null).ordem;
+  const pb = classificarPatente(b.postoGrad ?? null).ordem;
   if (pa !== pb) return pa - pb;
-  const da = ordemData(a.dataPromocao), db = ordemData(b.dataPromocao);
+  const da = ordemData(a.dataPromocao ?? null), db = ordemData(b.dataPromocao ?? null);
   if (da !== db) return da - db;
-  const ba = ordemBarra(a.numeroBarra), bb = ordemBarra(b.numeroBarra);
+  const ba = ordemBarra(a.numeroBarra ?? null), bb = ordemBarra(b.numeroBarra ?? null);
   if (ba !== bb) return ba - bb;
   return (a.nome ?? "").localeCompare(b.nome ?? "", "pt-BR");
 }

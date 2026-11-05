@@ -15,6 +15,7 @@ import {
   GradeCampos, BuscaAlienante, CAMPOS_TRANSF_ALIENANTE, camposArmaTransferencia,
 } from "@/components/CamposTransferencia";
 import { avisar } from "@/components/Avisos";
+import { compararAntiguidade } from "@/lib/antiguidade";
 
 // quadro "2. PRODUTO CONTROLADO A SER ADQUIRIDO" das folhas de PCE
 const CAMPOS_PCE: { key: string; label: string; dica: string }[] = [
@@ -116,7 +117,8 @@ export default function RequerimentoLoteForm({
   }
 
   function adicionar(m: Militar) {
-    setMilitares((l) => (l.some((x) => x.id === m.id) ? l : [...l, m]));
+    // a lista dos escolhidos fica sempre em ordem de hierarquia
+    setMilitares((l) => (l.some((x) => x.id === m.id) ? l : [...l, m].sort(compararAntiguidade)));
     // quem entra depois já nasce com o que foi marcado como igual para todos
     setPorMilitar((o) => ({
       ...o,

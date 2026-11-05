@@ -5,7 +5,7 @@ import {
   AlignmentType, WidthType, BorderStyle, VerticalAlign,
 } from "docx";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { compararAntiguidade } from "@/lib/patentes";
+import { compararAntiguidade } from "@/lib/antiguidade";
 
 /* =========================================================================
    Escala de Servico diaria -> Word (.docx) e PDF, IGUAL ao modelo impresso:

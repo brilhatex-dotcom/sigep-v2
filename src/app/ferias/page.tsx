@@ -19,6 +19,7 @@ import { motivosSustacao, motivoDe } from "@/lib/feriasSustacao";
 import { foraDoPlano, problemasDoPlano, type ForaDoPlano as ItemFora, type ProblemaPlano, type FeriasAtrasadas } from "@/lib/feriasForaDoPlano";
 import ProblemasDoPlano from "@/components/ProblemasDoPlano";
 import ForaDoPlano from "@/components/ForaDoPlano";
+import { compararNoPlano } from "@/lib/filaMemorandos";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +87,7 @@ export default async function FeriasPage({
       id: true,
       postoGrad: true,
       numeroBarra: true,
+      dataPromocao: true,
       nome: true,
       nomeGuerra: true,
       matricula: true,
@@ -142,12 +144,12 @@ export default async function FeriasPage({
           ehOficial: ehOficial(f?.postoGrad ?? null),
         };
       })
-      .sort((a, b) => {
-        const pa = classificarPatente(a.postoGrad).ordem;
-        const pb = classificarPatente(b.postoGrad).ordem;
-        if (pa !== pb) return pa - pb;
-        return (a.nome ?? "").localeCompare(b.nome ?? "");
-      });
+      /* a MESMA ordem da numeração dos memorandos (lib/filaMemorandos):
+         hierarquia completa a partir de 2027 */
+      .sort((a, b) => compararNoPlano(anoSelecionado)(
+        { ...a, dataPromocao: mapaFicha.get(a.efetivoId)?.dataPromocao ?? null },
+        { ...b, dataPromocao: mapaFicha.get(b.efetivoId)?.dataPromocao ?? null },
+      ));
 
     return {
       numeroEquipe: e.numeroEquipe,

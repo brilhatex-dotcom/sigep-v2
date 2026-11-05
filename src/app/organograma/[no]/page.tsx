@@ -4,13 +4,13 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/AppShell";
-import { classificarPatente } from "@/lib/patentes";
 import { acharNo, pertenceAoNo } from "@/lib/organograma";
 import { hojeLocal, situacaoCalculada } from "@/lib/situacao";
 import { afastadosHoje } from "@/lib/afastadosHoje";
 import { idsInativos, semInativos } from "@/lib/inativos";
 import { exigirAdminOuLugar } from "@/lib/guard";
 import { ArrowLeft, ChevronRight, Users } from "lucide-react";
+import { compararAntiguidade } from "@/lib/antiguidade";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +41,7 @@ export default async function NoOrganogramaPage({
   const [fichasBrutas, inativos, afastados] = await Promise.all([
     prisma.efetivo.findMany({
       select: {
-        id: true, postoGrad: true, nome: true, nomeGuerra: true,
+        id: true, postoGrad: true, numeroBarra: true, dataPromocao: true, nome: true, nomeGuerra: true,
         matricula: true, situacao: true, lotacao: true,
         jmsDataInicio: true, jmsDataRetorno: true,
       },
@@ -58,12 +58,8 @@ export default async function NoOrganogramaPage({
   const lista = todos
     .filter((m) => pertenceAoNo(m.lotacao, no))
     .map((m) => ({ ...m, sit: situacaoCalculada(m, idsFerias, hoje, idsLicencaPremio) }))
-    .sort((a, b) => {
-      const pa = classificarPatente(a.postoGrad).ordem;
-      const pb = classificarPatente(b.postoGrad).ordem;
-      if (pa !== pb) return pa - pb;
-      return (a.nome ?? "").localeCompare(b.nome ?? "");
-    });
+    // hierarquia completa: posto, data da promoção, barra (lib/antiguidade)
+    .sort(compararAntiguidade);
 
   return (
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>

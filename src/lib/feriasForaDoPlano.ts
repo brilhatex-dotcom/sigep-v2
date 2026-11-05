@@ -3,6 +3,7 @@ import { idsInativos, saidasComData } from "@/lib/inativos";
 import { grupoDoMilitar, rotuloDoGrupo } from "@/lib/distribuirEquipes";
 import { classificarPatente } from "@/lib/patentes";
 import { paraData } from "@/lib/ferias";
+import { compararAntiguidade } from "@/lib/antiguidade";
 
 /* =========================================================================
    MILITARES FORA DO PLANO DE FÉRIAS — e a inclusão automática deles.
@@ -114,7 +115,7 @@ export async function foraDoPlano(ano: string): Promise<ForaDoPlano[]> {
     prisma.membroFerias.findMany({ where: { anoGozo: ano }, select: { idPmma: true, numeroEquipe: true } }),
     prisma.membroFerias.findMany({ where: { anoGozo: String(Number(ano) - 1) }, select: { idPmma: true, numeroEquipe: true } }),
     idsInativos(),
-    prisma.efetivo.findMany({ select: { id: true, postoGrad: true, nome: true, nomeGuerra: true, lotacao: true } }),
+    prisma.efetivo.findMany({ select: { id: true, postoGrad: true, numeroBarra: true, dataPromocao: true, nome: true, nomeGuerra: true, lotacao: true } }),
   ]);
   const noPlano = new Set(membros.map((m) => m.idPmma));
   const equipeAntes = new Map(anterior.map((m) => [m.idPmma, m.numeroEquipe]));
@@ -123,6 +124,7 @@ export async function foraDoPlano(ano: string): Promise<ForaDoPlano[]> {
   const fora = fichas.filter((f) => !noPlano.has(f.id) && !inativos.has(f.id) && (f.nome || f.postoGrad));
   if (!fora.length) return [];
 
+  const reguaFora = new Map(fora.map((f) => [f.id, f]));
   const sugestao = sugerir(
     fora.map((f) => ({ id: f.id, lotacao: f.lotacao, postoOrdem: classificarPatente(f.postoGrad).ordem, nome: f.nome || "" })),
     membros.map((m) => ({ ...m, lotacao: lotacaoDe.get(m.idPmma) ?? null })),
@@ -141,10 +143,9 @@ export async function foraDoPlano(ano: string): Promise<ForaDoPlano[]> {
       adido: ehAdido(f.lotacao),
       equipeAnoAnterior: equipeAntes.get(f.id) ?? null,
     }))
-    // adidos por último; dentro de cada parte, hierarquia
+    // adidos por último; dentro de cada parte, hierarquia completa (lib/antiguidade)
     .sort((a, b) => Number(a.adido) - Number(b.adido)
-      || classificarPatente(a.postoGrad).ordem - classificarPatente(b.postoGrad).ordem
-      || a.nome.localeCompare(b.nome, "pt-BR"));
+      || compararAntiguidade(reguaFora.get(a.id) ?? a, reguaFora.get(b.id) ?? b));
 }
 
 /* Inclui no plano do ano os militares fora dele (todos — menos os adidos —,
@@ -252,7 +253,7 @@ export async function problemasDoPlano(ano: string): Promise<{ saidos: ProblemaP
   const ids = Array.from(new Set([...idsSaidos, ...idsDuas, ...atrasadasBrutas.map((p: any) => String(p.idPmma))]));
   if (!ids.length) return { saidos: [], repetidos: [], atrasadas: [] };
   const fichas = await prisma.efetivo.findMany({
-    where: { id: { in: ids } }, select: { id: true, postoGrad: true, nome: true, nomeGuerra: true },
+    where: { id: { in: ids } }, select: { id: true, postoGrad: true, numeroBarra: true, dataPromocao: true, nome: true, nomeGuerra: true },
   });
   const ficha = new Map(fichas.map((f) => [f.id, f]));
   const item = (id: string): ProblemaPlano => ({
@@ -264,8 +265,9 @@ export async function problemasDoPlano(ano: string): Promise<{ saidos: ProblemaP
     avulsas: avulsasDe.get(id),
     dataSaida: saidos.get(id),
   });
-  const ordem = (a: { postoGrad?: string; nome: string }, b: { postoGrad?: string; nome: string }) =>
-    classificarPatente(a.postoGrad || "").ordem - classificarPatente(b.postoGrad || "").ordem || a.nome.localeCompare(b.nome, "pt-BR");
+  // hierarquia completa (lib/antiguidade), com a barra e a promoção da ficha
+  const ordem = (a: { id: string; postoGrad?: string; nome: string }, b: { id: string; postoGrad?: string; nome: string }) =>
+    compararAntiguidade(ficha.get(a.id) ?? a, ficha.get(b.id) ?? b);
 
   const atrasadas: FeriasAtrasadas[] = atrasadasBrutas
     .map((p: any) => {

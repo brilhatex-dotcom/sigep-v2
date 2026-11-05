@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { cifrar, decifrar } from "@/lib/cripto";
-import { linhaBanco, faltaBanco, tipoContaDaFicha } from "@/lib/pecuniaComum";
+import { linhaBanco, faltaBanco, tipoContaDaFicha, emHierarquia } from "@/lib/pecuniaComum";
 import { assinaturasDoConjunto } from "@/lib/assinaturaSigep";
 
 /* =========================================================================
@@ -236,13 +236,28 @@ function mapear(r: any): RequerimentoPecunia {
   };
 }
 
+/* Ao GRAVAR, os policiais entram em ordem de hierarquia. Só aqui, e nunca na
+   leitura: um requerimento já assinado tem a ordem lacrada no conteúdo da
+   assinatura, e reordenar ao ler faria todas as assinaturas divergirem.
+   (Gravar por cima de assinatura já é barrado pela rota — exige reabrir.) */
+async function ordenado(d: DadosPecunia): Promise<DadosPecunia> {
+  const ids = Array.from(new Set(d.linhas.map((l) => l.efetivoId).filter(Boolean)));
+  const fichas = ids.length
+    ? await prisma.efetivo.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, postoGrad: true, dataPromocao: true, numeroBarra: true, nome: true },
+      })
+    : [];
+  return { ...d, linhas: emHierarquia(d.linhas, new Map(fichas.map((f) => [f.id, f]))) };
+}
+
 export async function criarPecunia(
   dados: unknown, por: string, porNome: string,
 ): Promise<RequerimentoPecunia> {
   await garantir();
   const id = await proximoNumero();
   const agora = new Date().toISOString();
-  const limpos = limpar(dados);
+  const limpos = await ordenado(limpar(dados));
   await prisma.$executeRawUnsafe(
     `INSERT INTO requerimento_pecunia (id, criado_por, criado_por_nome, criado_em, atualizado_em, dados, efetivos)
      VALUES ($1,$2,$3,$4,$5,$6,$7)`,
@@ -253,7 +268,7 @@ export async function criarPecunia(
 
 export async function salvarPecunia(id: string, dados: unknown): Promise<boolean> {
   await garantir();
-  const limpos = limpar(dados);
+  const limpos = await ordenado(limpar(dados));
   const n = await prisma.$executeRawUnsafe(
     `UPDATE requerimento_pecunia SET dados=$2, atualizado_em=$3, efetivos=$4 WHERE id=$1`,
     id, JSON.stringify(comBancoCifrado(limpos)), new Date().toISOString(),

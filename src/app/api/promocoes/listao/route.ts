@@ -6,6 +6,7 @@ import { lerListaoVarios, combinarLeituras, dataSugeridaDoListao } from "@/lib/p
 import { lerDiarioOficial } from "@/lib/promocaoDoe";
 import { cruzarListao, type FichaEfetivo } from "@/lib/promocaoCruzar";
 import { garantirPromocoes } from "@/lib/promocaoDb";
+import { compararAntiguidade } from "@/lib/antiguidade";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
     const fichas = await prisma.efetivo.findMany({
       select: {
         id: true, nome: true, nomeGuerra: true, postoGrad: true,
-        matricula: true, numeroBarra: true, situacao: true, lotacao: true, fotoURL: true,
+        matricula: true, numeroBarra: true, dataPromocao: true, situacao: true, lotacao: true, fotoURL: true,
       },
     });
     const ativos = fichas.filter((f) => {
@@ -77,6 +78,7 @@ export async function POST(req: Request) {
     const achadosIds = new Set(r.achados.map((a) => a.efetivoId));
     const postosDeOrigem = new Set(leitura.linhas.map((l) => l.deOrdem));
     const { classificarPatente } = await import("@/lib/patentes");
+    const promocaoDe = new Map(fichas.map((f) => [f.id, f.dataPromocao]));
     const naoApareceram = ativos
       .filter((f) => !achadosIds.has(f.id) && postosDeOrigem.has(classificarPatente(f.postoGrad).ordem))
       .map((f) => ({
@@ -84,8 +86,10 @@ export async function POST(req: Request) {
         nome: (f.nome || f.nomeGuerra || "").trim(),
         postoGrad: f.postoGrad || "",
         numeroBarra: f.numeroBarra || "",
+        dataPromocao: promocaoDe.get(f.id) || "",
       }))
-      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+      // em ordem de hierarquia (antes, alfabética)
+      .sort(compararAntiguidade);
 
     // garante o histórico já aqui, para o "Aplicar" não falhar depois
     await garantirPromocoes().catch(() => {});
