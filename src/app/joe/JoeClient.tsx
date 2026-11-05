@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { joeNoPeriodo, conferirPeriodo, periodoOk, type AutorizacaoJoe, type SaldoJoe } from "@/lib/joeSaldo";
 import { confirmar } from "@/components/Avisos";
-import { compararAntiguidade } from "@/lib/patentes";
+import { compararAntiguidade } from "@/lib/antiguidade";
 
 /* =========================================================================
    SIGEP-18BPM · JOE — Jornada Operacional Extraordinaria.

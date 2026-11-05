@@ -6,7 +6,7 @@ import { imprimirElemento } from "@/lib/imprimir";
 import { avisar, confirmar } from "@/components/Avisos";
 import CarimboSigep from "@/components/CarimboSigep";
 import GuiaAssinaturaPecunia from "@/components/GuiaAssinaturaPecunia";
-import { linhaBanco, faltaBanco, tipoContaDaFicha } from "@/lib/pecuniaComum";
+import { linhaBanco, faltaBanco, tipoContaDaFicha, emHierarquia } from "@/lib/pecuniaComum";
 import {
   Cabecalho, Campo, ESTILO_FOLHA, FOLHA_A4, nomeBusca, type Militar,
 } from "@/components/docs/Comum";
@@ -71,7 +71,7 @@ type Assinatura = { efetivoId: string; id: string; token: string; nome: string; 
 type ItemLista = { id: string; criadoEm: string; criadoPorNome: string; quantidade: number; nomes: string[]; souDele: boolean; jaAssinei: boolean; semBanco: number; podeApagar?: boolean };
 
 /* A API do efetivo traz a lotação; o tipo compartilhado não a declara. */
-type MilitarComLotacao = Militar & { lotacao?: string | null };
+type MilitarComLotacao = Militar & { lotacao?: string | null; dataPromocao?: string | null };
 
 /* Neste requerimento a lotação é sempre o Batalhão — o documento vai para a
    SSP, que quer saber a unidade, não a seção interna (ADM, FT-SEDE, ROTEM). */
@@ -183,6 +183,10 @@ export default function RequerimentoPecuniaDoc({
   }, []);
 
   const jaTem = useMemo(() => new Set(linhas.map((l) => l.efetivoId).filter(Boolean)), [linhas]);
+  // a régua da hierarquia de cada um do efetivo (a ordem das linhas — ver emHierarquia)
+  const fichasHier = useMemo(() => new Map(efetivo.map((m) => [m.id, {
+    postoGrad: m.postoGrad ?? null, dataPromocao: m.dataPromocao ?? null, numeroBarra: m.numeroBarra ?? null, nome: m.nome ?? null,
+  }])), [efetivo]);
   const achados = useMemo(() => {
     const t = busca.trim().toLowerCase();
     if (!t) return [];
@@ -203,7 +207,8 @@ export default function RequerimentoPecuniaDoc({
      /api/efetivo, que qualquer usuário logado enxerga. */
   const acrescentar = async (m: MilitarComLotacao) => {
     setBusca("");
-    setLinhas((l) => [...l, {
+    // entra já no lugar dele na hierarquia (o servidor confirma ao guardar)
+    setLinhas((l) => emHierarquia([...l, {
       chave: m.id,
       efetivoId: m.id,
       cargo: (m.postoGrad || "").trim(),
@@ -212,7 +217,7 @@ export default function RequerimentoPecuniaDoc({
       idPmma: m.id,
       lotacao: LOTACAO,
       banco: "",
-    }]);
+    }], fichasHier));
     try {
       const r = await fetch(`/api/requerimentos/premiacao/ficha?ids=${encodeURIComponent(m.id)}`);
       if (!r.ok) return;

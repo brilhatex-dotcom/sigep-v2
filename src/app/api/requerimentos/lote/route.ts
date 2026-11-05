@@ -8,6 +8,7 @@ import {
 import { camposJsonDoModelo, jsonArma, obrigatoriosDoModelo, temCamposJson } from "@/lib/requerimentoArma";
 import { dadosPessoais } from "@/lib/requerimentoDados";
 import { registrar } from "@/lib/auditoria";
+import { comportamentoMilitar } from "@/lib/comportamento";
 
 export const dynamic = "force-dynamic";
 
@@ -114,6 +115,8 @@ export async function POST(req: Request) {
       const doMilitar = porMilitar[efetivoId] || {};
       const p2: Record<string, string | null> = {};
       for (const k of CAMPOS_PAGINA2) p2[k] = limpo(doMilitar[k] ?? d[k]);
+      // conceito em branco: o da regra do P/1 (praça pelo tempo de inclusão; oficial fica em branco)
+      if (!p2.p2Conceito) p2.p2Conceito = limpo(comportamentoMilitar(pessoais.postoGrad, pessoais.dataInclusao));
       // arma (ou destino) de cada um; sem valor próprio, cai no "igual para todos"
       const extras: Record<string, string | null> = {};
       for (const k of camposJson) extras[k] = limpo(doMilitar[k] ?? d[k]);

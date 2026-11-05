@@ -330,7 +330,7 @@ export function lerListao(texto: string): ResultadoLeitura {
 /* --------------------------------------------- data da promoção ---------
 
    Acertar esta data importa mais do que parece: é ela o critério de
-   antiguidade DENTRO do posto (ver carimboAntiguidade em patentes.ts), e é
+   antiguidade DENTRO do posto (ver compararAntiguidade em antiguidade.ts), e é
    ela que ordena a escala, o quadro de antiguidade e os documentos. Com a
    data errada, o pessoal promovido sai na ordem errada em todas essas telas.
 
