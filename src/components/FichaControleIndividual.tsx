@@ -7,6 +7,7 @@ import {
   ESTILO_FOLHA, FOLHA_A4, dataPorExtenso, type Militar, type ModoAss,
 } from "@/components/docs/Comum";
 import ListaFeitos, { type ItemFeito } from "@/components/docs/ListaFeitos";
+import { compararAntiguidade } from "@/lib/antiguidade";
 
 /* FICHA DE CONTROLE INDIVIDUAL DE DIÁRIAS (área de Diárias)
 
@@ -74,7 +75,8 @@ export default function FichaControleIndividual() {
   const fmtTotal = (n: number) => (Number.isInteger(n) ? String(n).padStart(2, "0") : n.toFixed(1).replace(".", ","));
   const itensFeitos: ItemFeito[] = feitas
     .slice()
-    .sort((a, b) => `${a.postoGrad} ${a.nome}`.localeCompare(`${b.postoGrad} ${b.nome}`))
+    // hierarquia (antes era o texto "posto nome" em ordem alfabética: Cabo antes de Major)
+    .sort((a, b) => compararAntiguidade(a, b))
     .map((f) => ({
       id: `${f.idPmma}|${f.ano}`,
       grupo: f.ano,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { emHierarquiaPorId } from "@/lib/hierarquiaDb";
 
 export const dynamic = "force-dynamic";
 
@@ -38,8 +39,8 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
   const lista = ler((await prisma.config.findUnique({ where: { chave: CHAVE } }))?.valor);
-  lista.sort((a, b) => (a.nome || "").localeCompare(b.nome || ""));
-  return NextResponse.json({ postergados: lista });
+  // em ordem de hierarquia (antes, alfabética)
+  return NextResponse.json({ postergados: await emHierarquiaPorId(lista, (x) => x.idPmma, (x) => x.nome || "") });
 }
 
 export async function POST(req: Request) {

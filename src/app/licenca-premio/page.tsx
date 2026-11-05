@@ -7,6 +7,7 @@ import LicencaPremioClient from "@/components/LicencaPremioClient";
 import { classificarPatente } from "@/lib/patentes";
 import { numeracaoDoAno } from "@/lib/numeracaoMemorandos";
 import { paraData, dataBR, hojeBR, diffDias } from "@/lib/ferias";
+import { compararNoPlano } from "@/lib/filaMemorandos";
 
 export const dynamic = "force-dynamic";
 
@@ -84,7 +85,7 @@ export default async function LicencaPremioPage({
     ? await prisma.efetivo.findMany({
         where: { id: { in: ids } },
         select: {
-          id: true, postoGrad: true, numeroBarra: true, nome: true,
+          id: true, postoGrad: true, numeroBarra: true, dataPromocao: true, nome: true,
           nomeGuerra: true, matricula: true, quadro: true,
         },
       })
@@ -121,12 +122,12 @@ export default async function LicencaPremioPage({
           ehOficial: ehOficial(f?.postoGrad ?? null),
         };
       })
-      .sort((a, b) => {
-        const pa = classificarPatente(a.postoGrad).ordem;
-        const pb = classificarPatente(b.postoGrad).ordem;
-        if (pa !== pb) return pa - pb;
-        return (a.nome ?? "").localeCompare(b.nome ?? "");
-      });
+      /* a MESMA ordem da numeração dos memorandos (lib/filaMemorandos):
+         hierarquia completa a partir de 2027 */
+      .sort((a, b) => compararNoPlano(anoSelecionado)(
+        { ...a, dataPromocao: mapaFicha.get(a.efetivoId)?.dataPromocao ?? null },
+        { ...b, dataPromocao: mapaFicha.get(b.efetivoId)?.dataPromocao ?? null },
+      ));
 
     return {
       numeroEquipe: num,

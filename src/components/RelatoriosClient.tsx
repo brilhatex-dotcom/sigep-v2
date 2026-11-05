@@ -26,7 +26,6 @@ export default function RelatoriosClient({
 }) {
   // ---- o que sai no papel ----
   const [colunas, setColunas] = useState<string[]>(MODELOS[0].campos);
-  const [ordem, setOrdem] = useState<"antiguidade" | "lotacao">("antiguidade");
   const [titulo, setTitulo] = useState("Lista telefônica");
   const [modeloAtivo, setModeloAtivo] = useState<string>(MODELOS[0].id);
 
@@ -50,7 +49,6 @@ export default function RelatoriosClient({
     setModeloAtivo(m.id);
     setColunas(m.campos);
     setTitulo(m.nome);
-    if (m.ordem) setOrdem(m.ordem);
     setSoComTelefone(!!m.filtros?.somenteComTelefone);
     setSoComEmail(!!m.filtros?.somenteComEmail);
   }
@@ -93,25 +91,14 @@ export default function RelatoriosClient({
   }, [militares, unidades, unidade, situacao, postosSel, sexo, mes, busca, soComTelefone, soComEmail]);
 
   const ordenados = useMemo(() => {
-    const lista = [...filtrados];
     /* TODO relatório sai em ordem de HIERARQUIA, a mesma da tela "Efetivo por
        Antiguidade": posto/graduação, depois data da última promoção (mais
-       antigo primeiro), depois nº de barra, e só então o nome. Antes o
-       desempate dentro do posto era o nome — dois sargentos saíam em ordem
-       alfabética, não de antiguidade — e havia a opção "ordem alfabética",
-       que quebrava o padrão. O agrupamento por unidade continua, mas a
-       hierarquia vale DENTRO de cada unidade e pelotão. */
-    const porPatente = (a: MilitarRelatorio, b: MilitarRelatorio) => compararAntiguidade(a, b);
-    if (ordem === "lotacao") {
-      return lista.sort((a, b) => {
-        const u = (a.unidade || "zzz").localeCompare(b.unidade || "zzz", "pt-BR");
-        if (u !== 0) return u;
-        const s = (a.subunidade || "").localeCompare(b.subunidade || "", "pt-BR");
-        return s !== 0 ? s : porPatente(a, b);
-      });
-    }
-    return lista.sort(porPatente);
-  }, [filtrados, ordem]);
+       antigo primeiro), depois nº de barra, e só então o nome. Não há outra
+       ordem (pedido do P/1): a antiga "por unidade e pelotão" punha uma CIA
+       inteira antes da outra e quebrava a hierarquia — para a lista de uma
+       unidade, usa-se o filtro "Unidade". */
+    return [...filtrados].sort(compararAntiguidade);
+  }, [filtrados]);
 
   // ---- o que descreve o recorte, no cabeçalho do documento ----
   const legenda = useMemo(() => {
@@ -303,11 +290,12 @@ export default function RelatoriosClient({
                 {MESES.map((n, i) => <option key={n} value={i + 1}>{n}</option>)}
               </select>
             </Campo>
-            <Campo rotulo="Ordenar por">
-              <select value={ordem} onChange={(e) => setOrdem(e.target.value as any)} className={estiloSelect}>
-                <option value="antiguidade">Hierarquia (antiguidade)</option>
-                <option value="lotacao">Unidade e pelotão (hierarquia em cada um)</option>
-              </select>
+            {/* Sem "ordenar por": todo relatório sai em hierarquia (pedido do P/1).
+                Para a lista de uma unidade, o filtro "Unidade" acima. */}
+            <Campo rotulo="Ordem">
+              <p className="rounded-lg border border-white/10 bg-[#0b1626] px-3 py-2 text-sm text-[#94A3B8]">
+                Sempre por hierarquia (posto, antiguidade)
+              </p>
             </Campo>
           </div>
 

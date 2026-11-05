@@ -7,6 +7,7 @@ import { parsePadrao, timeDoDia, incluiComReducao, podeNoDia, rotuloDias, extras
 import { usePulso, avisarMudanca } from "@/lib/sincronia";
 import { novaEscala } from "../EscalaClient";
 import { avisar, confirmar } from "@/components/Avisos";
+import { compararAntiguidade } from "@/lib/antiguidade";
 
 /* Lugares selecionáveis (DPM/CIA/Pelotão/seções) para o botão "mudar de
    lotação" no quadro de equipes. Achatado do organograma (sem a raiz). */
@@ -638,11 +639,13 @@ function RestricoesEscalaMini({
   const [salvando, setSalvando] = useState(false);
   const hojeISO = toISO(new Date());
   // Todo militar que tem alguma restrição (teto, dias, giro, ou a combinação).
+  // em ordem de hierarquia (quem não está no efetivo vai para o fim, pelo nome)
+  const porId = useMemo(() => new Map(efetivo.map((m) => [m.id, m])), [efetivo]);
   const ids = useMemo(
     () => [...new Set([...Object.keys(reducoes), ...Object.keys(dias), ...Object.keys(giros)])]
-      .sort((a, b) => nomeDe(a).localeCompare(nomeDe(b))),
+      .sort((a, b) => compararAntiguidade(porId.get(a) ?? { nome: nomeDe(a) }, porId.get(b) ?? { nome: nomeDe(b) })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [reducoes, dias, giros],
+    [reducoes, dias, giros, porId],
   );
   const jaTem = new Set(ids);
   const res = useMemo(() => {

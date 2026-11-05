@@ -1,5 +1,6 @@
 import { classificarPatente } from "@/lib/patentes";
 import { paraData } from "@/lib/ferias";
+import { compararAntiguidade, type ParaAntiguidade } from "@/lib/antiguidade";
 
 /* FILA UNICA DOS MEMORANDOS DE FERIAS (logica pura, sem banco)
 
@@ -24,6 +25,8 @@ export type MembroFila = {
   numeroEquipe: string;
   postoGrad: string | null;
   nome: string | null;
+  dataPromocao?: string | null;
+  numeroBarra?: string | null;
 };
 export type AvulsaFila = { id: string; ancora: string };
 
@@ -33,21 +36,33 @@ export type Fila = {
   ultimo: number; // ultimo numero usado no ano; a LP continua em ultimo + 1
 };
 
-// Mesma ordem da tela do plano: patente, depois nome. Precisa bater, senao os
-// militares do plano trocariam de numero.
-function ordenar(lista: MembroFila[]): MembroFila[] {
-  return [...lista].sort((a, b) => {
-    const pa = classificarPatente(a.postoGrad).ordem;
-    const pb = classificarPatente(b.postoGrad).ordem;
+/* A ORDEM DENTRO DA EQUIPE — e o número do memorando sai dela, por isso a
+   tela do plano (e a da licença-prêmio) usa ESTA mesma função.
+
+   A partir do plano de 2027: hierarquia completa (posto, data da promoção,
+   barra), o princípio do P/1 para tudo o que o sistema lista. Até 2026 fica
+   como foi impresso (posto, depois nome): mudar agora renumeraria memorandos
+   já entregues. */
+export const ANO_ORDEM_HIERARQUIA = 2027;
+export function compararNoPlano(ano: string | number): (a: ParaAntiguidade, b: ParaAntiguidade) => number {
+  if (Number(ano) >= ANO_ORDEM_HIERARQUIA) return compararAntiguidade;
+  return (a, b) => {
+    const pa = classificarPatente(a.postoGrad ?? null).ordem;
+    const pb = classificarPatente(b.postoGrad ?? null).ordem;
     if (pa !== pb) return pa - pb;
     return (a.nome ?? "").localeCompare(b.nome ?? "");
-  });
+  };
+}
+
+function ordenar(lista: MembroFila[], ano: string): MembroFila[] {
+  return [...lista].sort(compararNoPlano(ano));
 }
 
 export function montarFila(
   equipes: EquipeFila[],
   membros: MembroFila[],
-  avulsas: AvulsaFila[]
+  avulsas: AvulsaFila[],
+  ano = "",
 ): Fila {
   const equipesOrdenadas = [...equipes].sort(
     (a, b) => Number(a.numeroEquipe) - Number(b.numeroEquipe)
@@ -81,7 +96,7 @@ export function montarFila(
 
   for (const a of baldes.get(-1) ?? []) numAvulsas[a.id] = ++seq;
   equipesOrdenadas.forEach((e, i) => {
-    for (const m of ordenar(membros.filter((x) => x.numeroEquipe === e.numeroEquipe))) {
+    for (const m of ordenar(membros.filter((x) => x.numeroEquipe === e.numeroEquipe), ano)) {
       militares[m.idPmma] = ++seq;
     }
     for (const a of baldes.get(i) ?? []) numAvulsas[a.id] = ++seq;
@@ -89,7 +104,7 @@ export function montarFila(
 
   // Rede de seguranca: membro cuja equipe nao existe mais na tabela de equipes
   // continua contando para a base da LP, como contava antes.
-  for (const m of ordenar(membros.filter((x) => militares[x.idPmma] === undefined))) {
+  for (const m of ordenar(membros.filter((x) => militares[x.idPmma] === undefined), ano)) {
     militares[m.idPmma] = ++seq;
   }
 

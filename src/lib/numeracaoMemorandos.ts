@@ -57,7 +57,7 @@ export async function numeracaoDoAno(ano: string): Promise<NumeracaoAno> {
   const fichas = ids.length
     ? await prisma.efetivo.findMany({
         where: { id: { in: ids } },
-        select: { id: true, postoGrad: true, nome: true },
+        select: { id: true, postoGrad: true, nome: true, dataPromocao: true, numeroBarra: true },
       })
     : [];
   const mapaFicha = new Map(fichas.map((f) => [f.id, f]));
@@ -69,9 +69,12 @@ export async function numeracaoDoAno(ano: string): Promise<NumeracaoAno> {
       numeroEquipe: m.numeroEquipe,
       postoGrad: mapaFicha.get(m.idPmma)?.postoGrad ?? null,
       nome: mapaFicha.get(m.idPmma)?.nome ?? null,
+      dataPromocao: mapaFicha.get(m.idPmma)?.dataPromocao ?? null,
+      numeroBarra: mapaFicha.get(m.idPmma)?.numeroBarra ?? null,
     })),
     todasAvulsas
       .filter((a) => anoDaAvulsa(a) === ano)
-      .map((a) => ({ id: a.id, ancora: ancoraDaAvulsa(a) }))
+      .map((a) => ({ id: a.id, ancora: ancoraDaAvulsa(a) })),
+    ano,
   );
 }

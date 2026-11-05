@@ -146,7 +146,8 @@ export function campoPorChave(chave: string): Campo | undefined {
    (Posto + nº + nome de guerra), que é o que se espera numa relação. */
 export function valorDoCampo(m: MilitarRelatorio, chave: string): string {
   if (chave === "postoNome") {
-    const barra = (m.numeroBarra || "").trim();
+    // oficial vem com "-" na barra: não sai "nº -"
+    const barra = (m.numeroBarra || "").replace(/^[-–—\s]+$/, "").trim();
     return [m.postoGrad || "", barra ? `nº ${barra}` : "", m.nomeGuerra || m.nome || ""]
       .filter(Boolean).join(" ").trim();
   }
@@ -162,7 +163,6 @@ export type Modelo = {
   nome: string;
   descricao: string;
   campos: string[];
-  ordem?: "antiguidade" | "lotacao";
   // filtros que o modelo já deixa marcados
   filtros?: { somenteComTelefone?: boolean; somenteComEmail?: boolean; situacoes?: string[] };
 };
@@ -173,7 +173,6 @@ export const MODELOS: Modelo[] = [
     nome: "Lista telefônica",
     descricao: "Posto, nome e telefone — o pedido mais comum.",
     campos: ["postoNome", "telefone"],
-    ordem: "antiguidade",
     filtros: { somenteComTelefone: true },
   },
   {
@@ -181,62 +180,53 @@ export const MODELOS: Modelo[] = [
     nome: "Contatos completos",
     descricao: "Telefone, e-mail e endereço de cada militar.",
     campos: ["postoNome", "matricula", "telefone", "email", "endereco", "bairro", "cidade"],
-    ordem: "antiguidade",
   },
   {
     id: "nominal",
     nome: "Relação nominal",
     descricao: "A relação padrão: posto, nome completo, matrícula, lotação e situação.",
     campos: ["postoNome", "nome", "matricula", "unidade", "subunidade", "situacao"],
-    ordem: "antiguidade",
   },
   {
     id: "efetivo-unidade",
     nome: "Efetivo por unidade",
-    descricao: "Quem está em cada CIA, pelotão ou destacamento.",
-    campos: ["unidade", "subunidade", "postoNome", "funcao", "situacao"],
-    ordem: "lotacao",
+    descricao: "Quem está em cada CIA, pelotão ou destacamento — escolha a unidade no filtro ao lado.",
+    campos: ["postoNome", "unidade", "subunidade", "funcao", "situacao"],
   },
   {
     id: "emergencia",
     nome: "Ficha de emergência",
     descricao: "Tipo sanguíneo e quem avisar — para operação e deslocamento.",
     campos: ["postoNome", "telefone", "tipoSanguineo", "fatorRH", "emergenciaNome", "emergenciaTelefone", "emergenciaGrau"],
-    ordem: "antiguidade",
   },
   {
     id: "aniversariantes",
     nome: "Aniversariantes",
     descricao: "Data de nascimento e idade — filtre o mês ao lado.",
     campos: ["postoNome", "dataNasc", "idade", "telefone", "unidade"],
-    ordem: "antiguidade",
   },
   {
     id: "motoristas",
     nome: "Motoristas / CNH",
     descricao: "Quem tem habilitação, categoria e vencimento.",
     campos: ["postoNome", "cnh", "cnhCategoria", "cnhVencimento", "telefone", "unidade"],
-    ordem: "antiguidade",
   },
   {
     id: "bancarios",
     nome: "Dados bancários",
     descricao: "Para diárias e pagamentos. Contém dado sensível — cuidado ao compartilhar.",
     campos: ["postoNome", "cpf", "banco", "agencia", "conta", "tipoConta"],
-    ordem: "antiguidade",
   },
   {
     id: "antiguidade",
     nome: "Antiguidade",
     descricao: "Inclusão, tempo de serviço e última promoção, do mais antigo ao mais moderno.",
     campos: ["postoNome", "matricula", "dataIncorp", "tempoServico", "dataPromocao"],
-    ordem: "antiguidade",
   },
   {
     id: "qualificacao",
     nome: "Qualificação",
     descricao: "Escolaridade e cursos da PMMA de cada militar.",
     campos: ["postoNome", "grauEscolaridade", "cursosPMMA", "unidade"],
-    ordem: "antiguidade",
   },
 ];

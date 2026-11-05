@@ -28,6 +28,7 @@ import MemorandoFerias, { DadosMemorando } from "@/components/MemorandoFerias";
 import { grupoDoMilitar, rotuloDoGrupo } from "@/lib/distribuirEquipes";
 import { formatarLotacao } from "@/lib/formatarLotacao";
 import { avisar, confirmar } from "@/components/Avisos";
+import { compararAntiguidade } from "@/lib/antiguidade";
 
 export type MembroEquipe = {
   efetivoId: string;
@@ -681,6 +682,7 @@ export default function PlanoFerias({
       return {
         id,
         postoGrad: f?.postoGrad ?? null,
+        numeroBarra: f?.numeroBarra ?? null,
         nome: f?.nome ?? ad.nome ?? null,
         nomeGuerra: f?.nomeGuerra ?? null,
         exercicio,
@@ -691,7 +693,7 @@ export default function PlanoFerias({
     linhas.sort((a, b) =>
       Number(b.vencida) - Number(a.vencida) ||
       (a.exercicio || "").localeCompare(b.exercicio || "") ||
-      (a.nome ?? "").localeCompare(b.nome ?? ""));
+      compararAntiguidade(a, b));   // dentro do exercício, hierarquia
     return linhas;
   }, [postergados, equipes, anoCorrente]);
   const totalVencidas = relatorioVencidas.filter((l) => l.vencida).length;
