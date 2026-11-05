@@ -1579,7 +1579,7 @@ function AfastamentosEditor({
       <div className="chips-hint">
         Quem esta afastado e pulado pelo motor em todas as funcoes e aparece riscado dentro dos pools.
         O tipo JMS e diferente: o militar continua sendo escalado (pronto, com restricao); a marca JMS fica so nas telas.
-        Se a Junta baixou do servico ativo, use a chave "Nao escalar — baixado" no Mapa (ou outro tipo aqui, ex.: Outro).
+        Se a Junta baixou do servico ativo, use a chave “Nao escalar — baixado” no Mapa (ou outro tipo aqui, ex.: Outro).
       </div>
     </div>
   );
