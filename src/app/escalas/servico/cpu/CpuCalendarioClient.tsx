@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ehJms, jmsDoDia, textoJms } from "@/lib/escalaMotor";
 
 /* =========================================================================
    CPU de dia — calendário mensal (colunas por semana, terça→segunda).
@@ -68,7 +69,10 @@ function nomeCpu(m: Militar): string {
   return [posto, q, guerra].filter(Boolean).join(" ").trim();
 }
 function foneFmt(t: string) { const s = (t || "").replace(/\D/g, ""); if (s.length === 11) return `(${s.slice(0, 2)}) ${s.slice(2, 7)}-${s.slice(7)}`; if (s.length === 10) return `(${s.slice(0, 2)}) ${s.slice(2, 6)}-${s.slice(6)}`; return (t || "").trim(); }
-function afastado(id: string, data: string, lista: Afastamento[]) { return lista.some((a) => a.militar === id && data >= a.inicio && data <= a.fim); }
+// Ausente no dia. JMS nao conta: o oficial em JMS esta pronto (com restricao),
+// entra no rodizio e so leva a marca JMS na tela; o baixado do servico ativo
+// sai (ver lib/escalaMotor).
+function afastado(id: string, data: string, lista: Afastamento[]) { return lista.some((a) => !ehJms(a) && a.militar === id && data >= a.inicio && data <= a.fim); }
 
 // Rodízio do CPU (mesma regra da tela semanal): sugestão para dias não editados.
 function rodizio(pool: string[], dataAlvo: string, afast: Afastamento[], ref: string): string {
@@ -147,17 +151,20 @@ export default function CpuCalendarioClient() {
     const nc = { ...c, cpuOverrides: o }; salvarCad(nc); return nc;
   });
 
-  const nomeDe = (iso: string): { nome: string; auto: boolean; folga: boolean } => {
+  /* jms: o registro de JMS do oficial do dia (pronto, com restrição) — leva a
+     marca JMS só na tela; a folha da semana sai normal. */
+  const nomeDe = (iso: string): { nome: string; auto: boolean; folga: boolean; jms: Afastamento | null } => {
+    const todos = [...(cad?.afastamentos || []), ...planoAfast];
     const v = cad?.cpuOverrides?.[iso];
     if (v !== undefined) {
-      if (v === "") return { nome: "", auto: false, folga: false };
-      if (v.startsWith("__FOLGA")) return { nome: "Folga", auto: false, folga: true };
-      const m = efMap[v]; return { nome: m ? nomeCpu(m) : v, auto: false, folga: false };
+      if (v === "") return { nome: "", auto: false, folga: false, jms: null };
+      if (v.startsWith("__FOLGA")) return { nome: "Folga", auto: false, folga: true, jms: null };
+      const m = efMap[v]; return { nome: m ? nomeCpu(m) : v, auto: false, folga: false, jms: jmsDoDia(v, iso, todos) };
     }
-    if (!cad) return { nome: "", auto: true, folga: false };
-    const id = rodizio(cad.cpu || [], iso, [...(cad.afastamentos || []), ...planoAfast], cad.refCpuISO || iso);
+    if (!cad) return { nome: "", auto: true, folga: false, jms: null };
+    const id = rodizio(cad.cpu || [], iso, todos, cad.refCpuISO || iso);
     const m = id ? efMap[id] : null;
-    return { nome: m ? nomeCpu(m) : "", auto: true, folga: false };
+    return { nome: m ? nomeCpu(m) : "", auto: true, folga: false, jms: id ? jmsDoDia(id, iso, todos) : null };
   };
   const foneDe = (iso: string): string => {
     const v = cad?.cpuOverrides?.[iso];
@@ -209,9 +216,10 @@ export default function CpuCalendarioClient() {
                   <button key={iso} className={"cpuc-dia" + (foraMes ? " fora" : "") + (info.folga ? " folga" : "")}
                     onClick={() => { setBusca(""); setEditCpu(iso); }}>
                     <span className="cpuc-diah"><b>{DSEM[d.getDay()]}</b> {brData(iso).slice(0, 5)}</span>
-                    <span className={"cpuc-dianome" + (info.auto && info.nome ? " auto" : "")}>
+                    <span className={"cpuc-dianome" + (info.auto && info.nome ? " auto" : "")} title={info.jms ? `${textoJms(info.jms)} (não sai na impressão)` : undefined}>
                       {info.nome || <span className="cpuc-ph">escolher</span>}
                       {info.auto && info.nome ? <span className="cpuc-autotag">rodízio</span> : null}
+                      {info.nome && info.jms ? <span className="cpuc-jmstag">JMS · pronto</span> : null}
                     </span>
                   </button>
                 );
@@ -335,6 +343,7 @@ const CSS = `
 .cpuc-dianome{ font-size:13px; font-weight:600; display:flex; align-items:center; gap:6px; min-height:18px; }
 .cpuc-dianome.auto{ font-weight:400; color:#9fb0c7; font-style:italic; }
 .cpuc-autotag{ font-size:9px; background:#1d2c44; color:#8ea3c4; border-radius:4px; padding:0 4px; }
+.cpuc-jmstag{ font-size:9px; background:#3b1230; color:#f9a8d4; border:1px solid #9d174d; border-radius:4px; padding:0 4px; }
 .cpuc-ph{ color:#5a6b85; font-style:italic; font-weight:400; }
 .cpuc-modal-back{ position:fixed; inset:0; z-index:80; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; padding:16px; }
 .cpuc-modal{ width:100%; max-width:380px; background:#0F1B2D; border:1px solid rgba(255,255,255,.1); border-radius:14px; }

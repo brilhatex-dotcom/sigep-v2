@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { idsFeriasAdiadas } from "@/lib/feriasAdiadas";
 import { montarAfastamentos } from "@/lib/afastamentosPlano";
 import { ehAfastamento, SITUACOES_PADRAO, type SituacaoItem } from "@/lib/situacoesPadrao";
+import { souAdmin } from "@/lib/guard";
+import { lugarDoUsuario } from "@/lib/lugarUsuario";
+import { CHAVE_BAIXADOS, lerMapaBaixados } from "@/lib/escalaBaixados";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +23,10 @@ export const dynamic = "force-dynamic";
    data na ficha, e a situação da ficha que conta como afastamento
    (Agregação, LTIP, Licença, Reserva...). A regra de montagem fica em
    src/lib/afastamentosPlano.ts, para poder ser testada sem banco.
+
+   O JMS vem com tipo "jms" e NÃO tira da escala: o militar está pronto, com
+   restrição, e só as telas internas o marcam. Quem foi baixado do serviço
+   ativo (chave do P/1, /api/escala/baixados) vem com `baixado` e sai.
    ========================================================================= */
 
 function hojeISO(): string {
@@ -51,24 +58,34 @@ export async function GET(req: Request) {
         return row?.valor ? JSON.parse(row.valor) : null;
       } catch { return null; }
     };
-    const [eqFer, mbFer, eqLic, mbLic, fichas, listaAvulsas, listaSituacoes, adiados] = await Promise.all([
+    const [eqFer, mbFer, eqLic, mbLic, fichas, listaAvulsas, listaSituacoes, adiados, rowBaixados] = await Promise.all([
       q(() => prisma.equipeFerias.findMany({ where: { anoGozo: { in: anos } } })),
       q(() => prisma.membroFerias.findMany({ where: { anoGozo: { in: anos } } })),
       q(() => prisma.equipeLicencaPremio.findMany({ where: { anoGozo: { in: anos } } })),
       q(() => prisma.membroLicencaPremio.findMany({ where: { anoGozo: { in: anos } } })),
-      // fichas: JMS com data e a situação atual (Agregação, LTIP, Licença...)
+      // fichas: JMS com data (e a restrição) e a situação atual (Agregação, LTIP, Licença...)
       q(() => prisma.efetivo.findMany({
-        select: { id: true, situacao: true, jmsDataInicio: true, jmsDataRetorno: true },
+        select: { id: true, situacao: true, jmsDataInicio: true, jmsDataRetorno: true, jmsMotivo: true },
       })),
       // férias avulsas (datas soltas)
       lerJson("ferias_avulsas"),
       // lista de situações do admin (quais contam como afastamento)
       lerJson("situacoes"),
       idsFeriasAdiadas(),
+      // a chave "Não escalar — baixado do serviço ativo"
+      prisma.config.findUnique({ where: { chave: CHAVE_BAIXADOS } }).catch(() => null),
     ]);
     const avulsas: any[] = Array.isArray(listaAvulsas) ? listaAvulsas : [];
     const situacoes: SituacaoItem[] =
       Array.isArray(listaSituacoes) && listaSituacoes.length ? (listaSituacoes as SituacaoItem[]) : SITUACOES_PADRAO;
+
+    /* A RESTRIÇÃO do JMS ("Motivo" da ficha) só vai para quem MONTA a escala
+       (admin, ou o Cmt/sargenteante de um lugar — os mesmos que abrem as telas
+       de escala). É texto livre e pode trazer dado de saúde; para os demais a
+       lista sai só com "está em JMS", sem o motivo. */
+    const u = session.user as any;
+    const veRestricao = souAdmin(session) || !!(await lugarDoUsuario(u?.refEfetivo).catch(() => null));
+    const fichasMotor = veRestricao ? fichas : (fichas as any[]).map(({ jmsMotivo: _m, ...f }) => f);
 
     const afastamentos = montarAfastamentos({
       equipesFerias: eqFer as any,
@@ -77,9 +94,10 @@ export async function GET(req: Request) {
       membrosLicenca: mbLic as any,
       avulsas,
       adiados,
-      fichas: fichas as any,
+      fichas: fichasMotor as any,
       situacaoAfasta: (s) => ehAfastamento(s, situacoes),
       hoje: hojeISO(),
+      baixados: lerMapaBaixados(rowBaixados?.valor),
     });
 
     return NextResponse.json({
