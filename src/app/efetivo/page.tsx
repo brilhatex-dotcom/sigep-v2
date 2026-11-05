@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { exigirAdmin } from "@/lib/guard";
@@ -60,7 +61,10 @@ export default async function EfetivoPage({
     <AppShell userName={session.user.name ?? ""} perfil={session.user.perfil}>
       <div className="mx-auto max-w-6xl">
         <h1 className="mb-1 text-2xl font-bold text-white">Cadastro de Efetivo</h1>
-        <p className="mb-5 text-sm text-[#94A3B8]">{lista.length} militares cadastrados.</p>
+        <p className="mb-5 flex flex-wrap items-center gap-x-3 text-sm text-[#94A3B8]">
+          {lista.length} militares cadastrados.
+          <Link href="/efetivo/inclusao" className="text-[#D4AF37] hover:underline">Conferir datas de inclusão →</Link>
+        </p>
         <LimparFuncoes total={comFuncao} />
         <EfetivoLista militares={lista} buscaInicial={searchParams.q ?? ""} situacaoInicial={searchParams.situacao ?? ""} />
       </div>
