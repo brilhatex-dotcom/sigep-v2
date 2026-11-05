@@ -13,6 +13,13 @@
      4. JMS com data (JMS_DataInicio / JMS_DataRetorno na ficha)
      5. SITUAÇÃO da ficha que conta como afastamento (Agregação, LTIP,
         Licença, Reserva...) — sem data, vale de hoje em diante
+
+     6. a chave "NÃO ESCALAR — BAIXADO DO SERVIÇO ATIVO" do P/1, por policial
+
+   O JMS (4, e a situação "JMS" em 5) vai na lista com tipo "jms", mas NÃO
+   tira da escala: é pronto com restrição, e só leva a marca "JMS" nas telas
+   internas (ver lib/escalaMotor, "JMS: PRONTO, COM RESTRIÇÃO"). Quem foi
+   baixado do serviço ativo sai pela chave (6).
    ========================================================================= */
 
 export type TipoAfastamento =
@@ -37,6 +44,13 @@ export type Afastamento = {
      "ele está afastado?" — é "por qual cadastro?". Sem isso, a resposta exige
      abrir tela por tela. Só descreve a origem; não entra em nenhuma decisão. */
   origem?: string;
+  /* JMS: o "Motivo" da ficha — a restrição (sem serviço noturno, sem
+     armamento...). Texto livre que pode trazer dado de saúde: a rota só o
+     manda para quem monta a escala, e a folha publicada não o imprime. */
+  motivo?: string;
+  /* Veio da chave "Não escalar — baixado do serviço ativo" (fonte 6): este
+     registro TIRA da escala, mesmo com tipo "jms". */
+  baixado?: boolean;
 };
 
 export function toISO(v: string | null | undefined): string {
@@ -98,7 +112,14 @@ export type FichaLite = {
   situacao?: string | null;
   jmsDataInicio?: string | null;
   jmsDataRetorno?: string | null;
+  jmsMotivo?: string | null;
 };
+
+/* A chave "Não escalar — baixado do serviço ativo", como está guardada.
+   `desde`: a partir de quando vale. `jmsInicio`: quando foi ligada durante um
+   JMS, o início DELE — a chave acompanha aquele JMS e acaba sozinha no
+   retorno; se o JMS for trocado por outro, ela caduca (cada JMS, uma decisão). */
+export type BaixaEscala = { desde: string; jmsInicio?: string | null };
 
 export type Fontes = {
   equipesFerias: EquipeFeriasLite[];
@@ -114,6 +135,8 @@ export type Fontes = {
   /* hoje em ISO — as situações da ficha não têm data de início, então valem
      de hoje em diante (marcar para trás reescreveria escala já publicada) */
   hoje?: string;
+  // a chave "Não escalar — baixado do serviço ativo", por id
+  baixados?: Record<string, BaixaEscala>;
 };
 
 // Situação da ficha -> tipo de afastamento do mapa (para a cor/sigla certa).
@@ -224,15 +247,19 @@ export function montarAfastamentos(f: Fontes): Afastamento[] {
   const fichas = f.fichas || [];
 
   /* ---- 4) JMS com data ----------------------------------------------
-     A ficha já guarda JMS_DataInicio e JMS_DataRetorno, e ninguém estava
-     lendo: o militar em JMS continuava entrando na escala. O militar volta
-     NA data de retorno, então o afastamento vai até o dia anterior. */
+     A ficha guarda JMS_DataInicio e JMS_DataRetorno. O militar volta NA data
+     de retorno, então o período vai até o dia anterior. Não afasta: só marca
+     "JMS" nas telas internas e leva a restrição da ficha, quando há. */
+  const motivoJms = (m: FichaLite) => {
+    const t = String(m.jmsMotivo || "").trim();
+    return t ? { motivo: t } : {};
+  };
   for (const m of fichas) {
     const i = toISO(m.jmsDataInicio);
     if (!i) continue;
     const ret = toISO(m.jmsDataRetorno);
     const fim = ret ? addDiasISO(ret, -1) : SEM_FIM;
-    if (fim >= i) out.push({ militar: m.id, tipo: "jms", inicio: i, fim, origem: "JMS da ficha" });
+    if (fim >= i) out.push({ militar: m.id, tipo: "jms", inicio: i, fim, origem: "JMS da ficha", ...motivoJms(m) });
   }
 
   /* ---- 5) SITUAÇÃO da ficha que conta como afastamento ---------------
@@ -243,17 +270,53 @@ export function montarAfastamentos(f: Fontes): Afastamento[] {
   const afasta = f.situacaoAfasta;
   const hoje = f.hoje;
   if (afasta && hoje) {
-    // quem já tem período datado cobrindo hoje não precisa da marca aberta
-    const jaCobertoHoje = new Set(
-      out.filter((a) => hoje >= a.inicio && hoje <= a.fim).map((a) => a.militar)
-    );
+    /* Quem já tem período datado cobrindo hoje não precisa da marca aberta —
+       mas cada coisa cobre a sua: um JMS datado (que não afasta) não pode
+       esconder uma situação que AFASTA (Agregação, LTS...), senão o militar
+       agregado voltava a entrar na escala só por ter um JMS lançado. */
+    const cobreHoje = (a: Afastamento) => hoje >= a.inicio && hoje <= a.fim;
+    const afastadoHoje = new Set(out.filter((a) => cobreHoje(a) && a.tipo !== "jms").map((a) => a.militar));
+    const jmsHoje = new Set(out.filter((a) => cobreHoje(a) && a.tipo === "jms").map((a) => a.militar));
     for (const m of fichas) {
       const s = (m.situacao || "").trim();
       if (!s || !afasta(s)) continue;
-      if (jaCobertoHoje.has(m.id)) continue;
+      const tipo = tipoDaSituacao(s);
+      if ((tipo === "jms" ? jmsHoje : afastadoHoje).has(m.id)) continue;
       out.push({
-        militar: m.id, tipo: tipoDaSituacao(s), inicio: hoje, fim: SEM_FIM,
+        militar: m.id, tipo, inicio: hoje, fim: SEM_FIM,
         rotulo: s, sigla: siglaDaSituacao(s), origem: "situação da ficha",
+        ...(tipo === "jms" ? motivoJms(m) : {}),
+      });
+    }
+  }
+
+  /* ---- 6) NÃO ESCALAR — BAIXADO DO SERVIÇO ATIVO ----------------------
+     O JMS não afasta mais (pronto, com restrição). Para quem a Junta baixou
+     do serviço, o P/1 liga esta chave e o policial sai da escala a partir do
+     dia em que ela foi ligada. Ligada durante um JMS, ela vai até o retorno
+     dele (o policial volta sozinho, como antes) e aparece como "JMS
+     (baixado)"; fora de JMS, vale até alguém desligar. */
+  const baixados = f.baixados || {};
+  if (Object.keys(baixados).length) {
+    const fichaDe = new Map(fichas.map((m) => [m.id, m]));
+    for (const [id, b] of Object.entries(baixados)) {
+      const desde = toISO(b?.desde);
+      if (!id || !desde) continue;
+      const ficha = fichaDe.get(id);
+      const doJms = toISO(b?.jmsInicio);
+      let fim = SEM_FIM;
+      if (doJms) {
+        // o JMS da ficha mudou (outro JMS) ou foi apagado: a chave caducou
+        if (toISO(ficha?.jmsDataInicio) !== doJms) continue;
+        const ret = toISO(ficha?.jmsDataRetorno);
+        if (ret) fim = addDiasISO(ret, -1);
+      }
+      if (fim < desde) continue;
+      const emJms = !!doJms || /jms/i.test(ficha?.situacao || "");
+      out.push({
+        militar: id, tipo: emJms ? "jms" : "outro", inicio: desde, fim, baixado: true,
+        rotulo: emJms ? "JMS (baixado)" : "Baixado", sigla: emJms ? "JMS" : "BX",
+        origem: "não escalar — baixado do serviço ativo",
       });
     }
   }

@@ -1,13 +1,13 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { padronizarBrasao } from "@/lib/imagem";
 import { usePulso, avisarMudanca } from "@/lib/sincronia";
 import CarimboSigep from "@/components/CarimboSigep";
 import { compararAntiguidade } from "@/lib/antiguidade";
-import { incluiComReducao, podeNoDia, rotuloDias, ROTEM_HORARIOS_PADRAO, horariosRotemDoDia, extrasDoDia, proximosDoGiro, rotuloGiro, serveNoGiro, type GiroSemanal } from "@/lib/escalaMotor";
+import { incluiComReducao, podeNoDia, rotuloDias, ROTEM_HORARIOS_PADRAO, horariosRotemDoDia, extrasDoDia, proximosDoGiro, rotuloGiro, serveNoGiro, ehJms, jmsDoDia, textoJms, type GiroSemanal } from "@/lib/escalaMotor";
 import { avisar, confirmar } from "@/components/Avisos";
 
 /* =========================================================================
@@ -125,6 +125,11 @@ type Afastamento = {
   // cabe num dos tipos fixos. Sem isto tudo virava um generico "AF".
   rotulo?: string;
   sigla?: string;
+  origem?: string;
+  // JMS: a restricao da Junta (do "Motivo" da ficha). So na tela; nao imprime.
+  motivo?: string;
+  // veio da chave "Nao escalar — baixado do servico ativo": este tira da escala
+  baixado?: boolean;
 };
 
 type EquipeRotem = { nome: string; turnos: string[]; militares: string[]; diasSemana?: number[] };
@@ -525,11 +530,15 @@ function sobrenome(n: string): string {
   return t[t.length - 1] || n;
 }
 
+/* AUSENTE no dia: sai da escala. O JMS NAO conta — e pronto com restricao, o
+   motor escala e so a tela marca "JMS" (a folha impressa sai normal). O JMS
+   de quem foi BAIXADO do servico ativo volta a contar (ver lib/escalaMotor,
+   "JMS: PRONTO, COM RESTRICAO"). */
 function afastado(nome: string, data: string, lista: Afastamento[]): boolean {
-  return lista.some((a) => a.militar === nome && data >= a.inicio && data <= a.fim);
+  return lista.some((a) => !ehJms(a) && a.militar === nome && data >= a.inicio && data <= a.fim);
 }
 function afastamentoDe(nome: string, data: string, lista: Afastamento[]): Afastamento | null {
-  return lista.find((a) => a.militar === nome && data >= a.inicio && data <= a.fim) || null;
+  return lista.find((a) => !ehJms(a) && a.militar === nome && data >= a.inicio && data <= a.fim) || null;
 }
 
 // Rodizio 24/72: 1 dia de servico, folga >=72h. Round-robin justo, pula afastados.
@@ -785,8 +794,35 @@ function Editable({
 // Leva o efetivo ate os SlotInline (autocomplete de permuta) sem prop-drilling.
 const EfetivoCtx = createContext<Militar[]>([]);
 // Redução judicial (idPmma -> %/mês) para avisar ao escalar manualmente.
-type Restricoes = { pct: Record<string, number>; dias: Record<string, number[]>; data: string };
+// jmsNome: o JMS do dia pelo nome escrito na folha (marca "JMS" so na tela);
+// baixarNome: liga a chave "Nao escalar — baixado do servico ativo".
+type Restricoes = {
+  pct: Record<string, number>; dias: Record<string, number[]>; data: string;
+  jmsNome?: (nome: string) => Afastamento | null;
+  baixarNome?: (nome: string) => void;
+};
 const ReducaoCtx = createContext<Restricoes>({ pct: {}, dias: {}, data: "" });
+
+/* Quem de fato SERVE na vaga: com permuta ativa e preenchida é o substituto
+   (o mesmo critério da limpeza de afastados); senão, o titular. */
+function quemServe(sl: { titular?: string; permuta?: string | null } | null | undefined): string {
+  if (!sl) return "";
+  const p = sl.permuta ? semTags(String(sl.permuta)).trim() : "";
+  return p || semTags(sl.titular || "").trim();
+}
+
+/* Marca "JMS" ao lado do nome — SO NA TELA (no-print): a escala impressa, o
+   Word/PDF e a publicada saem normais. Clicar oferece "Nao escalar — baixado
+   do servico ativo". */
+function TagJms({ a, nome }: { a: Afastamento | null | undefined; nome: string }) {
+  const restr = useContext(ReducaoCtx);
+  if (!a) return null;
+  return (
+    <button type="button" className="jms-tag no-print"
+      title={`${textoJms(a)}. Não sai na escala impressa. Clique se ele foi BAIXADO do serviço ativo (não escalar).`}
+      onClick={() => restr.baixarNome?.(nome)}>JMS</button>
+  );
+}
 
 /* Autocomplete do substituto da permuta: digita e sugere policiais do efetivo,
    guardando o NOME formatado. Na tela mostra input + sugestoes; na impressao,
@@ -854,13 +890,19 @@ function SlotInline({ slot, onChange, semPermuta, efetivo }: { slot: Slot; onCha
     if (!m || !confirmaRestricao(m, restr)) return;
     onChange({ ...slot, titular: fmtMilitar(m) });
   };
+  // JMS de quem SERVE na vaga: a marca (so na tela) vai ao lado desse nome
+  const serve = quemServe(slot);
+  const jms = serve ? restr.jmsNome?.(serve) ?? null : null;
+  const jmsNoSubstituto = !!jms && serve !== semTags(slot.titular || "").trim();
   return (
     <span className="slot">
       <Editable value={slot.titular} placeholder="..." onChange={(v) => onChange({ ...slot, titular: v })} />
+      {!jmsNoSubstituto && <TagJms a={jms} nome={serve} />}
       {!semPermuta && (ativo ? (
         <span className="perm">
           {" "}(PERMUTA-{" "}
           <PermutaBusca value={slot.permuta ?? ""} onPick={(nome) => onChange({ ...slot, permuta: nome, status: "aprovada" })} />
+          {jmsNoSubstituto && <TagJms a={jms} nome={serve} />}
           )
           <button className="no-print mini" title="remover permuta" onClick={() => onChange({ ...slot, permuta: null, status: null })}>×</button>
         </span>
@@ -1222,6 +1264,11 @@ function BadgeAfast({ a }: { a: Afastamento }) {
   );
 }
 
+// JMS nao risca: o militar esta pronto e entra no rodizio — so leva a marca.
+function BadgeJms({ a }: { a: Afastamento }) {
+  return <span className="chip-jms" title={textoJms(a)}>JMS · pronto</span>;
+}
+
 /* Busca no efetivo real (Prisma) e devolve o ID PMMA escolhido.
    E o que substitui a digitacao: o usuario so seleciona. */
 function SeletorMilitar({
@@ -1317,6 +1364,7 @@ function PoolChips({
       <div className="chips">
         {valor.map((id, i) => {
           const af = afastamentoDe(id, dataRef, afastamentos);
+          const jms = af ? null : jmsDoDia(id, dataRef, afastamentos);
           const fora = !efMap[id]; // token antigo que nao casou com o efetivo
           return (
             <div
@@ -1333,6 +1381,7 @@ function PoolChips({
               <span className="chip-num">{i + 1}</span>
               <span className={"chip-nome" + (af ? " riscado" : "")}>{nomeDe(id)}</span>
               {af && <BadgeAfast a={af} />}
+              {jms && <BadgeJms a={jms} />}
               {fora && <span className="chip-fora" title="Nome antigo que nao bate com o Cadastro de Efetivo. Remova e selecione o militar pela busca.">fora do efetivo</span>}
               <span className="chip-btns">
                 <button title="subir" disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
@@ -1346,7 +1395,7 @@ function PoolChips({
       </div>
 
       <div className="chips-hint">
-        A posição do cartão define a ordem do rodízio 24/72. Afastados ficam riscados e são pulados automaticamente pelo motor.
+        A posição do cartão define a ordem do rodízio 24/72. Afastados ficam riscados e são pulados automaticamente pelo motor. Quem está em JMS entra normalmente (pronto, com restrição) e só leva a marca JMS aqui dentro — na escala impressa não aparece.
       </div>
     </div>
   );
@@ -1529,6 +1578,8 @@ function AfastamentosEditor({
       {afastamentos.length === 0 && <div className="chips-vazio">Nenhum afastamento. Busque um militar acima para registrar.</div>}
       <div className="chips-hint">
         Quem esta afastado e pulado pelo motor em todas as funcoes e aparece riscado dentro dos pools.
+        O tipo JMS e diferente: o militar continua sendo escalado (pronto, com restricao); a marca JMS fica so nas telas.
+        Se a Junta baixou do servico ativo, use a chave "Nao escalar — baixado" no Mapa (ou outro tipo aqui, ex.: Outro).
       </div>
     </div>
   );
@@ -1886,6 +1937,15 @@ export default function EscalaClient() {
   const [escalas, setEscalas] = useState<Record<string, Escala>>({});
   // Afastamentos do PLANO (férias/LP das equipes) — o motor remove o ausente.
   const [planoAfast, setPlanoAfast] = useState<Afastamento[]>([]);
+  /* Afastamentos do plano (ferias/LP/JMS/ficha/baixados) para o motor. Tambem
+     e chamado de novo depois de ligar/desligar a chave de "baixado". */
+  const carregarPlanoAfast = useCallback(async () => {
+    try {
+      const r = await fetch("/api/escala/afastamentos-plano");
+      const d = r.ok ? await r.json() : null;
+      if (Array.isArray(d?.afastamentos)) setPlanoAfast(d.afastamentos as Afastamento[]);
+    } catch { /* fica com o que ja tinha */ }
+  }, []);
   // Reducao judicial (idPmma -> percentual/mes) — mesclado no cadEff em memoria.
   const [reducaoJudicial, setReducaoJudicial] = useState<Record<string, number>>({});
   const [diasPermitidos, setDiasPermitidos] = useState<Record<string, number[]>>({});
@@ -1961,10 +2021,7 @@ export default function EscalaClient() {
       }
     } catch {}
     // Afastamentos do plano (férias/LP) para o motor pular o ausente.
-    fetch("/api/escala/afastamentos-plano")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (Array.isArray(d?.afastamentos)) setPlanoAfast(d.afastamentos as Afastamento[]); })
-      .catch(() => {});
+    carregarPlanoAfast();
     fetch("/api/escala/reducao-judicial")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -2081,7 +2138,7 @@ export default function EscalaClient() {
       } catch { ultimoCadSalvo.current = JSON.stringify(SEED_CADASTRO); }
       setReady(true);
     })();
-  }, []);
+  }, [carregarPlanoAfast]); // estável (useCallback sem dependências): roda uma vez
 
   // Salva as equipes no servidor (debounce) + backup local.
   useEffect(() => {
@@ -2593,6 +2650,29 @@ export default function EscalaClient() {
     inp.click();
   };
 
+  /* Chave "NAO ESCALAR — BAIXADO DO SERVICO ATIVO": o JMS nao tira mais da
+     escala; para quem a Junta baixou do servico, o escalante liga esta chave e
+     o policial sai da escala em todas as telas (os dias ja salvos de hoje em
+     diante perdem o nome dele sozinhos). Pergunta antes. */
+  const alternarBaixado = async (id: string, ligar: boolean, nome?: string) => {
+    const quem = nome || nomeDe(id);
+    const ok = await confirmar(ligar
+      ? `NÃO ESCALAR ${quem}?\n\nMarca como BAIXADO do serviço ativo: ele sai da escala a partir de hoje — se está em JMS, até o retorno do JMS. Os dias já salvos de hoje em diante perdem o nome dele.`
+      : `Voltar a escalar ${quem}?\n\nDesliga a chave "baixado do serviço ativo".`,
+      { rotuloOk: ligar ? "Não escalar" : "Voltar a escalar", perigo: ligar });
+    if (!ok) return;
+    try {
+      const r = await fetch("/api/escala/baixados", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idPmma: id, baixado: ligar }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { avisar(d?.error || "Não foi possível salvar a chave de baixado."); return; }
+      await carregarPlanoAfast();
+      avisar(ligar ? `✅ ${quem}: não será escalado (baixado do serviço ativo).` : `✅ ${quem} volta a ser escalado.`);
+    } catch { avisar("Não foi possível salvar a chave de baixado."); }
+  };
+
   // Conflitos do dia: alguem escalado na folha enquanto afastado.
   const conflitosDoDia = useMemo(() => {
     const nomes: string[] = [];
@@ -2618,6 +2698,30 @@ export default function EscalaClient() {
   const ehExtra = e.tipo === "extraordinaria";
   const ehJoe = e.tipo === "joe";
   const mostraExpediente = !fimDeSemana && !ehExtra && !ehJoe;
+
+  /* Quem está em JMS entre os que SERVEM na folha do dia (as mesmas vagas que
+     a folha mostra): aviso SÓ NA TELA, para quem monta a escala. A folha
+     impressa, o Word/PDF e a publicada saem normais. */
+  const jmsPorNome = (nome: string) => jmsDoDia(nameToId[nome] || nome, data, cadEff.afastamentos);
+  const jmsNaFolha = useMemo<string[]>(() => {
+    if (ehExtra || ehJoe) return [];
+    const nomes: string[] = [];
+    const checa = (sl?: Slot | null) => {
+      const n = quemServe(sl);
+      if (n && !nomes.includes(n) && jmsDoDia(nameToId[n] || n, data, cadEff.afastamentos)) nomes.push(n);
+    };
+    checa(e.cpuDeDia); checa(e.rpAdjunto); checa(e.rpMotorista);
+    checa(e.ftGraduado); checa(e.ftMotorista);
+    asSlots(e.ftPatrulheiro).forEach(checa);
+    e.guardaPermanente.forEach(checa); e.rpPatrulheiro.forEach(checa);
+    e.inteligencia.forEach(checa); e.rotemMilitares.forEach(checa);
+    if (mostraExpediente) {
+      const x = e.expediente;
+      checa(s2(x.cmt)); checa(s2(x.subcmt));
+      for (const lista of [x.cmtFt, x.subcmtFt, x.adm, x.p1, x.p3, x.p4, x.rondaEscolar, x.patrulha]) asSlots(lista).forEach(checa);
+    }
+    return nomes;
+  }, [e, data, cadEff.afastamentos, nameToId, ehExtra, ehJoe, mostraExpediente]);
   const feriadoTexto =
     e.tipo === "facultativo"
       ? `PONTO FACULTATIVO${e.feriadoLabel ? " (" + e.feriadoLabel + ")" : ""}`
@@ -2698,7 +2802,7 @@ export default function EscalaClient() {
 
   return (
     <EfetivoCtx.Provider value={efetivo}>
-    <ReducaoCtx.Provider value={{ pct: reducaoJudicial, dias: diasPermitidos, data }}>
+    <ReducaoCtx.Provider value={{ pct: reducaoJudicial, dias: diasPermitidos, data, jmsNome: jmsPorNome, baixarNome: (n: string) => alternarBaixado(nameToId[n] || n, true, n) }}>
     <div className="app-shell">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <BarraFormatacao />
@@ -2756,6 +2860,12 @@ export default function EscalaClient() {
           {conflitosDoDia.length > 0 && (
             <span className="st-chip conf" title={"Escalado durante afastamento: " + conflitosDoDia.join(", ")}>
               ⚠ {conflitosDoDia.length} conflito{conflitosDoDia.length > 1 ? "s" : ""} na folha
+            </span>
+          )}
+          {jmsNaFolha.length > 0 && (
+            <span className="st-chip jms"
+              title={jmsNaFolha.map((n) => `${n}: ${textoJms(jmsPorNome(n))}`).join("\n") + "\n\nSó aparece aqui: a escala impressa sai normal."}>
+              JMS: {jmsNaFolha.length} na folha (pronto, com restrição)
             </span>
           )}
         </div>
@@ -3189,6 +3299,7 @@ const CSS = `
 .st-chip.ok{ background:#10301f; color:#9fe6bd; border-color:#235b3c; }
 .st-chip.auto{ background:#16243a; color:#9fb0c7; border-color:#2b3f63; }
 .st-chip.conf{ background:#3a1414; color:#ffb3b3; border-color:#7a1f1f; font-weight:600; cursor:help; }
+.st-chip.jms{ background:#3b1230; color:#f9a8d4; border-color:#9d174d; font-weight:600; cursor:help; }
 
 .btn{ background:#16243a; color:#E8EEF6; border:1px solid #2b3f63; border-radius:8px; padding:8px 12px; font-size:13px; cursor:pointer; }
 .btn:hover{ border-color:#D4AF37; }
@@ -3294,6 +3405,7 @@ const CSS = `
 .chip-nome{ flex:1; font-size:13px; }
 .chip-nome.riscado{ text-decoration:line-through; color:#6f82a0; }
 .chip-af{ font-size:10.5px; background:#3a2c10; color:#f3df9d; border:1px solid #6b5320; border-radius:999px; padding:2px 8px; white-space:nowrap; cursor:help; }
+.chip-jms{ font-size:10.5px; background:#3b1230; color:#f9a8d4; border:1px solid #9d174d; border-radius:999px; padding:2px 8px; white-space:nowrap; cursor:help; }
 .chip-btns{ display:flex; gap:4px; }
 .chip-btns button{ background:#0a1626; color:#9fb0c7; border:1px solid #28395a; border-radius:6px;
   width:24px; height:24px; font-size:12px; cursor:pointer; line-height:1; }
@@ -3498,6 +3610,9 @@ const CSS = `
 .rodape-local{ text-align:center; font-size:15px; margin-top:10px; }
 .obs-rodape{ margin-top:8px; font-size:14px; text-align:left; line-height:1.3; }
 .obs-rodape .obs-lbl{ font-weight:bold; }
+/* marca "JMS" ao lado do nome: so na tela (no-print), nunca na impressa */
+.jms-tag{ font:italic 700 10px/1.2 Arial, sans-serif; color:#f3df9d; background:#3a2f12; border:1px dashed #b08a2e; border-radius:4px; padding:0 4px; margin-left:4px; vertical-align:middle; cursor:pointer; }
+.jms-tag:hover{ background:#5a4416; }
 .obs-rodape.vazio-noprint{ opacity:.6; }
 .assinatura{ text-align:center; margin-top:14px; }
 .ass-img{ max-height:50px; max-width:240px; object-fit:contain; display:block; margin:0 auto 2px; }

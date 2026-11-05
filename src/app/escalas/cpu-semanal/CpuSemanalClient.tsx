@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import CarimboSigep from "@/components/CarimboSigep";
+import { ehJms, jmsDoDia, textoJms } from "@/lib/escalaMotor";
 
 /* =========================================================================
    Escala de Serviço SEMANAL do CPU (paisagem) — no padrão da Escala Diária.
@@ -47,7 +48,10 @@ function nomeCpu(m: Militar): string {
 }
 function fone(t: string) { const s = (t || "").replace(/\D/g, ""); if (s.length === 11) return `(${s.slice(0, 2)}) ${s.slice(2, 7)}-${s.slice(7)}`; if (s.length === 10) return `(${s.slice(0, 2)}) ${s.slice(2, 6)}-${s.slice(6)}`; return (t || "").trim(); }
 
-function afastado(id: string, data: string, lista: Afastamento[]) { return lista.some((a) => a.militar === id && data >= a.inicio && data <= a.fim); }
+// Ausente no dia. JMS nao conta: o oficial em JMS esta pronto (com restricao),
+// entra no rodizio e so leva a marca JMS na tela; o baixado do servico ativo
+// sai (ver lib/escalaMotor).
+function afastado(id: string, data: string, lista: Afastamento[]) { return lista.some((a) => !ehJms(a) && a.militar === id && data >= a.inicio && data <= a.fim); }
 function rodizio(pool: string[], dataAlvo: string, afast: Afastamento[], ref: string): string {
   if (pool.length === 0 || dataAlvo < ref) return "";
   const ultimo: Record<string, string> = {};
@@ -238,6 +242,17 @@ export default function CpuSemanalClient() {
     return ov[iso]?.fone ?? auto(iso).fone;
   };
   const permDe = (iso: string) => ov[iso]?.permuta ?? "";
+  /* JMS do oficial de dia — de quem SERVE: sem permuta, e sem um nome trocado
+     à mão que seja de outra pessoa. Leva a marca JMS só na tela (no-print). */
+  const jmsDoCpu = (iso: string) => {
+    if (!cad || permDe(iso)) return null;
+    const id = effIdCpu(iso);
+    if (!id || id.startsWith("__FOLGA")) return null;
+    const m = efMap[id];
+    const nomeMao = cad.cpuOverrides?.[iso] === undefined ? ov[iso]?.nome : undefined;
+    if (nomeMao && m && nomeMao !== nomeCpu(m)) return null;
+    return jmsDoDia(id, iso, [...(cad.afastamentos || []), ...planoAfast]);
+  };
 
   // Grava a excecao do CPU no MESMO lugar da escala/mapa (cad.cpuOverrides),
   // entao reflete na escala diaria, no mapa e na impressao (fonte unica).
@@ -371,8 +386,9 @@ export default function CpuSemanalClient() {
         <tr>{dias.map((iso) => (
           <td key={iso} className={"cpuw-nome" + (drag ? " alvo" : "")} onDragOver={(e) => e.preventDefault()} onDrop={() => soltar(iso)}>
             <span className="cpuw-grip no-print" draggable onDragStart={() => setDrag(iso)} onDragEnd={() => setDrag(null)} title="Arraste para mover este oficial para outro dia">⠿</span>
-            <span className="cpuw-nome-t cpuw-pick" onClick={() => { setBuscaCpu(""); setEditCpu(iso); }} title="Clique para escolher o oficial de dia">
+            <span className="cpuw-nome-t cpuw-pick" onClick={() => { setBuscaCpu(""); setEditCpu(iso); }} title={jmsDoCpu(iso) ? `${textoJms(jmsDoCpu(iso))} (não sai na impressão) · clique para escolher o oficial de dia` : "Clique para escolher o oficial de dia"}>
               {nomeDe(iso) || <span className="cpuw-ph no-print">escolher oficial</span>}
+              {nomeDe(iso) && jmsDoCpu(iso) && <span className="cpuw-jms no-print">JMS</span>}
             </span>
             {permDe(iso) && <span className="cpuw-perm only-print"> (PERMUTA- {permDe(iso)})</span>}
             <span className="cpuw-perm-edit no-print">(PERMUTA- <Editavel value={permDe(iso)} onChange={(v) => setOverride(iso, { permuta: v })} className="cpuw-perm-in" placeholder="substituto" />)</span>
@@ -538,6 +554,7 @@ const CSS = `
 .cpuw-ph{ color:#aaa; font-style:normal; }
 .cpuw-grip{ cursor:grab; color:#7a8aa0; font-size:13px; margin-right:3px; user-select:none; }
 .cpuw-perm{ font-style:italic; font-weight:700; }
+.cpuw-jms{ display:inline-block; margin-left:4px; font-size:10px; font-style:italic; font-weight:700; color:#7a5a17; background:#fff3cd; border:1px dashed #b08a2e; border-radius:4px; padding:0 4px; vertical-align:middle; }
 .cpuw-perm-edit{ display:block; font-size:11px; color:#333; margin-top:4px; }
 .cpuw-fone{ font-size:12.5px; }
 .cpuw-edit{ outline:none; min-width:20px; display:inline-block; }

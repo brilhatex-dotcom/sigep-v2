@@ -20,7 +20,51 @@ export type TipoAfastamento =
 export type Afastamento = {
   militar: string; tipo: TipoAfastamento; inicio: string; fim: string;
   rotulo?: string; sigla?: string; origem?: string;
+  /* JMS: o "Motivo" da ficha (a restrição da Junta). Só chega para quem monta
+     a escala — é texto livre e pode trazer dado de saúde; só aparece no balão. */
+  motivo?: string;
+  /* Veio da chave "Não escalar — baixado do serviço ativo" (ver abaixo). */
+  baixado?: boolean;
 };
+
+/* ======================= JMS: PRONTO, COM RESTRIÇÃO =======================
+
+   A Junta Militar de Saúde nem sempre tira o policial do serviço: muitas
+   vezes só RESTRINGE — não pode serviço noturno, não pode portar armamento,
+   não pode esforço físico. Ele está PRONTO, com restrição, e o P/1 precisa
+   poder escalá-lo (pedido do P/1, nov/2026).
+
+   Então o JMS deixa de ser ausência em TODA a escala: o motor escala, o dia
+   salvo não perde o nome, a publicação não acusa conflito. A marca "JMS" fica
+   só no SISTEMA INTERNO (mapa, telas de quem monta a escala); a escala
+   impressa, o Word/PDF e a publicada saem normais, sem restrição nenhuma.
+
+   Quem a Junta BAIXOU do serviço ativo o P/1 marca com a chave "Não escalar —
+   baixado do serviço ativo": aí o registro vem com `baixado` e volta a tirar
+   o policial da escala, como era antes. */
+export const NOTA_JMS = "Pronto, em JMS";
+// JMS que só RESTRINGE (pronto): não tira da escala. O baixado tira.
+export function ehJms(a: { tipo?: string; baixado?: boolean } | null | undefined): boolean {
+  return a?.tipo === "jms" && !a?.baixado;
+}
+/* O registro de JMS (pronto, com restrição) que cobre o dia, ou null. Quem
+   está afastado de verdade nesse dia (férias, licença, BAIXADO...) não é
+   "pronto": aí não há marca de JMS, há a ausência. */
+export function jmsDoDia<A extends { militar: string; tipo: string; inicio: string; fim: string; baixado?: boolean }>(
+  nome: string, data: string, lista: A[] | null | undefined,
+): A | null {
+  const l = lista || [];
+  const cobre = (a: A) => a.militar === nome && data >= a.inicio && data <= a.fim;
+  if (l.some((a) => !ehJms(a) && cobre(a))) return null;
+  return l.find((a) => ehJms(a) && cobre(a)) || null;
+}
+// texto do balão: "Pronto, em JMS até 20/11 — restrição: sem serviço noturno"
+export function textoJms(a: { fim?: string; motivo?: string } | null | undefined): string {
+  if (!a) return "";
+  const ate = a.fim && a.fim < "2099" ? ` até ${a.fim.slice(8, 10)}/${a.fim.slice(5, 7)}` : "";
+  const m = String(a.motivo || "").trim();
+  return `${NOTA_JMS}${ate}${m ? ` — restrição: ${m}` : ""}`;
+}
 export type EquipeRotem = { nome: string; turnos: string[]; militares: string[]; diasSemana?: number[] };
 export type Cadastro = {
   cpu: string[]; ftGraduado: string[]; ftMotorista: string[]; ftPatrulheiro: string[];
@@ -297,8 +341,9 @@ export function semTags(html: string): string {
   return html.replace(/<[^>]*>/g, "").trim();
 }
 
+// AUSENTE no dia (sai da escala). JMS não conta: é pronto com restrição.
 export function afastado(nome: string, data: string, lista: Afastamento[]): boolean {
-  return (lista || []).some((a) => a.militar === nome && data >= a.inicio && data <= a.fim);
+  return (lista || []).some((a) => !ehJms(a) && a.militar === nome && data >= a.inicio && data <= a.fim);
 }
 
 function rodizio(pool: string[], qtd: number, dataAlvo: string, afast: Afastamento[], ref: string): string[] {

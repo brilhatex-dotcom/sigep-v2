@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ORGANOGRAMA, acharNo, pertenceAoNo, type NoOrg } from "@/lib/organograma";
 import FolhaUnidadeRp from "@/components/FolhaUnidadeRp";
-import { parsePadrao, timeDoDia, incluiComReducao, podeNoDia, rotuloDias, extrasDoDia, rotuloGiro, proximosDoGiro, planejarArraste, type GiroSemanal } from "@/lib/escalaMotor";
+import { parsePadrao, timeDoDia, incluiComReducao, podeNoDia, rotuloDias, extrasDoDia, rotuloGiro, proximosDoGiro, planejarArraste, ehJms, jmsDoDia, textoJms, type GiroSemanal } from "@/lib/escalaMotor";
 import { usePulso, avisarMudanca } from "@/lib/sincronia";
 import { novaEscala } from "../EscalaClient";
 import { avisar, confirmar } from "@/components/Avisos";
@@ -47,7 +47,11 @@ type Afastamento = { militar: string; tipo: TipoAfastamento; inicio: string; fim
   rotulo?: string; sigla?: string;
   // Em qual cadastro esta ausencia foi lancada (plano da equipe, memorando
   // avulso, JMS, ficha). Vazio = lancada aqui no mapa mesmo.
-  origem?: string };
+  origem?: string;
+  // JMS: a restricao da Junta (do "Motivo" da ficha), so para o balao.
+  motivo?: string;
+  // veio da chave "Nao escalar — baixado do servico ativo": este tira da escala
+  baixado?: boolean };
 type EquipeRotem = { nome: string; turnos: string[]; militares: string[]; diasSemana?: number[] };
 type Cadastro = {
   cpu: string[]; ftGraduado: string[]; ftMotorista: string[]; ftPatrulheiro: string[];
@@ -170,16 +174,20 @@ const retornoDe = (fim: string) => (fim ? proxDia(fim) : "");
 const fimDoRetorno = (retorno: string) => diaAnterior(retorno);
 const inicioMesISO = (iso: string) => `${iso.slice(0, 7)}-01`;
 
+/* AUSENTE no dia: sai do mapa. O JMS NAO conta — e pronto com restricao: o
+   motor escala e o nome leva a marca "JMS" (so aqui dentro; a escala impressa
+   sai normal). O JMS de quem foi BAIXADO do servico ativo volta a contar (ver
+   lib/escalaMotor, "JMS: PRONTO, COM RESTRICAO"). */
 function afastado(nome: string, data: string, lista: Afastamento[]) {
-  return lista.some((a) => a.militar === nome && data >= a.inicio && data <= a.fim);
+  return lista.some((a) => !ehJms(a) && a.militar === nome && data >= a.inicio && data <= a.fim);
 }
 function afastamentoDe(nome: string, data: string, lista: Afastamento[]): TipoAfastamento | null {
-  const a = lista.find((x) => x.militar === nome && data >= x.inicio && data <= x.fim);
+  const a = lista.find((x) => !ehJms(x) && x.militar === nome && data >= x.inicio && data <= x.fim);
   return a ? a.tipo : null;
 }
 // O registro inteiro, quando se precisa do motivo (rotulo/sigla) e nao so do tipo.
 function afastamentoRegDe(nome: string, data: string, lista: Afastamento[]): Afastamento | null {
-  return lista.find((x) => x.militar === nome && data >= x.inicio && data <= x.fim) || null;
+  return lista.find((x) => !ehJms(x) && x.militar === nome && data >= x.inicio && data <= x.fim) || null;
 }
 // Nome cheio e sigla que aparecem na tela: o motivo real quando existe.
 function rotuloAf(a: Afastamento | null): string {
@@ -205,7 +213,20 @@ function siglaAf(a: Afastamento | null): string {
    01/01/2100" seria pior que não dizer nada. */
 /* Vaga aberta por afastamento: quem faltou, o motivo curto (para a etiqueta
    amarela) e o registro inteiro (para o balão dizer o período). */
-type VagaAf = { tipo: string; nome: string; reg: Afastamento | null };
+type VagaAf = { tipo: string; nome: string; reg: Afastamento | null; id?: string };
+
+/* Rótulo da vaga de quem saiu (férias, licença, JMS baixado...). Do policial
+   BAIXADO do serviço ativo, um clique no rótulo o devolve à escala. */
+function VagaRotulo({ v, onVoltar }: { v: VagaAf; onVoltar?: (id: string, ligar: boolean) => void }) {
+  const baixado = !!v.reg?.baixado && !!v.id;
+  return (
+    <div className={"mp-vaga-af" + (baixado ? " baixado" : "")}
+      title={`${v.nome}${textoAf(v.reg)} — vaga a cobrir${baixado ? " · clique para voltar a escalar" : ""}`}
+      onClick={baixado ? (ev) => { ev.stopPropagation(); onVoltar?.(v.id!, false); } : undefined}>
+      {sobrenome(v.nome)} · {v.tipo}
+    </div>
+  );
+}
 
 function textoAf(a: Afastamento | null): string {
   if (!a) return "";
@@ -588,6 +609,11 @@ function AfastamentosMini({
               <select value={a.tipo} onChange={(e) => upd(i, { tipo: e.target.value as TipoAfastamento })}>
                 {TIPOS_AF.map((t) => <option key={t.v} value={t.v}>{t.t}</option>)}
               </select>
+              {a.tipo === "jms" && (
+                <span className="mp-afm-jms" title="JMS não tira da escala: o militar está pronto, com restrição, e só leva a marca JMS nas telas (a escala impressa sai normal). Se a Junta baixou do serviço ativo, use a chave 🚫 Não escalar no quadro.">
+                  não tira da escala · só marca
+                </span>
+              )}
               {/* As duas datas apareciam sem rótulo, e a segunda guardava o
                   ÚLTIMO DIA fora enquanto o escalante lia "retorno". Agora
                   cada uma diz o que é, e a de retorno é mesmo o dia em que ele
@@ -837,7 +863,7 @@ function RestricoesEscalaMini({
   );
 }
 function QuadroEquipes({
-  cad, setCad, efetivo, nomeDe, teamDias, funcoes = FUNCOES_EQUIPE,
+  cad, setCad, efetivo, nomeDe, teamDias, funcoes = FUNCOES_EQUIPE, onBaixar,
 }: {
   cad: Cadastro;
   setCad: (updater: (c: Cadastro) => Cadastro) => void;
@@ -845,6 +871,8 @@ function QuadroEquipes({
   nomeDe: (t: string) => string;
   teamDias: string[];
   funcoes?: { key: string; label: string }[];
+  // chave "Nao escalar — baixado do servico ativo" (liga/desliga)
+  onBaixar?: (id: string, ligar: boolean) => void;
 }) {
   const quadro = cad.quadroEquipes || {};
   const cell = (team: string, fk: string) => quadro[team]?.[fk] || "";
@@ -1020,6 +1048,10 @@ function QuadroEquipes({
                    tela por tela até achar. */
                 const afReg = id ? afastamentoRegDe(id, teamDias[i], cad.afastamentos) : null;
                 const af = !!afReg;
+                // JMS: continua no quadro e na escala, só com a marca (aqui dentro)
+                const jmsReg = id && !af ? jmsDoDia(id, teamDias[i], cad.afastamentos) : null;
+                // ligado "não escalar — baixado do serviço ativo" (vale do próximo serviço em diante)
+                const baixado = id ? cad.afastamentos.some((a) => a.baixado && a.militar === id && a.fim >= teamDias[i]) : false;
                 const cor = COR_SERVICO[f.baseKey];
                 return (
                   <td
@@ -1035,10 +1067,16 @@ function QuadroEquipes({
                         draggable
                         onDragStart={() => setDrag({ team: lt, fk: f.key })}
                         onDragEnd={() => setDrag(null)}
-                        title={nomeDe(id) + textoAf(afReg) + " · arraste para mover"}
+                        title={nomeDe(id) + textoAf(afReg) + (jmsReg ? ` · ${textoJms(jmsReg)}` : "") + " · arraste para mover"}
                       >
                         <span className="mp-q-nome" style={af ? undefined : { color: "#0a1020" }}>{nomeDe(id)}</span>
+                        {jmsReg && <span className="mp-jms-tag no-print">JMS</span>}
                         <span className="mp-q-acoes no-print">
+                          {onBaixar && (
+                            <button title={baixado ? "Voltar a escalar (desligar \"baixado do serviço ativo\")" : "Não escalar — baixado do serviço ativo"}
+                              className={baixado ? "mp-baixado-on" : ""}
+                              onClick={() => onBaixar(id, !baixado)}>{baixado ? "↩" : "🚫"}</button>
+                          )}
                           <button title="Afastamento" onClick={() => { setAfCell({ team: lt, fk: f.key, id }); setBusca(""); setAddCell(null); setMovCell(null); }}>📅</button>
                           <button title="Mudar de quadro / lotação" onClick={() => { setMovCell({ team: lt, fk: f.key, id }); setMovBusca(""); setMovMsg(""); setAfCell(null); setAddCell(null); }}>⇄</button>
                           <button className="del" title="Remover" onClick={() => setCell(lt, f.key, "")}>×</button>
@@ -1156,6 +1194,15 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
   // Afastamentos vindos do PLANO (férias/LP das equipes) — o motor usa junto com
   // os afastamentos avulsos para REMOVER o militar ausente da escala.
   const [planoAfast, setPlanoAfast] = useState<Afastamento[]>([]);
+  /* Afastamentos do plano (férias/LP/JMS/ficha/baixados) para o motor. É lido
+     de novo depois de ligar/desligar a chave de "baixado". */
+  const carregarPlanoAfast = useCallback(async () => {
+    try {
+      const r = await fetch("/api/escala/afastamentos-plano");
+      const d = r.ok ? await r.json() : null;
+      if (Array.isArray(d?.afastamentos)) setPlanoAfast(d.afastamentos as Afastamento[]);
+    } catch { /* fica com o que já tinha */ }
+  }, []);
   // Reducao judicial (idPmma -> percentual/mes) — mesclado no cadEff em memoria.
   const [reducaoJudicial, setReducaoJudicial] = useState<Record<string, number>>({});
   const [diasPermitidos, setDiasPermitidos] = useState<Record<string, number[]>>({});
@@ -1341,10 +1388,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (Array.isArray(d?.ausencias)) setProxAusencias(d.ausencias); })
       .catch(() => {});
-    fetch("/api/escala/afastamentos-plano")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (Array.isArray(d?.afastamentos)) setPlanoAfast(d.afastamentos as Afastamento[]); })
-      .catch(() => {});
+    carregarPlanoAfast();
     fetch("/api/escala/reducao-judicial")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -1384,7 +1428,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
       const hojeISO = toISO(new Date());
       if (localStorage.getItem("sigep_aviso_ausencias") === hojeISO) setAvisoDispensado(true);
     } catch {}
-  }, []);
+  }, [carregarPlanoAfast]); // estável (useCallback sem dependências): roda uma vez
   const dispensarAviso = () => {
     try { localStorage.setItem("sigep_aviso_ausencias", toISO(new Date())); } catch {}
     setAvisoDispensado(true);
@@ -1580,6 +1624,30 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     [cad, planoAfast, reducaoJudicial, diasPermitidos, funcaoFixa, giroSemanal]
   );
 
+  /* Chave "NÃO ESCALAR — BAIXADO DO SERVIÇO ATIVO". O JMS não tira mais da
+     escala (pronto, com restrição); para quem a Junta BAIXOU do serviço, o
+     escalante liga a chave — no cartão do quadro (🚫) ou na marca JMS do nome
+     — e o policial sai da escala em todas as telas. No rótulo da vaga dele,
+     um clique desliga. Pergunta antes. */
+  const alternarBaixado = async (id: string, ligar: boolean) => {
+    const quem = nomeDe(id);
+    const ok = await confirmar(ligar
+      ? `NÃO ESCALAR ${quem}?\n\nMarca como BAIXADO do serviço ativo: ele sai da escala a partir de hoje — se está em JMS, até o retorno do JMS. Os dias já salvos de hoje em diante perdem o nome dele.`
+      : `Voltar a escalar ${quem}?\n\nDesliga a chave "baixado do serviço ativo".`,
+      { rotuloOk: ligar ? "Não escalar" : "Voltar a escalar", perigo: ligar });
+    if (!ok) return;
+    try {
+      const r = await fetch("/api/escala/baixados", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idPmma: id, baixado: ligar }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { avisar(d?.error || "Não foi possível salvar a chave de baixado."); return; }
+      await carregarPlanoAfast();
+      avisar(ligar ? `✅ ${quem}: não será escalado (baixado do serviço ativo).` : `✅ ${quem} volta a ser escalado.`);
+    } catch { avisar("Não foi possível salvar a chave de baixado."); }
+  };
+
   /* Quando uma vaga do QUADRO fica vazia porque o militar do dia está afastado,
      devolve QUEM saiu e por quê — o mesmo que a linha do ROTEM já mostrava.
 
@@ -1607,7 +1675,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     const out: VagaAf[] = [];
     for (const id of cands) {
       const reg = afastamentoRegDe(id, iso, cadEff.afastamentos);
-      if (reg) out.push({ tipo: rotuloAf(reg), nome: nomeDe(id), reg });
+      if (reg) out.push({ tipo: rotuloAf(reg), nome: nomeDe(id), reg, id });
     }
     return out;
   };
@@ -1620,7 +1688,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     const out: VagaAf[] = [];
     for (const id of eq.militares) {
       const reg = afastamentoRegDe(id, iso, cadEff.afastamentos);
-      if (reg) out.push({ nome: nomeDe(id), tipo: rotuloAf(reg), reg });
+      if (reg) out.push({ nome: nomeDe(id), tipo: rotuloAf(reg), reg, id });
     }
     return out;
   };
@@ -2017,12 +2085,12 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                       >
                         {nomes.length === 0 && ehCpu && <div className="mp-cel-vazio no-print">+</div>}
                         {nomes.length === 0 && !ehCpu && vagasAfast(iso, srv.key).map((v, i) => (
-                          <div key={`a${i}`} className="mp-vaga-af" title={`${v.nome}${textoAf(v.reg)} — vaga a cobrir`}>
-                            {sobrenome(v.nome)} · {v.tipo}
-                          </div>
+                          <VagaRotulo key={`a${i}`} v={v} onVoltar={alternarBaixado} />
                         ))}
                         {nomes.map((n, i) => {
                           const conf = afastado(n, iso, cad.afastamentos);
+                          // em JMS: escalado normalmente, só com a marca (aqui dentro)
+                          const jmsCel = jmsDoDia(n, iso, cadEff.afastamentos);
                           let cls = "mp-nome";
                           if (conf) cls += " conf";
                           if (selNome === n) cls += " sel";
@@ -2048,8 +2116,9 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                                  abre o editor do dia, e o destacar virou um botao dentro dele. */
                               title={
                                 ehCpu ? "Clique para editar o CPU deste dia"
-                                : editavelDia ? `${nomeDe(n)} — clique para alterar ${srv.label} no dia ${brCurto(iso)}`
+                                : (editavelDia ? `${nomeDe(n)} — clique para alterar ${srv.label} no dia ${brCurto(iso)}`
                                 : nomeDe(n) + (selNome === n ? "" : " \u00b7 clique para destacar no mes")
+                              ) + (jmsCel ? ` \u00b7 ${textoJms(jmsCel)}` : "")
                               }
                               onClick={
                                 ehCpu ? undefined
@@ -2059,13 +2128,16 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                               }
                             >
                               {nomeDe(n)}
+                              {jmsCel && (
+                                <span className="mp-jms-tag no-print" role="button"
+                                  title={`${textoJms(jmsCel)}. Não sai na escala impressa. Clique se foi BAIXADO do serviço ativo (não escalar).`}
+                                  onClick={(ev) => { ev.stopPropagation(); alternarBaixado(n, true); }}>JMS</span>
+                              )}
                             </div>
                           );
                         })}
                         {srv.key === "rotem" && rotemVagas(iso).map((v, i) => (
-                          <div key={`v${i}`} className="mp-vaga-af" title={`${v.nome}${textoAf(v.reg)} — vaga a cobrir`}>
-                            {sobrenome(v.nome)} · {v.tipo}
-                          </div>
+                          <VagaRotulo key={`v${i}`} v={v} onVoltar={alternarBaixado} />
                         ))}
                       </td>
                     );
@@ -2112,13 +2184,18 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                     else if (af) cls += " afast";
                     else if (funcs.length > 1) cls += " dobra";
                     if (selNome === nome && escalado) cls += " sel";
+                    // JMS: não é ausência — o dia mostra o serviço normal, com a marca JMS (cor + balão)
+                    const jmsReg = af ? null : jmsDoDia(nome, iso, cadEff.afastamentos);
                     const txt = af && !escalado ? sig : funcs.join("/");
                     let corCel = "";
                     if (af && escalado) corCel = "";                       // conflito: mantem vermelho
                     else if (af) corCel = COR_AF[af];                      // afastado: cor da situacao
                     else if (funcs.length === 1) corCel = COR_ABBR[funcs[0]] || ""; // servico
                     const stCel = corCel ? { background: corCel, color: "#0a1020" } : undefined;
-                    return <td key={iso} className={cls} style={stCel} title={reg ? `${rotuloAf(reg)}${escalado ? " + escalado!" : ""}` : funcs.join(" / ")}>{txt}</td>;
+                    const tituloCel = reg
+                      ? `${rotuloAf(reg)}${escalado ? " + escalado!" : ""}`
+                      : [funcs.join(" / "), jmsReg ? textoJms(jmsReg) : ""].filter(Boolean).join(" · ");
+                    return <td key={iso} className={cls + (jmsReg ? " jms" : "")} style={stCel} title={tituloCel}>{txt}</td>;
                   })}
                   <td className="mp-tot">{porMilitar.total[nome] || 0}</td>
                 </tr>
@@ -2173,7 +2250,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
             </span>
           </div>
 
-          <QuadroEquipes cad={cadEff} setCad={setCadQuadro} efetivo={efetivo} nomeDe={nomeDe} teamDias={teamDias} funcoes={funcoesView} />
+          <QuadroEquipes cad={cadEff} setCad={setCadQuadro} efetivo={efetivo} nomeDe={nomeDe} teamDias={teamDias} funcoes={funcoesView} onBaixar={alternarBaixado} />
         </div>
       )}
 
@@ -2532,6 +2609,12 @@ const CSS = `
 .mp-cel-vazio{ color:#4a5a72; font-weight:700; }
 .mp-vaga-af{ display:inline-block; white-space:nowrap; font-size:10px; font-style:italic; font-weight:700; color:#f0b24b; background:#3a2f12; border:1px dashed #6b5320; border-radius:4px; padding:1px 5px; }
 .mp-nome{ white-space:nowrap; cursor:pointer; border-radius:4px; padding:1px 5px; font-weight:600; }
+/* JMS: pronto com restricao — a "marcadinha" ao lado do nome, so na tela
+   (no-print): a escala impressa sai normal */
+.mp-jms-tag{ display:inline-block; margin-left:4px; font-size:9.5px; font-style:italic; font-weight:700; color:#f0b24b; background:#3a2f12; border:1px dashed #6b5320; border-radius:4px; padding:0 4px; vertical-align:middle; cursor:pointer; }
+.mp-cel.mil.jms{ box-shadow:inset 0 -3px 0 #f0b24b; }
+.mp-vaga-af.baixado{ cursor:pointer; border-style:solid; }
+.mp-q-acoes button.mp-baixado-on{ background:#3a2f12; color:#f0b24b; }
 .mp-nome:hover{ background:#1a2a45; }
 .mp-leg-tit{ color:#D4AF37; }
 /* Telas por servico: tudo maior/espacado para o escalante */
@@ -2649,6 +2732,7 @@ const CSS = `
 /* rótulo em cima da data: "saída" e "retorno" deixaram de ser adivinhação */
 .mp-afm-linha label{ display:flex; flex-direction:column; gap:2px; font-size:10px; color:#8fa3bf; text-transform:uppercase; letter-spacing:.4px; }
 .mp-afm-del{ background:#0a1626; color:#9fb0c7; border:1px solid #28395a; border-radius:6px; width:28px; height:30px; cursor:pointer; }
+.mp-afm-jms{ font-size:11px; color:#f9a8d4; background:#3b1230; border:1px solid #9d174d; border-radius:999px; padding:2px 8px; white-space:nowrap; cursor:help; }
 .mp-afm-del:hover{ border-color:#e06464; color:#ffb3b3; }
 
 /* Aviso de saidas previstas (ferias etc.) */
