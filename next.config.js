@@ -63,6 +63,7 @@ const nextConfig = {
     outputFileTracingIncludes: {
       "/api/requerimentos/[id]/gerar": ["./public/templates/**"],
       "/api/requerimentos/[id]/parecer": ["./public/templates/**"],
+      "/api/requerimentos/[id]/exposicao": ["./public/templates/**"],
       "/api/requerimentos/[id]/termo": ["./public/templates/**"],
       "/api/joe/[id]/rene": ["./public/templates/**", "./public/brasoes/**"],
       "/api/ferias/memorando-docx": ["./public/brasoes/**"],
