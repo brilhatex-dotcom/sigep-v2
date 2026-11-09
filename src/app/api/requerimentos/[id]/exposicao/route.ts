@@ -134,8 +134,17 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         qrPng: await QRCode.toBuffer(link, { margin: 1, width: 300, errorCorrectionLevel: "M" }),
       };
     }
+    // nome de guerra, barra e ID: do requerimento, e o que faltar, da ficha
+    const ficha = await prisma.efetivo.findUnique({
+      where: { id: r.efetivoId }, select: { nomeGuerra: true, numeroBarra: true, matricula: true },
+    }).catch(() => null);
     const buffer = gerarExposicaoArmaDocx({
-      postoGrad: r.postoGrad, nomeCompleto: r.nomeCompleto, matricula: r.matricula, inicio, fim, carimbo,
+      postoGrad: r.postoGrad, nomeCompleto: r.nomeCompleto,
+      matricula: r.matricula || ficha?.matricula || "",
+      nomeGuerra: ficha?.nomeGuerra || "",
+      numeroBarra: r.numeroPm || ficha?.numeroBarra || "",
+      idPmma: r.idPmmaTxt || r.efetivoId,
+      inicio, fim, carimbo,
     });
 
     try {
