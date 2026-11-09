@@ -22,27 +22,62 @@ type Dados = {
 
 /* Anexo do pedido de permanência com o armamento nas férias. As datas vêm do
    plano de férias do militar e podem ser ajustadas antes de baixar; sem plano,
-   o documento sai com a linha da data para completar à mão. */
+   o documento sai com a linha da data para completar à mão. O próprio
+   requerente pode ASSINAR no SIGEP (senha): o Word passa a sair com o carimbo
+   e o QR, preso às datas assinadas. */
+type AssinaturaExpo = { id: string; nome: string; em: string; inicio: string; fim: string };
+const brData = (d: string) => (d ? d.split("-").reverse().join("/") : "—");
+
 function ExposicaoMotivos({ id }: { id: string }) {
   const [inicio, setInicio] = useState("");
   const [fim, setFim] = useState("");
   const [doPlano, setDoPlano] = useState<boolean | null>(null);
-  useEffect(() => {
-    let vivo = true;
-    fetch(`/api/requerimentos/${encodeURIComponent(id)}/exposicao?sugestao=1`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!vivo) return;
-        setInicio(d?.inicio || ""); setFim(d?.fim || "");
-        setDoPlano(!!(d?.inicio && d?.fim));
-      })
-      .catch(() => { if (vivo) setDoPlano(false); });
-    return () => { vivo = false; };
-  }, [id]);
+  const [assinatura, setAssinatura] = useState<AssinaturaExpo | null>(null);
+  const [possoAssinar, setPossoAssinar] = useState(false);
+  const [reassinar, setReassinar] = useState(false);
+  const [senha, setSenha] = useState("");
+  const [assinando, setAssinando] = useState(false);
+  const [msg, setMsg] = useState("");
+  const url = `/api/requerimentos/${encodeURIComponent(id)}/exposicao`;
+
+  const carregar = async () => {
+    try {
+      const r = await fetch(`${url}?sugestao=1`);
+      const d = r.ok ? await r.json() : null;
+      const a: AssinaturaExpo | null = d?.assinatura || null;
+      setAssinatura(a);
+      setPossoAssinar(!!d?.possoAssinar);
+      setInicio(a?.inicio || d?.inicio || ""); setFim(a?.fim || d?.fim || "");
+      setDoPlano(!!(d?.inicio && d?.fim));
+    } catch { setDoPlano(false); }
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { carregar(); }, [id]);
+
+  const assinar = async () => {
+    setMsg("");
+    if (!inicio || !fim) { setMsg("Informe o início e o último dia das férias para assinar."); return; }
+    setAssinando(true);
+    try {
+      const r = await fetch(url, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ senha, inicio, fim }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsg(d?.error || "Falha ao assinar."); return; }
+      setSenha(""); setReassinar(false);
+      setMsg(`✅ Exposição de motivos assinada no SIGEP (${d.id}).`);
+      await carregar();
+    } catch { setMsg("Falha ao assinar."); }
+    finally { setAssinando(false); }
+  };
+
+  const travado = !!assinatura && !reassinar;
   const qs = new URLSearchParams();
-  if (inicio) qs.set("inicio", inicio);
-  if (fim) qs.set("fim", fim);
-  const campo = "rounded-lg border border-[#28395a] bg-[#0a1626] px-3 py-2 text-sm text-[#E8EEF6]";
+  if (!travado && inicio) qs.set("inicio", inicio);
+  if (!travado && fim) qs.set("fim", fim);
+  const campo = "rounded-lg border border-[#28395a] bg-[#0a1626] px-3 py-2 text-sm text-[#E8EEF6] disabled:opacity-60";
+  const botao = "inline-flex items-center gap-2 rounded-lg border border-[#2b3f63] bg-[#16243a] px-4 py-2 text-sm font-semibold text-[#E8EEF6] transition hover:border-[#D4AF37] disabled:opacity-60";
   return (
     <section className="ui-card p-6">
       <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
@@ -50,24 +85,61 @@ function ExposicaoMotivos({ id }: { id: string }) {
       </h2>
       <p className="mb-4 text-[12px] text-[#94A3B8]">
         O documento em anexo deste pedido. Sai com o posto, o nome e a matrícula daqui, e assinado
-        pelo próprio requerente. {doPlano === null ? "Buscando as férias no plano…"
+        pelo próprio requerente. {assinatura ? "" : doPlano === null ? "Buscando as férias no plano…"
           : doPlano ? "O período veio do plano de férias — ajuste se precisar."
           : "Não achei férias no plano para este militar: informe o período (ou deixe em branco para completar à mão)."}
       </p>
+
+      {assinatura && (
+        <div className="mb-4 rounded-lg border border-[#1d6f3a] bg-[#0f2a1b] px-4 py-3 text-[13px] text-[#9fe6bd]">
+          ✔ Assinada no SIGEP por <b>{assinatura.nome}</b> em {new Date(assinatura.em).toLocaleString("pt-BR")} —
+          férias de {brData(assinatura.inicio)} a {brData(assinatura.fim)} · autenticação {assinatura.id}.
+          O Word sai com o carimbo e o QR de verificação.
+        </div>
+      )}
+
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-[12px] text-[#94A3B8]">Início das férias
-          <input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} className={campo} />
+          <input type="date" value={inicio} disabled={travado} onChange={(e) => setInicio(e.target.value)} className={campo} />
         </label>
         <label className="flex flex-col gap-1 text-[12px] text-[#94A3B8]">Último dia de férias
-          <input type="date" value={fim} onChange={(e) => setFim(e.target.value)} className={campo} />
+          <input type="date" value={fim} disabled={travado} onChange={(e) => setFim(e.target.value)} className={campo} />
         </label>
       </div>
-      <a
-        href={`/api/requerimentos/${encodeURIComponent(id)}/exposicao${qs.toString() ? `?${qs}` : ""}`}
-        className="inline-flex items-center gap-2 rounded-lg border border-[#2b3f63] bg-[#16243a] px-4 py-2 text-sm font-semibold text-[#E8EEF6] transition hover:border-[#D4AF37]"
-      >
-        <Download className="h-4 w-4" /> Baixar exposição de motivos (.docx)
-      </a>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <a href={`${url}${qs.toString() ? `?${qs}` : ""}`} className={botao}>
+          <Download className="h-4 w-4" /> Baixar exposição de motivos (.docx)
+        </a>
+        {possoAssinar && travado && (
+          <button type="button" className={botao} onClick={() => { setReassinar(true); setMsg(""); }}>
+            Mudar as datas e assinar de novo
+          </button>
+        )}
+      </div>
+
+      {possoAssinar && !travado && (
+        <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-[#1d2c44] pt-4">
+          <label className="flex flex-col gap-1 text-[12px] text-[#94A3B8]">Sua senha do SIGEP
+            <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && senha) assinar(); }}
+              placeholder="confirme para assinar" className={campo} />
+          </label>
+          <button type="button" onClick={assinar} disabled={assinando || !senha}
+            className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-60">
+            {assinando ? <Loader2 className="h-4 w-4 animate-spin" /> : "🔏"} {assinando ? "Assinando..." : "Assinar no SIGEP"}
+          </button>
+          {reassinar && (
+            <button type="button" className={botao} onClick={() => { setReassinar(false); setMsg(""); carregar(); }}>Cancelar</button>
+          )}
+        </div>
+      )}
+      {!possoAssinar && !assinatura && (
+        <p className="mt-3 text-[12px] text-[#94A3B8]">
+          Aguardando o requerente assinar no SIGEP (pela tela dele) — ou baixe e assine à mão/gov.br.
+        </p>
+      )}
+      {msg && <p className={"mt-3 text-[12px] " + (msg.startsWith("✅") ? "text-[#9fe6bd]" : "text-[#ffb3b3]")}>{msg}</p>}
     </section>
   );
 }
