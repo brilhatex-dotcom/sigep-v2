@@ -12,9 +12,10 @@ const TIPO_ROT: Record<string, string> = {
   escala: "Escala de Serviço",
   escala_semana_cpu: "Escala Semanal do CPU",
   requerimento_pecunia: "Requerimento de Premiação Pecuniária",
+  exposicao_arma: "Exposição de Motivos — permanência com armamento nas férias",
 };
 const PAPEL_ROT: Record<string, string> = {
-  chefe_p1: "Chefe do P/1", cmt: "Comandante do 18º BPM", requerente: "Requerente",
+  chefe_p1: "Chefe do P/1", cmt: "Comandante do 18º BPM", requerente: "Requerente", militar: "Militar interessado",
 };
 
 function dataHora(iso: string): string {
