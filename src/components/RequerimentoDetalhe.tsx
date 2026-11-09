@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Download, Loader2, Pencil, Trash2, Receipt, ExternalLink } from "lucide-react";
-import { ehModeloAquisicao, ehModeloTransferencia } from "@/lib/requerimentos";
+import { ehModeloAquisicao, ehModeloTransferencia, ehPermanenciaArma } from "@/lib/requerimentos";
 import { GRU_TAXA_PCE, competenciaAtual } from "@/lib/gru";
 import { confirmar } from "@/components/Avisos";
 
@@ -19,6 +19,58 @@ type Dados = {
   // CPF do adquirente: o contribuinte da GRU
   cpf?: string;
 };
+
+/* Anexo do pedido de permanência com o armamento nas férias. As datas vêm do
+   plano de férias do militar e podem ser ajustadas antes de baixar; sem plano,
+   o documento sai com a linha da data para completar à mão. */
+function ExposicaoMotivos({ id }: { id: string }) {
+  const [inicio, setInicio] = useState("");
+  const [fim, setFim] = useState("");
+  const [doPlano, setDoPlano] = useState<boolean | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    fetch(`/api/requerimentos/${encodeURIComponent(id)}/exposicao?sugestao=1`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!vivo) return;
+        setInicio(d?.inicio || ""); setFim(d?.fim || "");
+        setDoPlano(!!(d?.inicio && d?.fim));
+      })
+      .catch(() => { if (vivo) setDoPlano(false); });
+    return () => { vivo = false; };
+  }, [id]);
+  const qs = new URLSearchParams();
+  if (inicio) qs.set("inicio", inicio);
+  if (fim) qs.set("fim", fim);
+  const campo = "rounded-lg border border-[#28395a] bg-[#0a1626] px-3 py-2 text-sm text-[#E8EEF6]";
+  return (
+    <section className="ui-card p-6">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
+        <FileText className="h-4 w-4 text-[#D4AF37]" /> Exposição de motivos
+      </h2>
+      <p className="mb-4 text-[12px] text-[#94A3B8]">
+        O documento em anexo deste pedido. Sai com o posto, o nome e a matrícula daqui, e assinado
+        pelo próprio requerente. {doPlano === null ? "Buscando as férias no plano…"
+          : doPlano ? "O período veio do plano de férias — ajuste se precisar."
+          : "Não achei férias no plano para este militar: informe o período (ou deixe em branco para completar à mão)."}
+      </p>
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1 text-[12px] text-[#94A3B8]">Início das férias
+          <input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} className={campo} />
+        </label>
+        <label className="flex flex-col gap-1 text-[12px] text-[#94A3B8]">Último dia de férias
+          <input type="date" value={fim} onChange={(e) => setFim(e.target.value)} className={campo} />
+        </label>
+      </div>
+      <a
+        href={`/api/requerimentos/${encodeURIComponent(id)}/exposicao${qs.toString() ? `?${qs}` : ""}`}
+        className="inline-flex items-center gap-2 rounded-lg border border-[#2b3f63] bg-[#16243a] px-4 py-2 text-sm font-semibold text-[#E8EEF6] transition hover:border-[#D4AF37]"
+      >
+        <Download className="h-4 w-4" /> Baixar exposição de motivos (.docx)
+      </a>
+    </section>
+  );
+}
 
 export default function RequerimentoDetalhe({
   dados,
@@ -165,6 +217,9 @@ export default function RequerimentoDetalhe({
           </a>
         </section>
       )}
+
+      {/* Permanência com a arma nas férias: a exposição de motivos é o anexo. */}
+      {ehPermanenciaArma(dados.modalidade) && <ExposicaoMotivos id={dados.id} />}
 
       {/* Transferência: o alienante doa a arma ao adquirente. */}
       {transferencia && (

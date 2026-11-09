@@ -145,6 +145,14 @@ export const MODALIDADES_CURSOS: string[] = [
   "OUTROS",
 ];
 
+/* Ficar com a arma cautelada nas FÉRIAS. O pedido diz "conforme documento em
+   anexo": o anexo é a EXPOSIÇÃO DE MOTIVOS, que o sistema gera do mesmo
+   requerimento (lib/gerarExposicaoArma). */
+export const MODALIDADE_PERMANENCIA_ARMA = "AUTORIZAÇÃO DE PERMANÊNCIA DE ARMAMENTO";
+export function ehPermanenciaArma(modalidade: string | null | undefined): boolean {
+  return String(modalidade || "").toUpperCase().trim() === MODALIDADE_PERMANENCIA_ARMA;
+}
+
 // modalidades de ARMAMENTO E MATERIAL BELICO.
 // Usam a MESMA folha de requerimento comum: no formulario oficial nao existe
 // quadrinho proprio pra elas, entao a marcacao cai no "OUTROS" e a
