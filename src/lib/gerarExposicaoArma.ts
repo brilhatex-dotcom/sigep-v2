@@ -4,6 +4,8 @@ import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import { dataExtensoISO, hojeISO } from "@/lib/gerarParecerArma";
 import { toISO, type Afastamento } from "@/lib/afastamentosPlano";
+import { trechosComGuerra } from "@/lib/planoFeriasXlsx";
+import { ehOficial } from "@/lib/comportamento";
 
 /* =========================================================================
    EXPOSIÇÃO DE MOTIVOS — PERMANÊNCIA COM O ARMAMENTO NAS FÉRIAS
@@ -24,6 +26,10 @@ export type DadosExposicao = {
   postoGrad?: string | null;
   nomeCompleto?: string | null;
   matricula?: string | null;
+  // da ficha/requerimento: nome de guerra (negrito), número/barra e ID PMMA
+  nomeGuerra?: string | null;
+  numeroBarra?: string | null;
+  idPmma?: string | null;
   inicio?: string | null;   // aaaa-mm-dd (primeiro dia de férias)
   fim?: string | null;      // aaaa-mm-dd (último dia de férias)
   data?: string | null;     // aaaa-mm-dd do documento; vazio = hoje
@@ -74,16 +80,76 @@ export function gerarExposicaoArmaDocx(d: DadosExposicao): Buffer {
     linebreaks: true,
     delimiters: { start: "{", end: "}" },
   });
+  const mat = matriculaEId(d);
   doc.render({
-    militar: [s(d.postoGrad), s(d.nomeCompleto)].filter(Boolean).join(" ") || "______________________________",
-    matricula: s(d.matricula) || "____________",
+    militar: MARCA_MILITAR,
+    matriculaTexto: mat.texto,
+    matriculaAssinatura: mat.assinatura,
     inicio: dataBR(toISO(d.inicio)),
     fim: dataBR(toISO(d.fim)),
     data: dataExtensoISO(s(d.data) || hojeISO()),
   });
   const zip = doc.getZip();
+  // o militar entra por trechos: graduação/número/barra (ou posto) e nome de guerra em negrito
+  zip.file("word/document.xml", trocarMarcaPorTrechos(zip.file("word/document.xml")!.asText(), MARCA_MILITAR, trechosDoMilitar(d)));
   if (d.carimbo) inserirCarimbo(zip, d.carimbo);
   return zip.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
+}
+
+/* ---------------------------------------------------------------------------
+   O MILITAR, COM NEGRITO — como o P/1 escreve:
+     praça:   **3º Sargento nº 123/07** José Carlos Vieira **Moraes** dos Santos
+     oficial: **Capitão** José Carlos Vieira **Moraes** dos Santos
+   (oficial não leva número/barra). O nome de guerra é marcado dentro do nome
+   completo pela mesma regra do Plano de Férias.
+   --------------------------------------------------------------------------- */
+const MARCA_MILITAR = "§§MILITAR§§";
+export type Trecho = { t: string; b: boolean };
+
+export function trechosDoMilitar(d: DadosExposicao): Trecho[] {
+  const posto = s(d.postoGrad);
+  const barra = s(d.numeroBarra);
+  const nome = s(d.nomeCompleto);
+  const cabeca = ehOficial(posto) ? posto : [posto, barra ? `nº ${barra}` : ""].filter(Boolean).join(" ");
+  const out: Trecho[] = [];
+  if (cabeca) out.push({ t: cabeca, b: true });
+  if (nome) {
+    if (out.length) out.push({ t: " ", b: false });
+    out.push(...trechosComGuerra(nome, s(d.nomeGuerra) || null));
+  }
+  return out.length ? out : [{ t: "______________________________", b: false }];
+}
+
+/* Matrícula e ID: os dois quando diferentes; um só ("Matrícula") quando são
+   o mesmo número ou não há ID. */
+export function matriculaEId(d: DadosExposicao): { texto: string; assinatura: string } {
+  const mat = s(d.matricula);
+  const id = s(d.idPmma);
+  const so = (v: string) => v.replace(/\D/g, "");
+  const iguais = !id || (!!mat && so(mat) === so(id));
+  const m = mat || "____________";
+  return iguais
+    ? { texto: `matrícula nº ${m}`, assinatura: `Matrícula nº ${m}` }
+    : { texto: `matrícula nº ${m} e ID nº ${id}`, assinatura: `Matrícula nº ${m} / ID nº ${id}` };
+}
+
+/* Troca a marca, dentro do run onde ela caiu, por vários runs com a mesma
+   formatação do texto em volta — os do trecho em negrito ganham <w:b/>. */
+export function trocarMarcaPorTrechos(xml: string, marca: string, trechos: Trecho[]): string {
+  let pos = xml.indexOf(marca);
+  while (pos >= 0) {
+    const iniRun = Math.max(xml.lastIndexOf("<w:r>", pos), xml.lastIndexOf("<w:r ", pos));
+    const iniT = xml.lastIndexOf("<w:t", pos);
+    if (iniRun < 0 || iniT < iniRun) break;
+    const abreT = xml.indexOf(">", iniT) + 1;
+    const rPr = (xml.slice(iniRun, iniT).match(/<w:rPr>[\s\S]*?<\/w:rPr>/) || [""])[0];
+    const comNegrito = rPr ? rPr.replace("<w:rPr>", "<w:rPr><w:b/><w:bCs/>") : "<w:rPr><w:b/><w:bCs/></w:rPr>";
+    const runs = trechos.map((x) => `<w:r>${x.b ? comNegrito : rPr}<w:t xml:space="preserve">${esc(x.t)}</w:t></w:r>`).join("");
+    xml = xml.slice(0, iniT) + '<w:t xml:space="preserve">' + xml.slice(abreT, pos) + "</w:t></w:r>" + runs +
+      `<w:r>${rPr}<w:t xml:space="preserve">` + xml.slice(pos + marca.length);
+    pos = xml.indexOf(marca);
+  }
+  return xml;
 }
 
 /* ---------------------------------------------------------------------------
