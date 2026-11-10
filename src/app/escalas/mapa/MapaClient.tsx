@@ -1220,7 +1220,10 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
   const [editDia, setEditDia] = useState<{ iso: string; campo: string; label: string } | null>(null);
   const [buscaDia, setBuscaDia] = useState("");
 
-  const CAMPOS_LISTA_DIA = new Set(["ftPatrulheiro", "rpPatrulheiro", "guardaPermanente", "inteligencia"]);
+  const CAMPOS_LISTA_DIA = new Set(["ftPatrulheiro", "rpPatrulheiro", "guardaPermanente", "inteligencia", "rotem"]);
+  /* A linha "rotem" do mapa é a lista "rotemMilitares" do dia salvo (o nome
+     que a escala diária usa). As outras linhas têm o mesmo nome nos dois. */
+  const campoDoDia = (campo: string) => (campo === "rotem" ? "rotemMilitares" : campo);
 
   /* Grava o dia inteiro de volta no servidor. O dia pode ainda nem existir em
      `escalas` (nunca foi salvo): neste caso partimos do que o motor calcularia,
@@ -1252,14 +1255,15 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     const novo: Record<string, any> = { ...escalas };
     for (const m of mudancas) {
       const dia = materializar(m.iso, novo[m.iso]);
-      const anterior = dia[m.campo];
+      const f = campoDoDia(m.campo);
+      const anterior = dia[f];
       if (CAMPOS_LISTA_DIA.has(m.campo)) {
         const antes: any[] = Array.isArray(anterior) ? anterior : [];
-        dia[m.campo] = m.titulares.map((t, i) => ({
+        dia[f] = m.titulares.map((t, i) => ({
           titular: t, permuta: antes[i]?.permuta ?? null, status: antes[i]?.status ?? null, manual: true,
         }));
       } else {
-        dia[m.campo] = {
+        dia[f] = {
           titular: m.titulares[0] || "", permuta: anterior?.permuta ?? null,
           status: anterior?.status ?? null, manual: true,
         };
@@ -1357,10 +1361,10 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
     const dia: Record<string, any> = { ...base };
     const a = assignDia(iso, cadEff, {}, idDe);
     if (CAMPOS_LISTA_DIA.has(campo)) {
-      dia[campo] = ((a as any)[campo] || []).map((id: string) => ({ titular: nomeDe(id), permuta: null, status: null }));
+      dia[campoDoDia(campo)] = ((a as any)[campo] || []).map((id: string) => ({ titular: nomeDe(id), permuta: null, status: null }));
     } else {
       const id = (a as any)[campo]?.[0] || "";
-      dia[campo] = { titular: id ? nomeDe(id) : "", permuta: null, status: null };
+      dia[campoDoDia(campo)] = { titular: id ? nomeDe(id) : "", permuta: null, status: null };
     }
     const novo = { ...escalas, [iso]: dia };
     setEscalas(novo);
@@ -1374,7 +1378,7 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
 
   /* Este lugar esta travado (mexido a mao) neste dia? */
   const travado = (iso: string, campo: string): boolean => {
-    const v = escalas[iso]?.[campo];
+    const v = escalas[iso]?.[campoDoDia(campo)];
     return Array.isArray(v) ? v.some((x: any) => x?.manual) : !!v?.manual;
   };
 
@@ -2061,7 +2065,8 @@ export default function MapaClient({ servico, escopo }: { servico?: string; esco
                     /* ROTEM tem equipe propria e o CPU ja tem editor; o resto
                        passa a ser editavel DIA A DIA. Dias passados ficam de
                        fora: escala cumprida nao se altera por aqui. */
-                    const editavelDia = !ehCpu && srv.key !== "rotem" && iso >= (hoje || "");
+                    // ROTEM também: cada integrante pode ser trocado/arrastado/tirado no dia, como FT, RP e Permanente
+                    const editavelDia = !ehCpu && iso >= (hoje || "");
                     const estaTravado = editavelDia && travado(iso, srv.key);
                     return (
                       <td
