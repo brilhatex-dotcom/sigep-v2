@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { enviarParaR2 } from "@/lib/r2";
-import { gerarRequerimentoDocx } from "@/lib/gerarRequerimento";
+import { gerarRequerimentoDocx, dadosReqDe } from "@/lib/gerarRequerimento";
 import { registrar } from "@/lib/auditoria";
 
 export const dynamic = "force-dynamic";
@@ -34,35 +34,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ error: "Sem permissao" }, { status: 403 });
     }
 
-    const buffer = gerarRequerimentoDocx({
-      modelo: r.modelo,
-      modalidade: r.modalidade,
-      modalidadeOutros: r.modalidadeOutros,
-      nomeCompleto: r.nomeCompleto,
-      endereco: r.endereco,
-      complemento: r.complemento,
-      bairro: r.bairro,
-      municipio: r.municipio,
-      fone: r.fone,
-      dataNasc: r.dataNasc,
-      dataInclusao: r.dataInclusao,
-      matricula: r.matricula,
-      idPmmaTxt: r.idPmmaTxt,
-      postoGrad: r.postoGrad,
-      numeroPm: r.numeroPm,
-      tempoServico: r.tempoServico,
-      estadoCivil: r.estadoCivil,
-      opmClassificado: r.opmClassificado,
-      opmExercicio: r.opmExercicio,
-      amparoLegal: r.amparoLegal,
-      infoAdicional: r.infoAdicional,
-      cpf: r.cpf,
-      email: r.email,
-      p2Conceito: r.p2Conceito,
-      p2UltimaPromocao: r.p2UltimaPromocao,
-      p2SituacaoJur: r.p2SituacaoJur,
-      p2Complementares: r.p2Complementares,
-    });
+    const buffer = gerarRequerimentoDocx(dadosReqDe(r));
 
     const key = `requerimentos/${r.id}_${Date.now()}.docx`;
     await enviarParaR2(

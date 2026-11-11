@@ -6,6 +6,7 @@ import { FileText, Download, Loader2, Pencil, Trash2, Receipt, ExternalLink } fr
 import { ehModeloAquisicao, ehModeloTransferencia, ehPermanenciaArma } from "@/lib/requerimentos";
 import { GRU_TAXA_PCE, competenciaAtual } from "@/lib/gru";
 import { confirmar } from "@/components/Avisos";
+import { baixarDocxComoPdf } from "@/lib/docxParaPdf";
 
 type Dados = {
   id: string; modalidade: string; modelo: string; status: string;
@@ -201,6 +202,20 @@ export default function RequerimentoDetalhe({
     window.location.href = `/api/requerimentos/${dados.id}/baixar`;
   }
 
+  // PDF montado no navegador a partir do mesmo Word (ver lib/docxParaPdf)
+  const [gerandoPdf, setGerandoPdf] = useState(false);
+  async function baixarPdf() {
+    setErro(""); setGerandoPdf(true);
+    try {
+      const nome = `Requerimento_${(dados.modalidade || "req").replace(/[^A-Za-z0-9]+/g, "_")}_${dados.matricula || ""}`;
+      await baixarDocxComoPdf(`/api/requerimentos/${dados.id}/baixar`, nome);
+    } catch (e) {
+      setErro((e as Error)?.message || "Não foi possível gerar o PDF.");
+    } finally {
+      setGerandoPdf(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div>
@@ -253,18 +268,25 @@ export default function RequerimentoDetalhe({
           <FileText className="h-4 w-4 text-[#D4AF37]" /> Documento
         </h2>
         <p className="mb-4 text-[12px] text-[#94A3B8]">
-          Gere o documento no formato oficial. Baixe o Word para assinar (no sistema ou via gov.br).
+          Gere o requerimento no formato oficial. Baixe em Word (para editar ou assinar via gov.br) ou em PDF.
         </p>
         <div className="flex flex-wrap gap-3">
           <button onClick={gerar} disabled={gerando}
             className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#1a1205] transition hover:brightness-110 disabled:opacity-60">
             {gerando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-            {gerando ? "Gerando..." : (temDocx ? "Gerar novamente" : "Gerar documento")}
+            {gerando ? "Gerando..." : (temDocx ? "Gerar requerimento novamente" : "Gerar requerimento")}
           </button>
           {temDocx && (
             <button onClick={baixar}
               className="inline-flex items-center gap-2 rounded-lg border border-[#2b3f63] bg-[#16243a] px-4 py-2 text-sm font-semibold text-[#E8EEF6] transition hover:border-[#D4AF37]">
               <Download className="h-4 w-4" /> Baixar Word (.docx)
+            </button>
+          )}
+          {temDocx && (
+            <button onClick={baixarPdf} disabled={gerandoPdf}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#2b3f63] bg-[#16243a] px-4 py-2 text-sm font-semibold text-[#E8EEF6] transition hover:border-[#D4AF37] disabled:opacity-60">
+              {gerandoPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {gerandoPdf ? "Gerando PDF..." : "Baixar PDF"}
             </button>
           )}
         </div>
