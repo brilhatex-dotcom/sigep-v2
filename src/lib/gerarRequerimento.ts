@@ -414,5 +414,90 @@ export function gerarRequerimentoDocx(d: DadosReq): Buffer {
   dados.outrostxt = chaveEscolhida === "outros" && especificacao ? ` (${especificacao})` : "";
 
   doc.render(dados);
-  return doc.getZip().generate({ type: "nodebuffer" });
+  const zip = doc.getZip();
+  caberNaPagina1(zip, s(dados.amparo as string), s(dados.info as string));
+  return zip.generate({ type: "nodebuffer" });
+}
+
+/* ---------------------------------------------------------------------------
+   A PÁGINA 1 TEM TAMANHO CERTO — a 2ª começa SEMPRE em "INFORMAÇÕES DO
+   COMANDANTE DA OPM" (quebra de página no modelo). O quadro do AMPARO LEGAL
+   traz o texto e mais 3 linhas em branco; um amparo longo (ex.: o da
+   permanência de armamento, 5 linhas) estourava a página 1 e a caixa de
+   ASSINATURA DO REQUERENTE era cortada, sobrando um pedaço dela no alto da
+   página 2. Aqui o texto longo toma o lugar das linhas em branco (e, se ainda
+   faltar, a caixa das informações adicionais encolhe), para a folha 1 manter
+   o mesmo tamanho. Só mexe nos modelos que têm o quadro do amparo.
+   --------------------------------------------------------------------------- */
+const POR_LINHA_AMPARO = 88;   // caracteres por linha no quadro do amparo
+const POR_LINHA_INFO = 95;     // idem nas informações adicionais
+const LINHAS_INFO = 7;         // o que cabe na caixa das informações sem crescer
+const ALTURA_INFO = 1895;      // altura mínima da caixa no modelo (twips)
+const TWIPS_LINHA = 220;
+
+function linhasDe(texto: string, porLinha: number): number {
+  return texto.split("\n").reduce((n, l) => n + Math.max(1, Math.ceil(l.trim().length / porLinha)), 0);
+}
+
+export function caberNaPagina1(zip: PizZip, amparo: string, info: string): void {
+  const arq = zip.file("word/document.xml");
+  if (!arq) return;
+  let xml = arq.asText();
+  const iAmp = xml.indexOf("AMPARO LEGAL");
+  if (iAmp < 0) return;
+  let excesso = Math.max(0, linhasDe(amparo, POR_LINHA_AMPARO) - 1) + Math.max(0, linhasDe(info, POR_LINHA_INFO) - LINHAS_INFO);
+  if (!excesso) return;
+
+  // 1) as linhas em branco do quadro do amparo (de baixo para cima)
+  const ti = xml.indexOf("<w:tbl>", iAmp);
+  const tf = xml.indexOf("</w:tbl>", ti) + "</w:tbl>".length;
+  if (ti < 0 || tf < ti) return;
+  let tbl = xml.slice(ti, tf);
+  const linhas = tbl.match(/<w:tr[ >][\s\S]*?<\/w:tr>/g) || [];
+  for (let k = linhas.length - 1; k >= 1 && excesso > 0; k--) {
+    if (/<w:t(?:\s[^>]*)?>[^<]*[^<\s]/.test(linhas[k])) continue;   // linha com texto fica
+    const pos = tbl.lastIndexOf(linhas[k]);
+    tbl = tbl.slice(0, pos) + tbl.slice(pos + linhas[k].length);
+    excesso--;
+  }
+  xml = xml.slice(0, ti) + tbl + xml.slice(tf);
+
+  // 2) se ainda sobrar, a caixa das informações adicionais encolhe
+  if (excesso > 0) {
+    const iInfo = xml.indexOf("INFORMAÇÕES ADICIONAIS");
+    const alvo = `<w:trHeight w:val="${ALTURA_INFO}"`;
+    const iAlt = iInfo >= 0 ? xml.indexOf(alvo, iInfo) : -1;
+    if (iAlt >= 0) {
+      const nova = Math.max(800, ALTURA_INFO - excesso * TWIPS_LINHA);
+      xml = xml.slice(0, iAlt) + `<w:trHeight w:val="${nova}"` + xml.slice(iAlt + alvo.length);
+    }
+  }
+  zip.file("word/document.xml", xml);
+}
+
+
+/* Os dados do Word a partir do registro do requerimento — um lugar só, para
+   o "gerar" e o "baixar" (que refaz os Words do layout antigo) montarem igual. */
+export function dadosReqDe(r: any): DadosReq {
+  return {
+    modelo: r.modelo, modalidade: r.modalidade, modalidadeOutros: r.modalidadeOutros,
+    nomeCompleto: r.nomeCompleto, endereco: r.endereco, complemento: r.complemento,
+    bairro: r.bairro, municipio: r.municipio, fone: r.fone, dataNasc: r.dataNasc,
+    dataInclusao: r.dataInclusao, matricula: r.matricula, idPmmaTxt: r.idPmmaTxt,
+    postoGrad: r.postoGrad, numeroPm: r.numeroPm, tempoServico: r.tempoServico,
+    estadoCivil: r.estadoCivil, opmClassificado: r.opmClassificado, opmExercicio: r.opmExercicio,
+    amparoLegal: r.amparoLegal, infoAdicional: r.infoAdicional, cpf: r.cpf, email: r.email,
+    p2Conceito: r.p2Conceito, p2UltimaPromocao: r.p2UltimaPromocao, p2SituacaoJur: r.p2SituacaoJur,
+    p2Complementares: r.p2Complementares,
+  } as DadosReq;
+}
+
+/* Word gerado ANTES da correção do layout (a 2ª página começava pela sobra da
+   caixa de assinatura): os modelos com a página do Comandante passaram a ter
+   uma quebra de página explícita. Sem ela, o Word guardado é do layout velho. */
+export function docxDoLayoutAntigo(buffer: Buffer): boolean {
+  try {
+    const xml = new PizZip(buffer).file("word/document.xml")?.asText() || "";
+    return xml.includes("INFORMAÇÕES DO COMANDANTE") && !xml.includes('<w:br w:type="page"/>');
+  } catch { return false; }
 }
