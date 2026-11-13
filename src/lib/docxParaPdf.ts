@@ -59,13 +59,20 @@ function acertarDesenho(raiz: HTMLElement, recuos: number[]) {
   }
 }
 
-export async function baixarDocxComoPdf(urlDocx: string, nomeArquivo: string): Promise<void> {
-  const r = await fetch(urlDocx);
-  if (!r.ok) {
-    const d = await r.json().catch(() => null);
-    throw new Error(d?.error || "Não foi possível obter o documento.");
+/* `origem`: o endereço do .docx (GET) ou o próprio arquivo já baixado (ex.: o
+   memorando, que sai de um POST). */
+export async function baixarDocxComoPdf(origem: string | Blob, nomeArquivo: string): Promise<void> {
+  let buf: ArrayBuffer;
+  if (typeof origem === "string") {
+    const r = await fetch(origem);
+    if (!r.ok) {
+      const d = await r.json().catch(() => null);
+      throw new Error(d?.error || "Não foi possível obter o documento.");
+    }
+    buf = await r.arrayBuffer();
+  } else {
+    buf = await origem.arrayBuffer();
   }
-  const buf = await r.arrayBuffer();
   const [{ renderAsync }, { toJpeg }, { jsPDF }, recuos] = await Promise.all([
     import("docx-preview"),
     import("html-to-image"),

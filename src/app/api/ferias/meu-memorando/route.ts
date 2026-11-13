@@ -6,6 +6,7 @@ import { conferirSenha } from "@/lib/senha";
 import { criarAssinaturas , origemDaRequisicao} from "@/lib/assinaturaSigep";
 import { memorandosDoMilitar, conteudoAssinatura } from "@/lib/memorandoFerias";
 import { enviarParaAdmins } from "@/lib/push";
+import { ASSINATURA_SIGEP_DO_MILITAR } from "@/lib/assinaturaMemorandoMilitar";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,12 @@ export async function POST(req: Request) {
   const login = u?.login as string | undefined;
   if (!login) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
   if (!meuId) return NextResponse.json({ error: "Seu login não está vinculado a uma ficha. Procure o P/1." }, { status: 400 });
+  // por enquanto o militar assina pelo gov.br ou à mão (ver lib/assinaturaMemorandoMilitar)
+  if (!ASSINATURA_SIGEP_DO_MILITAR) {
+    return NextResponse.json(
+      { error: "Por enquanto o memorando é assinado pelo gov.br ou à mão: baixe o PDF, assine e entregue ao P/1." },
+      { status: 409 });
+  }
 
   try {
     const b = await req.json();
