@@ -5,6 +5,8 @@ import {
   FileSignature, Eye, Download, Check, Loader2, X, ChevronDown, CalendarDays,
   Sun, Clock, History, PauseCircle, Lock,
 } from "lucide-react";
+import { ASSINATURA_SIGEP_DO_MILITAR, URL_ASSINADOR_GOVBR } from "@/lib/assinaturaMemorandoMilitar";
+import { baixarDocxComoPdf } from "@/lib/docxParaPdf";
 import MemorandoFerias, {
   type DadosMemorando, dataExtenso, hojeExtenso, linhaAo, linhaAssinaturaDestino, OBS_PADRAO,
 } from "@/components/MemorandoFerias";
@@ -188,8 +190,10 @@ export default function MinhasFeriasPainel({ cartoes }: { cartoes: CartaoFerias[
     finally { setEnviando(false); }
   }
 
-  /* O .docx com os MESMOS campos do memorando que a seção emite. */
-  async function baixar(m: Memo) {
+  /* O .docx com os MESMOS campos do memorando que a seção emite. Em PDF
+     (montado no navegador a partir do mesmo Word), é o que o assinador do
+     gov.br assina. */
+  async function baixar(m: Memo, formato: "docx" | "pdf" = "docx") {
     setBaixando(m.ref + m.tipo); setErro("");
     const ehLP = m.tipo === "memorando_lp";
     const d = dadosDo(m);
@@ -212,10 +216,15 @@ export default function MinhasFeriasPainel({ cartoes }: { cartoes: CartaoFerias[
         }),
       });
       if (!res.ok) throw new Error();
+      const nome = `Memorando_${ehLP ? "LicencaPremio" : "Ferias"}_${m.anoGozo}_18BPM`;
+      if (formato === "pdf") {
+        await baixarDocxComoPdf(await res.blob(), nome);
+        return;
+      }
       const url = URL.createObjectURL(await res.blob());
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Memorando_${ehLP ? "LicencaPremio" : "Ferias"}_${m.anoGozo}_18BPM.docx`;
+      a.download = `${nome}.docx`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 4000);
     } catch {
@@ -331,7 +340,7 @@ export default function MinhasFeriasPainel({ cartoes }: { cartoes: CartaoFerias[
 /* ------------------------------------------------------------ cartão */
 
 type Acoes = {
-  ver: (m: Memo) => void; assinar: (m: Memo) => void; baixar: (m: Memo) => void; baixando: string | null;
+  ver: (m: Memo) => void; assinar: (m: Memo) => void; baixar: (m: Memo, formato?: "docx" | "pdf") => void; baixando: string | null;
 };
 
 function Selo({ sit, adiado }: { sit: Situacao; adiado: boolean }) {
@@ -461,8 +470,14 @@ function Cartao({ item, hoje, grande = false, carregando, acoes }: {
 
 /* As três etapas do memorando, acesas conforme andam. */
 function BlocoMemorando({ m, passou, acoes }: { m: Memo; passou: boolean; acoes: Acoes }) {
+  /* Assinatura do militar pelo SIGEP suspensa (ver lib/assinaturaMemorandoMilitar):
+     ele assina pelo gov.br ou à mão — o sistema não acompanha esse passo, então
+     a etapa 1 só "fecha" quando a seção assina. */
+  const viaSigep = ASSINATURA_SIGEP_DO_MILITAR;
   const etapas = [
-    { rotulo: "Você assina", feito: !!m.assinaturaMilitar, quando: m.assinaturaMilitar?.em },
+    viaSigep
+      ? { rotulo: "Você assina", feito: !!m.assinaturaMilitar, quando: m.assinaturaMilitar?.em }
+      : { rotulo: "Você assina (gov.br ou à mão)", feito: !!m.assinaturaMilitar || m.estado === "concluido", quando: m.assinaturaMilitar?.em },
     { rotulo: "A seção (P/1) assina", feito: !!m.assinaturaChefe, quando: m.assinaturaChefe?.em },
     { rotulo: "Pronto para baixar", feito: m.estado === "concluido", quando: undefined },
   ];
@@ -471,9 +486,18 @@ function BlocoMemorando({ m, passou, acoes }: { m: Memo; passou: boolean; acoes:
   const chave = m.ref + m.tipo;
 
   let oQueFazer: React.ReactNode;
-  if (m.estado === "concluido") oQueFazer = <><b>Memorando pronto.</b> Assinado por você e pela seção — pode ver ou baixar quando precisar.</>;
+  if (m.estado === "concluido") oQueFazer = viaSigep
+    ? <><b>Memorando pronto.</b> Assinado por você e pela seção — pode ver ou baixar quando precisar.</>
+    : <><b>Memorando pronto.</b> Assinado pela seção — pode ver ou baixar quando precisar.</>;
   else if (m.estado === "assinado_militar") oQueFazer = <><b>Você já assinou.</b> Agora é com a seção: quando o P/1 assinar, chega um aviso no seu celular.</>;
   else if (bloqueado) oQueFazer = <><b>Nada a fazer agora.</b> A assinatura abre em <b>{m.liberaEmBR}</b>, 30 dias antes das férias. Você já pode ver o documento.</>;
+  else if (!viaSigep) oQueFazer = (
+    <>
+      <b>Assine pelo gov.br ou à mão.</b> Baixe o memorando em PDF e assine no{" "}
+      <a href={URL_ASSINADOR_GOVBR} target="_blank" rel="noreferrer" className="font-semibold text-[#D4AF37] underline">assinador do gov.br</a>{" "}
+      — ou imprima e assine à mão — e entregue ao P/1.
+    </>
+  );
   else oQueFazer = <><b>Falta a sua assinatura.</b> Confira o memorando e assine — leva menos de um minuto.</>;
 
   return (
@@ -506,7 +530,20 @@ function BlocoMemorando({ m, passou, acoes }: { m: Memo; passou: boolean; acoes:
 
       {/* um botão principal; os outros discretos */}
       <div className="flex flex-col gap-2 sm:flex-row">
-        {m.estado === "pendente" && m.liberado && !passou && (
+        {!viaSigep && m.estado === "pendente" && m.liberado && !passou && (
+          <>
+            <button onClick={() => acoes.baixar(m, "pdf")} disabled={acoes.baixando === chave}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2.5 text-sm font-bold text-[#1a1205] transition hover:brightness-110 disabled:opacity-60">
+              {acoes.baixando === chave ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {acoes.baixando === chave ? "Gerando…" : "Baixar PDF para assinar"}
+            </button>
+            <a href={URL_ASSINADOR_GOVBR} target="_blank" rel="noreferrer"
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#D4AF37]/60 px-4 py-2.5 text-sm font-semibold text-[#D4AF37] transition hover:bg-[#D4AF37]/10">
+              <FileSignature className="h-4 w-4" /> Assinar no gov.br
+            </a>
+          </>
+        )}
+        {viaSigep && m.estado === "pendente" && m.liberado && !passou && (
           <button onClick={() => acoes.assinar(m)}
             className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#D4AF37] px-4 py-2.5 text-sm font-bold text-[#1a1205] transition hover:brightness-110">
             <FileSignature className="h-4 w-4" /> Assinar memorando
@@ -526,7 +563,7 @@ function BlocoMemorando({ m, passou, acoes }: { m: Memo; passou: boolean; acoes:
         {m.estado !== "concluido" && (
           <button onClick={() => acoes.baixar(m)} disabled={acoes.baixando === chave}
             className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/10 px-4 py-2.5 text-sm text-[#94A3B8] transition hover:text-white disabled:opacity-60">
-            {acoes.baixando === chave ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Baixar
+            {acoes.baixando === chave ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} {viaSigep ? "Baixar" : "Baixar Word"}
           </button>
         )}
       </div>
