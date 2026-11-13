@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { nomeDocumento, disposicaoArquivo } from "@/lib/nomeArquivo";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -55,25 +56,22 @@ export async function GET(req: Request) {
 
     const { bytes, contentType } = await gerarDocumentoJms(registro.tipo, fmt, dados);
 
-    // "Oficio 097-2026 - 2º Sgt Arodo.pdf"
+    // "Ofício JMS 097 2026 - 2º Sargento Arodo.pdf"
     const ficha = await prisma.efetivo.findUnique({
       where: { id: registro.idPmma },
       select: { postoGrad: true, nomeGuerra: true, nome: true },
     }).catch(() => null);
-    const quem = [ficha?.postoGrad, ficha?.nomeGuerra || ficha?.nome || registro.nome].filter(Boolean).join(" ").trim();
     const num = String(dados.numero || "").trim();
-    const nome = [
-      registro.tipo === "oficio" ? "Oficio JMS" : "Guia JMS",
-      num ? `${num}-${registro.ano}` : "",
-      quem ? `- ${quem}` : "",
-    ].filter(Boolean).join(" ").replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim();
-    const ascii = nome.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\x20-\x7e]/g, "");
+    const nome = nomeDocumento(
+      `${registro.tipo === "oficio" ? "Ofício JMS" : "Guia de Encaminhamento JMS"}${num ? ` ${num}` : ""} ${registro.ano || ""}`.trim(),
+      { postoGrad: ficha?.postoGrad, nomeGuerra: ficha?.nomeGuerra, nome: ficha?.nome || registro.nome },
+    );
 
     return new NextResponse(new Uint8Array(bytes), {
       status: 200,
       headers: {
         "Content-Type": contentType,
-        "Content-Disposition": `${ver ? "inline" : "attachment"}; filename="${ascii}.${fmt}"; filename*=UTF-8''${encodeURIComponent(nome)}.${fmt}`,
+        "Content-Disposition": disposicaoArquivo(nome, fmt, ver),
         "Cache-Control": "no-store",
       },
     });

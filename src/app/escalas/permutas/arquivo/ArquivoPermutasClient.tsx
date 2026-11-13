@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Search, Eye, FileDown, MapPin, Loader2 } from "lucide-react";
 import SolicitacaoPermutaDoc, { type PermutaDoc } from "@/components/SolicitacaoPermutaDoc";
 import { avisar } from "@/components/Avisos";
+import { nomeDaResposta } from "@/lib/nomeArquivo";
 
 type Item = PermutaDoc & { localId: string; localRotulo: string; lotacao: string; criadoEm: string };
 type Local = { id: string; rotulo: string };
@@ -73,7 +74,7 @@ export default function ArquivoPermutasClient() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Permuta_${(p.protocolo || p.solicitante.linha).replace(/[^\w]+/g, "_")}.docx`;
+      a.download = nomeDaResposta(res, "Permuta de Serviço.docx");
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 4000);
     } catch { avisar("Erro ao gerar o Word."); }

@@ -16,6 +16,8 @@
    As bibliotecas só carregam no clique (import dinâmico).
    ========================================================================= */
 
+import { nomeDaResposta } from "@/lib/nomeArquivo";
+
 const TWIP_PX = 96 / 1440;
 
 // o recuo de cada tabela, na ordem em que aparecem no documento
@@ -60,8 +62,10 @@ function acertarDesenho(raiz: HTMLElement, recuos: number[]) {
 }
 
 /* `origem`: o endereço do .docx (GET) ou o próprio arquivo já baixado (ex.: o
-   memorando, que sai de um POST). */
-export async function baixarDocxComoPdf(origem: string | Blob, nomeArquivo: string): Promise<void> {
+   memorando, que sai de um POST). Sem `nomeArquivo`, usa o nome que o
+   servidor deu ao Word ("Requerimento ... - Soldado Lucas"), trocando a
+   extensão. */
+export async function baixarDocxComoPdf(origem: string | Blob, nomeArquivo?: string): Promise<void> {
   let buf: ArrayBuffer;
   if (typeof origem === "string") {
     const r = await fetch(origem);
@@ -69,6 +73,7 @@ export async function baixarDocxComoPdf(origem: string | Blob, nomeArquivo: stri
       const d = await r.json().catch(() => null);
       throw new Error(d?.error || "Não foi possível obter o documento.");
     }
+    if (!nomeArquivo) nomeArquivo = nomeDaResposta(r, "documento").replace(/\.docx$/i, "");
     buf = await r.arrayBuffer();
   } else {
     buf = await origem.arrayBuffer();
@@ -102,6 +107,7 @@ export async function baixarDocxComoPdf(origem: string | Blob, nomeArquivo: stri
       if (i > 0) pdf.addPage("a4", "portrait");
       pdf.addImage(img, "JPEG", 0, 0, 210, 297);
     }
+    if (!nomeArquivo) nomeArquivo = "documento";
     pdf.save(nomeArquivo.endsWith(".pdf") ? nomeArquivo : `${nomeArquivo}.pdf`);
   } finally {
     raiz.remove();

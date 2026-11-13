@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { nomeDocumento, disposicaoArquivo } from "@/lib/nomeArquivo";
+import { militarDoEfetivo } from "@/lib/nomeArquivoServidor";
 import { gerarGruDocx } from "@/lib/gerarGruDocx";
 import { ehModeloAquisicao } from "@/lib/requerimentos";
 
@@ -31,7 +33,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   try {
     const r = await prisma.requerimento.findUnique({
       where: { id },
-      select: { efetivoId: true, modelo: true, nomeCompleto: true, cpf: true, matricula: true },
+      select: { efetivoId: true, modelo: true, nomeCompleto: true, cpf: true, matricula: true, postoGrad: true },
     });
     if (!r) return NextResponse.json({ error: "Requerimento nao encontrado" }, { status: 404 });
     if (!admin && r.efetivoId !== meuEfetivo) {
@@ -46,16 +48,13 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
     const buffer = await gerarGruDocx({ nome: r.nomeCompleto, cpf: r.cpf });
 
-    const nomeArquivo = `Instrucoes_GRU_${(r.nomeCompleto || r.matricula || "militar")
-      .normalize("NFD").replace(/[̀-ͯ]/g, "")
-      .replace(/[^A-Za-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "")}.docx`;
+    const nomeArquivo = nomeDocumento("Instruções GRU", await militarDoEfetivo(r.efetivoId, { postoGrad: r.postoGrad, nome: r.nomeCompleto }));
 
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="${nomeArquivo}"`,
+        "Content-Disposition": disposicaoArquivo(nomeArquivo, "docx"),
       },
     });
   } catch (err) {

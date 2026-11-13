@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Printer, Pencil, Check, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, FileDown, Loader2 } from "lucide-react";
+import { nomeDocumento, imprimirComNome } from "@/lib/nomeArquivo";
 import CarimboSigep from "@/components/CarimboSigep";
 import { avisar } from "@/components/Avisos";
 
@@ -234,6 +235,8 @@ function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe, tipoAs
   somenteLeitura?: boolean;
 }) {
   const ehLicenca = variante === "licenca";
+  // nome do arquivo (Word e "Salvar como PDF"): o documento + graduação e nome de guerra
+  const nomeArquivoMemo = nomeDocumento(`Memorando de ${ehLicenca ? "Licença-Prêmio" : "Férias"} ${ano}`, dados);
   // Assinatura AVANÇADA do Chefe do P/1 (SIGEP) para ESTE memorando, se houver.
   const [assP1, setAssP1] = useState<{ id: string; token: string; nome: string; cargo: string; em: string } | null>(null);
   // Visto AVANÇADO do Comandante (SIGEP) para ESTE memorando, se houver.
@@ -343,7 +346,7 @@ function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe, tipoAs
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Memorando_${campos.numero.current}_${ano}_18BPM.docx`;
+      a.download = `${nomeArquivoMemo}.docx`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -412,7 +415,7 @@ function MemorandoDoc({ dados, ano, onFechar, variante = "ferias", chefe, tipoAs
               {editando ? <><Check className="h-4 w-4" /> Pronto</> : <><Pencil className="h-4 w-4" /> Editar</>}
             </button>
           )}
-          <button onClick={() => window.print()}
+          <button onClick={() => imprimirComNome(nomeArquivoMemo)}
             className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium hover:bg-blue-700">
             <Printer className="h-4 w-4" /> Imprimir / PDF
           </button>

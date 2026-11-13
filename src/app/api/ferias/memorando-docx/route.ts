@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { disposicaoArquivo } from "@/lib/nomeArquivo";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { gerarMemorandoDocx, type MemorandoDocxInput } from "@/lib/memorandoDocx";
@@ -43,13 +44,14 @@ export async function POST(req: Request) {
     };
 
     const buffer = await gerarMemorandoDocx(campos);
-    const nomeArquivo = `Memorando_${campos.numero || "s-n"}_${campos.ano}_18BPM.docx`;
+    // o nome final quem dá é a tela (graduação + nome de guerra); este é o de reserva
+    const nomeArquivo = String((body as any).nomeArquivo || "").trim() || `Memorando ${campos.ano} - 18º BPM`;
 
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="${nomeArquivo}"`,
+        "Content-Disposition": disposicaoArquivo(nomeArquivo.replace(/\.docx$/, ""), "docx"),
       },
     });
   } catch (err) {

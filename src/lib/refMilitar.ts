@@ -34,7 +34,11 @@ export function refMilitar(m: MilitarLite): string {
    O grau sai COM o número da barra ("SD PM 169/24"): é assim que o modelo do
    FATD escreve o grau hierárquico e assina. Sem correspondência no efetivo,
    devolve o texto livre como nome. */
-export type DadosPessoa = { grau: string; nome: string; rg: string };
+export type DadosPessoa = {
+  grau: string; nome: string; rg: string;
+  // para o NOME DO ARQUIVO ("FATD 12/2026 - Soldado Gleydson")
+  posto?: string; guerra?: string;
+};
 
 export function dadosDoTexto(texto: string, efetivo: MilitarLite[]): DadosPessoa | null {
   const s = (texto || "").trim();
@@ -47,7 +51,7 @@ export function dadosDoTexto(texto: string, efetivo: MilitarLite[]): DadosPessoa
   if (!m) return { grau: "", nome: s, rg: "" };
   const nome = (m.nome || m.nomeGuerra || "").trim();
   const grau = refMilitar(m).replace(nome, "").replace(/\s+/g, " ").trim();
-  return { grau, nome, rg: (m.rg || "").trim() };
+  return { grau, nome, rg: (m.rg || "").trim(), posto: (m.postoGrad || "").trim(), guerra: (m.nomeGuerra || "").trim() };
 }
 
 /* "SD PM 169/24 GLEYDSON ROBSON ROCHA DA SILVA" — linha de assinatura. */

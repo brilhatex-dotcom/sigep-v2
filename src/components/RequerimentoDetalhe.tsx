@@ -207,8 +207,8 @@ export default function RequerimentoDetalhe({
   async function baixarPdf() {
     setErro(""); setGerandoPdf(true);
     try {
-      const nome = `Requerimento_${(dados.modalidade || "req").replace(/[^A-Za-z0-9]+/g, "_")}_${dados.matricula || ""}`;
-      await baixarDocxComoPdf(`/api/requerimentos/${dados.id}/baixar`, nome);
+      // o nome vem do servidor: "Requerimento <modalidade> - Soldado Lucas"
+      await baixarDocxComoPdf(`/api/requerimentos/${dados.id}/baixar`);
     } catch (e) {
       setErro((e as Error)?.message || "Não foi possível gerar o PDF.");
     } finally {

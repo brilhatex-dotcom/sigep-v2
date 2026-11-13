@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { nomeDocumento } from "@/lib/nomeArquivo";
 import { Pencil, Check, Loader2, BookmarkCheck } from "lucide-react";
 import {
   BuscaMilitar, Campo, Cabecalho, BlocoAssinatura, SeletorAssinatura, BotoesDocumento,
@@ -200,7 +201,7 @@ export default function GuiaEncaminhamento() {
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <BotoesDocumento
                 tipo="guia"
-                nomeArquivo={`guia-jms-${(numero || "sn").replace(/\W+/g, "") || "sn"}-${ano}`}
+                nomeArquivo={nomeDocumento(`Guia de Encaminhamento JMS${numero ? ` ${numero}` : ""} ${ano}`, sel)}
                 dados={dadosDoc}
                 aoEmitir={atualizarCopia}
               />

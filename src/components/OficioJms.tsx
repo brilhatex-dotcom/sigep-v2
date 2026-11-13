@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { nomeDocumento } from "@/lib/nomeArquivo";
 import { Pencil, Check } from "lucide-react";
 import {
   BuscaMilitar, Campo, Cabecalho, BlocoAssinatura, SeletorAssinatura, BotoesDocumento,
@@ -120,7 +121,7 @@ export default function OficioJms() {
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <BotoesDocumento
                 tipo="oficio"
-                nomeArquivo={`oficio-jms-${(numero || "sn").replace(/\W+/g, "") || "sn"}-${ano}`}
+                nomeArquivo={nomeDocumento(`Ofício JMS${numero ? ` ${numero}` : ""} ${ano}`, sel)}
                 dados={dadosDoc}
                 aoEmitir={registrarEmissao}
               />

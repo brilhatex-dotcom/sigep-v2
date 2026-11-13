@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { nomeDocumento, disposicaoArquivo } from "@/lib/nomeArquivo";
+import { militarDoTexto } from "@/lib/nomeArquivoServidor";
 import { gerarTermoDocx, TERMO_LABEL, type TermoModelo } from "@/lib/termoDocx";
 import { lerChefes } from "@/lib/disciplinarChefes";
 import { obter } from "@/lib/disciplinarDb";
@@ -31,12 +33,13 @@ export async function GET(req: Request) {
     if (!reg) return NextResponse.json({ error: "Procedimento nao encontrado" }, { status: 404 });
 
     const buffer = await gerarTermoDocx(reg, modelo, await lerChefes());
-    const nome = `${TERMO_LABEL[modelo].replace(/\s+/g, "_")}_${String(reg.portaria || reg.numero || "sn").replace(/[^\w]+/g, "_")}.docx`;
+    const numRef = String(reg.portaria || "").replace(/port(aria)?\.?\s*/i, "").trim() || String(reg.numero || "").trim();
+    const nome = nomeDocumento(`${TERMO_LABEL[modelo]} ${numRef}`.trim(), await militarDoTexto(reg.envolvido));
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="${nome}"`,
+        "Content-Disposition": disposicaoArquivo(nome, "docx"),
       },
     });
   } catch (err) {

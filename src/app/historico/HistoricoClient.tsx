@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { nomeDocumento, nomeDaResposta } from "@/lib/nomeArquivo";
 import { Search, Save, FileDown, FileType2, Loader2, Check, Sparkles, ArrowLeft, Clock, Upload, X } from "lucide-react";
 import {
   SECOES, CAMPOS_PESSOAIS, CAMPOS_FUNCIONAIS, rotulosFormacao,
@@ -182,7 +183,7 @@ export default function HistoricoClient() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `historico-${(sel.nomeGuerra || sel.nome || "militar").replace(/\W+/g, "_")}.${fmt}`;
+      a.download = nomeDaResposta(r, `${nomeDocumento("Histórico Funcional", sel)}.${fmt}`);
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
       carregarLista();

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Printer, FileDown, Loader2, Info } from "lucide-react";
 import { avisar } from "@/components/Avisos";
+import { nomeDocumento, nomeDaResposta, militarDaLinha, imprimirComNome } from "@/lib/nomeArquivo";
 
 /* =========================================================================
    PortariaDoc — Portaria de Instauração de procedimento apuratório
@@ -73,7 +74,8 @@ export default function PortariaDoc({ reg, comandante = "", modelo = "instauraca
   // o campo "portaria" (limpo do prefixo) ou o número do procedimento.
   const numInstauracao = (reg.portaria || "").replace(/port(aria)?\.?\s*/i, "").trim() || (reg.numero || "").trim() || `______/${ANO}`;
   const numExib = (numeroAuto || "").trim() || (modelo === "instauracao" ? numInstauracao : `______/${ANO}`);
-  const rotulo = modelo === "prorrogacao" ? "Prorrogacao" : modelo === "escrivao" ? "Escrivao" : "Instauracao";
+  const rotulo = modelo === "prorrogacao" ? "Prorrogação" : modelo === "escrivao" ? "Escrivão" : "Instauração";
+  const nomePortaria = nomeDocumento(`Portaria de ${rotulo} ${info.sigla} ${numExib.includes("___") ? "" : numExib}`.replace(/\s+/g, " ").trim(), militarDaLinha(reg.envolvido, true));
 
   async function baixarWord() {
     setBaixandoWord(true);
@@ -84,7 +86,7 @@ export default function PortariaDoc({ reg, comandante = "", modelo = "instauraca
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Portaria_${rotulo}_${info.sigla}_${numExib.replace(/[^\w]+/g, "_")}.docx`;
+      a.download = nomeDaResposta(res, `${nomePortaria}.docx`);
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch { avisar("Erro de conexão ao gerar o Word."); }
@@ -97,7 +99,7 @@ export default function PortariaDoc({ reg, comandante = "", modelo = "instauraca
         <span className="mr-auto inline-flex items-center gap-1.5 text-xs text-[#8fa3bf]">
           <Info className="h-3.5 w-3.5" /> Clique no documento para ajustar qualquer texto antes de imprimir.
         </span>
-        <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
+        <button onClick={() => imprimirComNome(nomePortaria)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
           <Printer className="h-4 w-4" /> Baixar PDF
         </button>
         <button onClick={baixarWord} disabled={baixandoWord} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-800 disabled:opacity-60">
