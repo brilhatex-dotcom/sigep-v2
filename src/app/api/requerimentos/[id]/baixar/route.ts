@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { nomeDocumento, disposicaoArquivo } from "@/lib/nomeArquivo";
+import { militarDoEfetivo } from "@/lib/nomeArquivoServidor";
 import { baixarDoR2, enviarParaR2 } from "@/lib/r2";
 import { gerarRequerimentoDocx, dadosReqDe, docxDoLayoutAntigo } from "@/lib/gerarRequerimento";
 
@@ -48,13 +50,13 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         console.error("[baixar] não refez o Word antigo", e); // desce o que havia
       }
     }
-    const nomeArquivo = `Requerimento_${(r.modalidade || "req").replace(/[^A-Za-z0-9]+/g, "_")}_${r.matricula || ""}.docx`;
+    const nomeArquivo = nomeDocumento(`Requerimento ${r.modalidade || ""}`, await militarDoEfetivo(r.efetivoId, { postoGrad: r.postoGrad, nome: r.nomeCompleto }));
 
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="${nomeArquivo}"`,
+        "Content-Disposition": disposicaoArquivo(nomeArquivo, "docx"),
       },
     });
   } catch (err) {

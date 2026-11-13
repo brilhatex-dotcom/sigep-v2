@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { nomeDocumento, imprimirComNome } from "@/lib/nomeArquivo";
 import { Printer, Save, Loader2, RotateCcw } from "lucide-react";
 import { classificarPatente } from "@/lib/patentes";
 import { BuscaMilitar, Campo, Cabecalho, ESTILO_FOLHA, FOLHA_A4, type Militar } from "@/components/docs/Comum";
@@ -105,7 +106,7 @@ export default function FichaCredor() {
         body: JSON.stringify({ idPmma: sel.id, nome, campos }),
       }).then(() => carregarFeitas()).catch(() => { /* a ficha já saiu; o registro não pode atrapalhar */ });
     }
-    window.print();
+    imprimirComNome(nomeDocumento("Ficha do Credor", sel));
   };
 
   // Abrir uma ficha feita: a folha volta como saiu; o "original" é o cadastro

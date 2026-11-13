@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { nomeDocumento, imprimirComNome } from "@/lib/nomeArquivo";
 import { Printer, Save, Loader2, Plus, Trash2, Pencil, Check, Users, ChevronDown, ChevronUp } from "lucide-react";
 import {
   BuscaMilitar, BuscaMilitarMultiplo, Campo, Cabecalho, BlocoAssinatura, SeletorAssinatura,
@@ -295,7 +296,7 @@ export default function FichaControleIndividual() {
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110">
+              <button onClick={() => imprimirComNome(nomeDocumento(`Ficha de Controle Individual ${ano}`, sel))} className="inline-flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-1.5 text-sm font-semibold text-[#1a1205] transition hover:brightness-110">
                 <Printer className="h-4 w-4" /> Imprimir
               </button>
               <button onClick={() => setViagens((l) => [...l, novaViagem()])} className="inline-flex items-center gap-1.5 rounded-lg border border-[#D4AF37]/40 px-3 py-1.5 text-sm text-[#D4AF37] transition hover:bg-[#D4AF37]/10">

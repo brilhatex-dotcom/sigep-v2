@@ -5,6 +5,7 @@ import {
   FileSignature, Eye, Download, Check, Loader2, X, ChevronDown, CalendarDays,
   Sun, Clock, History, PauseCircle, Lock,
 } from "lucide-react";
+import { nomeDocumento } from "@/lib/nomeArquivo";
 import { ASSINATURA_SIGEP_DO_MILITAR, URL_ASSINADOR_GOVBR } from "@/lib/assinaturaMemorandoMilitar";
 import { baixarDocxComoPdf } from "@/lib/docxParaPdf";
 import MemorandoFerias, {
@@ -216,7 +217,7 @@ export default function MinhasFeriasPainel({ cartoes }: { cartoes: CartaoFerias[
         }),
       });
       if (!res.ok) throw new Error();
-      const nome = `Memorando_${ehLP ? "LicencaPremio" : "Ferias"}_${m.anoGozo}_18BPM`;
+      const nome = nomeDocumento(`Memorando de ${ehLP ? "Licença-Prêmio" : "Férias"} ${m.anoGozo}`, { postoGrad: m.postoGrad, nomeGuerra: m.nomeGuerra, nome: m.nome });
       if (formato === "pdf") {
         await baixarDocxComoPdf(await res.blob(), nome);
         return;

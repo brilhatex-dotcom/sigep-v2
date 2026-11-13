@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { lerPermutas } from "@/lib/permutaPedidos";
 import { gerarPermutaDocx } from "@/lib/permutaDocx";
+import { nomeDocumento, disposicaoArquivo } from "@/lib/nomeArquivo";
+import { militarDoEfetivo } from "@/lib/nomeArquivoServidor";
 
 export const dynamic = "force-dynamic";
 
@@ -30,12 +32,13 @@ export async function GET(req: Request) {
     }
 
     const buffer = await gerarPermutaDocx(p);
-    const nome = `Permuta_${(p.solicitante.linha || "").replace(/[^\w]+/g, "_")}_${p.dataPermuta}.docx`;
+    const dia = String(p.dataPermuta || "").split("-").reverse().join("-");
+    const nome = nomeDocumento(`Permuta de Serviço ${dia}`.trim(), await militarDoEfetivo(p.solicitanteId, { nome: p.solicitante.nome }));
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="${nome}"`,
+        "Content-Disposition": disposicaoArquivo(nome, "docx"),
       },
     });
   } catch (err) {

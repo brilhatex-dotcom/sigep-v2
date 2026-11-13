@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { nomeDocumento, disposicaoArquivo } from "@/lib/nomeArquivo";
+import { militarDoTexto } from "@/lib/nomeArquivoServidor";
 import { gerarPortariaDocx, type PortariaModelo } from "@/lib/portariaDocx";
 import { lerChefes } from "@/lib/disciplinarChefes";
 import { obter, obterOuAtribuirNumero } from "@/lib/disciplinarDb";
@@ -32,12 +34,15 @@ export async function GET(req: Request) {
     // prorrogação/escrivão usam o número automático (mesmo da tela); instauração usa o campo portaria.
     const numeroAuto = modelo === "instauracao" ? "" : await obterOuAtribuirNumero(id, modelo === "prorrogacao" ? "prorrogacao" : "escrivao");
     const buffer = await gerarPortariaDocx(reg, await lerChefes(), modelo, numeroAuto);
-    const nome = `Portaria_${modelo}_${String(reg.tipo || "proc").toUpperCase()}_${String(numeroAuto || reg.portaria || reg.numero || "sn").replace(/[^\w]+/g, "_")}.docx`;
+    const ROT: Record<string, string> = { instauracao: "Instauração", prorrogacao: "Prorrogação", escrivao: "Escrivão" };
+    const nome = nomeDocumento(
+      `Portaria de ${ROT[modelo] || modelo} ${String(reg.tipo || "").toUpperCase()} ${String(numeroAuto || reg.portaria || reg.numero || "").trim()}`.replace(/\s+/g, " ").trim(),
+      await militarDoTexto(reg.envolvido));
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="${nome}"`,
+        "Content-Disposition": disposicaoArquivo(nome, "docx"),
       },
     });
   } catch (err) {

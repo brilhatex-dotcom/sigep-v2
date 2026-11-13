@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { X, Printer, FileDown, Loader2, Info } from "lucide-react";
 import { imprimirElemento } from "@/lib/imprimir";
 import { assinanteFatd, type DadosPessoa } from "@/lib/refMilitar";
+import { nomeDocumento, nomeDaResposta } from "@/lib/nomeArquivo";
 import { avisar } from "@/components/Avisos";
 
 /* =========================================================================
@@ -44,6 +45,8 @@ export type { DadosPessoa } from "@/lib/refMilitar";
 export default function FatdDoc({ reg, mil: milD, enc: encD, chefeP1 = "", comandante = "", onFechar }: { reg: FatdRegistro; mil?: DadosPessoa | null; enc?: DadosPessoa | null; chefeP1?: string; comandante?: string; onFechar: () => void }) {
   const [montado, setMontado] = useState(false);
   const [baixandoWord, setBaixandoWord] = useState(false);
+  const nomeFatd = nomeDocumento(`FATD ${(reg.numero || "").trim()}`,
+    milD?.guerra || milD?.posto ? { postoGrad: milD.posto, nomeGuerra: milD.guerra, nome: milD.nome } : (reg.envolvido || "").trim());
   useEffect(() => { setMontado(true); }, []);
   if (!montado || typeof document === "undefined") return null;
 
@@ -56,7 +59,7 @@ export default function FatdDoc({ reg, mil: milD, enc: encD, chefeP1 = "", coman
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `FATD_${(reg.numero || "sn").replace(/[^\w]+/g, "_")}.docx`;
+      a.download = nomeDaResposta(res, `${nomeFatd}.docx`);
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch { avisar("Erro de conexão ao gerar o Word."); }
@@ -95,7 +98,7 @@ export default function FatdDoc({ reg, mil: milD, enc: encD, chefeP1 = "", coman
         <span className="mr-auto inline-flex items-center gap-1.5 text-xs text-[#8fa3bf]">
           <Info className="h-3.5 w-3.5" /> Clique no documento para editar qualquer texto antes de imprimir.
         </span>
-        <button onClick={() => imprimirElemento(document.getElementById("fatd-print"), { titulo: `FATD ${reg.numero || ""}` })} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
+        <button onClick={() => imprimirElemento(document.getElementById("fatd-print"), { titulo: nomeFatd })} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
           <Printer className="h-4 w-4" /> Baixar PDF
         </button>
         <button onClick={baixarWord} disabled={baixandoWord} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-800 disabled:opacity-60">

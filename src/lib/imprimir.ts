@@ -1,3 +1,5 @@
+import { limparNomeArquivo } from "@/lib/nomeArquivo";
+
 /* Impressão/"Salvar em PDF" confiável em qualquer aparelho — inclusive iPad.
    Em vez de window.print() (que no iOS falha dentro de overlays/portais),
    clona só o documento para um iframe limpo e imprime esse iframe. O iOS
@@ -14,13 +16,20 @@ export function imprimirElemento(
   const doc = iframe.contentWindow?.document;
   if (!doc) { iframe.remove(); return; }
 
+  /* O título é o nome que o "Salvar como PDF" sugere ("FATD 12/2026 - Cabo
+     Ferreira"). Vai no iframe e, durante a impressão, na aba também (há
+     navegador que usa o da página de cima). */
+  const titulo = limparNomeArquivo(opts?.titulo || "") || "Documento";
+  const tituloSeguro = titulo.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const tituloAntes = document.title;
+  if (opts?.titulo) document.title = titulo;
   const size = opts?.landscape ? "A4 landscape" : "A4 portrait";
   const base = typeof location !== "undefined" ? location.origin : "";
   doc.open();
   doc.write(
     `<!doctype html><html><head><meta charset="utf-8">` +
     `<base href="${base}/">` +
-    `<title>${opts?.titulo || "Documento"}</title>` +
+    `<title>${tituloSeguro}</title>` +
     `<style>@page{size:${size};margin:0;} html,body{margin:0;padding:0;background:#fff;} ` +
     `*{-webkit-print-color-adjust:exact;print-color-adjust:exact;}` +
     /* Na tela o Tailwind mede tudo com a margem interna DENTRO da largura
@@ -46,7 +55,7 @@ export function imprimirElemento(
   const go = () => {
     if (disparado) return; disparado = true;
     try { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); } catch { /* ignora */ }
-    setTimeout(() => iframe.remove(), 2000);
+    setTimeout(() => { iframe.remove(); if (opts?.titulo) document.title = tituloAntes; }, 2000);
   };
 
   const imgs = Array.from(doc.images || []);

@@ -5,6 +5,7 @@ import { gerarFatdDocx } from "@/lib/fatdDocx";
 import { lerChefes } from "@/lib/disciplinarChefes";
 import { obter } from "@/lib/disciplinarDb";
 import { prisma } from "@/lib/prisma";
+import { nomeDocumento, disposicaoArquivo } from "@/lib/nomeArquivo";
 import { dadosDoTexto, type MilitarLite } from "@/lib/refMilitar";
 
 export const dynamic = "force-dynamic";
@@ -38,16 +39,18 @@ export async function GET(req: Request) {
       }) as unknown as MilitarLite[];
     } catch { /* sem efetivo o documento ainda sai, só com o texto livre */ }
 
+    const mil = dadosDoTexto(reg.envolvido || "", efetivo);
     const buffer = await gerarFatdDocx(reg, chefes, {
-      mil: dadosDoTexto(reg.envolvido || "", efetivo),
+      mil,
       enc: dadosDoTexto((reg.encarregado || "").trim() || (chefes.chefeP1 || ""), efetivo),
     });
-    const nome = `FATD_${String(reg.numero || "sn").replace(/[^\w]+/g, "_")}.docx`;
+    const nome = nomeDocumento(`FATD ${String(reg.numero || "").trim()}`,
+      mil?.guerra || mil?.posto ? { postoGrad: mil.posto, nomeGuerra: mil.guerra, nome: mil.nome } : (reg.envolvido || "").trim());
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="${nome}"`,
+        "Content-Disposition": disposicaoArquivo(nome, "docx"),
       },
     });
   } catch (err) {

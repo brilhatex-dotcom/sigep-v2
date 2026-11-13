@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { imprimirComNome } from "@/lib/nomeArquivo";
 import { Search, Printer, FileDown, FileType2, Loader2 } from "lucide-react";
 import CarimboSigep from "@/components/CarimboSigep";
 import { padronizarBrasao } from "@/lib/imagem";
@@ -381,7 +382,7 @@ export function BotoesDocumento({
   const [baixando, setBaixando] = useState<"docx" | "pdf" | null>(null);
   const [erro, setErro] = useState("");
 
-  const imprimir = () => { aoEmitir?.(); window.print(); };
+  const imprimir = () => { aoEmitir?.(); imprimirComNome(nomeArquivo); };
 
   const baixar = async (fmt: "docx" | "pdf") => {
     setBaixando(fmt); setErro("");

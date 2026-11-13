@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { nomeDocumento, disposicaoArquivo } from "@/lib/nomeArquivo";
+import { militarDoEfetivo } from "@/lib/nomeArquivoServidor";
 import { registrar } from "@/lib/auditoria";
 import { ehPermanenciaArma } from "@/lib/requerimentos";
 import { montarAfastamentos } from "@/lib/afastamentosPlano";
@@ -154,13 +156,12 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       });
     } catch {}
 
-    const nomeArquivo = `Exposicao_Motivos_${(r.nomeCompleto || r.matricula || "militar")
-      .replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "")}.docx`;
+    const nomeArquivo = nomeDocumento("Exposição de Motivos", await militarDoEfetivo(r.efetivoId, { postoGrad: r.postoGrad, nome: r.nomeCompleto }));
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="${nomeArquivo}"`,
+        "Content-Disposition": disposicaoArquivo(nomeArquivo, "docx"),
       },
     });
   } catch (err) {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { nomeDocumento, disposicaoArquivo } from "@/lib/nomeArquivo";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -77,14 +78,14 @@ export async function GET(req: Request) {
     };
 
     const bytes = fmt === "pdf" ? await gerarHistoricoPdf(entrada) : await gerarHistoricoDocx(entrada);
-    const quem = (f.nomeGuerra || f.nome || "militar").trim().replace(/\W+/g, "_");
+    const nome = nomeDocumento("Histórico Funcional", { postoGrad: f.postoGrad, nomeGuerra: f.nomeGuerra, nome: f.nome });
     return new NextResponse(bytes as any, {
       status: 200,
       headers: {
         "Content-Type": fmt === "pdf"
           ? "application/pdf"
           : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="historico-${quem}.${fmt}"`,
+        "Content-Disposition": disposicaoArquivo(nome, fmt),
       },
     });
   } catch (err) {

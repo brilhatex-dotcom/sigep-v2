@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Printer, FileDown, Loader2, Info } from "lucide-react";
 import { avisar } from "@/components/Avisos";
+import { nomeDocumento, nomeDaResposta, militarDaLinha, imprimirComNome } from "@/lib/nomeArquivo";
 
 /* =========================================================================
    TermoDoc — termos do procedimento apuratório (Sindicância/IPS/IPM):
@@ -71,6 +72,7 @@ export default function TermoDoc({ reg, modelo, comandante = "", onFechar }: { r
 
   const proc = NOME_PROC[reg.tipo] || "procedimento apuratório";
   const numRef = (reg.portaria || "").replace(/port(aria)?\.?\s*/i, "").trim() || (reg.numero || "").trim() || `______/${ANO}`;
+  const nomeTermo = nomeDocumento(`${TERMO_LABEL[modelo]} ${numRef.includes("___") ? "" : numRef}`.trim(), militarDaLinha(reg.envolvido, true));
   const dataExt = "Aos ______ dias do mês de ____________________ do ano de " + ANO + ", nesta cidade de Presidente Dutra, Estado do Maranhão, na sede do 18º Batalhão de Polícia Militar,";
 
   async function baixarWord() {
@@ -82,7 +84,7 @@ export default function TermoDoc({ reg, modelo, comandante = "", onFechar }: { r
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${TERMO_LABEL[modelo].replace(/\s+/g, "_")}_${numRef.replace(/[^\w]+/g, "_")}.docx`;
+      a.download = nomeDaResposta(res, `${nomeTermo}.docx`);
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch { avisar("Erro de conexão ao gerar o Word."); }
@@ -95,7 +97,7 @@ export default function TermoDoc({ reg, modelo, comandante = "", onFechar }: { r
         <span className="mr-auto inline-flex items-center gap-1.5 text-xs text-[#8fa3bf]">
           <Info className="h-3.5 w-3.5" /> {TERMO_LABEL[modelo]} — clique no documento para ajustar qualquer texto antes de imprimir.
         </span>
-        <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
+        <button onClick={() => imprimirComNome(nomeTermo)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
           <Printer className="h-4 w-4" /> Baixar PDF
         </button>
         <button onClick={baixarWord} disabled={baixandoWord} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-800 disabled:opacity-60">
