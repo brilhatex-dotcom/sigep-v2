@@ -1,5 +1,7 @@
 "use client";
 
+import { idDoTextoEscala } from "@/lib/escalaTextoMilitar";
+import { classificarPatente } from "@/lib/patentes";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
@@ -2422,6 +2424,20 @@ export default function EscalaClient() {
     return m;
   }, [efetivo]);
 
+  /* Quem é o militar escrito num campo da folha. O nome exato do cadastro
+     resolve direto; o texto digitado à mão ("2º Sgt. PM nº 122/07- Júlio",
+     "Asp Of QOEM Macedo") é lido pelo Nº/barra ou pelo nome de guerra
+     (lib/escalaTextoMilitar). Sem resposta única, devolve o próprio texto. */
+  const idDe = useMemo(() => {
+    const cache: Record<string, string> = {};
+    return (n: string): string => {
+      if (!n) return "";
+      if (nameToId[n]) return nameToId[n];
+      if (!(n in cache)) cache[n] = idDoTextoEscala(n, efetivo) || n;
+      return cache[n];
+    };
+  }, [nameToId, efetivo]);
+
   // Cadastro EFETIVO para os calculos: o cad salvo + as ferias avulsas como
   // afastamentos "ferias" (derivadas em memoria, nunca salvas de volta). Assim o
   // rodizio pula quem esta de ferias e o expediente herdado nao carrega ausentes.
@@ -2445,6 +2461,58 @@ export default function EscalaClient() {
     };
   }, [cad, feriasAvulsas, planoAfast, reducaoJudicial, diasPermitidos, funcaoFixa, giroSemanal]);
 
+  /* EXPEDIENTE do dia (CMT, SUBCMT, FT, ADM, P1, P3, P4, Ronda Escolar,
+     Patrulha Maria da Penha) — texto herdado do dia anterior. Para cada nome
+     reconhecido no cadastro:
+       · de FÉRIAS/afastado no dia → sai (com permuta ativa, fica: quem cobre
+         é o permutado);
+       · posto desatualizado (promoção: Asp → 2º Ten) → vira o nome atual do
+         cadastro.
+     `cpuNome`: o oficial de CPU do dia folga o expediente (só no dia novo). */
+  const ajustaExpediente = (expIn: Expediente, iso: string, cpuNome = ""): { exp: Expediente; mudou: boolean } => {
+    const exp = JSON.parse(JSON.stringify(expIn || {})) as Expediente;
+    let mudou = false;
+    const real = (n: string) => { const id = idDe(n); return efMap[id] ? id : ""; };
+    /* O posto escrito ficou para trás (promoção: "Asp Of QOEM Macedo" e o
+       cadastro já diz 2º Tenente)? Devolve o nome atual. Mesmo posto, o texto
+       fica como o P/1 escreveu ("Major" não vira "Maj"). */
+    const promovido = (n: string, id: string): string => {
+      const naFolha = classificarPatente(n).ordem;
+      const noCadastro = classificarPatente(efMap[id]?.postoGrad || "").ordem;
+      return naFolha !== 99 && noCadastro !== 99 && naFolha !== noCadastro ? nomeDe(id) : "";
+    };
+    const LISTAS: (keyof Expediente)[] = ["cmtFt", "subcmtFt", "adm", "p1", "p3", "p4", "rondaEscolar", "patrulha"];
+    const COM_CPU = new Set<keyof Expediente>(["p1", "p3", "p4", "rondaEscolar", "patrulha"]);
+    for (const k of LISTAS) {
+      const cur = asSlots((exp as any)[k]);
+      const out: Slot[] = [];
+      for (const sl of cur) {
+        const n = semTags(sl?.titular || "").trim();
+        if (!n) { out.push(sl); continue; }                       // linha em branco fica
+        if (cpuNome && COM_CPU.has(k) && n === cpuNome) { mudou = true; continue; }
+        const id = real(n);
+        if (!id) { out.push(sl); continue; }                      // não reconhecido: fica como está
+        const permutado = !!(sl?.permuta && semTags(String(sl.permuta)).trim());
+        if (!permutado && afastado(id, iso, cadEff.afastamentos)) { mudou = true; continue; }
+        const atual = promovido(n, id);
+        if (atual) { out.push({ ...sl, titular: atual }); mudou = true; }
+        else out.push(sl);
+      }
+      if (!Array.isArray((exp as any)[k])) mudou = true;
+      // FT/ADM podem ficar vazios; as seções da folha guardam uma linha em branco
+      (exp as any)[k] = out.length ? out : (COM_CPU.has(k) ? [s()] : []);
+    }
+    for (const k of ["cmt", "subcmt"] as const) {
+      const n = semTags(String(exp[k] || "")).trim();
+      const id = n ? real(n) : "";
+      if (!id) continue;
+      if (afastado(id, iso, cadEff.afastamentos)) { exp[k] = ""; mudou = true; continue; }
+      const atual = promovido(n, id);
+      if (atual) { exp[k] = atual; mudou = true; }
+    }
+    return { exp, mudou };
+  };
+
   // Auto-preenche na FOLHA os campos vindos do QUADRO (FT, RP, Guarda,
   // Inteligência) que estão VAZIOS, para os dias de HOJE em diante já salvos.
   // Assim, ao INSERIR um novo componente no quadro (ex.: FT-Armeiro/Patrulheiro
@@ -2460,7 +2528,6 @@ export default function EscalaClient() {
     const CAMPOS_UM: (keyof Escala)[] = ["ftGraduado", "ftMotorista", "rpAdjunto", "rpMotorista"];
     // ftPatrulheiro agora é lista (permite acrescentar patrulheiros na folha).
     const CAMPOS_LISTA: (keyof Escala)[] = ["ftPatrulheiro", "rpPatrulheiro", "guardaPermanente", "inteligencia"];
-    const EXP_LISTAS: (keyof Expediente)[] = ["p1", "p3", "p4", "rondaEscolar", "patrulha"];
     setEscalas((prev) => {
       let mudou = false;
       const next: Record<string, Escala> = { ...prev };
@@ -2476,8 +2543,7 @@ export default function EscalaClient() {
           const n = semTags(sl?.titular || "").trim();
           if (!n) return false;
           if (sl?.permuta && semTags(String(sl.permuta)).trim()) return false;
-          const id = nameToId[n] || n;
-          return afastado(id, iso, cadEff.afastamentos);
+          return afastado(idDe(n), iso, cadEff.afastamentos);
         };
         for (const k of CAMPOS_UM) {
           const cur = (dia as any)[k];
@@ -2504,7 +2570,7 @@ export default function EscalaClient() {
           // extra — garante que ele entra, somando (sem tirar quem ja esta).
           const atual = asSlots((dia as any)[k]);
           const idsAtuais = new Set(
-            atual.map((sl) => { const n = semTags(sl?.titular || "").trim(); return n ? (nameToId[n] || n) : ""; }).filter(Boolean)
+            atual.map((sl) => { const n = semTags(sl?.titular || "").trim(); return n ? idDe(n) : ""; }).filter(Boolean)
           );
           const faltando = extrasDoDia(k, iso, cadEff).filter((id) => !idsAtuais.has(id));
           if (faltando.length) {
@@ -2513,20 +2579,17 @@ export default function EscalaClient() {
             (dia as any)[k] = [...preenchidos, ...faltando.map((id) => s(nomeDe(id)))];
           }
         }
-        // Expediente: remove quem entrou de férias das listas (P1/P3/P4/Ronda/Patrulha).
-        for (const k of EXP_LISTAS) {
-          const cur: Slot[] = ((dia.expediente as any)?.[k]) || [];
-          if (Array.isArray(cur) && cur.some(afastNoDia)) {
-            clonar();
-            const f = cur.filter((sl) => !afastNoDia(sl));
-            (dia.expediente as any)[k] = f.length ? f : [s()];
-          }
+        // Expediente: sai quem entrou de férias (CMT, SUBCMT, FT, P1, P3, P4,
+        // Ronda, Patrulha) e o nome desatualizado (promoção) é corrigido.
+        if (dia.expediente) {
+          const aj = ajustaExpediente(dia.expediente, iso);
+          if (aj.mudou) { clonar(); dia.expediente = aj.exp; }
         }
         if (diaMud) { next[iso] = dia; mudou = true; }
       }
       return mudou ? next : prev;
     });
-  }, [ready, cadEff, nomeDe, nameToId]);
+  }, [ready, cadEff, nomeDe, nameToId, idDe, efMap]);
 
   // Semente de um dia AINDA NAO salvo: gera o dia pelo motor (rodizio 24/72,
   // CPU, RP, FT, ROTEM avançam sozinhos) e HERDA o EXPEDIENTE (P1/P3/P4/Ronda/
@@ -2537,22 +2600,10 @@ export default function EscalaClient() {
     const base = novaEscala(iso, cadEff, nomeDe);
     const chaves = Object.keys(escalas).filter((k) => k < iso).sort();
     const prev = chaves.length ? escalas[chaves[chaves.length - 1]] : null;
-    if (prev?.expediente) {
-      const exp = JSON.parse(JSON.stringify(prev.expediente)) as Expediente;
-      const cpuNome = semTags(base.cpuDeDia?.titular || "").trim();
-      // remove o oficial de CPU e quem esta afastado (ferias/etc.) neste dia
-      const foraDoDia = (sl: Slot) => {
-        const n = semTags(sl.titular || "").trim();
-        if (!n) return false;              // linhas em branco ficam
-        if (cpuNome && n === cpuNome) return true;
-        const id = nameToId[n] || n;
-        return afastado(id, iso, cadEff.afastamentos);
-      };
-      const limpa = (arr: Slot[]) => { const f = arr.filter((x) => !foraDoDia(x)); return f.length ? f : [s()]; };
-      exp.p1 = limpa(exp.p1); exp.p3 = limpa(exp.p3); exp.p4 = limpa(exp.p4);
-      exp.rondaEscolar = limpa(exp.rondaEscolar); exp.patrulha = limpa(exp.patrulha);
-      base.expediente = exp;
-    }
+    // remove o oficial de CPU e quem esta afastado (ferias/etc.) neste dia e
+    // atualiza o nome de quem foi promovido
+    const cpuNome = semTags(base.cpuDeDia?.titular || "").trim();
+    base.expediente = ajustaExpediente(prev?.expediente || base.expediente, iso, cpuNome).exp;
     return base;
   };
 
@@ -2590,7 +2641,11 @@ export default function EscalaClient() {
     });
   };
 
-  const gerarAutomatica = () => setEscalas((prev) => ({ ...prev, [data]: novaEscala(data, cadEff, nomeDe) }));
+  const gerarAutomatica = () => setEscalas((prev) => {
+    const nova = novaEscala(data, cadEff, nomeDe);
+    nova.expediente = ajustaExpediente(nova.expediente, data).exp;
+    return { ...prev, [data]: nova };
+  });
 
   // Monta a escala da JOE (print 4) a partir dos aprovados do JOE selecionado.
   const montarDaJoe = (joeId: string) => {
@@ -2680,7 +2735,7 @@ export default function EscalaClient() {
       if (!sl) return;
       const n = semTags(sl.titular || "");
       if (!n) return;
-      const id = nameToId[n] || n; // resolve o nome da folha para ID, se possivel
+      const id = idDe(n); // resolve o nome da folha para ID, se possivel
       if (afastado(id, data, cadEff.afastamentos) && !nomes.includes(n)) nomes.push(n);
     };
     checa(e.cpuDeDia); checa(e.rpAdjunto); checa(e.rpMotorista);
@@ -2702,13 +2757,13 @@ export default function EscalaClient() {
   /* Quem está em JMS entre os que SERVEM na folha do dia (as mesmas vagas que
      a folha mostra): aviso SÓ NA TELA, para quem monta a escala. A folha
      impressa, o Word/PDF e a publicada saem normais. */
-  const jmsPorNome = (nome: string) => jmsDoDia(nameToId[nome] || nome, data, cadEff.afastamentos);
+  const jmsPorNome = (nome: string) => jmsDoDia(idDe(nome), data, cadEff.afastamentos);
   const jmsNaFolha = useMemo<string[]>(() => {
     if (ehExtra || ehJoe) return [];
     const nomes: string[] = [];
     const checa = (sl?: Slot | null) => {
       const n = quemServe(sl);
-      if (n && !nomes.includes(n) && jmsDoDia(nameToId[n] || n, data, cadEff.afastamentos)) nomes.push(n);
+      if (n && !nomes.includes(n) && jmsDoDia(idDe(n), data, cadEff.afastamentos)) nomes.push(n);
     };
     checa(e.cpuDeDia); checa(e.rpAdjunto); checa(e.rpMotorista);
     checa(e.ftGraduado); checa(e.ftMotorista);
@@ -2802,7 +2857,7 @@ export default function EscalaClient() {
 
   return (
     <EfetivoCtx.Provider value={efetivo}>
-    <ReducaoCtx.Provider value={{ pct: reducaoJudicial, dias: diasPermitidos, data, jmsNome: jmsPorNome, baixarNome: (n: string) => alternarBaixado(nameToId[n] || n, true, n) }}>
+    <ReducaoCtx.Provider value={{ pct: reducaoJudicial, dias: diasPermitidos, data, jmsNome: jmsPorNome, baixarNome: (n: string) => alternarBaixado(idDe(n), true, n) }}>
     <div className="app-shell">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <BarraFormatacao />
