@@ -12,7 +12,7 @@ import {
 } from "@/lib/requerimentoArma";
 import { BuscaMilitarMultiplo, nomeBusca, type Militar } from "@/components/docs/Comum";
 import {
-  GradeCampos, BuscaAlienante, CAMPOS_TRANSF_ALIENANTE, CAMPOS_TRANSF_ADQUIRENTE_CONTATO, camposArmaTransferencia,
+  GradeCampos, BuscaAlienante, EtiquetaParte, CAMPOS_TRANSF_ALIENANTE, CAMPOS_TRANSF_ADQUIRENTE_CONTATO, camposArmaTransferencia,
 } from "@/components/CamposTransferencia";
 import { avisar } from "@/components/Avisos";
 import { compararAntiguidade } from "@/lib/antiguidade";
@@ -191,6 +191,12 @@ export default function RequerimentoLoteForm({
         <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
           <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Militares deste requerimento
         </h2>
+        {ehTransferencia && (
+          <EtiquetaParte
+            parte="adquirente"
+            detalhe="Os militares escolhidos aqui são os ADQUIRENTES. Nome, posto, CPF e endereço saem da ficha de cada um — o endereço dá para corrigir no cartão de cada militar, mais abaixo."
+          />
+        )}
         <p className="mb-4 text-[12px] text-[#94A3B8]">
           Cada um recebe o seu próprio requerimento, com os dados da ficha dele (nome, endereço,
           matrícula, posto, CPF). O que você preenche abaixo vale para todos.
@@ -317,9 +323,7 @@ export default function RequerimentoLoteForm({
               outro alienante — ajuste no cartão de cada um, logo abaixo. Os dados do adquirente
               saem da ficha de cada militar.
             </p>
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
-              Alienante (quem passa a arma)
-            </p>
+            <EtiquetaParte parte="alienante" detalhe="Quem doa a arma. Se for o mesmo para todos, preencha aqui; se não, no cartão de cada militar." />
             <BuscaAlienante valores={f} setVarios={aplicarVariosATodos} />
             <GradeCampos campos={CAMPOS_TRANSF_ALIENANTE} valores={f} set={aplicarATodos} />
             <p className="mb-3 mt-6 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
@@ -379,26 +383,23 @@ export default function RequerimentoLoteForm({
                         {falta.length > 0 && (
                           <p className="mb-3 text-[12px] text-amber-200">Falta: {falta.join(", ")}.</p>
                         )}
-                        <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
-                          Alienante
-                        </p>
+                        <EtiquetaParte
+                          parte="adquirente"
+                          detalhe={<><b className="text-white">{nomeBusca(m)}</b> — Endereço (com telefone e e-mail), da ficha. Mudou? Corrija aqui; vale só para este requerimento.</>}
+                        />
+                        <GradeCampos
+                          campos={CAMPOS_TRANSF_ADQUIRENTE_CONTATO}
+                          valores={linha}
+                          set={(k, v) => setLinha(m.id, k, v)}
+                        />
+                        <div className="mt-6" />
+                        <EtiquetaParte parte="alienante" />
                         <BuscaAlienante valores={linha} setVarios={(o) => setVariosLinha(m.id, o)} />
                         <GradeCampos
                           campos={CAMPOS_TRANSF_ALIENANTE}
                           valores={linha}
                           set={(k, v) => setLinha(m.id, k, v)}
                           obrigatorios={obrigatorios}
-                        />
-                        <p className="mb-1 mt-6 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
-                          Adquirente — Endereço (com telefone e e-mail)
-                        </p>
-                        <p className="mb-3 text-[11px] text-[#94A3B8]">
-                          Veio da ficha de {nomeBusca(m)}. Mudou o endereço, o telefone ou o e-mail? Corrija aqui — vale só para este requerimento.
-                        </p>
-                        <GradeCampos
-                          campos={CAMPOS_TRANSF_ADQUIRENTE_CONTATO}
-                          valores={linha}
-                          set={(k, v) => setLinha(m.id, k, v)}
                         />
                         <p className="mb-3 mt-6 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
                           Arma

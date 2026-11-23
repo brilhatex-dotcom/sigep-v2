@@ -32,6 +32,22 @@ export const CAMPOS_TRANSF_ALIENANTE: Campo[] = [
   { key: "alienanteMae", label: "Nome da mãe (termo)", col: 3 },
 ];
 
+/* Na tela da transferência há DUAS pessoas e é fácil confundir quem é quem.
+   Cada bloco leva a etiqueta da parte, com cor própria:
+     ADQUIRENTE (verde) — quem RECEBE a arma (o militar do requerimento);
+     ALIENANTE (azul)   — quem PASSA a arma (o doador do termo). */
+export function EtiquetaParte({ parte, detalhe }: { parte: "adquirente" | "alienante"; detalhe?: ReactNode }) {
+  const adq = parte === "adquirente";
+  return (
+    <div className={`mb-3 rounded-lg border-l-4 px-3 py-2 ${adq ? "border-emerald-400 bg-emerald-500/10" : "border-sky-400 bg-sky-500/10"}`}>
+      <p className={`text-[12px] font-bold uppercase tracking-wider ${adq ? "text-emerald-300" : "text-sky-300"}`}>
+        {adq ? "Adquirente — quem recebe a arma" : "Alienante — quem passa a arma"}
+      </p>
+      {detalhe && <p className="mt-0.5 text-[11px] text-[#94A3B8]">{detalhe}</p>}
+    </div>
+  );
+}
+
 // lote: "Endereço (com Tlf e email)" do ADQUIRENTE, que o P/1 pode corrigir
 export const CAMPOS_TRANSF_ADQUIRENTE_CONTATO: Campo[] = [
   { key: "adqEndereco", label: "Endereço (rua, nº, complemento)", col: 2 },

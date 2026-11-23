@@ -305,11 +305,6 @@ export function gerarRequerimentoDocx(d: DadosReq): Buffer {
         semLixo(g("alienanteFone")) ? `TEL: ${semLixo(g("alienanteFone"))}` : "",
         semLixo(g("alienanteEmail")) ? `E-MAIL: ${semLixo(g("alienanteEmail"))}` : "",
       ].filter(Boolean).join(" - "),
-      // embaixo de cada linha de assinatura: quem é quem
-      assalnome: g("alienanteNome").toLocaleUpperCase("pt-BR") || " ",
-      assalinfo: [g("alienantePosto"), g("alienanteCpf") ? `CPF ${g("alienanteCpf")}` : ""].filter(Boolean).join(" · ") || " ",
-      assadqnome: s(d.nomeCompleto).trim().toLocaleUpperCase("pt-BR") || " ",
-      assadqinfo: [s(d.postoGrad).trim(), s(d.cpf).trim() ? `CPF ${s(d.cpf).trim()}` : ""].filter(Boolean).join(" · ") || " ",
       registro: g("registro"),
       tipo: g("produto"),
       marca: g("marca"),
