@@ -31,6 +31,8 @@ export const CAMPOS_ALIENANTE = [
   "alienanteRg", "alienanteCpf", "alienanteOrgao", "alienanteAcervo",
   "alienanteNacionalidade", "alienanteEstadoCivil", "alienanteNasc",
   "alienanteNaturalidade", "alienantePai", "alienanteMae",
+  // "Endereço (com Tlf e email)" do alienante, como o do adquirente
+  "alienanteEndereco", "alienanteFone", "alienanteEmail",
 ] as const;
 
 // do adquirente, mas sem coluna no requerimento (o termo e a folha pedem)

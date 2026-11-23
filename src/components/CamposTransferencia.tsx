@@ -22,6 +22,9 @@ export const CAMPOS_TRANSF_ALIENANTE: Campo[] = [
   { key: "alienanteOrgao", label: "Órgão de vinculação" },
   { key: "alienanteAcervo", label: "Acervo atual da arma", dica: "Ex: CIDADÃO" },
   { key: "alienanteNacionalidade", label: "Nacionalidade (termo)" },
+  { key: "alienanteEndereco", label: "Endereço", col: 3, dica: "Rua, nº, bairro, cidade/UF, CEP" },
+  { key: "alienanteFone", label: "Fone", dica: "(99) 99999-9999" },
+  { key: "alienanteEmail", label: "E-mail", col: 2 },
   { key: "alienanteEstadoCivil", label: "Estado civil (termo)" },
   { key: "alienanteNasc", label: "Data de nascimento (termo)", dica: "dd/mm/aaaa" },
   { key: "alienanteNaturalidade", label: "Naturalidade — cidade (termo)" },
@@ -83,8 +86,8 @@ export function GradeCampos({
 }
 
 /* Buscador do alienante no efetivo. Escolhido, puxa da ficha o que der; quem
-   não é o P/1 recebe o colega sem estado civil, nascimento, naturalidade e
-   filiação (a API não entrega) — esses ele pede ao alienante e digita.
+   não é o P/1 recebe o colega sem endereço, fone, e-mail, estado civil,
+   nascimento, naturalidade e filiação (a API não entrega) — esses ele pede ao alienante e digita.
    O "selecionado" vem dos próprios valores (alienanteId), então preencher o
    alienante de fora — como o "igual para todos" do lote — já aparece aqui. */
 export function BuscaAlienante({
@@ -109,7 +112,7 @@ export function BuscaAlienante({
       setVarios(Object.fromEntries(Object.entries(dados).filter(([, v]) => v)));
       if (d.parcial) {
         setAviso(
-          "Estado civil, nascimento, naturalidade e filiação do alienante não vêm da ficha para você — " +
+          "Endereço, fone, e-mail, estado civil, nascimento, naturalidade e filiação do alienante não vêm da ficha para você — " +
           "peça a ele e preencha (só o P/1 puxa esses dados de outro militar)."
         );
       }

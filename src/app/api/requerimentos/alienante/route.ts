@@ -37,6 +37,7 @@ export async function GET(req: Request) {
         id: true, postoGrad: true, nome: true, rg: true, cpf: true,
         estadoCivil: true, dataNasc: true, naturalidade: true, naturalidadeUF: true,
         nomePai: true, nomeMae: true,
+        endereco: true, bairro: true, cidade: true, cep: true, telefone: true, email: true,
       },
     });
     if (!f) return NextResponse.json({ error: "Militar nao encontrado" }, { status: 404 });
@@ -59,6 +60,10 @@ export async function GET(req: Request) {
         .map((x) => (x || "").trim()).filter(Boolean).join(" - ");
       dados.alienantePai = f.nomePai || "";
       dados.alienanteMae = f.nomeMae || "";
+      dados.alienanteEndereco = [f.endereco, f.bairro, f.cidade, f.cep ? `CEP ${f.cep}` : ""]
+        .map((x) => (x || "").trim()).filter(Boolean).join(", ");
+      dados.alienanteFone = (f.telefone || "").trim();
+      dados.alienanteEmail = (f.email || "").trim();
     }
 
     return NextResponse.json({ dados, parcial: !completo });

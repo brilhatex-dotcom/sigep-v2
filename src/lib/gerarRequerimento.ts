@@ -299,6 +299,11 @@ export function gerarRequerimentoDocx(d: DadosReq): Buffer {
       alcpf: g("alienanteCpf"),
       alorgao: g("alienanteOrgao"),
       alacervo: g("alienanteAcervo"),
+      alcontato: [
+        g("alienanteEndereco"),
+        g("alienanteFone") ? `TEL: ${g("alienanteFone")}` : "",
+        g("alienanteEmail") ? `E-MAIL: ${g("alienanteEmail")}` : "",
+      ].filter(Boolean).join(" - "),
       registro: g("registro"),
       tipo: g("produto"),
       marca: g("marca"),
