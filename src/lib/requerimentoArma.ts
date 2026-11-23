@@ -38,6 +38,19 @@ export const CAMPOS_ALIENANTE = [
 // do adquirente, mas sem coluna no requerimento (o termo e a folha pedem)
 export const CAMPOS_ADQUIRENTE_EXTRA = ["orgao", "rg", "cep"] as const;
 
+/* Lote de transferência: o endereço do ADQUIRENTE vem da ficha de cada um,
+   mas o P/1 pode corrigir no cartão do militar (mudou de casa, telefone
+   novo). Vão em porMilitar e trocam o que a ficha daria — não entram no JSON. */
+export const CAMPOS_ADQUIRENTE_CONTATO = [
+  "adqEndereco", "adqBairro", "adqMunicipio", "adqCep", "adqFone", "adqEmail",
+] as const;
+
+/* "#N/D", "N/D", "-" deixados pela planilha importada contam como vazio. */
+export function semLixo(v: unknown): string {
+  const t = v == null ? "" : String(v).trim();
+  return /^(#?N\/?D|#?N\/?A|-+|null|undefined)$/i.test(t) ? "" : t;
+}
+
 // movimentação: para onde o militar pede para ir
 export const CAMPOS_MOVIMENTACAO = ["destino"] as const;
 

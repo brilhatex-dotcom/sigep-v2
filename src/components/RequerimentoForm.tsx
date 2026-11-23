@@ -9,7 +9,7 @@ import {
 } from "@/lib/requerimentos";
 import { obrigatoriosDoModelo } from "@/lib/requerimentoArma";
 import {
-  GradeCampos, BuscaAlienante, CAMPOS_TRANSF_ALIENANTE, camposArmaTransferencia, type Campo,
+  GradeCampos, BuscaAlienante, EtiquetaParte, CAMPOS_TRANSF_ALIENANTE, camposArmaTransferencia, type Campo,
 } from "@/components/CamposTransferencia";
 
 type Dados = Record<string, string>;
@@ -196,6 +196,9 @@ export default function RequerimentoForm({
         <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
           <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Dados do requerente
         </h2>
+        {ehTransferencia && (
+          <EtiquetaParte parte="adquirente" detalhe="O requerente é o ADQUIRENTE: os dados abaixo (com endereço, telefone e e-mail) são de quem recebe a arma." />
+        )}
         <p className="mb-4 text-[12px] text-[#94A3B8]">
           {editandoId
             ? "Ajuste o que precisar. Se o documento já tinha sido gerado, ele é descartado — gere de novo depois de salvar, para sair com o texto novo."
@@ -247,6 +250,7 @@ export default function RequerimentoForm({
           <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
             <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Alienante (quem passa a arma)
           </h2>
+          <EtiquetaParte parte="alienante" />
           <p className="mb-4 text-[12px] text-[#94A3B8]">
             É o <b>doador</b> no termo de doação. Se for militar do Batalhão, busque pelo nome e os
             dados vêm da ficha; se for de fora, preencha à mão.
