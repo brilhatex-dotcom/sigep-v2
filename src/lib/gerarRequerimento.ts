@@ -5,7 +5,7 @@ import Docxtemplater from "docxtemplater";
 import {
   ehModeloAquisicao, ehModeloMovimentacao, ehModeloTransferencia, infoMovimentacao, MODALIDADE_MOVIMENTACAO,
 } from "@/lib/requerimentos";
-import { semLixo, lerDadosArma } from "@/lib/requerimentoArma";
+import { semLixo, identidadeAlienante, lerDadosArma } from "@/lib/requerimentoArma";
 import { comportamentoMilitar, ehOficial } from "@/lib/comportamento";
 
 /* =========================================================================
@@ -92,6 +92,9 @@ type DadosReq = {
   p2UltimaPromocao?: string | null;
   p2SituacaoJur?: string | null; // JSON {bgNumero, bgData} — ver comentario abaixo
   p2Complementares?: string | null;
+  // RG da ficha do efetivo: "Identidade" das folhas de arma quando o
+  // requerimento não guardou o RG (os de compra direta antigos)
+  rgFicha?: string | null;
 };
 
 function s(v: string | null | undefined): string {
@@ -290,13 +293,14 @@ export function gerarRequerimentoDocx(d: DadosReq): Buffer {
     doc.render({
       postograd: s(d.postoGrad),
       nome: s(d.nomeCompleto),
-      identidade: s(d.idPmmaTxt) || s(d.matricula),
+      // "Identidade:" é o número do RG — nunca o ID PMMA
+      identidade: g("rg") || s(d.rgFicha).trim(),
       cpf: s(d.cpf),
       orgao: g("orgao"),
       contato: enderecoComContato(d, g("cep")),
       alposto: g("alienantePosto"),
       alnome: g("alienanteNome"),
-      alidentidade: g("alienanteIdentidade"),
+      alidentidade: identidadeAlienante(a),
       alcpf: g("alienanteCpf"),
       alorgao: g("alienanteOrgao"),
       alacervo: g("alienanteAcervo"),
@@ -319,8 +323,8 @@ export function gerarRequerimentoDocx(d: DadosReq): Buffer {
       // impresso "PM"); no template do restrito a chave e ignorada.
       cargo: s(d.postoGrad),
       nome: s(d.nomeCompleto),
-      // "Identidade:" — o ID PMMA do requerente
-      identidade: s(d.idPmmaTxt) || s(d.matricula),
+      // "Identidade:" é o número do RG — nunca o ID PMMA
+      identidade: s(lerDadosArma(d.p2Complementares).rg).trim() || s(d.rgFicha).trim(),
       cpf: s(d.cpf),
       email: s(d.email),
       endereco: enderecoEntrega(d),
@@ -491,6 +495,17 @@ export function dadosReqDe(r: any): DadosReq {
     p2Conceito: r.p2Conceito, p2UltimaPromocao: r.p2UltimaPromocao, p2SituacaoJur: r.p2SituacaoJur,
     p2Complementares: r.p2Complementares,
   } as DadosReq;
+}
+
+/* Folhas de ARMA (compra direta e transferência) geradas antes de 23/11/2026
+   saíram com o ID PMMA em "Identidade:" — o certo é o número do RG. O Word
+   guardado leva a hora em que foi gerado na chave ("requerimentos/<id>_<ms>.docx");
+   o de antes da correção é refeito na hora de baixar. */
+export const CORRECAO_IDENTIDADE_RG_MS = Date.parse("2026-11-23T18:00:00Z");
+export function docxArmaComIdNaIdentidade(modelo: string, docxKey: string | null | undefined): boolean {
+  if (!ehModeloAquisicao(modelo)) return false; // inclui as transferências
+  const m = /_(\d{12,14})\.docx$/.exec(docxKey || "");
+  return !m || Number(m[1]) < CORRECAO_IDENTIDADE_RG_MS;
 }
 
 /* Word gerado ANTES da correção do layout (a 2ª página começava pela sobra da

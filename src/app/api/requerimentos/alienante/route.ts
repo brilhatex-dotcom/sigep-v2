@@ -47,9 +47,9 @@ export async function GET(req: Request) {
       alienanteId: f.id,
       alienantePosto: f.postoGrad || "",
       alienanteNome: f.nome || "",
-      // "Identidade:" da folha — o ID PMMA, como no adquirente
-      alienanteIdentidade: f.id,
-      alienanteRg: f.rg || "",
+      // "Identidade:" da folha (e o RG do termo de doação) — o NÚMERO DO RG,
+      // nunca o ID PMMA
+      alienanteIdentidade: f.rg || "",
       alienanteCpf: f.cpf || "",
       alienanteOrgao: "PMMA",
     };

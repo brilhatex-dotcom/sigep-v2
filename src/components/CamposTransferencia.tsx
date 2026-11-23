@@ -16,8 +16,7 @@ type Valores = Record<string, string>;
 export const CAMPOS_TRANSF_ALIENANTE: Campo[] = [
   { key: "alienanteNome", label: "Nome completo", col: 2 },
   { key: "alienantePosto", label: "Posto/Grad/Função/CR" },
-  { key: "alienanteIdentidade", label: "Identidade" },
-  { key: "alienanteRg", label: "RG PMMA (termo)" },
+  { key: "alienanteIdentidade", label: "Identidade (RG)", dica: "Nº do RG — não é o ID" },
   { key: "alienanteCpf", label: "CPF" },
   { key: "alienanteOrgao", label: "Órgão de vinculação" },
   { key: "alienanteAcervo", label: "Acervo atual da arma", dica: "Ex: CIDADÃO" },

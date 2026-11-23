@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { nomeDocumento, disposicaoArquivo } from "@/lib/nomeArquivo";
 import { militarDoEfetivo } from "@/lib/nomeArquivoServidor";
 import { baixarDoR2, enviarParaR2 } from "@/lib/r2";
-import { gerarRequerimentoDocx, dadosReqDe, docxDoLayoutAntigo } from "@/lib/gerarRequerimento";
+import { gerarRequerimentoDocx, dadosReqDe, docxDoLayoutAntigo, docxArmaComIdNaIdentidade } from "@/lib/gerarRequerimento";
 
 export const dynamic = "force-dynamic";
 
@@ -39,9 +39,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     }
 
     let buffer = await baixarDoR2(r.docxKey);
-    if (docxDoLayoutAntigo(buffer)) {
+    /* Refaz o Word guardado quando ele é de uma versão errada: o layout velho
+       (2ª página) ou a folha de arma com o ID PMMA em "Identidade:". */
+    if (docxDoLayoutAntigo(buffer) || docxArmaComIdNaIdentidade(r.modelo, r.docxKey)) {
       try {
-        const novo = gerarRequerimentoDocx(dadosReqDe(r));
+        const ficha = await prisma.efetivo.findUnique({ where: { id: r.efetivoId }, select: { rg: true } }).catch(() => null);
+        const novo = gerarRequerimentoDocx({ ...dadosReqDe(r), rgFicha: ficha?.rg ?? null });
         const key = `requerimentos/${r.id}_${Date.now()}.docx`;
         await enviarParaR2(key, novo, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
         await prisma.requerimento.update({ where: { id }, data: { docxKey: key } });
