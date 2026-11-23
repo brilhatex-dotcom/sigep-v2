@@ -78,6 +78,8 @@ export default function RequerimentoLoteForm({
   // página 2 do modelo de cursos: um valor por militar (conceito e última
   // promoção não são iguais entre pessoas)
   const [porMilitar, setPorMilitar] = useState<Record<string, Record<string, string>>>({});
+  // transferência: cartões de militar abertos (o resto dos dados de cada um)
+  const [abertos, setAbertos] = useState<Record<string, boolean>>({});
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
 
@@ -86,6 +88,13 @@ export default function RequerimentoLoteForm({
   // legal nem informações adicionais — o que varia é a arma de cada um
   const ehAquisicao = ehModeloAquisicao(modelo);
   const obrigatorios = obrigatoriosDoModelo(modelo);
+  // o que falta de um militar, entre os campos que são de cada um
+  const faltaDe = (id: string): string[] => {
+    const linha = porMilitar[id] || {};
+    return Object.entries(obrigatorios)
+      .filter(([k]) => camposPorMilitar.includes(k) && !(linha[k] ?? "").trim())
+      .map(([, rotulo]) => rotulo);
+  };
   const ehOutros = !ehAquisicao && usaQuadrinhoOutros(modalidade);
 
   function set(k: string, v: string) {
@@ -166,7 +175,18 @@ export default function RequerimentoLoteForm({
         }),
       });
       const d = await res.json().catch(() => ({}));
-      if (!res.ok) { setErro(d.error || "Não foi possível criar."); return; }
+      if (!res.ok) {
+        setErro(d.error || "Não foi possível criar.");
+        // transferência: abre o cartão de quem está incompleto e leva até lá
+        if (ehTransferencia) {
+          const incompletos = militares.filter((m) => faltaDe(m.id).length > 0);
+          if (incompletos.length) {
+            setAbertos((o) => ({ ...o, ...Object.fromEntries(incompletos.map((m) => [m.id, true])) }));
+            setTimeout(() => document.getElementById("cada-militar")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+          }
+        }
+        return;
+      }
 
       const partes = [
         `${d.total} requerimento(s) criado(s) como ${d.status === "enviado" ? "ENVIADO ao P/1" : "RASCUNHO"}.`,
@@ -335,15 +355,23 @@ export default function RequerimentoLoteForm({
               valores={f}
               set={aplicarATodos}
             />
+            <p className="mt-4 flex items-start gap-2 rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 p-3 text-[12px] text-[#f3dc8a]">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                O <b>Nº {registroDeOrigem(modelo)}</b> e o <b>Número de série</b> são de cada arma — ficam em{" "}
+                <a href="#cada-militar" className="font-semibold underline">CADA MILITAR</a>, logo abaixo, ao lado do nome de cada um.
+              </span>
+            </p>
           </section>
 
-          <section className="ui-card p-6">
+          <section id="cada-militar" className="ui-card scroll-mt-24 p-6">
             <h2 className="mb-1 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-white">
               <span className="h-4 w-1 rounded bg-[#D4AF37]" /> Cada militar
             </h2>
             <p className="mb-4 text-[12px] text-[#94A3B8]">
-              Abra o cartão para conferir e completar. Ao <b>enviar</b>, é tudo ou nada: se faltar
-              dado de alguém, nada é criado e o sistema diz de quem.
+              O <b>Nº {registroDeOrigem(modelo)}</b> e o <b>Número de série</b> da arma de cada um ficam aqui, à vista.
+              Clique no nome para conferir o resto (adquirente, alienante, tipo/marca/modelo). Ao <b>enviar</b>,
+              é tudo ou nada: se faltar dado de alguém, nada é criado e o sistema diz de quem.
             </p>
             {militares.length === 0 ? (
               <p className="text-[12px] text-[#94A3B8]">Escolha os militares acima.</p>
@@ -351,17 +379,24 @@ export default function RequerimentoLoteForm({
               <div className="space-y-3">
                 {militares.map((m) => {
                   const linha = porMilitar[m.id] || {};
-                  const falta = Object.entries(obrigatorios)
-                    .filter(([k]) => camposPorMilitar.includes(k) && !(linha[k] ?? "").trim())
-                    .map(([, rotulo]) => rotulo);
+                  const falta = faltaDe(m.id);
+                  const aberto = !!abertos[m.id];
+                  const alternar = () => setAbertos((o) => ({ ...o, [m.id]: !o[m.id] }));
+                  const camposArma = camposArmaTransferencia(registroDeOrigem(modelo));
+                  // únicos de cada arma: sempre à vista, sem precisar abrir o cartão
+                  const unicos = camposArma.filter((c) => c.key === "registro" || c.key === "serie");
                   const resumo = [
                     [linha.produto, linha.marca, linha.modeloArma].filter(Boolean).join(" "),
-                    linha.serie ? `série ${linha.serie}` : "",
                     linha.alienanteNome ? `de ${linha.alienanteNome}` : "",
                   ].filter(Boolean).join(" · ");
                   return (
-                    <details key={m.id} className="group rounded-lg border border-white/10 bg-[#0b1626]">
-                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+                    <div key={m.id} className="rounded-lg border border-white/10 bg-[#0b1626]">
+                      <button
+                        type="button"
+                        onClick={alternar}
+                        aria-expanded={aberto}
+                        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                      >
                         <span className="min-w-0">
                           <span className="block text-sm font-semibold text-white">{nomeBusca(m)}</span>
                           <span className="block truncate text-[11px] text-[#94A3B8]">{resumo || "—"}</span>
@@ -376,9 +411,23 @@ export default function RequerimentoLoteForm({
                               completo
                             </span>
                           )}
-                          <ChevronDown className="h-4 w-4 text-[#94A3B8] transition group-open:rotate-180" />
+                          <ChevronDown className={`h-4 w-4 text-[#94A3B8] transition ${aberto ? "rotate-180" : ""}`} />
                         </span>
-                      </summary>
+                      </button>
+                      <div className="border-t border-white/10 px-4 py-3">
+                        <GradeCampos
+                          campos={unicos}
+                          valores={linha}
+                          set={(k, v) => setLinha(m.id, k, v)}
+                          obrigatorios={obrigatorios}
+                        />
+                        {!aberto && (
+                          <button type="button" onClick={alternar} className="mt-3 text-[12px] font-medium text-[#D4AF37] underline">
+                            Conferir o restante (adquirente, alienante, tipo/marca/modelo)
+                          </button>
+                        )}
+                      </div>
+                      {aberto && (
                       <div className="border-t border-white/10 p-4">
                         {falta.length > 0 && (
                           <p className="mb-3 text-[12px] text-amber-200">Falta: {falta.join(", ")}.</p>
@@ -405,13 +454,14 @@ export default function RequerimentoLoteForm({
                           Arma
                         </p>
                         <GradeCampos
-                          campos={camposArmaTransferencia(registroDeOrigem(modelo))}
+                          campos={camposArma.filter((c) => c.key !== "registro" && c.key !== "serie")}
                           valores={linha}
                           set={(k, v) => setLinha(m.id, k, v)}
                           obrigatorios={obrigatorios}
                         />
                       </div>
-                    </details>
+                      )}
+                    </div>
                   );
                 })}
               </div>
