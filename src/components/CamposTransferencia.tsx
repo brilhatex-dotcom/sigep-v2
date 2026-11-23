@@ -32,6 +32,16 @@ export const CAMPOS_TRANSF_ALIENANTE: Campo[] = [
   { key: "alienanteMae", label: "Nome da mãe (termo)", col: 3 },
 ];
 
+// lote: "Endereço (com Tlf e email)" do ADQUIRENTE, que o P/1 pode corrigir
+export const CAMPOS_TRANSF_ADQUIRENTE_CONTATO: Campo[] = [
+  { key: "adqEndereco", label: "Endereço (rua, nº, complemento)", col: 2 },
+  { key: "adqBairro", label: "Bairro" },
+  { key: "adqMunicipio", label: "Cidade/UF" },
+  { key: "adqCep", label: "CEP" },
+  { key: "adqFone", label: "Telefone", dica: "(99) 99999-9999" },
+  { key: "adqEmail", label: "E-mail", col: 3 },
+];
+
 // quadro "3. IDENTIFICACAO DA ARMA OBJETO DA AQUISICAO POR TRANSFERENCIA"
 export function camposArmaTransferencia(registro: string): Campo[] {
   return [

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import {
   modeloDaModalidade, ehModeloMovimentacao, ehModeloTransferencia, infoMovimentacao,
 } from "@/lib/requerimentos";
-import { camposJsonDoModelo, jsonArma, obrigatoriosDoModelo, temCamposJson } from "@/lib/requerimentoArma";
+import { camposJsonDoModelo, jsonArma, obrigatoriosDoModelo, temCamposJson, semLixo } from "@/lib/requerimentoArma";
 import { dadosPessoais } from "@/lib/requerimentoDados";
 import { registrar } from "@/lib/auditoria";
 import { comportamentoMilitar } from "@/lib/comportamento";
@@ -56,6 +56,35 @@ const ROTULO_FALTA: Record<string, string> = {
   p2BgNumero: "nº do BG",
   p2BgData: "data do BG",
 };
+
+/* GET /api/requerimentos/lote?contato=<ID PMMA> — endereço, telefone e
+   e-mail do militar como sairiam no requerimento (ficha + o que ele já
+   ajustou). O cartão do lote de transferência abre com isso preenchido para o
+   P/1 conferir e corrigir. Só o admin. */
+export async function GET(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
+  if (((session.user as any).perfil ?? "").toLowerCase() !== "admin") {
+    return NextResponse.json({ error: "Somente o administrador." }, { status: 403 });
+  }
+  const id = (new URL(req.url).searchParams.get("contato") || "").trim();
+  if (!id) return NextResponse.json({ error: "contato obrigatorio" }, { status: 400 });
+  try {
+    const p = await dadosPessoais(id);
+    if (!p) return NextResponse.json({ error: "Militar nao encontrado" }, { status: 404 });
+    return NextResponse.json({
+      adqEndereco: [semLixo(p.endereco), semLixo(p.complemento)].filter(Boolean).join(", "),
+      adqBairro: semLixo(p.bairro),
+      adqMunicipio: semLixo(p.municipio),
+      adqCep: semLixo(p.cep),
+      adqFone: semLixo(p.fone),
+      adqEmail: semLixo(p.email),
+    });
+  } catch (err) {
+    console.error("[GET /api/requerimentos/lote]", err);
+    return NextResponse.json({ error: "Falha ao ler a ficha" }, { status: 500 });
+  }
+}
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -125,6 +154,17 @@ export async function POST(req: Request) {
         extras.rg = limpo(pessoais.rg);
         extras.cep = limpo(pessoais.cep);
         extras.orgao = "PMMA";
+        /* Endereço/telefone/e-mail corrigidos no cartão do militar valem no
+           lugar da ficha (o endereço digitado já leva o complemento). */
+        const adq = (k: string) => (k in doMilitar ? semLixo(doMilitar[k]) : null);
+        if (adq("adqEndereco") !== null) { pessoais.endereco = adq("adqEndereco")!; pessoais.complemento = ""; }
+        if (adq("adqBairro") !== null) pessoais.bairro = adq("adqBairro")!;
+        if (adq("adqMunicipio") !== null) pessoais.municipio = adq("adqMunicipio")!;
+        if (adq("adqFone") !== null) pessoais.fone = adq("adqFone")!;
+        if (adq("adqEmail") !== null) pessoais.email = adq("adqEmail")!;
+        if (adq("adqCep") !== null) extras.cep = limpo(adq("adqCep"));
+        // "#N/D" da planilha não vai para o papel
+        for (const k of ["fone", "email", "bairro", "municipio", "endereco"]) pessoais[k] = semLixo(pessoais[k]);
       }
 
       if (querEnviar && modelo === "cursos") {

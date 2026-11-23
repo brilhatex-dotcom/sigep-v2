@@ -8,11 +8,11 @@ import {
   ehModeloMovimentacao, infoMovimentacao,
 } from "@/lib/requerimentos";
 import {
-  CAMPOS_ARMA_TRANSFERENCIA, CAMPOS_ALIENANTE, CAMPOS_MOVIMENTACAO, obrigatoriosDoModelo, padraoTransferencia,
+  CAMPOS_ARMA_TRANSFERENCIA, CAMPOS_ALIENANTE, CAMPOS_MOVIMENTACAO, CAMPOS_ADQUIRENTE_CONTATO, obrigatoriosDoModelo, padraoTransferencia,
 } from "@/lib/requerimentoArma";
 import { BuscaMilitarMultiplo, nomeBusca, type Militar } from "@/components/docs/Comum";
 import {
-  GradeCampos, BuscaAlienante, CAMPOS_TRANSF_ALIENANTE, camposArmaTransferencia,
+  GradeCampos, BuscaAlienante, CAMPOS_TRANSF_ALIENANTE, CAMPOS_TRANSF_ADQUIRENTE_CONTATO, camposArmaTransferencia,
 } from "@/components/CamposTransferencia";
 import { avisar } from "@/components/Avisos";
 import { compararAntiguidade } from "@/lib/antiguidade";
@@ -131,6 +131,22 @@ export default function RequerimentoLoteForm({
         ...(o[m.id] || {}),
       },
     }));
+    /* Transferência: o endereço do adquirente vem da ficha, mas abre no
+       cartão para o P/1 conferir e corrigir (mudou de casa, telefone novo). */
+    if (ehTransferencia) {
+      fetch(`/api/requerimentos/lote?contato=${encodeURIComponent(m.id)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!d) return;
+          setPorMilitar((o) => {
+            const atual = o[m.id] || {};
+            const novos: Record<string, string> = {};
+            for (const k of CAMPOS_ADQUIRENTE_CONTATO) if (!(k in atual)) novos[k] = String(d[k] ?? "");
+            return { ...o, [m.id]: { ...atual, ...novos } };
+          });
+        })
+        .catch(() => { /* sem a ficha, os campos ficam vazios e o servidor usa a ficha */ });
+    }
   }
 
   async function criar(acao: "rascunho" | "enviar") {
@@ -372,6 +388,17 @@ export default function RequerimentoLoteForm({
                           valores={linha}
                           set={(k, v) => setLinha(m.id, k, v)}
                           obrigatorios={obrigatorios}
+                        />
+                        <p className="mb-1 mt-6 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
+                          Adquirente — Endereço (com telefone e e-mail)
+                        </p>
+                        <p className="mb-3 text-[11px] text-[#94A3B8]">
+                          Veio da ficha de {nomeBusca(m)}. Mudou o endereço, o telefone ou o e-mail? Corrija aqui — vale só para este requerimento.
+                        </p>
+                        <GradeCampos
+                          campos={CAMPOS_TRANSF_ADQUIRENTE_CONTATO}
+                          valores={linha}
+                          set={(k, v) => setLinha(m.id, k, v)}
                         />
                         <p className="mb-3 mt-6 text-[11px] font-semibold uppercase tracking-wider text-[#D4AF37]">
                           Arma

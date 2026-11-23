@@ -5,7 +5,7 @@ import Docxtemplater from "docxtemplater";
 import {
   ehModeloAquisicao, ehModeloMovimentacao, ehModeloTransferencia, infoMovimentacao, MODALIDADE_MOVIMENTACAO,
 } from "@/lib/requerimentos";
-import { lerDadosArma } from "@/lib/requerimentoArma";
+import { semLixo, lerDadosArma } from "@/lib/requerimentoArma";
 import { comportamentoMilitar, ehOficial } from "@/lib/comportamento";
 
 /* =========================================================================
@@ -233,12 +233,13 @@ function enderecoEntrega(d: DadosReq): string {
 }
 
 /* "Endereço (com Tlf e email):" da folha de transferencia — tudo numa linha:
-   logradouro, bairro, cidade e CEP, depois telefone e e-mail. */
+   logradouro, bairro, cidade e CEP, depois telefone e e-mail. "#N/D" da
+   planilha importada sai como vazio (semLixo). */
 function enderecoComContato(d: DadosReq, cep: string): string {
   const endereco = [enderecoEntrega(d), s(d.municipio).trim(), cep ? `CEP ${cep}` : ""]
     .filter(Boolean).join(", ");
-  const fone = s(d.fone).trim();
-  const email = s(d.email).trim();
+  const fone = semLixo(d.fone);
+  const email = semLixo(d.email);
   return [endereco, fone ? `TEL: ${fone}` : "", email ? `E-MAIL: ${email}` : ""]
     .filter(Boolean).join(" - ");
 }
@@ -300,10 +301,15 @@ export function gerarRequerimentoDocx(d: DadosReq): Buffer {
       alorgao: g("alienanteOrgao"),
       alacervo: g("alienanteAcervo"),
       alcontato: [
-        g("alienanteEndereco"),
-        g("alienanteFone") ? `TEL: ${g("alienanteFone")}` : "",
-        g("alienanteEmail") ? `E-MAIL: ${g("alienanteEmail")}` : "",
+        semLixo(g("alienanteEndereco")),
+        semLixo(g("alienanteFone")) ? `TEL: ${semLixo(g("alienanteFone"))}` : "",
+        semLixo(g("alienanteEmail")) ? `E-MAIL: ${semLixo(g("alienanteEmail"))}` : "",
       ].filter(Boolean).join(" - "),
+      // embaixo de cada linha de assinatura: quem é quem
+      assalnome: g("alienanteNome").toLocaleUpperCase("pt-BR") || " ",
+      assalinfo: [g("alienantePosto"), g("alienanteCpf") ? `CPF ${g("alienanteCpf")}` : ""].filter(Boolean).join(" · ") || " ",
+      assadqnome: s(d.nomeCompleto).trim().toLocaleUpperCase("pt-BR") || " ",
+      assadqinfo: [s(d.postoGrad).trim(), s(d.cpf).trim() ? `CPF ${s(d.cpf).trim()}` : ""].filter(Boolean).join(" · ") || " ",
       registro: g("registro"),
       tipo: g("produto"),
       marca: g("marca"),
