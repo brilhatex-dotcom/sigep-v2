@@ -45,6 +45,21 @@ export const CAMPOS_ADQUIRENTE_CONTATO = [
   "adqEndereco", "adqBairro", "adqMunicipio", "adqCep", "adqFone", "adqEmail",
 ] as const;
 
+/* "IDENTIDADE" NAS FOLHAS DE ARMA É O NÚMERO DO RG — NUNCA O ID PMMA.
+
+   Até 23/11/2026 o sistema punha o ID PMMA em "Identidade:" (do adquirente e
+   do alienante). Os dados guardados daquela época: o RG do adquirente está em
+   "rg" (transferência) ou só na ficha (compra direta); o do alienante puxado
+   da ficha está em "alienanteRg", e "alienanteIdentidade" ficou com o ID. */
+export function identidadeAlienante(a: Record<string, string>): string {
+  const ident = (a.alienanteIdentidade || "").trim();
+  const id = (a.alienanteId || "").trim();
+  // digitado ou puxado depois da correção: é o RG
+  if (ident && ident !== id) return ident;
+  // antigo: "Identidade" era o ID — vale o RG guardado à parte
+  return (a.alienanteRg || "").trim();
+}
+
 /* "#N/D", "N/D", "-" deixados pela planilha importada contam como vazio. */
 export function semLixo(v: unknown): string {
   const t = v == null ? "" : String(v).trim();
@@ -60,7 +75,8 @@ export function camposJsonDoModelo(modelo: string): readonly string[] {
     return [...CAMPOS_ARMA_TRANSFERENCIA, ...CAMPOS_ALIENANTE, ...CAMPOS_ADQUIRENTE_EXTRA];
   }
   if (ehModeloMovimentacao(modelo)) return CAMPOS_MOVIMENTACAO;
-  return ehModeloAquisicao(modelo) ? CAMPOS_PCE : [];
+  // compra direta: o produto e a IDENTIDADE (RG) do adquirente, que não tem coluna
+  return ehModeloAquisicao(modelo) ? [...CAMPOS_PCE, "rg"] : [];
 }
 
 // true quando p2Complementares guarda o JSON (e não o texto do modelo de cursos)
@@ -99,7 +115,7 @@ export function obrigatoriosDoModelo(modelo: string): Record<string, string> {
   if (ehModeloMovimentacao(modelo)) return { destino: "Unidade de destino" };
   if (ehModeloTransferencia(modelo)) {
     return {
-      nomeCompleto: "Nome completo", idPmmaTxt: "Identidade (ID PMMA)", cpf: "CPF",
+      nomeCompleto: "Nome completo", rg: "Identidade (RG)", cpf: "CPF",
       endereco: "Endereço", municipio: "Cidade/UF",
       alienanteNome: "Nome do alienante", alienanteCpf: "CPF do alienante",
       registro: `Nº ${registroDeOrigem(modelo)} da arma`, produto: "Tipo da arma",
@@ -108,7 +124,7 @@ export function obrigatoriosDoModelo(modelo: string): Record<string, string> {
   }
   if (ehModeloAquisicao(modelo)) {
     return {
-      nomeCompleto: "Nome completo", idPmmaTxt: "Identidade (ID PMMA)", cpf: "CPF",
+      nomeCompleto: "Nome completo", rg: "Identidade (RG)", cpf: "CPF",
       endereco: "Endereço de entrega", municipio: "Cidade/UF",
       produto: "Produto", marca: "Marca", modeloArma: "Modelo",
       calibre: "Calibre", quantidade: "Quantidade",

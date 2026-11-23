@@ -42,7 +42,7 @@ const CAMPOS_PESSOAIS: Campo[] = [
 const CAMPOS_AQUISICAO: Campo[] = [
   { key: "nomeCompleto", label: "Nome completo", col: 3 },
   { key: "postoGrad", label: "Cargo (posto/graduação)" },
-  { key: "idPmmaTxt", label: "Identidade (ID PMMA)" },
+  { key: "rg", label: "Identidade (RG)", dica: "Nº do RG — não é o ID" },
   { key: "cpf", label: "CPF" },
   { key: "email", label: "E-mail pessoal" },
   { key: "endereco", label: "Endereço de entrega", col: 2 },
@@ -54,13 +54,12 @@ const CAMPOS_AQUISICAO: Campo[] = [
 
 /* Transferencia de arma (SIGMA/SINARM para SIGMA): o quadro 1 da folha pede
    posto, nome, identidade, CPF, orgao de vinculacao e o endereco "com Tlf e
-   email" numa linha so. O RG PMMA, o estado civil e o CEP nao saem na folha
-   — sao do TERMO DE DOACAO, que o adquirente assina como recebedor. */
+   email" numa linha so. IDENTIDADE e o numero do RG (o mesmo do termo de
+   doacao) — nunca o ID PMMA. Estado civil e CEP sao do TERMO DE DOACAO. */
 const CAMPOS_TRANSF_ADQUIRENTE: Campo[] = [
   { key: "nomeCompleto", label: "Nome completo", col: 3 },
   { key: "postoGrad", label: "Posto/Grad/Função" },
-  { key: "idPmmaTxt", label: "Identidade (ID PMMA)" },
-  { key: "rg", label: "RG PMMA (termo)" },
+  { key: "rg", label: "Identidade (RG)", dica: "Nº do RG — não é o ID" },
   { key: "cpf", label: "CPF" },
   { key: "orgao", label: "Órgão de vinculação" },
   { key: "estadoCivil", label: "Estado civil (termo)" },

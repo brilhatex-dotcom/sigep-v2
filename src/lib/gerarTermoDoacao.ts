@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
-import { lerDadosArma } from "@/lib/requerimentoArma";
+import { lerDadosArma, identidadeAlienante } from "@/lib/requerimentoArma";
 import { registroDeOrigem } from "@/lib/requerimentos";
 import { CIDADE, dataExtensoISO, hojeISO } from "@/lib/gerarParecerArma";
 
@@ -39,6 +39,8 @@ export type DadosTermo = {
   municipio?: string | null;
   // JSON com a arma, o alienante e o RG/CEP do adquirente
   p2Complementares?: string | null;
+  // RG da ficha do efetivo, se o requerimento não guardou o do adquirente
+  rgFicha?: string | null;
   // data do documento (aaaa-mm-dd); vazio = hoje
   data?: string | null;
 };
@@ -105,7 +107,7 @@ export function gerarTermoDoacaoDocx(d: DadosTermo): Buffer {
     doadornaturalidade: ou(g("alienanteNaturalidade"), "_________________________"),
     doadorpai: ou(g("alienantePai"), "_______________________________________"),
     doadormae: ou(g("alienanteMae"), "_______________________________________"),
-    doadorrg: ou(g("alienanteRg"), "_____________"),
+    doadorrg: ou(identidadeAlienante(a), "_____________"),
     doadorassinatura: assinatura(g("alienanteNome"), g("alienantePosto")),
     // arma
     especie: ou(g("produto"), "_______________"),
@@ -117,7 +119,7 @@ export function gerarTermoDoacaoDocx(d: DadosTermo): Buffer {
     registro: ou(g("registro"), "______________________"),
     // recebedor (adquirente = requerente)
     recebedornome: ou(s(d.nomeCompleto), "_______________________________________"),
-    recebedorrg: ou(g("rg"), "___________"),
+    recebedorrg: ou(g("rg") || s(d.rgFicha), "___________"),
     recebedorcpf: ou(s(d.cpf), "________________"),
     recebedorestadocivil: ou(s(d.estadoCivil), "(Solteiro/Casado)"),
     recebedorendereco: ou(endereco, "Av./ Rua_______________________ nº ______"),

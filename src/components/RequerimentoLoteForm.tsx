@@ -48,9 +48,11 @@ export default function RequerimentoLoteForm({
      alienante — cada um compra de quem quiser. O adquirente (RG, CEP,
      endereço...) sai da ficha de cada um no servidor. Na transferência
      para outra unidade, o destino. */
+  /* + o RG do adquirente ("Identidade:" da folha de arma), que vem da ficha
+     e pode ser corrigido por militar. */
   const camposPorMilitar: readonly string[] = ehTransferencia
-    ? [...CAMPOS_ARMA_TRANSFERENCIA, ...CAMPOS_ALIENANTE]
-    : ehMovimentacao ? CAMPOS_MOVIMENTACAO : CAMPOS_PCE.map((c) => c.key);
+    ? [...CAMPOS_ARMA_TRANSFERENCIA, ...CAMPOS_ALIENANTE, "rg"]
+    : ehMovimentacao ? CAMPOS_MOVIMENTACAO : [...CAMPOS_PCE.map((c) => c.key), "rg"];
   const [militares, setMilitares] = useState<Militar[]>([]);
   const [f, setF] = useState<Record<string, string>>(() => ({
     amparoLegal: inicial.amparoLegal || "",
@@ -140,9 +142,10 @@ export default function RequerimentoLoteForm({
         ...(o[m.id] || {}),
       },
     }));
-    /* Transferência: o endereço do adquirente vem da ficha, mas abre no
-       cartão para o P/1 conferir e corrigir (mudou de casa, telefone novo). */
-    if (ehTransferencia) {
+    /* Arma (compra ou transferência): o RG do adquirente ("Identidade:") e,
+       na transferência, o endereço vêm da ficha, mas abrem para o P/1
+       conferir e corrigir (mudou de casa, telefone novo). */
+    if (ehModeloAquisicao(modelo)) {
       fetch(`/api/requerimentos/lote?contato=${encodeURIComponent(m.id)}`)
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
@@ -150,7 +153,8 @@ export default function RequerimentoLoteForm({
           setPorMilitar((o) => {
             const atual = o[m.id] || {};
             const novos: Record<string, string> = {};
-            for (const k of CAMPOS_ADQUIRENTE_CONTATO) if (!(k in atual)) novos[k] = String(d[k] ?? "");
+            const chaves = ehTransferencia ? [...CAMPOS_ADQUIRENTE_CONTATO, "rg"] : ["rg"];
+            for (const k of chaves) if (!(atual[k] ?? "").trim() && d[k]) novos[k] = String(d[k]);
             return { ...o, [m.id]: { ...atual, ...novos } };
           });
         })
@@ -437,9 +441,10 @@ export default function RequerimentoLoteForm({
                           detalhe={<><b className="text-white">{nomeBusca(m)}</b> — Endereço (com telefone e e-mail), da ficha. Mudou? Corrija aqui; vale só para este requerimento.</>}
                         />
                         <GradeCampos
-                          campos={CAMPOS_TRANSF_ADQUIRENTE_CONTATO}
+                          campos={[{ key: "rg", label: "Identidade (RG)", dica: "Nº do RG — não é o ID" }, ...CAMPOS_TRANSF_ADQUIRENTE_CONTATO]}
                           valores={linha}
                           set={(k, v) => setLinha(m.id, k, v)}
+                          obrigatorios={obrigatorios}
                         />
                         <div className="mt-6" />
                         <EtiquetaParte parte="alienante" />
@@ -507,6 +512,7 @@ export default function RequerimentoLoteForm({
                 <thead>
                   <tr className="border-b border-white/10 text-left text-[11px] uppercase tracking-wider text-[#94A3B8]">
                     <th className="px-2 py-2 font-semibold">Militar</th>
+                    <th className="px-2 py-2 font-semibold">Identidade (RG) *</th>
                     {CAMPOS_PCE.map((c) => (
                       <th key={c.key} className="px-2 py-2 font-semibold">{c.label}</th>
                     ))}
@@ -518,6 +524,11 @@ export default function RequerimentoLoteForm({
                     return (
                       <tr key={m.id} className="border-b border-white/5">
                         <td className="px-2 py-2 text-white">{nomeBusca(m)}</td>
+                        <td className="px-2 py-2">
+                          <input type="text" value={linha.rg ?? ""} placeholder="Nº do RG"
+                            onChange={(e) => setLinha(m.id, "rg", e.target.value)}
+                            className="w-full rounded-lg border border-white/10 bg-[#0b1626] px-2 py-1.5 text-sm text-white outline-none focus:border-[#D4AF37]/50" />
+                        </td>
                         {CAMPOS_PCE.map((c) => (
                           <td key={c.key} className="px-2 py-2">
                             <input type="text" value={linha[c.key] ?? ""}

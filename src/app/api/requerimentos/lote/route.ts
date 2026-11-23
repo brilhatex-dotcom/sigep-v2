@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
-  modeloDaModalidade, ehModeloMovimentacao, ehModeloTransferencia, infoMovimentacao,
+  modeloDaModalidade, ehModeloMovimentacao, ehModeloTransferencia, ehModeloAquisicao, infoMovimentacao,
 } from "@/lib/requerimentos";
 import { camposJsonDoModelo, jsonArma, obrigatoriosDoModelo, temCamposJson, semLixo } from "@/lib/requerimentoArma";
 import { dadosPessoais } from "@/lib/requerimentoDados";
@@ -79,6 +79,8 @@ export async function GET(req: Request) {
       adqCep: semLixo(p.cep),
       adqFone: semLixo(p.fone),
       adqEmail: semLixo(p.email),
+      // "Identidade:" das folhas de arma — o número do RG
+      rg: semLixo(p.rg),
     });
   } catch (err) {
     console.error("[GET /api/requerimentos/lote]", err);
@@ -151,7 +153,8 @@ export async function POST(req: Request) {
       for (const k of camposJson) extras[k] = limpo(doMilitar[k] ?? d[k]);
       if (ehModeloTransferencia(modelo)) {
         // do adquirente, mas sem coluna no requerimento: vem da ficha dele
-        extras.rg = limpo(pessoais.rg);
+        // (o RG — a "Identidade" da folha — corrigido no cartão vale primeiro)
+        extras.rg = extras.rg || limpo(pessoais.rg);
         extras.cep = limpo(pessoais.cep);
         extras.orgao = "PMMA";
         /* Endereço/telefone/e-mail corrigidos no cartão do militar valem no
@@ -165,6 +168,11 @@ export async function POST(req: Request) {
         if (adq("adqCep") !== null) extras.cep = limpo(adq("adqCep"));
         // "#N/D" da planilha não vai para o papel
         for (const k of ["fone", "email", "bairro", "municipio", "endereco"]) pessoais[k] = semLixo(pessoais[k]);
+      }
+
+      // compra direta: "Identidade:" é o RG — o digitado na tabela ou o da ficha
+      if (ehModeloAquisicao(modelo) && !ehModeloTransferencia(modelo)) {
+        extras.rg = extras.rg || limpo(pessoais.rg);
       }
 
       if (querEnviar && modelo === "cursos") {

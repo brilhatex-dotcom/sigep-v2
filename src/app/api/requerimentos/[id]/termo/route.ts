@@ -56,6 +56,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       bairro: r.bairro,
       municipio: r.municipio,
       p2Complementares: r.p2Complementares,
+      rgFicha: (await prisma.efetivo.findUnique({ where: { id: r.efetivoId }, select: { rg: true } }).catch(() => null))?.rg ?? null,
     });
 
     try {

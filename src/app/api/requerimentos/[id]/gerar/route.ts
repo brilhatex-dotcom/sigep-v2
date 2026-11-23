@@ -34,7 +34,9 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ error: "Sem permissao" }, { status: 403 });
     }
 
-    const buffer = gerarRequerimentoDocx(dadosReqDe(r));
+    // "Identidade:" das folhas de arma é o RG — o da ficha, se o requerimento não guardou
+    const ficha = await prisma.efetivo.findUnique({ where: { id: r.efetivoId }, select: { rg: true } }).catch(() => null);
+    const buffer = gerarRequerimentoDocx({ ...dadosReqDe(r), rgFicha: ficha?.rg ?? null });
 
     const key = `requerimentos/${r.id}_${Date.now()}.docx`;
     await enviarParaR2(
